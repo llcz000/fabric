@@ -289,21 +289,21 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
               </h2>
             </div>
 
-            {/* 2. Metadata Section: Customer, NO（单号）, Date horizontally above table */}
+            {/* 2. Metadata Section: NO, 收货单位, Date above table */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2 pb-0.5 text-xs text-slate-800 border-b border-slate-400/60" style={{ fontFamily: 'SimSun, serif' }}>
-              <div className="pb-0.5">
-                <span>客户：</span>
-                <span className="text-xs underline underline-offset-4 decoration-2 decoration-slate-400">{document.customerName}</span>
-              </div>
-              <div className="flex flex-col items-start sm:items-end text-[11px] leading-tight space-y-0.5">
+              <div className="space-y-0.5">
                 <div>
-                  <span>NO（单号）：</span>
+                  <span>NO：</span>
                   <span className="text-slate-900">{document.docNo}</span>
                 </div>
                 <div>
-                  <span>日期：</span>
-                  <span>{formatDateChinese(document.date)}</span>
+                  <span>收货单位：</span>
+                  <span>{document.customerName}</span>
                 </div>
+              </div>
+              <div className="text-[11px] leading-tight">
+                <span>日期：</span>
+                <span>{formatDateChinese(document.date)}</span>
               </div>
             </div>
           </div>
@@ -512,27 +512,27 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
           </div>
 
           {/* 5. Bottom Signatures and Contact Block */}
-          <div className="signature-section flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 !mt-1.5 pt-1.5 border-t border-dashed border-slate-400">
+          <div className="signature-section flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 !mt-1.5 pt-1.5 border-t border-dashed border-slate-400" style={{ fontFamily: 'SimSun, serif' }}>
             {/* Left: Signatures inline on one row */}
-            <div className="flex flex-wrap items-center gap-x-12 sm:gap-x-16 gap-y-2 text-xs font-semibold text-slate-800">
+            <div className="flex flex-wrap items-center gap-x-12 sm:gap-x-16 gap-y-2 text-xs text-slate-800">
               <div>
                 <span>开单人签字：</span>
-                <span className="font-bold underline text-xs underline-offset-4 pl-1">
-                  {document.issuer || '                    '}
+                <span className="underline underline-offset-4 pl-1">
+                  {document.issuer || '               '}
                 </span>
               </div>
 
               <div className="flex flex-wrap items-center gap-x-8 sm:gap-x-12">
                 <div>
                   <span>收货人签字：</span>
-                  <span className="font-bold underline text-xs underline-offset-4 pl-1">
-                    {document.receiver || '          '}
+                  <span className="underline underline-offset-4 pl-1">
+                    {document.receiver || '               '}
                   </span>
                 </div>
                 <div>
                   <span>电话：</span>
-                  <span className="font-bold underline text-xs underline-offset-4">
-                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                  <span className="underline underline-offset-4">
+                    {document.bottomPhone || '               '}
                   </span>
                 </div>
               </div>
