@@ -458,13 +458,13 @@ export default function DocumentList({
                 <thead>
                   <tr className="bg-slate-50/80 text-slate-700 text-xs font-bold uppercase tracking-wider border-b border-slate-100">
                     <th className="py-3.5 px-2 text-center w-[30px]"></th>
-                    <th className="py-3.5 px-2 w-[95px]">开单日期</th>
-                    <th className="py-3.5 px-2 w-[140px]">单据编号</th>
-                    <th className="py-3.5 px-1 text-center w-[50px]">类型</th>
-                    <th className="py-3.5 px-2 w-[100px]">客户</th>
-                    <th className="py-3.5 px-2 text-right w-[90px]">总计米数</th>
-                    <th className="py-3.5 px-2 text-right w-[100px]">合计金额</th>
-                    <th className="py-3.5 px-2 text-center w-[130px]">操作</th>
+                    <th className="py-3.5 px-2">开单日期</th>
+                    <th className="py-3.5 px-2">单据编号</th>
+                    <th className="py-3.5 px-1 text-center">类型</th>
+                    <th className="py-3.5 px-2">客户</th>
+                    <th className="py-3.5 px-2 text-right">总计米数</th>
+                    <th className="py-3.5 px-2 text-right">合计金额</th>
+                    <th className="py-3.5 px-2 text-center w-[160px]">操作</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-sm">
