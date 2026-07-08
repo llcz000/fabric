@@ -258,6 +258,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
 
   return (
     <div className="space-y-6">
+      <style>{`.qr-code-img{width:240px!important;height:240px!important}@media(max-width:768px){.qr-code-img{width:180px!important;height:180px!important}}`}</style>
       {/* Generating overlay */}
       {generating && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.6)' }}>
