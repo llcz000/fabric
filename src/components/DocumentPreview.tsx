@@ -380,7 +380,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
               ) : (
                 <>
                   <thead>
-                    <tr className="bg-slate-100 border-b border-slate-900 text-slate-900 font-semibold text-[11px] text-center whitespace-nowrap">
+                    <tr className="bg-slate-100 border-b border-slate-900 text-slate-900 font-semibold text-center whitespace-nowrap">
                       <th className="py-1 px-1 border-r border-slate-900 w-[30px]">#</th>
                       <th className="py-1 px-1 border-r border-slate-900 w-[60px]">货号</th>
                       <th className="py-1 px-1 border-r border-slate-900 w-[50px]">色号</th>
@@ -414,7 +414,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                         
                         if (r === 0) {
                           rows.push(
-                            <tr key={`${item.id}-${r}`} className="border-b border-slate-900 text-[11px] text-center">
+                            <tr key={`${item.id}-${r}`} className="border-b border-slate-900 text-center">
                               <td rowSpan={rowCount} className="py-1.5 px-1 border-r border-slate-900 text-center text-slate-500">
                                 {index + 1}
                               </td>
@@ -453,7 +453,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                           );
                         } else {
                           rows.push(
-                            <tr key={`${item.id}-${r}`} className="border-b border-slate-900 text-[11px] text-center">
+                            <tr key={`${item.id}-${r}`} className="border-b border-slate-900 text-center">
                               {Array.from({ length: 10 }).map((_, colIdx) => {
                                 const rollVal = chunkRolls[colIdx];
                                 return (
@@ -470,7 +470,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                     })}
 
                     {/* Summary Row 1: Total Meters & Total Amount */}
-                    <tr className="border-b border-slate-900 text-slate-900 bg-slate-50/10 text-[11px]">
+                    <tr className="border-b border-slate-900 text-slate-900 bg-slate-50/10">
                       <td colSpan={10} className="py-1.5 px-3 border-r border-slate-900 text-center">
                         总匹数：<span className="font-bold">{document.totalRolls}</span> 匹 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 总计米数：<span className="font-bold">{document.totalMeters.toFixed(2)}</span> 米
                       </td>
@@ -483,7 +483,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                     </tr>
 
                     {/* Summary Row 2: Deposit (Sales only) & Net Receivable Amount */}
-                    <tr className="text-slate-900 bg-slate-50/10 text-[11px]">
+                    <tr className="text-slate-900 bg-slate-50/10">
                       {!isSample && (
                       <td colSpan={10} className="py-1.5 px-3 border-r border-slate-900 text-center">
                         预收订金：<span className="font-bold">¥{(document.deposit || 0).toFixed(2)}</span>
