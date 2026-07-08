@@ -254,7 +254,18 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
 
   return (
     <div className="space-y-6">
-      {/* Action Buttons: Visible only on screen, hidden in print view */}
+      {/* Generating overlay */}
+      {generating && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="bg-white rounded-2xl shadow-2xl px-10 py-8 text-center space-y-4">
+            <div className="animate-spin w-12 h-12 border-4 border-sky-500 border-t-transparent rounded-full mx-auto"></div>
+            <p className="text-lg font-bold text-slate-700">正在生成图片</p>
+            <p className="text-sm text-slate-400">请稍候...</p>
+          </div>
+        </div>
+      )}
+
+      {/* Action Buttons */}
       <div className="no-print bg-white rounded-2xl border border-slate-100 shadow-xs p-4 flex flex-wrap items-center justify-between gap-4">
         <button
           type="button"
@@ -323,16 +334,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       <div className="preview-wrapper bg-white rounded-3xl border border-slate-200 shadow-md max-w-[960px] mx-auto overflow-hidden">
 
         {/* Printable Section */}
-        <div className="relative">
-          {generating && (
-            <div className="absolute inset-0 bg-white/80 z-10 flex items-center justify-center rounded-3xl">
-              <div className="text-center space-y-2">
-                <div className="animate-spin w-8 h-8 border-3 border-sky-500 border-t-transparent rounded-full mx-auto"></div>
-                <p className="text-sm font-semibold text-slate-600">正在生成图片...</p>
-              </div>
-            </div>
-          )}
-          <div ref={printRef} className="print-container p-4 sm:p-6 space-y-2 bg-white text-slate-900 leading-normal select-text">
+        <div ref={printRef} className="print-container p-4 sm:p-6 space-y-2 bg-white text-slate-900 leading-normal select-text">
           
           {/* Header Block, Title & Metadata Grouped tightly to reduce vertical space */}
           <div className="space-y-0.5">
