@@ -41,97 +41,65 @@ export default function DocumentList({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Flat item rows representing individual record rows
-  const allItems = React.useMemo(() => {
-    const rows: {
-      id: string;
-      docId: string;
-      docNo: string;
-      date: string;
-      type: DocType;
-      customerName: string;
-      itemNo: string;
-      colorNo: string;
-      productName: string;
-      composition: string;
-      weight: string;
-      width: string;
-      meters: number;
-      price: number;
-      amount: number;
-      rollNo?: string;
-      remark: string;
-      doc: DocumentData;
-    }[] = [];
+  const [expandedDocs, setExpandedDocs] = useState<Set<string>>(new Set());
 
-    documents.forEach((doc) => {
-      doc.items.forEach((item) => {
-        rows.push({
-          id: item.id,
-          docId: doc.id,
-          docNo: doc.docNo,
-          date: doc.date,
-          type: doc.type,
-          customerName: doc.customerName,
-          itemNo: item.itemNo || '',
-          colorNo: item.colorNo || '',
-          productName: item.productName || '',
-          composition: 'composition' in item ? (item as any).composition || '' : '',
-          weight: 'weight' in item ? (item as any).weight || '' : '',
-          width: item.width || '',
-          meters: item.meters || 0,
-          price: item.price || 0,
-          amount: item.amount || 0,
-          rollNo: 'rollNo' in item ? (item as any).rollNo || '' : '',
-          remark: item.remark || '',
-          doc: doc,
-        });
+  // Filter documents: whether any item matches AND doc-level fields match
+  const filteredDocs = React.useMemo(() => {
+    return documents.filter((doc) => {
+      // Doc-level filters
+      const matchesType = typeFilter === 'all' || doc.type === typeFilter;
+      const matchesStartDate = !startDate || doc.date >= startDate;
+      const matchesEndDate = !endDate || doc.date <= endDate;
+
+      if (!matchesType || !matchesStartDate || !matchesEndDate) return false;
+
+      // If no item-level filters, include all docs matching doc-level filters
+      const hasItemFilters = filterCustomer || filterItemNo || filterColorNo || filterProductName;
+
+      if (!hasItemFilters) return true;
+
+      // Check if any item matches item-level filters
+      return doc.items.some((item) => {
+        const matchesCustomer = !filterCustomer || doc.customerName.toLowerCase().includes(filterCustomer.toLowerCase());
+        const matchesItemNo = !filterItemNo || (item.itemNo || '').toLowerCase().includes(filterItemNo.toLowerCase());
+        const matchesColorNo = !filterColorNo || (item.colorNo || '').toLowerCase().includes(filterColorNo.toLowerCase());
+        const matchesProductName = !filterProductName || (item.productName || '').toLowerCase().includes(filterProductName.toLowerCase());
+        return matchesCustomer && matchesItemNo && matchesColorNo && matchesProductName;
       });
     });
+  }, [documents, filterCustomer, filterItemNo, filterColorNo, filterProductName, typeFilter, startDate, endDate]);
 
-    return rows;
-  }, [documents]);
+  // Expand all matching docs by default when filters change
+  React.useEffect(() => {
+    setExpandedDocs(new Set(filteredDocs.map(d => d.id)));
+  }, [filteredDocs.map(d => d.id).join(',')]); // eslint-disable-line
 
-  // Filter logic on individual item records
-  const filteredItems = React.useMemo(() => {
-    return allItems.filter((item) => {
-      const matchesCustomer = !filterCustomer || item.customerName.toLowerCase().includes(filterCustomer.toLowerCase());
-      const matchesItemNo = !filterItemNo || item.itemNo.toLowerCase().includes(filterItemNo.toLowerCase());
-      const matchesColorNo = !filterColorNo || item.colorNo.toLowerCase().includes(filterColorNo.toLowerCase());
-      const matchesProductName = !filterProductName || item.productName.toLowerCase().includes(filterProductName.toLowerCase());
-      
-      const matchesType = typeFilter === 'all' || item.type === typeFilter;
-      const matchesStartDate = !startDate || item.date >= startDate;
-      const matchesEndDate = !endDate || item.date <= endDate;
-
-      return matchesCustomer && matchesItemNo && matchesColorNo && matchesProductName && matchesType && matchesStartDate && matchesEndDate;
+  const toggleExpand = (docId: string) => {
+    setExpandedDocs(prev => {
+      const next = new Set(prev);
+      if (next.has(docId)) next.delete(docId);
+      else next.add(docId);
+      return next;
     });
-  }, [allItems, filterCustomer, filterItemNo, filterColorNo, filterProductName, typeFilter, startDate, endDate]);
-
-  // Helper to calculate roll count for a single record row
-  const getRollCount = (item: { type: DocType; rollNo?: string; meters: number }) => {
-    if (item.type === DocType.SAMPLE) {
-      return 1;
-    }
-    const rollNoStr = item.rollNo;
-    if (!rollNoStr) return 0;
-    const tokens = rollNoStr.trim().split(/[,，\s]+/).filter(Boolean);
-    let count = 0;
-    for (const t of tokens) {
-      if (!/^\d+(\.\d+)?$/.test(t)) continue;
-      const val = parseFloat(t);
-      if (isNaN(val) || val <= 0) continue;
-      count++;
-    }
-    return count > 0 ? count : 0;
   };
 
-  // Calculate stats on the filtered subset of individual item records
-  const totalMeters = filteredItems.reduce((sum, item) => sum + item.meters, 0);
-  const totalAmount = filteredItems.reduce((sum, item) => sum + item.amount, 0);
-  const totalRollsCount = React.useMemo(() => {
-    return filteredItems.reduce((sum, item) => sum + getRollCount(item), 0);
-  }, [filteredItems]);
+  // Get matching items for a document
+  const getDocMatchingItems = (doc: DocumentData) => {
+    const hasFilters = filterCustomer || filterItemNo || filterColorNo || filterProductName;
+    if (!hasFilters) return doc.items;
+    return doc.items.filter((item) => {
+      const matchesCustomer = !filterCustomer || doc.customerName.toLowerCase().includes(filterCustomer.toLowerCase());
+      const matchesItemNo = !filterItemNo || (item.itemNo || '').toLowerCase().includes(filterItemNo.toLowerCase());
+      const matchesColorNo = !filterColorNo || (item.colorNo || '').toLowerCase().includes(filterColorNo.toLowerCase());
+      const matchesProductName = !filterProductName || (item.productName || '').toLowerCase().includes(filterProductName.toLowerCase());
+      return matchesCustomer && matchesItemNo && matchesColorNo && matchesProductName;
+    });
+  };
+
+  // Stats based on filtered docs
+  const totalMeters = filteredDocs.reduce((sum, doc) => sum + doc.totalMeters, 0);
+  const totalAmount = filteredDocs.reduce((sum, doc) => sum + doc.totalAmount, 0);
+  const totalRollsCount = filteredDocs.reduce((sum, doc) => sum + doc.totalRolls, 0);
 
   // Backup exporter
   const handleExportBackup = () => {
@@ -448,164 +416,129 @@ export default function DocumentList({
           </div>
         ) : (
           <div>
-            {/* Desktop Table View (hidden on mobile, shown on md and larger) */}
+            {/* Desktop Table View */}
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50/80 text-slate-700 text-xs font-bold uppercase tracking-wider border-b border-slate-100">
-                    <th className="py-3.5 px-4">开单日期</th>
-                    <th className="py-3.5 px-4">单据编号</th>
-                    <th className="py-3.5 px-4">客户</th>
-                    <th className="py-3.5 px-3">货号</th>
-                    <th className="py-3.5 px-3">色号</th>
-                    <th className="py-3.5 px-3">品名</th>
-                    <th className="py-3.5 px-3 text-right">米数</th>
-                    <th className="py-3.5 px-3 text-right">单价</th>
+                    <th className="py-3.5 px-2 text-center w-8"></th>
+                    <th className="py-3.5 px-3">开单日期</th>
+                    <th className="py-3.5 px-3">单据编号</th>
+                    <th className="py-3.5 px-2 text-center w-16">类型</th>
+                    <th className="py-3.5 px-3">客户</th>
+                    <th className="py-3.5 px-3 text-right">总计米数</th>
                     <th className="py-3.5 px-3 text-right">合计金额</th>
-                    <th className="py-3.5 px-4">备注</th>
-                    <th className="py-3.5 px-4 text-center w-[150px]">系统操作</th>
+                    <th className="py-3.5 px-4 text-center w-[150px]">操作</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-sm">
-                  {filteredItems.map((item, index) => {
-                    const isSample = item.type === DocType.SAMPLE;
+                  {filteredDocs.map((doc) => {
+                    const isSample = doc.type === DocType.SAMPLE;
+                    const isExpanded = expandedDocs.has(doc.id);
+                    const matchingItems = getDocMatchingItems(doc);
+
                     return (
-                      <tr key={`${item.docId}-${item.id}-${index}`} className="hover:bg-slate-50/40 transition-colors group">
-                        {/* Date */}
-                        <td className="py-3 px-4 text-slate-500 text-xs whitespace-nowrap">
-                          {item.date.substring(0, 10)}
-                        </td>
-
-                        {/* Doc No */}
-                        <td className="py-3 px-4">
-                          <div className="flex flex-col">
-                            <span className="font-bold text-slate-800 text-xs">
-                              {item.docNo}
+                      <React.Fragment key={doc.id}>
+                        {/* Document summary row */}
+                        <tr
+                          className="hover:bg-slate-50/60 transition-colors cursor-pointer group"
+                          onClick={() => toggleExpand(doc.id)}
+                        >
+                          <td className="py-3 px-2 text-center text-slate-400 text-xs">
+                            {isExpanded ? '▼' : '▶'}
+                          </td>
+                          <td className="py-3 px-3 text-slate-500 text-xs whitespace-nowrap">
+                            {doc.date.substring(0, 10)}
+                          </td>
+                          <td className="py-3 px-3">
+                            <div className="flex flex-col">
+                              <span className="font-bold text-slate-800 text-xs">{doc.docNo || '-'}</span>
+                              <span className="text-[9px] text-slate-400 mt-0.5">{matchingItems.length} 条记录</span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-2 text-center">
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                              isSample
+                                ? 'bg-indigo-50 text-indigo-700 border border-indigo-100'
+                                : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                            }`}>
+                              {isSample ? '样布' : '发货'}
                             </span>
-                            <span className="text-[9px] text-slate-400 mt-0.5">
-                              {isSample ? '样布码单' : '发货码单'}
-                            </span>
-                          </div>
-                        </td>
+                          </td>
+                          <td className="py-3 px-3 font-extrabold text-slate-700 max-w-[140px] truncate text-xs">
+                            {doc.customerName}
+                          </td>
+                          <td className="py-3 px-3 text-right text-sky-700 font-extrabold text-xs">
+                            {doc.totalMeters.toFixed(2)} 米
+                          </td>
+                          <td className="py-3 px-3 text-right text-rose-600 font-extrabold text-xs">
+                            ¥{doc.totalAmount.toFixed(2)}
+                          </td>
+                          <td className="py-3 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-center gap-1">
+                              <button type="button" onClick={() => onSelect(doc)}
+                                className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-sky-600 rounded-lg" title="查看">
+                                <Eye className="w-4 h-4" />
+                              </button>
+                              <button type="button" onClick={() => onEdit(doc)}
+                                className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-amber-600 rounded-lg" title="编辑">
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                              <button type="button" onClick={() => onDuplicate(doc)}
+                                className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-teal-600 rounded-lg" title="复制">
+                                <Copy className="w-4 h-4" />
+                              </button>
+                              <button type="button" onClick={() => onDelete(doc.id)}
+                                className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg" title="删除">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
 
-                        {/* Customer */}
-                        <td className="py-3 px-4 font-extrabold text-slate-700 max-w-[140px] truncate">
-                          {item.customerName}
-                        </td>
-
-                        {/* Item No (货号) */}
-                        <td className="py-3 px-3 font-semibold text-slate-900">
-                          {item.itemNo || '-'}
-                        </td>
-
-                        {/* Color No (色号) */}
-                        <td className="py-3 px-3">
-                          {item.colorNo ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold bg-slate-100 text-slate-800 border border-slate-200 ">
-                              {item.colorNo}
-                            </span>
-                          ) : '-'}
-                        </td>
-
-                        {/* Product Name (品名) */}
-                        <td className="py-3 px-3 font-medium text-slate-600 max-w-[120px] truncate">
-                          {item.productName || '-'}
-                        </td>
-
-                        {/* Meters (米数) */}
-                        <td className="py-3 px-3 text-right text-sky-700 font-extrabold text-xs">
-                          {item.meters.toFixed(2)} 米
-                        </td>
-
-                        {/* Price (单价) */}
-                        <td className="py-3 px-3 text-right text-slate-500 font-medium text-xs">
-                          ¥{item.price.toFixed(2)}
-                        </td>
-
-                        {/* Amount (金额) */}
-                        <td className="py-3 px-3 text-right text-rose-600 font-extrabold text-xs">
-                          ¥{item.amount.toFixed(2)}
-                        </td>
-
-                        {/* Remark (备注) */}
-                        <td className="py-3 px-4 text-slate-500 text-xs max-w-[150px] truncate">
-                          <span>{item.remark || '-'}</span>
-                        </td>
-
-                        {/* Actions toolbox */}
-                        <td className="py-3 px-4 text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            
-                            {/* Preview / View */}
-                            <button
-                              type="button"
-                              id={`btn-list-view-${item.id}`}
-                              onClick={() => onSelect(item.doc)}
-                              className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-sky-600 rounded-lg cursor-pointer transition-colors"
-                              title="查看排版预览及打印"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </button>
-
-                            {/* Edit */}
-                            <button
-                              type="button"
-                              id={`btn-list-edit-${item.id}`}
-                              onClick={() => onEdit(item.doc)}
-                              className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-amber-600 rounded-lg cursor-pointer transition-colors"
-                              title="编辑此单"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-
-                            {/* Duplicate */}
-                            <button
-                              type="button"
-                              id={`btn-list-duplicate-${item.id}`}
-                              onClick={() => onDuplicate(item.doc)}
-                              className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-teal-600 rounded-lg cursor-pointer transition-colors"
-                              title="复制并以此创建新单 (快捷模板)"
-                            >
-                              <Copy className="w-4 h-4" />
-                            </button>
-
-                            {/* Delete */}
-                            <button
-                              type="button"
-                              id={`btn-list-delete-${item.id}`}
-                              onClick={() => onDelete(item.docId)}
-                              className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg cursor-pointer transition-colors"
-                              title="删除整个单据"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
+                        {/* Expanded item rows */}
+                        {isExpanded && matchingItems.map((item, idx) => (
+                          <tr key={item.id} className="bg-blue-50/20 border-b border-blue-50 text-xs">
+                            <td className="py-2 px-2 text-center text-slate-300">{idx + 1}</td>
+                            <td className="py-2 px-3 text-slate-400"></td>
+                            <td className="py-2 px-3">
+                              <span className="font-semibold text-slate-700">{item.itemNo || '-'}</span>
+                              {item.colorNo && <span className="text-slate-400 ml-2">[{item.colorNo}]</span>}
+                            </td>
+                            <td className="py-2 px-2"></td>
+                            <td className="py-2 px-3 text-slate-500 font-medium max-w-[180px] truncate">{item.productName || '-'}</td>
+                            <td className="py-2 px-3 text-right text-sky-600 font-bold">{item.meters.toFixed(2)} 米</td>
+                            <td className="py-2 px-3 text-right text-rose-500 font-bold">¥{item.amount.toFixed(2)}</td>
+                            <td className="py-2 px-4"></td>
+                          </tr>
+                        ))}
+                      </React.Fragment>
                     );
                   })}
                 </tbody>
               </table>
             </div>
 
-            {/* Mobile Cards View (shown on screens smaller than md) */}
+            {/* Mobile Cards View */}
             <div className="block md:hidden divide-y divide-slate-100">
-              {filteredItems.map((item, index) => {
-                const isSample = item.type === DocType.SAMPLE;
+              {filteredDocs.map((doc) => {
+                const isSample = doc.type === DocType.SAMPLE;
+                const isExpanded = expandedDocs.has(doc.id);
+                const matchingItems = getDocMatchingItems(doc);
+
                 return (
-                  <div key={`${item.docId}-${item.id}-${index}`} className="p-5 space-y-3 hover:bg-slate-50/40 transition-colors">
-                    {/* Card Header: DocNo and Type Badge */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex flex-col">
-                        <span className="font-bold text-slate-800 text-sm">
-                          {item.docNo}
-                        </span>
-                        <span className="text-[10px] text-slate-400 mt-0.5">
-                          日期: {item.date.substring(0, 10)}
-                        </span>
+                  <div key={doc.id} className="p-4 space-y-3">
+                    {/* Card Header */}
+                    <div className="flex items-center justify-between cursor-pointer" onClick={() => toggleExpand(doc.id)}>
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-400 text-xs">{isExpanded ? '▼' : '▶'}</span>
+                        <div className="flex flex-col">
+                          <span className="font-bold text-slate-800 text-sm">{doc.docNo || '-'}</span>
+                          <span className="text-[10px] text-slate-400">日期: {doc.date.substring(0, 10)}</span>
+                        </div>
                       </div>
                       <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${
-                        isSample 
+                        isSample
                           ? 'bg-indigo-50 text-indigo-700 border border-indigo-100'
                           : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
                       }`}>
@@ -614,86 +547,58 @@ export default function DocumentList({
                       </span>
                     </div>
 
-                    {/* Customer Unit */}
-                    <div>
-                      <span className="text-[10px] text-slate-400 font-medium block">客户</span>
-                      <span className="text-sm font-extrabold text-slate-700">{item.customerName}</span>
-                    </div>
-
-                    {/* Product Details Row */}
-                    <div className="grid grid-cols-3 gap-2 bg-slate-50/70 p-2.5 rounded-xl border border-slate-100 text-center">
+                    {/* Summary */}
+                    <div className="grid grid-cols-2 gap-2 text-xs">
                       <div>
-                        <div className="text-[10px] text-slate-400 font-medium">货号</div>
-                        <div className="text-xs font-bold text-slate-900 mt-0.5">{item.itemNo || '-'}</div>
+                        <span className="text-slate-400">客户</span>
+                        <div className="font-extrabold text-slate-700">{doc.customerName}</div>
                       </div>
                       <div>
-                        <div className="text-[10px] text-slate-400 font-medium">色号</div>
-                        <div className="text-xs font-bold text-indigo-600 mt-0.5">{item.colorNo || '-'}</div>
+                        <span className="text-slate-400">记录数</span>
+                        <div className="font-bold text-slate-700">{matchingItems.length} 条</div>
                       </div>
                       <div>
-                        <div className="text-[10px] text-slate-400 font-medium">品名</div>
-                        <div className="text-xs font-medium text-slate-700 truncate mt-0.5">{item.productName || '-'}</div>
-                      </div>
-                    </div>
-
-                    {/* Metrics/Math Row */}
-                    <div className="grid grid-cols-3 gap-2 text-center pt-1">
-                      <div>
-                        <span className="text-[9px] text-slate-400 block">实发米数</span>
-                        <span className="text-xs font-extrabold text-sky-700">{item.meters.toFixed(2)} m</span>
+                        <span className="text-slate-400">总计米数</span>
+                        <div className="font-extrabold text-sky-700">{doc.totalMeters.toFixed(2)} 米</div>
                       </div>
                       <div>
-                        <span className="text-[9px] text-slate-400 block">发货单价</span>
-                        <span className="text-xs font-medium text-slate-500">¥{item.price.toFixed(2)}</span>
-                      </div>
-                      <div>
-                        <span className="text-[9px] text-slate-400 block">结算金额</span>
-                        <span className="text-xs font-extrabold text-rose-600">¥{item.amount.toFixed(2)}</span>
+                        <span className="text-slate-400">合计金额</span>
+                        <div className="font-extrabold text-rose-600">¥{doc.totalAmount.toFixed(2)}</div>
                       </div>
                     </div>
 
-                    {item.rollNo || item.remark ? (
-                      <div className="text-xs bg-slate-50/40 p-2 rounded-lg border border-slate-100 text-slate-500">
-                        {item.rollNo && <span className="text-teal-600 font-bold mr-1">[匹号: {item.rollNo}]</span>}
-                        {item.remark}
+                    {/* Expanded Items */}
+                    {isExpanded && matchingItems.map((item, idx) => (
+                      <div key={item.id} className="bg-slate-50/70 p-2.5 rounded-xl border border-slate-100 text-xs space-y-1.5">
+                        <div className="flex justify-between">
+                          <span className="font-bold text-slate-700">#{idx + 1} {item.itemNo || '-'}</span>
+                          {item.colorNo && <span className="text-slate-400">色号: {item.colorNo}</span>}
+                        </div>
+                        {item.productName && <div className="text-slate-500">{item.productName}</div>}
+                        <div className="flex justify-between font-bold">
+                          <span className="text-sky-600">{item.meters.toFixed(2)} 米</span>
+                          <span>¥{item.price.toFixed(2)}</span>
+                          <span className="text-rose-600">¥{item.amount.toFixed(2)}</span>
+                        </div>
                       </div>
-                    ) : null}
+                    ))}
 
-                    {/* Card Footer Actions Row - Touch optimized size */}
+                    {/* Actions */}
                     <div className="flex items-center justify-between pt-2 border-t border-slate-100/60">
-                      <button
-                        type="button"
-                        onClick={() => onSelect(item.doc)}
-                        className="flex-1 py-2 text-xs font-semibold text-sky-600 hover:bg-sky-50 rounded-xl flex items-center justify-center gap-1 transition-colors"
-                      >
-                        <Eye className="w-4 h-4" />
-                        查看单据
+                      <button type="button" onClick={() => onSelect(doc)}
+                        className="flex-1 py-2 text-xs font-semibold text-sky-600 hover:bg-sky-50 rounded-xl flex items-center justify-center gap-1">
+                        <Eye className="w-4 h-4" />查看
                       </button>
-
-                      <button
-                        type="button"
-                        onClick={() => onEdit(item.doc)}
-                        className="flex-1 py-2 text-xs font-semibold text-amber-600 hover:bg-amber-50/50 rounded-xl flex items-center justify-center gap-1 transition-colors"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                        修改单据
+                      <button type="button" onClick={() => onEdit(doc)}
+                        className="flex-1 py-2 text-xs font-semibold text-amber-600 hover:bg-amber-50 rounded-xl flex items-center justify-center gap-1">
+                        <Edit2 className="w-4 h-4" />修改
                       </button>
-
-                      <button
-                        type="button"
-                        onClick={() => onDuplicate(item.doc)}
-                        className="flex-1 py-2 text-xs font-semibold text-teal-600 hover:bg-teal-50/50 rounded-xl flex items-center justify-center gap-1 transition-colors"
-                      >
-                        <Copy className="w-4 h-4" />
-                        复制模板
+                      <button type="button" onClick={() => onDuplicate(doc)}
+                        className="flex-1 py-2 text-xs font-semibold text-teal-600 hover:bg-teal-50 rounded-xl flex items-center justify-center gap-1">
+                        <Copy className="w-4 h-4" />复制
                       </button>
-
-                      <button
-                        type="button"
-                        onClick={() => onDelete(item.docId)}
-                        className="px-3 py-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl flex items-center justify-center transition-colors"
-                        title="删除整个单据"
-                      >
+                      <button type="button" onClick={() => onDelete(doc.id)}
+                        className="px-3 py-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
