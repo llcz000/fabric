@@ -10,3 +10,4 @@ coverage/
 database_fallback.json
 backup_converted.json
 面料单据数据库备份*.json
+*.png
