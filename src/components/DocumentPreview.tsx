@@ -310,7 +310,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
 
           {/* 3. Central Packing Grid Table */}
           <div className="overflow-hidden border border-slate-900 rounded-xs !mt-1">
-            <table className="w-full border-collapse text-left text-[11px] text-slate-800 table-fixed" style={{ fontFamily: 'SimSun, serif' }}>
+            <table className="w-full border-collapse text-left text-[12px] text-slate-800 table-fixed" style={{ fontFamily: 'SimSun, serif' }}>
               {isSample ? (
                 <>
                   <thead>
@@ -338,10 +338,10 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                           <td className="py-1.5 px-2 border-r border-slate-900 text-center break-words">{item.colorNo || '-'}</td>
                           <td className="py-1.5 px-2 border-r border-slate-900 text-center break-words">{item.productName}</td>
                           <td className="py-1.5 px-2 border-r border-slate-900 text-center break-words">{sample.composition || '-'}</td>
-                          <td className="py-1.5 px-2 border-r border-slate-900 text-center text-slate-600 break-words">
+                          <td className="py-1.5 px-2 border-r border-slate-900 text-center font-bold text-slate-600 break-words">
                             {sample.weight ? (/^\d+$/.test(sample.weight.trim()) ? `${sample.weight}g/㎡` : sample.weight) : '-'}
                           </td>
-                          <td className="py-1.5 px-2 border-r border-slate-900 text-center break-words">{item.width || '-'}</td>
+                          <td className="py-1.5 px-2 border-r border-slate-900 text-center font-bold break-words">{item.width || '-'}</td>
                           <td className="py-1.5 px-2 border-r border-slate-900 text-center font-bold">{item.meters.toFixed(2)}</td>
                           <td className="py-1.5 px-2 border-r border-slate-900 text-center font-bold">¥{item.price.toFixed(2)}</td>
                           <td className="py-1.5 px-2 border-r border-slate-900 text-center font-bold text-blue-600">¥{item.amount.toFixed(2)}</td>
@@ -380,7 +380,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
               ) : (
                 <>
                   <thead>
-                    <tr className="bg-slate-100 border-b border-slate-900 text-slate-900 font-semibold text-[10px] text-center whitespace-nowrap">
+                    <tr className="bg-slate-100 border-b border-slate-900 text-slate-900 font-semibold text-[11px] text-center whitespace-nowrap">
                       <th className="py-1 px-1 border-r border-slate-900 w-[30px]">#</th>
                       <th className="py-1 px-1 border-r border-slate-900 w-[60px]">货号</th>
                       <th className="py-1 px-1 border-r border-slate-900 w-[50px]">色号</th>
@@ -414,7 +414,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                         
                         if (r === 0) {
                           rows.push(
-                            <tr key={`${item.id}-${r}`} className="border-b border-slate-900 text-[10px] text-center">
+                            <tr key={`${item.id}-${r}`} className="border-b border-slate-900 text-[11px] text-center">
                               <td rowSpan={rowCount} className="py-1.5 px-1 border-r border-slate-900 text-center text-slate-500">
                                 {index + 1}
                               </td>
@@ -453,7 +453,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                           );
                         } else {
                           rows.push(
-                            <tr key={`${item.id}-${r}`} className="border-b border-slate-900 text-[10px] text-center">
+                            <tr key={`${item.id}-${r}`} className="border-b border-slate-900 text-[11px] text-center">
                               {Array.from({ length: 10 }).map((_, colIdx) => {
                                 const rollVal = chunkRolls[colIdx];
                                 return (
