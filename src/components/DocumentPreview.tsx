@@ -334,29 +334,29 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                       return (
                         <tr key={item.id} className="border-b border-slate-900">
                           <td className="py-1.5 px-2 border-r border-slate-900 text-center text-slate-500">{index + 1}</td>
-                          <td className="py-1.5 px-2 border-r border-slate-900 uppercase break-words">{item.itemNo}</td>
-                          <td className="py-1.5 px-2 border-r border-slate-900 break-words">{item.colorNo || '-'}</td>
-                          <td className="py-1.5 px-2 border-r border-slate-900 break-words">{item.productName}</td>
-                          <td className="py-1.5 px-2 border-r border-slate-900 break-words">{sample.composition || '-'}</td>
-                          <td className="py-1.5 px-2 border-r border-slate-900 text-slate-600 break-words">
+                          <td className="py-1.5 px-2 border-r border-slate-900 text-center uppercase break-words">{item.itemNo}</td>
+                          <td className="py-1.5 px-2 border-r border-slate-900 text-center break-words">{item.colorNo || '-'}</td>
+                          <td className="py-1.5 px-2 border-r border-slate-900 text-center break-words">{item.productName}</td>
+                          <td className="py-1.5 px-2 border-r border-slate-900 text-center break-words">{sample.composition || '-'}</td>
+                          <td className="py-1.5 px-2 border-r border-slate-900 text-center text-slate-600 break-words">
                             {sample.weight ? (/^\d+$/.test(sample.weight.trim()) ? `${sample.weight}g/㎡` : sample.weight) : '-'}
                           </td>
                           <td className="py-1.5 px-2 border-r border-slate-900 text-center break-words">{item.width || '-'}</td>
-                          <td className="py-1.5 px-2 border-r border-slate-900 text-right">{item.meters.toFixed(2)}</td>
-                          <td className="py-1.5 px-2 border-r border-slate-900 text-right">¥{item.price.toFixed(2)}</td>
-                          <td className="py-1.5 px-2 border-r border-slate-900 text-right text-blue-600">¥{item.amount.toFixed(2)}</td>
-                          <td className="py-1.5 px-2 text-left break-words">{item.remark || ''}</td>
+                          <td className="py-1.5 px-2 border-r border-slate-900 text-center font-bold">{item.meters.toFixed(2)}</td>
+                          <td className="py-1.5 px-2 border-r border-slate-900 text-center font-bold">¥{item.price.toFixed(2)}</td>
+                          <td className="py-1.5 px-2 border-r border-slate-900 text-center font-bold text-blue-600">¥{item.amount.toFixed(2)}</td>
+                          <td className="py-1.5 px-2 text-center break-words">{item.remark || ''}</td>
                         </tr>
                       );
                     })}
 
                     {/* Summary Row 1: Total Meters & Total Amount */}
                     <tr className="border-b border-slate-900 text-slate-900 bg-slate-50/10">
-                      <td colSpan={5} className="py-1.5 px-3 border-r border-slate-900 text-left">
-                        总计数（米）：{document.totalMeters.toFixed(2)}
+                      <td colSpan={5} className="py-1.5 px-3 border-r border-slate-900 text-center">
+                        总计数（米）：<span className="font-bold">{document.totalMeters.toFixed(2)}</span>
                       </td>
-                      <td colSpan={6} className="py-1.5 px-3 text-left">
-                        合计金额：<span className="text-blue-600">¥{document.totalAmount.toFixed(2)}</span>
+                      <td colSpan={6} className="py-1.5 px-3 text-center">
+                        合计金额：<span className="text-blue-600 font-bold">¥{document.totalAmount.toFixed(2)}</span>
                         <span className="text-slate-900 text-[10px] ml-2">
                           （大写：{numberToChineseCapital(document.totalAmount)}）
                         </span>
@@ -365,11 +365,11 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
 
                     {/* Summary Row 2: Total Rolls & Receivable Amount */}
                     <tr className="text-slate-900 bg-slate-50/10">
-                      <td colSpan={5} className="py-1.5 px-3 border-r border-slate-900 text-left">
-                        实发总匹数：{document.totalRolls} 匹
+                      <td colSpan={5} className="py-1.5 px-3 border-r border-slate-900 text-center">
+                        实发总匹数：<span className="font-bold">{document.totalRolls}</span> 匹
                       </td>
-                      <td colSpan={6} className="py-1.5 px-3 text-left">
-                        应收金额：<span className="text-blue-600">¥{document.totalAmount.toFixed(2)}</span>
+                      <td colSpan={6} className="py-1.5 px-3 text-center">
+                        应收金额：<span className="text-blue-600 font-bold">¥{document.totalAmount.toFixed(2)}</span>
                         <span className="text-slate-900 text-[10px] ml-2">
                           （大写：{numberToChineseCapital(document.totalAmount)}）
                         </span>
@@ -418,35 +418,35 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                               <td rowSpan={rowCount} className="py-1.5 px-1 border-r border-slate-900 text-center text-slate-500">
                                 {index + 1}
                               </td>
-                              <td rowSpan={rowCount} className="py-1.5 px-1 border-r border-slate-900 uppercase break-all">
+                              <td rowSpan={rowCount} className="py-1.5 px-1 border-r border-slate-900 text-center uppercase break-all">
                                 {item.itemNo}
                               </td>
-                              <td rowSpan={rowCount} className="py-1.5 px-1 border-r border-slate-900 break-all">
+                              <td rowSpan={rowCount} className="py-1.5 px-1 border-r border-slate-900 text-center break-all">
                                 {item.colorNo || '-'}
                               </td>
-                              <td rowSpan={rowCount} className="py-1.5 px-1 border-r border-slate-900 break-all">
+                              <td rowSpan={rowCount} className="py-1.5 px-1 border-r border-slate-900 text-center break-all">
                                 {item.productName}
                               </td>
 
                               {Array.from({ length: 10 }).map((_, colIdx) => {
                                 const rollVal = chunkRolls[colIdx];
                                 return (
-                                  <td key={colIdx} className="py-1.5 px-1 border-r border-slate-900 text-center">
+                                  <td key={colIdx} className="py-1.5 px-1 border-r border-slate-900 text-center font-bold">
                                     {rollVal !== undefined ? rollVal.toFixed(1) : ''}
                                   </td>
                                 );
                               })}
 
-                              <td rowSpan={rowCount} className="py-1.5 px-1 border-r border-slate-900">
+                              <td rowSpan={rowCount} className="py-1.5 px-1 border-r border-slate-900 text-center font-bold">
                                 {rolls.length}
                               </td>
-                              <td rowSpan={rowCount} className="py-1.5 px-1 border-r border-slate-900 text-right">
+                              <td rowSpan={rowCount} className="py-1.5 px-1 border-r border-slate-900 text-center font-bold">
                                 {item.meters.toFixed(2)}
                               </td>
-                              <td rowSpan={rowCount} className="py-1.5 px-1 border-r border-slate-900 text-right">
+                              <td rowSpan={rowCount} className="py-1.5 px-1 border-r border-slate-900 text-center font-bold">
                                 ¥{item.price.toFixed(2)}
                               </td>
-                              <td rowSpan={rowCount} className="py-1.5 px-1 text-right text-blue-600">
+                              <td rowSpan={rowCount} className="py-1.5 px-1 text-center font-bold text-blue-600">
                                 ¥{item.amount.toFixed(2)}
                               </td>
                             </tr>
@@ -457,7 +457,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                               {Array.from({ length: 10 }).map((_, colIdx) => {
                                 const rollVal = chunkRolls[colIdx];
                                 return (
-                                  <td key={colIdx} className="py-1.5 px-1 border-r border-slate-900 text-center">
+                                  <td key={colIdx} className="py-1.5 px-1 border-r border-slate-900 text-center font-bold">
                                     {rollVal !== undefined ? rollVal.toFixed(1) : ''}
                                   </td>
                                 );
@@ -471,11 +471,11 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
 
                     {/* Summary Row 1: Total Meters & Total Amount */}
                     <tr className="border-b border-slate-900 text-slate-900 bg-slate-50/10 text-[11px]">
-                      <td colSpan={10} className="py-1.5 px-3 border-r border-slate-900 text-left">
-                        总匹数：{document.totalRolls} 匹 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 总计米数：{document.totalMeters.toFixed(2)} 米
+                      <td colSpan={10} className="py-1.5 px-3 border-r border-slate-900 text-center">
+                        总匹数：<span className="font-bold">{document.totalRolls}</span> 匹 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 总计米数：<span className="font-bold">{document.totalMeters.toFixed(2)}</span> 米
                       </td>
-                      <td colSpan={8} className="py-1.5 px-3 text-left">
-                        合计金额：<span className="text-blue-600">¥{document.totalAmount.toFixed(2)}</span>
+                      <td colSpan={8} className="py-1.5 px-3 text-center">
+                        合计金额：<span className="text-blue-600 font-bold">¥{document.totalAmount.toFixed(2)}</span>
                         <span className="text-slate-900 text-[10px] block sm:inline sm:ml-2">
                           （大写：{numberToChineseCapital(document.totalAmount)}）
                         </span>
@@ -485,15 +485,15 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                     {/* Summary Row 2: Deposit (Sales only) & Net Receivable Amount */}
                     <tr className="text-slate-900 bg-slate-50/10 text-[11px]">
                       {!isSample && (
-                      <td colSpan={10} className="py-1.5 px-3 border-r border-slate-900 text-left">
-                        预收订金：<span className="text-slate-900">¥{(document.deposit || 0).toFixed(2)}</span>
+                      <td colSpan={10} className="py-1.5 px-3 border-r border-slate-900 text-center">
+                        预收订金：<span className="font-bold">¥{(document.deposit || 0).toFixed(2)}</span>
                         <span className="text-slate-900 text-[10px] block sm:inline sm:ml-2">
                           （大写：{numberToChineseCapital(document.deposit || 0)}）
                         </span>
                       </td>
                       )}
-                      <td colSpan={isSample ? 18 : 8} className="py-1.5 px-3 text-left">
-                        应付款：<span className="text-blue-600">¥{document.receivableAmount.toFixed(2)}</span>
+                      <td colSpan={isSample ? 18 : 8} className="py-1.5 px-3 text-center">
+                        应付款：<span className="text-blue-600 font-bold">¥{document.receivableAmount.toFixed(2)}</span>
                         <span className="text-slate-900 text-[10px] block sm:inline sm:ml-2">
                           （大写：{numberToChineseCapital(document.receivableAmount)}）
                         </span>
