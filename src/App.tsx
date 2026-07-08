@@ -193,7 +193,7 @@ function mapBackendOrderToDoc(order: any): DocumentData {
     terms: order.terms || (isSample ? `1. 质量异议提出期限：买方在收到货物之日起3日内核对数量与质量。如对品质有任何异议，请在剪样、开裁或深加工前提出，否则视为合格，深加工后恕不退换。\n2. 结算方式：本单据为结算及法律权利主张之重要凭证，请买方妥善留存并按约定账期付清货款。` : ''),
     issuer: order.sign_person || '',
     receiver: order.receiver || '',
-    bottomPhone: order.company_phone || '0575-81234567',
+    bottomPhone: order.receiver_phone || '',
     items: mappedItems,
     totalMeters: parseFloat(order.total_meters || 0),
     totalRolls: parseInt(order.total_pieces || 0),
@@ -237,7 +237,7 @@ function mapDocToBackendPayload(doc: DocumentData): any {
     receiving_unit: doc.customerName,
     sign_person: doc.issuer,
     receiver: doc.receiver,
-    receiver_phone: '',
+    receiver_phone: doc.bottomPhone || '',
     template_type: isSample ? 'sample' : 'bulk',
     deposit: doc.deposit || 0,
     items: itemsPayload
