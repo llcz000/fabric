@@ -258,11 +258,11 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                 {/* Left: Company Name, Address and Phone */}
                 <div className="space-y-1 flex-1">
                   <h1 className="text-lg sm:text-xl font-extrabold tracking-wide text-slate-900">
-                    {document.companyName}
+                    {companyProfile.name}
                   </h1>
                   <div className="text-[11px] text-slate-500 space-y-0.5 font-medium">
-                    <p>地址：{document.companyAddress}</p>
-                    <p>电话：{document.companyPhone}</p>
+                    <p>地址：{companyProfile.address}</p>
+                    <p>电话：{companyProfile.phone}</p>
                   </div>
                 </div>
 
