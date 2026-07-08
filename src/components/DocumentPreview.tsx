@@ -639,7 +639,6 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
           </div>
 
         </div>
-        </div>
       </div>
     </div>
   );
