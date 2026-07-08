@@ -638,7 +638,7 @@ export default function DocumentEditor({
                       </>
                     ) : (
                       <td className="py-2.5 px-1">
-                        <div className="flex flex-wrap items-center gap-1 max-w-[270px]">
+                        <div className="grid grid-cols-5 gap-1 max-w-[280px]">
                           {(() => {
                             const count = getInputsCountForItem(item.id, sales.rollNo);
                             const tokens = sales.rollNo ? sales.rollNo.trim().split(/[,，\s]+/) : [];
@@ -660,7 +660,7 @@ export default function DocumentEditor({
                                         }
                                         newTokens[rIdx] = rawVal.trim();
                                         const rollNoStr = newTokens.join(' ');
-                                        
+
                                         // Recalculate meters
                                         let totalM = 0;
                                         for (const t of newTokens) {
@@ -670,7 +670,7 @@ export default function DocumentEditor({
                                             totalM += v;
                                           }
                                         }
-                                        
+
                                         const updatedItems = [...items];
                                         const currentItem = { ...updatedItems[index] } as any;
                                         currentItem.rollNo = rollNoStr;
@@ -680,7 +680,7 @@ export default function DocumentEditor({
                                         setItems(updatedItems);
                                       }
                                     }}
-                                    className="w-11 h-7 border border-slate-200 rounded text-center text-[11px] font-mono focus:outline-none focus:ring-1 focus:ring-sky-500 font-semibold text-slate-800"
+                                    className="w-full h-7 border border-slate-200 rounded text-center text-[11px] font-mono focus:outline-none focus:ring-1 focus:ring-sky-500 font-semibold text-slate-800"
                                   />
                                 ))}
                                 <button
@@ -860,7 +860,7 @@ export default function DocumentEditor({
                   ) : (
                     <div className="col-span-2 space-y-1 bg-slate-100/50 p-2.5 rounded-xl border border-slate-200">
                       <label className="text-[10px] font-bold text-slate-500 block">各匹米数 (数值自动累加到下方米数)</label>
-                      <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                      <div className="grid grid-cols-5 gap-1 mt-1">
                         {(() => {
                           const count = getInputsCountForItem(item.id, sales.rollNo);
                           const tokens = sales.rollNo ? sales.rollNo.trim().split(/[,，\s]+/) : [];
@@ -882,7 +882,7 @@ export default function DocumentEditor({
                                       }
                                       newTokens[rIdx] = rawVal.trim();
                                       const rollNoStr = newTokens.join(' ');
-                                      
+
                                       // Recalculate meters
                                       let totalM = 0;
                                       for (const t of newTokens) {
@@ -892,7 +892,7 @@ export default function DocumentEditor({
                                           totalM += v;
                                         }
                                       }
-                                      
+
                                       const updatedItems = [...items];
                                       const currentItem = { ...updatedItems[index] } as any;
                                       currentItem.rollNo = rollNoStr;
@@ -902,7 +902,7 @@ export default function DocumentEditor({
                                       setItems(updatedItems);
                                     }
                                   }}
-                                  className="w-11 h-7 border border-slate-200 rounded text-center text-[11px] font-mono focus:outline-none focus:ring-1 focus:ring-sky-500 font-semibold text-slate-800 bg-white"
+                                  className="w-full h-7 border border-slate-200 rounded text-center text-[11px] font-mono focus:outline-none focus:ring-1 focus:ring-sky-500 font-semibold text-slate-800 bg-white"
                                 />
                               ))}
                               <button
