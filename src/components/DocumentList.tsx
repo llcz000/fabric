@@ -160,85 +160,21 @@ export default function DocumentList({
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
-        let parsed = JSON.parse(event.target?.result as string);
-
-        // Handle database_fallback.json format: {orders: [...], order_items: [...]}
-        if (!Array.isArray(parsed) && parsed.orders && Array.isArray(parsed.orders)) {
-          const orders = parsed.orders;
-          const allItems = parsed.order_items || [];
-          const itemsByOrder: Record<number, any[]> = {};
-          allItems.forEach((it: any) => {
-            if (!itemsByOrder[it.order_id]) itemsByOrder[it.order_id] = [];
-            itemsByOrder[it.order_id].push(it);
-          });
-
-          parsed = orders.map((order: any) => {
-            const orderItems = (itemsByOrder[order.id] || []).map((it: any) => {
-              let rollNoStr = '';
-              if (it.piece_meters) {
-                try {
-                  const pm = typeof it.piece_meters === 'string' ? JSON.parse(it.piece_meters) : it.piece_meters;
-                  if (Array.isArray(pm)) rollNoStr = pm.join(' ');
-                } catch (_) {}
-              }
-              return {
-                id: String(it.id),
-                itemNo: it.product_no || '',
-                colorNo: it.color_no || '',
-                productName: it.product_name || '',
-                composition: it.composition || '',
-                weight: String(it.weight || ''),
-                width: String(it.width || ''),
-                meters: parseFloat(it.meters || 0),
-                price: parseFloat(it.unit_price || 0),
-                amount: parseFloat(it.amount || 0),
-                remark: it.remark || '',
-                rollNo: rollNoStr,
-              };
-            });
-
-            const isSample = (order.template_type || 'sample') === 'sample';
-            const totalAmount = parseFloat(order.total_amount || 0);
-            const deposit = parseFloat(order.deposit || 0);
-
-            return {
-              id: String(order.id),
-              docNo: order.order_no || '',
-              type: isSample ? 'sample' : 'sales',
-              date: order.order_date || '',
-              customerName: order.receiving_unit || '',
-              items: orderItems,
-              companyName: '',
-              companyAddress: '',
-              companyPhone: '',
-              terms: '',
-              issuer: order.sign_person || '',
-              receiver: order.receiver || '',
-              bottomPhone: order.receiver_phone || '',
-              totalMeters: parseFloat(order.total_meters || 0),
-              totalRolls: parseInt(order.total_pieces || 0),
-              totalAmount,
-              receivableAmount: parseFloat((totalAmount - deposit).toFixed(2)),
-              deposit,
-              createdAt: order.created_at || new Date().toISOString(),
-              updatedAt: order.updated_at || new Date().toISOString(),
-            };
-          });
-        }
+        const parsed = JSON.parse(event.target?.result as string);
 
         if (Array.isArray(parsed)) {
           const looksValid = parsed.every(d => d.id && 'docNo' in d && d.items && Array.isArray(d.items));
           if (looksValid) {
             onImportBackup(parsed);
-            alert(`成功导入数据库！共导入了 ${parsed.length} 张单据。`);
+            alert(`成功导入！共 ${parsed.length} 张单据。`);
           } else {
-            alert('文件格式错误：未包含标准的单据记录结构。');
+            alert('格式错误，请使用「导出备份」生成的文件。');
           }
         } else {
-          alert('数据解析错误：文件不包含单据列表数组。');
+          alert('格式错误，请使用「导出备份」生成的文件。');
         }
       } catch (err) {
-        alert('文件加载失败：无法解析为 JSON 格式数据。');
+        alert('无法解析文件。');
       }
     };
     reader.readAsText(file);
