@@ -192,14 +192,10 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
 
       const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
       if (isMobile) {
-        // Mobile: open image in new tab for long-press save
-        const w = window.open('', '_blank');
-        if (w) {
-          w.document.write(`<img src="${dataUrl}" style="width:100%;" />`);
-        } else {
-          // Fallback: open data URL directly
-          window.location.href = dataUrl;
-        }
+        // Convert to blob and open in new tab
+        const blob = await (await fetch(dataUrl)).blob();
+        const blobUrl = URL.createObjectURL(blob);
+        window.open(blobUrl, '_blank');
       } else {
         // Desktop: direct download
         const link = window.document.createElement('a');
