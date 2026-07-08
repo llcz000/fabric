@@ -160,9 +160,73 @@ export default function DocumentList({
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
-        const parsed = JSON.parse(event.target?.result as string);
+        let parsed = JSON.parse(event.target?.result as string);
+
+        // Handle database_fallback.json format: {orders: [...], order_items: [...]}
+        if (!Array.isArray(parsed) && parsed.orders && Array.isArray(parsed.orders)) {
+          const orders = parsed.orders;
+          const allItems = parsed.order_items || [];
+          const itemsByOrder: Record<number, any[]> = {};
+          allItems.forEach((it: any) => {
+            if (!itemsByOrder[it.order_id]) itemsByOrder[it.order_id] = [];
+            itemsByOrder[it.order_id].push(it);
+          });
+
+          parsed = orders.map((order: any) => {
+            const orderItems = (itemsByOrder[order.id] || []).map((it: any) => {
+              let rollNoStr = '';
+              if (it.piece_meters) {
+                try {
+                  const pm = typeof it.piece_meters === 'string' ? JSON.parse(it.piece_meters) : it.piece_meters;
+                  if (Array.isArray(pm)) rollNoStr = pm.join(' ');
+                } catch (_) {}
+              }
+              return {
+                id: String(it.id),
+                itemNo: it.product_no || '',
+                colorNo: it.color_no || '',
+                productName: it.product_name || '',
+                composition: it.composition || '',
+                weight: String(it.weight || ''),
+                width: String(it.width || ''),
+                meters: parseFloat(it.meters || 0),
+                price: parseFloat(it.unit_price || 0),
+                amount: parseFloat(it.amount || 0),
+                remark: it.remark || '',
+                rollNo: rollNoStr,
+              };
+            });
+
+            const isSample = (order.template_type || 'sample') === 'sample';
+            const totalAmount = parseFloat(order.total_amount || 0);
+            const deposit = parseFloat(order.deposit || 0);
+
+            return {
+              id: String(order.id),
+              docNo: order.order_no || '',
+              type: isSample ? 'sample' : 'sales',
+              date: order.order_date || '',
+              customerName: order.receiving_unit || '',
+              items: orderItems,
+              companyName: '',
+              companyAddress: '',
+              companyPhone: '',
+              terms: '',
+              issuer: order.sign_person || '',
+              receiver: order.receiver || '',
+              bottomPhone: order.receiver_phone || '',
+              totalMeters: parseFloat(order.total_meters || 0),
+              totalRolls: parseInt(order.total_pieces || 0),
+              totalAmount,
+              receivableAmount: parseFloat((totalAmount - deposit).toFixed(2)),
+              deposit,
+              createdAt: order.created_at || new Date().toISOString(),
+              updatedAt: order.updated_at || new Date().toISOString(),
+            };
+          });
+        }
+
         if (Array.isArray(parsed)) {
-          // Quick format verification
           const looksValid = parsed.every(d => d.id && d.docNo && d.items && Array.isArray(d.items));
           if (looksValid) {
             onImportBackup(parsed);
