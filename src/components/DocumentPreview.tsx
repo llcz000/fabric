@@ -153,19 +153,43 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
 
   // Export current document as PNG image
   const handleExportImage = async () => {
-    if (!printRef.current) return;
+    const node = printRef.current;
+    if (!node) return;
     try {
-      const dataUrl = await toPng(printRef.current, {
-        quality: 1.0,
+      // Pre-load images to avoid CORS and load issues
+      const images = node.getElementsByTagName('img');
+      const promises = Array.from(images).map(img => {
+        if (img.complete) return Promise.resolve();
+        return new Promise((resolve) => {
+          img.onload = resolve;
+          img.onerror = resolve;
+        });
+      });
+      await Promise.all(promises);
+
+      // Simple wait for layout stabilizing
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      const dataUrl = await toPng(node, {
+        quality: 0.95,
         pixelRatio: 2,
         backgroundColor: '#ffffff',
+        cacheBust: true,
+        style: {
+          transform: 'none',
+          margin: '0',
+          padding: '24px',
+        }
       });
+
       const link = window.document.createElement('a');
       link.download = `${document.docNo}-${document.customerName}.png`;
       link.href = dataUrl;
+      window.document.body.appendChild(link);
       link.click();
-    } catch (err) {
-      alert('生成图片失败，请重试');
+      window.document.body.removeChild(link);
+    } catch (err: any) {
+      alert('生成图片失败: ' + (err.message || err));
       console.error(err);
     }
   };
