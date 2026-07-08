@@ -162,14 +162,15 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       Array.from(images).forEach((img) => {
         savedSrcs.push(img.src);
         if (img.src && /^https?:\/\//.test(img.src) && !img.src.includes('/api/proxy-image')) {
-          img.src = '/api/proxy-image?url=' + encodeURIComponent(img.src) + '&_t=' + Date.now() + Math.random();
+          img.src = '/api/proxy-image?url=' + encodeURIComponent(img.src);
         }
       });
 
       const dataUrl = await toPng(node, {
-        quality: 0.95,
-        pixelRatio: 2,
+        quality: 0.9,
+        pixelRatio: 1.5,
         backgroundColor: '#ffffff',
+        cacheBust: false,
       });
 
       const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
