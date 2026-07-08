@@ -510,7 +510,7 @@ export default function DocumentEditor({
                         value={item.itemNo}
                         onChange={(e) => handleCellChange(index, 'itemNo', e.target.value)}
                         placeholder="如 DF-801"
-                        className="w-full px-2 py-1.5 border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-sky-500 text-xs font-medium uppercase"
+                        className="w-full px-2 py-1.5 border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-sky-500 text-xs font-medium"
                         id={`input-itemNo-${index}`}
                       />
                     </td>

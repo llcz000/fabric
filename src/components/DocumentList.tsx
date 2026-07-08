@@ -505,12 +505,15 @@ export default function DocumentList({
                               <td className="py-1.5 px-3" colSpan={2}>货号</td>
                               <td className="py-1.5 px-2 text-center">色号</td>
                               <td className="py-1.5 px-3">品名</td>
+                              <td className="py-1.5 px-3 text-right">匹数</td>
                               <td className="py-1.5 px-3 text-right">米数</td>
                               <td className="py-1.5 px-3 text-right">单价</td>
                               <td className="py-1.5 px-3 text-right">金额</td>
-                              <td className="py-1.5 px-4">备注</td>
                             </tr>
-                            {matchingItems.map((item, idx) => (
+                            {matchingItems.map((item, idx) => {
+                              const rollCount = doc.type === DocType.SAMPLE ? 1 :
+                                ((item.rollNo || '').trim().split(/[,，\s]+/).filter((t: string) => /^\d+(\.\d+)?$/.test(t) && parseFloat(t) > 0).length || 0);
+                              return (
                               <tr key={item.id} className="bg-blue-50/20 border-b border-blue-50 text-xs">
                                 <td className="py-2 px-2 text-center text-slate-300">{idx + 1}</td>
                                 <td className="py-2 px-3 font-semibold text-slate-700" colSpan={2}>{item.itemNo || '-'}</td>
@@ -522,12 +525,12 @@ export default function DocumentList({
                                   ) : '-'}
                                 </td>
                                 <td className="py-2 px-3 text-slate-600 font-medium max-w-[150px] truncate">{item.productName || '-'}</td>
+                                <td className="py-2 px-3 text-center text-xs font-bold text-slate-600">{rollCount}</td>
                                 <td className="py-2 px-3 text-right text-xs font-extrabold text-sky-700">{item.meters.toFixed(2)} 米</td>
                                 <td className="py-2 px-3 text-right text-xs font-medium text-slate-500">¥{item.price.toFixed(2)}</td>
                                 <td className="py-2 px-3 text-right text-xs font-extrabold text-rose-600">¥{item.amount.toFixed(2)}</td>
-                                <td className="py-2 px-4 text-slate-400 max-w-[120px] truncate text-xs">{item.remark || ''}</td>
                               </tr>
-                            ))}
+                            )})}
                           </>
                         )}
                       </React.Fragment>
