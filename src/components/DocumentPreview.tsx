@@ -172,12 +172,25 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
         backgroundColor: '#ffffff',
       });
 
-      const link = window.document.createElement('a');
-      link.download = `${document.docNo}-${document.customerName}.png`;
-      link.href = dataUrl;
-      window.document.body.appendChild(link);
-      link.click();
-      window.document.body.removeChild(link);
+      const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+      if (isMobile) {
+        // Mobile: open image in new tab for long-press save
+        const w = window.open('', '_blank');
+        if (w) {
+          w.document.write(`<img src="${dataUrl}" style="width:100%;" />`);
+        } else {
+          // Fallback: open data URL directly
+          window.location.href = dataUrl;
+        }
+      } else {
+        // Desktop: direct download
+        const link = window.document.createElement('a');
+        link.download = `${document.docNo}-${document.customerName}.png`;
+        link.href = dataUrl;
+        window.document.body.appendChild(link);
+        link.click();
+        window.document.body.removeChild(link);
+      }
     } catch (err: any) {
       alert('生成图片失败: ' + (err instanceof Error ? err.stack || err.message : JSON.stringify(err)));
       console.error(err);

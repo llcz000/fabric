@@ -22,7 +22,8 @@
       "Bash(git commit -m 'fix: 优化 html-to-image 配置，修复跨域图片及下载失效问题 *)",
       "Bash(git commit -m 'fix: 修复 onload/onerror 回调事件对象引起的 Promise 拒绝，并打印详细错误堆栈 *)",
       "Bash(git commit -m 'fix: 克隆 DOM 并将跨域图片转 dataURL 后再调用 html-to-image 生成截图 *)",
-      "Bash(git commit -m 'feat: 添加服务端图片代理 API 解决跨域截图问题 *)"
+      "Bash(git commit -m 'feat: 添加服务端图片代理 API 解决跨域截图问题 *)",
+      "Bash(git commit -m 'fix: 手机端图片在新窗口打开供长按保存，电脑端保持直接下载 *)"
     ]
   }
 }
