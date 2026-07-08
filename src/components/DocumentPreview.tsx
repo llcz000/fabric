@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { DocumentData, DocType, SampleItem, SalesItem, CompanyProfile } from '../types';
 import { Printer, ArrowLeft, Edit3, Scissors, Download, Landmark, PhoneCall, Image } from 'lucide-react';
 import { toPng } from 'html-to-image';
@@ -146,6 +146,7 @@ function formatDateChinese(dateStr: string): string {
 export default function DocumentPreview({ document, companyProfile, onEdit, onBack }: DocumentPreviewProps) {
   const isSample = document.type === DocType.SAMPLE;
   const printRef = useRef(null);
+  const [generating, setGenerating] = useState(false);
 
   const handlePrint = () => {
     window.print();
@@ -155,6 +156,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
   const handleExportImage = async () => {
     const node = printRef.current;
     if (!node) return;
+    setGenerating(true);
     const savedSrcs: string[] = [];
     try {
       // Route external images through proxy to bypass CORS
@@ -196,6 +198,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       alert('生成图片失败: ' + (err instanceof Error ? err.stack || err.message : JSON.stringify(err)));
       console.error(err);
     } finally {
+      setGenerating(false);
       // Restore original image src
       const images = node.getElementsByTagName('img');
       Array.from(images).forEach((img, i) => {
@@ -318,9 +321,18 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
 
       {/* Invoice Page Sheet Wrapper: Designed to look like paper */}
       <div className="preview-wrapper bg-white rounded-3xl border border-slate-200 shadow-md max-w-[960px] mx-auto overflow-hidden">
-        
+
         {/* Printable Section */}
-        <div ref={printRef} className="print-container p-4 sm:p-6 space-y-2 bg-white text-slate-900 leading-normal select-text">
+        <div className="relative">
+          {generating && (
+            <div className="absolute inset-0 bg-white/80 z-10 flex items-center justify-center rounded-3xl">
+              <div className="text-center space-y-2">
+                <div className="animate-spin w-8 h-8 border-3 border-sky-500 border-t-transparent rounded-full mx-auto"></div>
+                <p className="text-sm font-semibold text-slate-600">正在生成图片...</p>
+              </div>
+            </div>
+          )}
+          <div ref={printRef} className="print-container p-4 sm:p-6 space-y-2 bg-white text-slate-900 leading-normal select-text">
           
           {/* Header Block, Title & Metadata Grouped tightly to reduce vertical space */}
           <div className="space-y-0.5">
@@ -624,6 +636,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
             )}
           </div>
 
+        </div>
         </div>
       </div>
     </div>
