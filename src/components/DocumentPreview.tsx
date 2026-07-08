@@ -162,7 +162,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       Array.from(images).forEach((img) => {
         savedSrcs.push(img.src);
         if (img.src && /^https?:\/\//.test(img.src) && !img.src.includes('/api/proxy-image')) {
-          img.src = '/api/proxy-image?url=' + encodeURIComponent(img.src);
+          img.src = '/api/proxy-image?url=' + encodeURIComponent(img.src) + '&_t=' + Date.now() + Math.random();
         }
       });
 
