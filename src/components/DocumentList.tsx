@@ -472,14 +472,14 @@ export default function DocumentList({
                     return (
                       <tr key={`${item.docId}-${item.id}-${index}`} className="hover:bg-slate-50/40 transition-colors group">
                         {/* Date */}
-                        <td className="py-3 px-4 text-slate-500 font-mono text-xs whitespace-nowrap">
+                        <td className="py-3 px-4 text-slate-500 text-xs whitespace-nowrap">
                           {item.date.substring(0, 10)}
                         </td>
 
                         {/* Doc No */}
                         <td className="py-3 px-4">
                           <div className="flex flex-col">
-                            <span className="font-mono font-bold text-slate-800 text-xs">
+                            <span className="font-bold text-slate-800 text-xs">
                               {item.docNo}
                             </span>
                             <span className="text-[9px] text-slate-400 mt-0.5">
@@ -494,14 +494,14 @@ export default function DocumentList({
                         </td>
 
                         {/* Item No (货号) */}
-                        <td className="py-3 px-3 font-semibold text-slate-900 font-mono">
+                        <td className="py-3 px-3 font-semibold text-slate-900">
                           {item.itemNo || '-'}
                         </td>
 
                         {/* Color No (色号) */}
                         <td className="py-3 px-3">
                           {item.colorNo ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold bg-slate-100 text-slate-800 border border-slate-200 font-mono">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold bg-slate-100 text-slate-800 border border-slate-200 ">
                               {item.colorNo}
                             </span>
                           ) : '-'}
@@ -513,17 +513,17 @@ export default function DocumentList({
                         </td>
 
                         {/* Meters (米数) */}
-                        <td className="py-3 px-3 text-right text-sky-700 font-extrabold font-mono text-xs">
+                        <td className="py-3 px-3 text-right text-sky-700 font-extrabold text-xs">
                           {item.meters.toFixed(2)} 米
                         </td>
 
                         {/* Price (单价) */}
-                        <td className="py-3 px-3 text-right text-slate-500 font-medium font-mono text-xs">
+                        <td className="py-3 px-3 text-right text-slate-500 font-medium text-xs">
                           ¥{item.price.toFixed(2)}
                         </td>
 
                         {/* Amount (金额) */}
-                        <td className="py-3 px-3 text-right text-rose-600 font-extrabold font-mono text-xs">
+                        <td className="py-3 px-3 text-right text-rose-600 font-extrabold text-xs">
                           ¥{item.amount.toFixed(2)}
                         </td>
 
@@ -597,10 +597,10 @@ export default function DocumentList({
                     {/* Card Header: DocNo and Type Badge */}
                     <div className="flex items-center justify-between">
                       <div className="flex flex-col">
-                        <span className="font-mono font-bold text-slate-800 text-sm">
+                        <span className="font-bold text-slate-800 text-sm">
                           {item.docNo}
                         </span>
-                        <span className="text-[10px] text-slate-400 font-mono mt-0.5">
+                        <span className="text-[10px] text-slate-400 mt-0.5">
                           日期: {item.date.substring(0, 10)}
                         </span>
                       </div>
@@ -624,11 +624,11 @@ export default function DocumentList({
                     <div className="grid grid-cols-3 gap-2 bg-slate-50/70 p-2.5 rounded-xl border border-slate-100 text-center">
                       <div>
                         <div className="text-[10px] text-slate-400 font-medium">货号</div>
-                        <div className="text-xs font-bold text-slate-900 font-mono mt-0.5">{item.itemNo || '-'}</div>
+                        <div className="text-xs font-bold text-slate-900 mt-0.5">{item.itemNo || '-'}</div>
                       </div>
                       <div>
                         <div className="text-[10px] text-slate-400 font-medium">色号</div>
-                        <div className="text-xs font-bold text-indigo-600 font-mono mt-0.5">{item.colorNo || '-'}</div>
+                        <div className="text-xs font-bold text-indigo-600 mt-0.5">{item.colorNo || '-'}</div>
                       </div>
                       <div>
                         <div className="text-[10px] text-slate-400 font-medium">品名</div>
@@ -640,20 +640,20 @@ export default function DocumentList({
                     <div className="grid grid-cols-3 gap-2 text-center pt-1">
                       <div>
                         <span className="text-[9px] text-slate-400 block">实发米数</span>
-                        <span className="text-xs font-extrabold text-sky-700 font-mono">{item.meters.toFixed(2)} m</span>
+                        <span className="text-xs font-extrabold text-sky-700">{item.meters.toFixed(2)} m</span>
                       </div>
                       <div>
                         <span className="text-[9px] text-slate-400 block">发货单价</span>
-                        <span className="text-xs font-medium text-slate-500 font-mono">¥{item.price.toFixed(2)}</span>
+                        <span className="text-xs font-medium text-slate-500">¥{item.price.toFixed(2)}</span>
                       </div>
                       <div>
                         <span className="text-[9px] text-slate-400 block">结算金额</span>
-                        <span className="text-xs font-extrabold text-rose-600 font-mono">¥{item.amount.toFixed(2)}</span>
+                        <span className="text-xs font-extrabold text-rose-600">¥{item.amount.toFixed(2)}</span>
                       </div>
                     </div>
 
                     {item.rollNo || item.remark ? (
-                      <div className="text-xs bg-slate-50/40 p-2 rounded-lg border border-slate-100 text-slate-500 font-mono">
+                      <div className="text-xs bg-slate-50/40 p-2 rounded-lg border border-slate-100 text-slate-500">
                         {item.rollNo && <span className="text-teal-600 font-bold mr-1">[匹号: {item.rollNo}]</span>}
                         {item.remark || item.composition || item.weight}
                       </div>
