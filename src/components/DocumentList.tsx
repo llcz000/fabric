@@ -227,7 +227,7 @@ export default function DocumentList({
         }
 
         if (Array.isArray(parsed)) {
-          const looksValid = parsed.every(d => d.id && d.docNo && d.items && Array.isArray(d.items));
+          const looksValid = parsed.every(d => d.id && 'docNo' in d && d.items && Array.isArray(d.items));
           if (looksValid) {
             onImportBackup(parsed);
             alert(`成功导入数据库！共导入了 ${parsed.length} 张单据。`);

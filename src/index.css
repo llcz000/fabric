@@ -88,6 +88,13 @@ a, button, input, select, textarea {
     color: black !important;
   }
 
+  /* Remove rounded corners and shadows from outer wrapper in print */
+  .bg-white.rounded-3xl {
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
   /* Make sure tables print borders and background properly */
   table {
     border-collapse: collapse !important;
