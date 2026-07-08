@@ -609,7 +609,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
           </div>
 
           {/* 5. Bottom Signatures and Contact Block */}
-          <div className="signature-section flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 !mt-1 pt-1 border-t border-dashed border-slate-400" style={{ fontFamily: 'SimSun, serif' }}>
+          <div className="signature-section flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 !mt-0.5 pt-0.5 border-t border-dashed border-slate-400" style={{ fontFamily: 'SimSun, serif' }}>
             {/* Left: Signatures inline on one row */}
             <div className="flex flex-wrap items-center gap-x-8 sm:gap-x-12 gap-y-2 text-xs text-slate-800">
               <div>
@@ -640,13 +640,13 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
               <div className="flex items-center ml-auto">
                   {companyProfile.weChatPayUrl && (
                     <div className="flex flex-col items-center" style={{ marginRight: 32 }}>
-                      <img src={companyProfile.weChatPayUrl} style={{ width: 90, height: 90, minWidth: 90, minHeight: 90, border: '1px solid #e2e8f0', borderRadius: 4, padding: 2, background: '#fff' }} alt="微信收款" referrerPolicy="no-referrer" />
+                      <img src={companyProfile.weChatPayUrl} style={{ width: 85, height: 85, minWidth: 85, minHeight: 85, border: '1px solid #e2e8f0', borderRadius: 4, padding: 2, background: '#fff' }} alt="微信收款" referrerPolicy="no-referrer" />
                       <span className="text-[9px] text-slate-500 font-bold mt-1">微信收款</span>
                     </div>
                   )}
                   {companyProfile.aliPayUrl && (
                     <div className="flex flex-col items-center">
-                      <img src={companyProfile.aliPayUrl} style={{ width: 90, height: 90, minWidth: 90, minHeight: 90, border: '1px solid #e2e8f0', borderRadius: 4, padding: 2, background: '#fff' }} alt="支付宝收款" referrerPolicy="no-referrer" />
+                      <img src={companyProfile.aliPayUrl} style={{ width: 85, height: 85, minWidth: 85, minHeight: 85, border: '1px solid #e2e8f0', borderRadius: 4, padding: 2, background: '#fff' }} alt="支付宝收款" referrerPolicy="no-referrer" />
                       <span className="text-[9px] text-slate-500 font-bold mt-1">支付宝收款</span>
                     </div>
                   )}
