@@ -432,7 +432,7 @@ export default function DocumentList({
           </div>
         ) : (
           <div>
-            {/* Desktop Table View */}
+            {/* Desktop: Table 1 - Document Summary */}
             <div className="hidden md:block overflow-x-auto">
               <div className="flex items-center justify-between px-4 pt-3 pb-1">
                 <span className="text-xs text-slate-500">
@@ -451,7 +451,7 @@ export default function DocumentList({
                   }}
                   className="text-xs text-sky-600 hover:text-sky-800 font-medium cursor-pointer"
                 >
-                  {filteredDocs.length > 0 && filteredDocs.every(d => expandedDocs.has(d.id)) ? '收起全部' : '展开全部'}
+                  {filteredDocs.length > 0 && filteredDocs.every(d => expandedDocs.has(d.id)) ? '收起全部明细' : '展开全部明细'}
                 </button>
               </div>
               <table className="w-full text-left border-collapse table-fixed">
@@ -464,7 +464,7 @@ export default function DocumentList({
                     <th className="py-3.5 px-2" style={{ width: 'calc((100% - 190px) / 7)' }}>客户</th>
                     <th className="py-3.5 px-2 text-right" style={{ width: 'calc((100% - 190px) / 7)' }}>总计米数</th>
                     <th className="py-3.5 px-2 text-right" style={{ width: 'calc((100% - 190px) / 7)' }}>合计金额</th>
-                    <th className="py-3.5 px-2 text-center w-[160px]" style={{ width: '160px' }}>操作</th>
+                    <th className="py-3.5 px-2 text-center" style={{ width: '160px' }}>操作</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-sm">
@@ -474,99 +474,112 @@ export default function DocumentList({
                     const matchingItems = getDocMatchingItems(doc);
 
                     return (
-                      <React.Fragment key={doc.id}>
-                        {/* Document summary row */}
-                        <tr
-                          className="hover:bg-slate-50/60 transition-colors cursor-pointer group"
-                          onClick={() => toggleExpand(doc.id)}
-                        >
-                          <td className="py-3 px-2 text-center text-slate-400 text-xs">
-                            {isExpanded ? '▼' : '▶'}
-                          </td>
-                          <td className="py-3 px-2 text-slate-500 text-xs whitespace-nowrap">
-                            {doc.date.substring(0, 10)}
-                          </td>
-                          <td className="py-3 px-2">
-                            <div className="flex flex-col">
-                              <span className="font-bold text-slate-800 text-xs">{doc.docNo || '-'}</span>
-                              <span className="text-[9px] text-slate-400 mt-0.5">{matchingItems.length} 条记录</span>
-                            </div>
-                          </td>
-                          <td className="py-3 px-1 text-center">
-                            <span className={`inline-flex items-center px-1 py-0.5 rounded text-[10px] font-semibold ${
-                              isSample
-                                ? 'bg-indigo-50 text-indigo-700 border border-indigo-100'
-                                : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
-                            }`}>
-                              {isSample ? '样布' : '发货'}
-                            </span>
-                          </td>
-                          <td className="py-3 px-2 font-extrabold text-slate-700 max-w-[100px] truncate text-xs">
-                            {doc.customerName}
-                          </td>
-                          <td className="py-3 px-2 text-right text-sky-700 font-extrabold text-xs">
-                            {doc.totalMeters.toFixed(2)} 米
-                          </td>
-                          <td className="py-3 px-2 text-right text-rose-600 font-extrabold text-xs">
-                            ¥{doc.totalAmount.toFixed(2)}
-                          </td>
-                          <td className="py-3 px-2 text-center" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center justify-center gap-1">
-                              <button type="button" onClick={() => onSelect(doc)}
-                                className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-sky-600 rounded-lg" title="查看">
-                                <Eye className="w-4 h-4" />
-                              </button>
-                              <button type="button" onClick={() => onEdit(doc)}
-                                className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-amber-600 rounded-lg" title="编辑">
-                                <Edit2 className="w-4 h-4" />
-                              </button>
-                              <button type="button" onClick={() => onDuplicate(doc)}
-                                className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-teal-600 rounded-lg" title="复制">
-                                <Copy className="w-4 h-4" />
-                              </button>
-                              <button type="button" onClick={() => onDelete(doc.id)}
-                                className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg" title="删除">
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-
-                        {/* Expanded item rows */}
-                        {isExpanded && (
-                          <>
-                            <tr className="bg-slate-100/60 text-[10px] font-bold text-slate-500 uppercase">
-                              <td className="py-1.5 px-1 text-center"></td>
-                              <td className="py-1.5 px-1">货号</td>
-                              <td className="py-1.5 px-1 text-center">色号</td>
-                              <td className="py-1.5 px-1">品名</td>
-                              <td className="py-1.5 px-1 text-center">匹数</td>
-                              <td className="py-1.5 px-1 text-right">米数</td>
-                              <td className="py-1.5 px-1 text-right">单价</td>
-                              <td className="py-1.5 px-1 text-right">金额</td>
-                            </tr>
-                            {matchingItems.map((item, idx) => {
-                              const rollCount = doc.type === DocType.SAMPLE ? 1 :
-                                ((item.rollNo || '').trim().split(/[,，\s]+/).filter((t: string) => /^\d+(\.\d+)?$/.test(t) && parseFloat(t) > 0).length || 0);
-                              return (
-                              <tr key={item.id} className="bg-blue-50/20 border-b border-blue-50 text-xs">
-                                <td className="py-2 px-1 text-center text-slate-300">{idx + 1}</td>
-                                <td className="py-2 px-1 font-semibold text-slate-700">{item.itemNo || '-'}</td>
-                                <td className="py-2 px-1 text-center text-slate-600 font-medium">{item.colorNo || '-'}</td>
-                                <td className="py-2 px-1 text-slate-600 font-medium max-w-[120px] truncate">{item.productName || '-'}</td>
-                                <td className="py-2 px-1 text-center text-xs font-bold text-slate-600">{rollCount}</td>
-                                <td className="py-2 px-1 text-right text-xs font-extrabold text-sky-700">{item.meters.toFixed(2)} 米</td>
-                                <td className="py-2 px-1 text-right text-xs font-medium text-slate-500">¥{item.price.toFixed(2)}</td>
-                                <td className="py-2 px-1 text-right text-xs font-extrabold text-rose-600">¥{item.amount.toFixed(2)}</td>
-                              </tr>
-                            )})}
-                          </>
-                        )}
-                      </React.Fragment>
+                      <tr
+                        key={doc.id}
+                        className={`hover:bg-slate-50/60 transition-colors cursor-pointer group ${isExpanded ? 'bg-blue-50/30' : ''}`}
+                        onClick={() => toggleExpand(doc.id)}
+                      >
+                        <td className="py-3 px-2 text-center text-slate-400 text-xs">
+                          {isExpanded ? '▼' : '▶'}
+                        </td>
+                        <td className="py-3 px-2 text-slate-500 text-xs whitespace-nowrap">
+                          {doc.date.substring(0, 10)}
+                        </td>
+                        <td className="py-3 px-2">
+                          <div className="flex flex-col">
+                            <span className="font-bold text-slate-800 text-xs">{doc.docNo || '-'}</span>
+                            <span className="text-[9px] text-slate-400 mt-0.5">{matchingItems.length} 条记录</span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-1 text-center">
+                          <span className={`inline-flex items-center px-1 py-0.5 rounded text-[10px] font-semibold ${
+                            isSample
+                              ? 'bg-indigo-50 text-indigo-700 border border-indigo-100'
+                              : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                          }`}>
+                            {isSample ? '样布' : '发货'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-2 font-extrabold text-slate-700 max-w-[100px] truncate text-xs">
+                          {doc.customerName}
+                        </td>
+                        <td className="py-3 px-2 text-right text-sky-700 font-extrabold text-xs">
+                          {doc.totalMeters.toFixed(2)} 米
+                        </td>
+                        <td className="py-3 px-2 text-right text-rose-600 font-extrabold text-xs">
+                          ¥{doc.totalAmount.toFixed(2)}
+                        </td>
+                        <td className="py-3 px-2 text-center" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-center gap-1">
+                            <button type="button" onClick={() => onSelect(doc)}
+                              className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-sky-600 rounded-lg" title="查看">
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            <button type="button" onClick={() => onEdit(doc)}
+                              className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-amber-600 rounded-lg" title="编辑">
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button type="button" onClick={() => onDuplicate(doc)}
+                              className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-teal-600 rounded-lg" title="复制">
+                              <Copy className="w-4 h-4" />
+                            </button>
+                            <button type="button" onClick={() => onDelete(doc.id)}
+                              className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg" title="删除">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
                     );
                   })}
                 </tbody>
               </table>
+
+              {/* Desktop: Table 2 - Item Details (expanded docs) */}
+              {filteredDocs.some(d => expandedDocs.has(d.id)) && (
+                <div className="mt-6">
+                  <h4 className="text-xs font-bold text-slate-600 px-4 mb-2 uppercase tracking-wider">
+                    明细记录
+                  </h4>
+                  <table className="w-full text-left border-collapse table-fixed">
+                    <thead>
+                      <tr className="bg-sky-50/60 text-slate-600 text-[10px] font-bold uppercase border-b border-sky-100">
+                        <th className="py-1.5 px-2 text-center w-[30px]">#</th>
+                        <th className="py-1.5 px-2">单据编号</th>
+                        <th className="py-1.5 px-2">货号</th>
+                        <th className="py-1.5 px-2 text-center">色号</th>
+                        <th className="py-1.5 px-2">品名</th>
+                        <th className="py-1.5 px-2 text-center">匹数</th>
+                        <th className="py-1.5 px-2 text-right">米数</th>
+                        <th className="py-1.5 px-2 text-right">单价</th>
+                        <th className="py-1.5 px-2 text-right">金额</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50 text-xs">
+                      {filteredDocs.filter(d => expandedDocs.has(d.id)).map((doc) => {
+                        const matchingItems = getDocMatchingItems(doc);
+                        return matchingItems.map((item, idx) => {
+                          const rollCount = doc.type === DocType.SAMPLE ? 1 :
+                            ((item.rollNo || '').trim().split(/[,，\s]+/).filter((t: string) => /^\d+(\.\d+)?$/.test(t) && parseFloat(t) > 0).length || 0);
+                          return (
+                            <tr key={`${doc.id}-${item.id}`} className="hover:bg-slate-50/40">
+                              <td className="py-2 px-2 text-center text-slate-300">{idx + 1}</td>
+                              <td className="py-2 px-2 font-medium text-slate-500 text-[11px]">{doc.docNo || '-'}</td>
+                              <td className="py-2 px-2 font-semibold text-slate-700">{item.itemNo || '-'}</td>
+                              <td className="py-2 px-2 text-center text-slate-500">{item.colorNo || '-'}</td>
+                              <td className="py-2 px-2 text-slate-600 truncate max-w-[120px]">{item.productName || '-'}</td>
+                              <td className="py-2 px-2 text-center font-bold text-slate-600">{rollCount}</td>
+                              <td className="py-2 px-2 text-right font-extrabold text-sky-700">{item.meters.toFixed(2)} 米</td>
+                              <td className="py-2 px-2 text-right font-medium text-slate-500">¥{item.price.toFixed(2)}</td>
+                              <td className="py-2 px-2 text-right font-extrabold text-rose-600">¥{item.amount.toFixed(2)}</td>
+                            </tr>
+                          );
+                        });
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
             {/* Mobile Cards View */}
