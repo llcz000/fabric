@@ -191,7 +191,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       });
 
       // Clean up blob URLs and clone
-      images.forEach(img => { if (img.src.startsWith('blob:')) URL.revokeObjectURL(img.src); });
+      Array.from(images).forEach(img => { if (img.src.startsWith('blob:')) URL.revokeObjectURL(img.src); });
       clone.remove();
 
       const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
