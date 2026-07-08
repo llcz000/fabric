@@ -3,9 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { useRef } from 'react';
 import { DocumentData, DocType, SampleItem, SalesItem, CompanyProfile } from '../types';
-import { Printer, ArrowLeft, Edit3, Scissors, Download, Landmark, PhoneCall } from 'lucide-react';
+import { Printer, ArrowLeft, Edit3, Scissors, Download, Landmark, PhoneCall, Image } from 'lucide-react';
+import { toPng } from 'html-to-image';
 
 interface DocumentPreviewProps {
   document: DocumentData;
@@ -144,9 +145,29 @@ function formatDateChinese(dateStr: string): string {
 
 export default function DocumentPreview({ document, companyProfile, onEdit, onBack }: DocumentPreviewProps) {
   const isSample = document.type === DocType.SAMPLE;
+  const printRef = useRef(null);
 
   const handlePrint = () => {
     window.print();
+  };
+
+  // Export current document as PNG image
+  const handleExportImage = async () => {
+    if (!printRef.current) return;
+    try {
+      const dataUrl = await toPng(printRef.current, {
+        quality: 1.0,
+        pixelRatio: 2,
+        backgroundColor: '#ffffff',
+      });
+      const link = document.createElement('a');
+      link.download = `${document.docNo}-${document.customerName}.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch (err) {
+      alert('生成图片失败，请重试');
+      console.error(err);
+    }
   };
 
   // Export current document as JSON
@@ -241,6 +262,16 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
 
           <button
             type="button"
+            id="btn-preview-image"
+            onClick={handleExportImage}
+            className="flex items-center gap-1.5 px-3 py-2 border border-sky-200 hover:border-sky-300 bg-sky-50 hover:bg-sky-100 text-sky-700 rounded-xl text-xs font-semibold cursor-pointer transition-colors duration-150"
+          >
+            <Image className="w-3.5 h-3.5 text-sky-600" />
+            生成图片
+          </button>
+
+          <button
+            type="button"
             id="btn-preview-print"
             onClick={handlePrint}
             className="flex items-center gap-2 px-6 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-sm font-semibold shadow-md hover:shadow-lg cursor-pointer transition-all duration-150"
@@ -255,7 +286,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       <div className="bg-white rounded-3xl border border-slate-200 shadow-md max-w-[850px] mx-auto overflow-hidden">
         
         {/* Printable Section */}
-        <div className="print-container p-4 sm:p-6 space-y-2 bg-white text-slate-900 leading-normal select-text">
+        <div ref={printRef} className="print-container p-4 sm:p-6 space-y-2 bg-white text-slate-900 leading-normal select-text">
           
           {/* Header Block, Title & Metadata Grouped tightly to reduce vertical space */}
           <div className="space-y-0.5">
