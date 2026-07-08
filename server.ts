@@ -41,7 +41,7 @@ app.get('/api/proxy-image', async (req, res) => {
 
     const contentType = imageRes.headers.get('content-type') || 'image/png';
     res.set('Content-Type', contentType);
-    res.set('Cache-Control', 'no-cache');
+    res.set('Cache-Control', 'public, max-age=3600');
 
     const buffer = await imageRes.arrayBuffer();
     res.send(Buffer.from(buffer));
