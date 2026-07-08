@@ -155,31 +155,18 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
   const handleExportImage = async () => {
     const node = printRef.current;
     if (!node) return;
-    let clonedNode: HTMLDivElement | null = null;
+    const savedSrcs: string[] = [];
     try {
-      // Clone and convert external images to data URLs to avoid CORS issues
-      clonedNode = node.cloneNode(true) as HTMLDivElement;
-      const images = clonedNode.getElementsByTagName('img');
-      await Promise.all(Array.from(images).map(async (img) => {
-        try {
-          const canvas = window.document.createElement('canvas');
-          canvas.width = img.naturalWidth || img.width;
-          canvas.height = img.naturalHeight || img.height;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(img, 0, 0);
-            img.src = canvas.toDataURL('image/png');
-          }
-        } catch (_) {
-          // If CORS prevents canvas reading, hide the image
-          img.style.display = 'none';
+      // Route external images through proxy to bypass CORS
+      const images = node.getElementsByTagName('img');
+      Array.from(images).forEach((img) => {
+        savedSrcs.push(img.src);
+        if (img.src && /^https?:\/\//.test(img.src) && !img.src.includes('/api/proxy-image')) {
+          img.src = '/api/proxy-image?url=' + encodeURIComponent(img.src);
         }
-      }));
+      });
 
-      node.parentNode?.insertBefore(clonedNode, node);
-      node.style.display = 'none';
-
-      const dataUrl = await toPng(clonedNode, {
+      const dataUrl = await toPng(node, {
         quality: 0.95,
         pixelRatio: 2,
         backgroundColor: '#ffffff',
@@ -195,10 +182,11 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       alert('生成图片失败: ' + (err instanceof Error ? err.stack || err.message : JSON.stringify(err)));
       console.error(err);
     } finally {
-      if (clonedNode) {
-        clonedNode.remove();
-      }
-      node.style.display = '';
+      // Restore original image src
+      const images = node.getElementsByTagName('img');
+      Array.from(images).forEach((img, i) => {
+        if (savedSrcs[i]) img.src = savedSrcs[i];
+      });
     }
   };
 

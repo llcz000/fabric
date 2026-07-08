@@ -28,6 +28,28 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(UPLOADS_DIR));
 
+// Image proxy endpoint to solve CORS issues for html-to-image on COS/remote images
+app.get('/api/proxy-image', async (req, res) => {
+  try {
+    const url = req.query.url as string;
+    if (!url) return res.status(400).send('Missing url parameter');
+    // Only allow http/https URLs to prevent SSRF
+    if (!/^https?:\/\//i.test(url)) return res.status(400).send('Invalid url');
+
+    const imageRes = await fetch(url);
+    if (!imageRes.ok) return res.status(404).send('Image not found');
+
+    const contentType = imageRes.headers.get('content-type') || 'image/png';
+    res.set('Content-Type', contentType);
+    res.set('Cache-Control', 'public, max-age=86400');
+
+    const buffer = await imageRes.arrayBuffer();
+    res.send(Buffer.from(buffer));
+  } catch (e) {
+    res.status(500).send('Proxy error');
+  }
+});
+
 // Setup multer for local file uploads (as fallback or template uploads)
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
