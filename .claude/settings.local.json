@@ -24,7 +24,8 @@
       "Bash(git commit -m 'fix: 克隆 DOM 并将跨域图片转 dataURL 后再调用 html-to-image 生成截图 *)",
       "Bash(git commit -m 'feat: 添加服务端图片代理 API 解决跨域截图问题 *)",
       "Bash(git commit -m 'fix: 手机端图片在新窗口打开供长按保存，电脑端保持直接下载 *)",
-      "Bash(git commit -m 'fix: 数字0去斜线+汇总行居左 *)"
+      "Bash(git commit -m 'fix: 数字0去斜线+汇总行居左 *)",
+      "Bash(git commit -m 'fix: 等宽字体改用系统自带\\(Cascadia/Consolas/Menlo\\)，彻底消除0斜线 *)"
     ]
   }
 }
