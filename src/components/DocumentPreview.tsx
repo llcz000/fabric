@@ -352,7 +352,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       <div className="preview-wrapper bg-white rounded-3xl border border-slate-200 shadow-md max-w-[960px] mx-auto overflow-hidden">
 
         {/* Printable Section */}
-        <div ref={printRef} className="print-container p-4 sm:p-6 space-y-2 bg-white text-slate-900 leading-normal select-text">
+        <div ref={printRef} className="print-container p-4 sm:p-6 space-y-1.5 bg-white text-slate-900 leading-normal select-text">
           
           {/* Header Block, Title & Metadata Grouped tightly to reduce vertical space */}
           <div className="space-y-0.5">
@@ -609,7 +609,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
           </div>
 
           {/* 5. Bottom Signatures and Contact Block */}
-          <div className="signature-section flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 !mt-0.5 pt-0.5 border-t border-dashed border-slate-400" style={{ fontFamily: 'SimSun, serif' }}>
+          <div className="signature-section flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 !mt-0.5 pt-0.5 border-t border-dashed border-slate-400" style={{ fontFamily: 'SimSun, serif', marginTop: 2 }}>
             {/* Left: Signatures inline on one row */}
             <div className="flex flex-wrap items-center gap-x-8 sm:gap-x-12 gap-y-2 text-xs text-slate-800">
               <div>
