@@ -184,7 +184,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
 
       const dataUrl = await toPng(node, {
         quality: 0.9,
-        pixelRatio: 1.5,
+        pixelRatio: 2,
         backgroundColor: '#ffffff',
         cacheBust: false,
       });
@@ -640,13 +640,13 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                 <div className="flex gap-4">
                   {companyProfile.weChatPayUrl && (
                     <div className="flex flex-col items-center">
-                      <img src={companyProfile.weChatPayUrl} className="w-[68px] h-[68px] object-contain border border-slate-200 rounded p-0.5 bg-white shadow-xs" alt="微信收款" referrerPolicy="no-referrer" />
+                      <img src={companyProfile.weChatPayUrl} className="w-[100px] h-[100px] object-contain border border-slate-200 rounded p-0.5 bg-white shadow-xs" alt="微信收款" referrerPolicy="no-referrer" />
                       <span className="text-[9px] text-slate-500 font-bold mt-1">微信收款</span>
                     </div>
                   )}
                   {companyProfile.aliPayUrl && (
                     <div className="flex flex-col items-center">
-                      <img src={companyProfile.aliPayUrl} className="w-[68px] h-[68px] object-contain border border-slate-200 rounded p-0.5 bg-white shadow-xs" alt="支付宝收款" referrerPolicy="no-referrer" />
+                      <img src={companyProfile.aliPayUrl} className="w-[100px] h-[100px] object-contain border border-slate-200 rounded p-0.5 bg-white shadow-xs" alt="支付宝收款" referrerPolicy="no-referrer" />
                       <span className="text-[9px] text-slate-500 font-bold mt-1">支付宝收款</span>
                     </div>
                   )}
