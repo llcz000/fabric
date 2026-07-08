@@ -316,16 +316,16 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                   <thead>
                     <tr className="bg-slate-100 border-b border-slate-900 text-slate-900 font-semibold whitespace-nowrap">
                       <th className="py-1.5 px-2 border-r border-slate-900 text-center w-[40px] whitespace-nowrap">序号</th>
-                      <th className="py-1.5 px-2 border-r border-slate-900 w-[70px] whitespace-nowrap">货号</th>
-                      <th className="py-1.5 px-2 border-r border-slate-900 w-[60px] whitespace-nowrap">色号</th>
-                      <th className="py-1.5 px-2 border-r border-slate-900 w-[80px] whitespace-nowrap">品名</th>
-                      <th className="py-1.5 px-2 border-r border-slate-900 w-[75px] whitespace-nowrap">成分</th>
-                      <th className="py-1.5 px-2 border-r border-slate-900 w-[55px] whitespace-nowrap">克重</th>
+                      <th className="py-1.5 px-2 border-r border-slate-900 text-center w-[70px] whitespace-nowrap">货号</th>
+                      <th className="py-1.5 px-2 border-r border-slate-900 text-center w-[60px] whitespace-nowrap">色号</th>
+                      <th className="py-1.5 px-2 border-r border-slate-900 text-center w-[80px] whitespace-nowrap">品名</th>
+                      <th className="py-1.5 px-2 border-r border-slate-900 text-center w-[75px] whitespace-nowrap">成分</th>
+                      <th className="py-1.5 px-2 border-r border-slate-900 text-center w-[55px] whitespace-nowrap">克重</th>
                       <th className="py-1.5 px-2 border-r border-slate-900 text-center w-[70px] whitespace-nowrap">门幅 (cm)</th>
-                      <th className="py-1.5 px-2 border-r border-slate-900 text-right w-[65px] whitespace-nowrap">米数 (米)</th>
-                      <th className="py-1.5 px-2 border-r border-slate-900 text-right w-[65px] whitespace-nowrap">单价 (元)</th>
-                      <th className="py-1.5 px-2 border-r border-slate-900 text-right w-[70px] whitespace-nowrap">金额 (元)</th>
-                      <th className="py-1.5 px-2 text-left w-[65px] whitespace-nowrap">备注</th>
+                      <th className="py-1.5 px-2 border-r border-slate-900 text-center w-[65px] whitespace-nowrap">米数 (米)</th>
+                      <th className="py-1.5 px-2 border-r border-slate-900 text-center w-[65px] whitespace-nowrap">单价 (元)</th>
+                      <th className="py-1.5 px-2 border-r border-slate-900 text-center w-[70px] whitespace-nowrap">金额 (元)</th>
+                      <th className="py-1.5 px-2 text-center w-[65px] whitespace-nowrap">备注</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-900">

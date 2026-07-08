@@ -10,7 +10,8 @@
       "Bash(git commit -m 'style: 预览表格数据居中+数字加粗 *)",
       "Bash(git commit -m 'style: 克重/门幅加粗，表格字号放大 *)",
       "Bash(git commit -m 'style: 两种单据表格字号统一继承父级 text-[12px] *)",
-      "Bash(git commit -m 'style: 表格字号统一缩小为 11px *)"
+      "Bash(git commit -m 'style: 表格字号统一缩小为 11px *)",
+      "Bash(git commit -m 'style: 样布码单表头全部居中 *)"
     ]
   }
 }
