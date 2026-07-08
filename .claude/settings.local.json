@@ -19,7 +19,8 @@
       "Bash(git commit -m 'fix: 二维码缩小+移动端缩放优化，支持横屏 *)",
       "Bash(git commit -m 'feat: 新增\"生成图片\"导出功能 \\(html-to-image\\) *)",
       "Bash(git commit -m 'fix: document.createElement -> window.document.createElement 修复导出图片报错 *)",
-      "Bash(git commit -m 'fix: 优化 html-to-image 配置，修复跨域图片及下载失效问题 *)"
+      "Bash(git commit -m 'fix: 优化 html-to-image 配置，修复跨域图片及下载失效问题 *)",
+      "Bash(git commit -m 'fix: 修复 onload/onerror 回调事件对象引起的 Promise 拒绝，并打印详细错误堆栈 *)"
     ]
   }
 }

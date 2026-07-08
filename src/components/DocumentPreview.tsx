@@ -161,8 +161,8 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       const promises = Array.from(images).map(img => {
         if (img.complete) return Promise.resolve();
         return new Promise((resolve) => {
-          img.onload = resolve;
-          img.onerror = resolve;
+          img.onload = () => resolve(null);
+          img.onerror = (e) => resolve(e);
         });
       });
       await Promise.all(promises);
@@ -189,7 +189,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       link.click();
       window.document.body.removeChild(link);
     } catch (err: any) {
-      alert('生成图片失败: ' + (err.message || err));
+      alert('生成图片失败: ' + (err instanceof Error ? err.stack || err.message : JSON.stringify(err)));
       console.error(err);
     }
   };
