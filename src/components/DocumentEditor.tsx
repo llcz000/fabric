@@ -368,7 +368,7 @@ export default function DocumentEditor({
       </div>
 
       {/* Grid Entries Table */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-xs p-6 space-y-6 overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-xs p-3 space-y-2 overflow-hidden">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-slate-800 uppercase tracking-wider border-l-3 border-sky-500 pl-3">
             第二部分：多记录明细录入表 (Rows Details)
@@ -383,27 +383,27 @@ export default function DocumentEditor({
           <table className="w-full text-left border-collapse min-w-[900px]">
             <thead>
               <tr className="bg-slate-50 text-slate-700 border-b border-slate-100">
-                <th className="py-3 px-3 text-xs font-bold text-center w-12">序号</th>
-                <th className="py-3 px-2 text-xs font-bold w-[110px]">货号 <span className="text-rose-400">*</span></th>
-                <th className="py-3 px-2 text-xs font-bold w-[100px]">色号</th>
-                <th className="py-3 px-3 text-xs font-bold w-[160px]">品名</th>
+                <th className="py-1.5 px-3 text-xs font-bold text-center w-12">序号</th>
+                <th className="py-1.5 px-2 text-xs font-bold w-[110px]">货号 <span className="text-rose-400">*</span></th>
+                <th className="py-1.5 px-2 text-xs font-bold w-[100px]">色号</th>
+                <th className="py-1.5 px-3 text-xs font-bold w-[160px]">品名</th>
                 
                 {/* Condition Columns */}
                 {docType === DocType.SAMPLE ? (
                   <>
-                    <th className="py-3 px-2 text-xs font-bold w-[130px]">成分</th>
-                    <th className="py-3 px-2 text-xs font-bold w-[90px]">克重</th>
-                    <th className="py-3 px-2 text-xs font-bold w-[90px]">门幅 (cm)</th>
+                    <th className="py-1.5 px-2 text-xs font-bold w-[130px]">成分</th>
+                    <th className="py-1.5 px-2 text-xs font-bold w-[90px]">克重</th>
+                    <th className="py-1.5 px-2 text-xs font-bold w-[90px]">门幅 (cm)</th>
                   </>
                 ) : (
-                  <th className="py-3 px-2 text-xs font-bold w-[280px]">各匹米数 (米数)</th>
+                  <th className="py-1.5 px-2 text-xs font-bold w-[280px]">各匹米数 (米数)</th>
                 )}
 
-                <th className="py-3 px-2 text-xs font-bold w-[90px]">米数 (米)</th>
-                <th className="py-3 px-2 text-xs font-bold w-[90px]">单价 (元)</th>
-                <th className="py-3 px-3 text-xs font-bold w-[110px]">金额 (元)</th>
-                <th className="py-3 px-2 text-xs font-bold min-w-[120px]">备注</th>
-                <th className="py-3 px-3 text-xs font-bold text-center w-12">操作</th>
+                <th className="py-1.5 px-2 text-xs font-bold w-[90px]">米数 (米)</th>
+                <th className="py-1.5 px-2 text-xs font-bold w-[90px]">单价 (元)</th>
+                <th className="py-1.5 px-3 text-xs font-bold w-[110px]">金额 (元)</th>
+                <th className="py-1.5 px-2 text-xs font-bold min-w-[120px]">备注</th>
+                <th className="py-1.5 px-3 text-xs font-bold text-center w-12">操作</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -412,12 +412,12 @@ export default function DocumentEditor({
                 const sales = item as SalesItem;
                 return (
                   <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="py-2.5 px-3 text-xs text-slate-400 text-center font-medium">
+                    <td className="py-1.5 px-3 text-xs text-slate-400 text-center font-medium">
                       {index + 1}
                     </td>
                     
                     {/* Item No */}
-                    <td className="py-2.5 px-1">
+                    <td className="py-1.5 px-1">
                       <input
                         type="text"
                         value={item.itemNo}
@@ -429,7 +429,7 @@ export default function DocumentEditor({
                     </td>
 
                     {/* Color No */}
-                    <td className="py-2.5 px-1">
+                    <td className="py-1.5 px-1">
                       <input
                         type="text"
                         value={item.colorNo}
@@ -441,7 +441,7 @@ export default function DocumentEditor({
                     </td>
 
                     {/* Product Name */}
-                    <td className="py-2.5 px-1">
+                    <td className="py-1.5 px-1">
                       <input
                         type="text"
                         value={item.productName}
@@ -455,7 +455,7 @@ export default function DocumentEditor({
                     {/* Conditional Fields */}
                     {docType === DocType.SAMPLE ? (
                       <>
-                        <td className="py-2.5 px-1">
+                        <td className="py-1.5 px-1">
                           <input
                             type="text"
                             value={sample.composition || ''}
@@ -465,7 +465,7 @@ export default function DocumentEditor({
                             id={`input-composition-${index}`}
                           />
                         </td>
-                        <td className="py-2.5 px-1">
+                        <td className="py-1.5 px-1">
                           <input
                             type="text"
                             value={sample.weight || ''}
@@ -476,7 +476,7 @@ export default function DocumentEditor({
                           />
                         </td>
                         {/* Width */}
-                        <td className="py-2.5 px-1">
+                        <td className="py-1.5 px-1">
                           <input
                             type="text"
                             value={item.width}
@@ -488,7 +488,7 @@ export default function DocumentEditor({
                         </td>
                       </>
                     ) : (
-                      <td className="py-2.5 px-1">
+                      <td className="py-1.5 px-1">
                         <div className="grid grid-cols-5 gap-1 max-w-[280px]">
                           {(() => {
                             const count = getInputsCountForItem(item.id, sales.rollNo);
@@ -550,7 +550,7 @@ export default function DocumentEditor({
                     )}
 
                     {/* Meters (米数) */}
-                    <td className="py-2.5 px-1">
+                    <td className="py-1.5 px-1">
                       <input
                         type="number"
                         step="any"
@@ -563,7 +563,7 @@ export default function DocumentEditor({
                     </td>
 
                     {/* Price (单价) */}
-                    <td className="py-2.5 px-1">
+                    <td className="py-1.5 px-1">
                       <input
                         type="number"
                         step="any"
@@ -576,12 +576,12 @@ export default function DocumentEditor({
                     </td>
 
                     {/* Amount (金额, read-only) */}
-                    <td className="py-2.5 px-3 text-xs font-mono text-right text-slate-800 font-bold bg-slate-50/30">
+                    <td className="py-1.5 px-3 text-xs font-mono text-right text-slate-800 font-bold bg-slate-50/30">
                       {item.amount > 0 ? `¥${item.amount.toFixed(2)}` : '¥0.00'}
                     </td>
 
                     {/* Remark */}
-                    <td className="py-2.5 px-1">
+                    <td className="py-1.5 px-1">
                       <input
                         type="text"
                         value={item.remark}
@@ -593,7 +593,7 @@ export default function DocumentEditor({
                     </td>
 
                     {/* Row Delete Action */}
-                    <td className="py-2.5 px-3 text-center">
+                    <td className="py-1.5 px-3 text-center">
                       <button
                         type="button"
                         id={`btn-delete-row-${index}`}
@@ -845,7 +845,7 @@ export default function DocumentEditor({
           </div>
 
           {/* Quick-Sum Visual Panel */}
-          <div className="bg-slate-50/50 border border-slate-100 rounded-xl p-4 flex flex-wrap items-center gap-6 text-sm text-slate-600 font-medium">
+          <div className="bg-slate-50/50 border border-slate-100 rounded-xl p-2 flex flex-wrap items-center gap-4 text-sm text-slate-600 font-medium">
             <div className="flex items-center gap-1">
               <span>总匹数：</span>
               <strong className="text-slate-800 font-bold">{totalRolls} 匹</strong>
