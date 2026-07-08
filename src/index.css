@@ -72,7 +72,7 @@ a, button, input, select, textarea {
 
   /* Reset print page margins */
   @page {
-    margin: 1.5cm 2cm 1.5cm 2cm;
+    margin: 1cm 1.5cm 1cm 1.5cm;
     size: auto;
   }
 
@@ -81,7 +81,7 @@ a, button, input, select, textarea {
     width: 100% !important;
     max-width: 100% !important;
     margin: 0 !important;
-    padding: 0 0.5cm !important;
+    padding: 0 0.3cm !important;
     box-shadow: none !important;
     border: none !important;
     background: transparent !important;
