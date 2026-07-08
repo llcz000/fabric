@@ -160,7 +160,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
         pixelRatio: 2,
         backgroundColor: '#ffffff',
       });
-      const link = document.createElement('a');
+      const link = window.document.createElement('a');
       link.download = `${document.docNo}-${document.customerName}.png`;
       link.href = dataUrl;
       link.click();

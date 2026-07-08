@@ -17,7 +17,8 @@
       "Bash(git commit -m 'fix: ResizeObserver 替换为 window.resize 事件，避免兼容问题 *)",
       "Bash(git commit -m 'fix: 去掉 useRef 泛型参数，避免类型兼容问题 *)",
       "Bash(git commit -m 'fix: 二维码缩小+移动端缩放优化，支持横屏 *)",
-      "Bash(git commit -m 'feat: 新增\"生成图片\"导出功能 \\(html-to-image\\) *)"
+      "Bash(git commit -m 'feat: 新增\"生成图片\"导出功能 \\(html-to-image\\) *)",
+      "Bash(git commit -m 'fix: document.createElement -> window.document.createElement 修复导出图片报错 *)"
     ]
   }
 }
