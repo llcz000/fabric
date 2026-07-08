@@ -454,17 +454,17 @@ export default function DocumentList({
                   {filteredDocs.length > 0 && filteredDocs.every(d => expandedDocs.has(d.id)) ? '收起全部' : '展开全部'}
                 </button>
               </div>
-              <table className="w-full text-left border-collapse">
+              <table className="w-full text-left border-collapse table-fixed">
                 <thead>
                   <tr className="bg-slate-50/80 text-slate-700 text-xs font-bold uppercase tracking-wider border-b border-slate-100">
-                    <th className="py-3.5 px-2 text-center w-8"></th>
-                    <th className="py-3.5 px-3">开单日期</th>
-                    <th className="py-3.5 px-3">单据编号</th>
-                    <th className="py-3.5 px-2 text-center w-16">类型</th>
-                    <th className="py-3.5 px-3">客户</th>
-                    <th className="py-3.5 px-3 text-right">总计米数</th>
-                    <th className="py-3.5 px-3 text-right">合计金额</th>
-                    <th className="py-3.5 px-4 text-center w-[150px]">操作</th>
+                    <th className="py-3.5 px-2 text-center w-[30px]"></th>
+                    <th className="py-3.5 px-2 w-[95px]">开单日期</th>
+                    <th className="py-3.5 px-2 w-[140px]">单据编号</th>
+                    <th className="py-3.5 px-1 text-center w-[50px]">类型</th>
+                    <th className="py-3.5 px-2 w-[100px]">客户</th>
+                    <th className="py-3.5 px-2 text-right w-[90px]">总计米数</th>
+                    <th className="py-3.5 px-2 text-right w-[100px]">合计金额</th>
+                    <th className="py-3.5 px-2 text-center w-[130px]">操作</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-sm">
@@ -483,17 +483,17 @@ export default function DocumentList({
                           <td className="py-3 px-2 text-center text-slate-400 text-xs">
                             {isExpanded ? '▼' : '▶'}
                           </td>
-                          <td className="py-3 px-3 text-slate-500 text-xs whitespace-nowrap">
+                          <td className="py-3 px-2 text-slate-500 text-xs whitespace-nowrap">
                             {doc.date.substring(0, 10)}
                           </td>
-                          <td className="py-3 px-3">
+                          <td className="py-3 px-2">
                             <div className="flex flex-col">
                               <span className="font-bold text-slate-800 text-xs">{doc.docNo || '-'}</span>
                               <span className="text-[9px] text-slate-400 mt-0.5">{matchingItems.length} 条记录</span>
                             </div>
                           </td>
-                          <td className="py-3 px-2 text-center">
-                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                          <td className="py-3 px-1 text-center">
+                            <span className={`inline-flex items-center px-1 py-0.5 rounded text-[10px] font-semibold ${
                               isSample
                                 ? 'bg-indigo-50 text-indigo-700 border border-indigo-100'
                                 : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
@@ -501,16 +501,16 @@ export default function DocumentList({
                               {isSample ? '样布' : '发货'}
                             </span>
                           </td>
-                          <td className="py-3 px-3 font-extrabold text-slate-700 max-w-[140px] truncate text-xs">
+                          <td className="py-3 px-2 font-extrabold text-slate-700 max-w-[100px] truncate text-xs">
                             {doc.customerName}
                           </td>
-                          <td className="py-3 px-3 text-right text-sky-700 font-extrabold text-xs">
+                          <td className="py-3 px-2 text-right text-sky-700 font-extrabold text-xs">
                             {doc.totalMeters.toFixed(2)} 米
                           </td>
-                          <td className="py-3 px-3 text-right text-rose-600 font-extrabold text-xs">
+                          <td className="py-3 px-2 text-right text-rose-600 font-extrabold text-xs">
                             ¥{doc.totalAmount.toFixed(2)}
                           </td>
-                          <td className="py-3 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                          <td className="py-3 px-2 text-center" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center justify-center gap-1">
                               <button type="button" onClick={() => onSelect(doc)}
                                 className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-sky-600 rounded-lg" title="查看">
@@ -552,13 +552,7 @@ export default function DocumentList({
                               <tr key={item.id} className="bg-blue-50/20 border-b border-blue-50 text-xs">
                                 <td className="py-2 px-1 text-center text-slate-300">{idx + 1}</td>
                                 <td className="py-2 px-1 font-semibold text-slate-700">{item.itemNo || '-'}</td>
-                                <td className="py-2 px-1 text-center">
-                                  {item.colorNo ? (
-                                    <span className="inline-flex items-center px-1 py-0.5 rounded text-[10px] font-bold bg-white text-slate-700 border border-slate-200">
-                                      {item.colorNo}
-                                    </span>
-                                  ) : '-'}
-                                </td>
+                                <td className="py-2 px-1 text-center text-slate-600 font-medium">{item.colorNo || '-'}</td>
                                 <td className="py-2 px-1 text-slate-600 font-medium max-w-[120px] truncate">{item.productName || '-'}</td>
                                 <td className="py-2 px-1 text-center text-xs font-bold text-slate-600">{rollCount}</td>
                                 <td className="py-2 px-1 text-right text-xs font-extrabold text-sky-700">{item.meters.toFixed(2)} 米</td>
