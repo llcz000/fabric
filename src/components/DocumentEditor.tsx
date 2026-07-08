@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { DocType, DocumentData, DocItem, CompanyProfile, SampleItem, SalesItem } from '../types';
-import { Plus, Trash2, Save, FileText, Calendar, User, Hash, AlertTriangle, Sparkles, CopyPlus } from 'lucide-react';
+import { Plus, Trash2, Save, FileText, Calendar, User, Hash, AlertTriangle } from 'lucide-react';
 
 interface DocumentEditorProps {
   key?: string;
@@ -161,83 +161,6 @@ export default function DocumentEditor({
 
     updatedItems[index] = currentItem;
     setItems(updatedItems);
-  };
-
-  // Quick fill demo items
-  const loadTemplate = () => {
-    if (confirm('确认要加载演示样例明细吗？这将覆盖现有行。')) {
-      if (docType === DocType.SAMPLE) {
-        setItems([
-          {
-            id: 'demo-1',
-            itemNo: 'DF-8012',
-            colorNo: '32# 藏青',
-            productName: '双面奥黛尔罗马布',
-            composition: '85%棉 15%聚酯纤维',
-            weight: '320g/㎡',
-            width: '185',
-            meters: 15,
-            price: 26.5,
-            amount: 397.5,
-            remark: '手感极佳，做高档卫衣样品',
-          } as SampleItem,
-          {
-            id: 'demo-2',
-            itemNo: 'TR-503',
-            colorNo: '08# 燕麦',
-            productName: 'TR人棉空气层',
-            composition: '65%涤 30%粘胶 5%氨纶',
-            weight: '280g/㎡',
-            width: '160',
-            meters: 8.5,
-            price: 18,
-            amount: 153,
-            remark: '洗水样布，要求颜色饱满',
-          } as SampleItem,
-          {
-            id: 'demo-3',
-            itemNo: 'CT-102',
-            colorNo: '01# 漂白',
-            productName: '全棉精梳拉架汗布',
-            composition: '95%棉 5%氨纶',
-            weight: '190g/㎡',
-            width: '175',
-            meters: 12,
-            price: 22,
-            amount: 264,
-            remark: '面料打样，色牢度需4级以上',
-          } as SampleItem,
-        ]);
-      } else {
-        setItems([
-          {
-            id: 'demo-4',
-            itemNo: 'p',
-            colorNo: 'p',
-            productName: 'p',
-            rollNo: '9.0 9.0 9.0 9.0 9.0 9.0 9.0 9.0 9.0 9.0 9.0',
-            width: '145',
-            meters: 99,
-            price: 1.1,
-            amount: 108.9,
-            remark: '样布发货',
-          } as SalesItem,
-          {
-            id: 'demo-5',
-            itemNo: 'k',
-            colorNo: 'k',
-            productName: 'k',
-            rollNo: '8.0 8.0 8.0',
-            width: '145',
-            meters: 24,
-            price: 1.3,
-            amount: 31.2,
-            remark: '大货样品',
-          } as SalesItem,
-        ]);
-        setDeposit(1.11);
-      }
-    }
   };
 
   // Add line
@@ -441,17 +364,6 @@ export default function DocumentEditor({
             />
           </div>
 
-          <div className="flex items-end">
-            <button
-              type="button"
-              id="btn-load-template"
-              onClick={loadTemplate}
-              className="w-full py-2 border border-dashed border-sky-300 hover:border-sky-500 text-sky-600 hover:bg-sky-50 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer bg-sky-50/20"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              一键填充测试数据
-            </button>
-          </div>
         </div>
       </div>
 
