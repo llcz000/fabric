@@ -97,10 +97,25 @@ export default function DocumentList({
     });
   };
 
-  // Stats based on filtered docs
-  const totalMeters = filteredDocs.reduce((sum, doc) => sum + doc.totalMeters, 0);
-  const totalAmount = filteredDocs.reduce((sum, doc) => sum + doc.totalAmount, 0);
-  const totalRollsCount = filteredDocs.reduce((sum, doc) => sum + doc.totalRolls, 0);
+  // Stats based on filtered matching items (not whole docs)
+  const statsItems = React.useMemo(() => {
+    const items: { meters: number; amount: number; type: DocType; rollNo?: string }[] = [];
+    filteredDocs.forEach(doc => {
+      getDocMatchingItems(doc).forEach(item => {
+        items.push({ meters: item.meters, amount: item.amount, type: doc.type, rollNo: (item as any).rollNo });
+      });
+    });
+    return items;
+  }, [filteredDocs, filterCustomer, filterItemNo, filterColorNo, filterProductName]); // eslint-disable-line
+
+  const totalMeters = statsItems.reduce((sum, item) => sum + (item.meters || 0), 0);
+  const totalAmount = statsItems.reduce((sum, item) => sum + (item.amount || 0), 0);
+  const totalRollsCount = statsItems.reduce((sum, item) => {
+    if (item.type === DocType.SAMPLE) return sum + 1;
+    const rollStr = item.rollNo || '';
+    const count = rollStr.trim().split(/[,，\s]+/).filter((t: string) => /^\d+(\.\d+)?$/.test(t) && parseFloat(t) > 0).length || 0;
+    return sum + count;
+  }, 0);
 
   // Backup exporter
   const handleExportBackup = () => {
