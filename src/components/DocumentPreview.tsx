@@ -640,13 +640,13 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
               <div className="flex items-center ml-auto">
                   {companyProfile.weChatPayUrl && (
                     <div className="flex flex-col items-center" style={{ marginRight: 32 }}>
-                      <img src={companyProfile.weChatPayUrl} style={{ width: 100, height: 100, minWidth: 100, minHeight: 100, border: '1px solid #e2e8f0', borderRadius: 4, padding: 2, background: '#fff' }} alt="微信收款" referrerPolicy="no-referrer" />
+                      <img src={companyProfile.weChatPayUrl} style={{ width: 90, height: 90, minWidth: 90, minHeight: 90, border: '1px solid #e2e8f0', borderRadius: 4, padding: 2, background: '#fff' }} alt="微信收款" referrerPolicy="no-referrer" />
                       <span className="text-[9px] text-slate-500 font-bold mt-1">微信收款</span>
                     </div>
                   )}
                   {companyProfile.aliPayUrl && (
                     <div className="flex flex-col items-center">
-                      <img src={companyProfile.aliPayUrl} style={{ width: 100, height: 100, minWidth: 100, minHeight: 100, border: '1px solid #e2e8f0', borderRadius: 4, padding: 2, background: '#fff' }} alt="支付宝收款" referrerPolicy="no-referrer" />
+                      <img src={companyProfile.aliPayUrl} style={{ width: 90, height: 90, minWidth: 90, minHeight: 90, border: '1px solid #e2e8f0', borderRadius: 4, padding: 2, background: '#fff' }} alt="支付宝收款" referrerPolicy="no-referrer" />
                       <span className="text-[9px] text-slate-500 font-bold mt-1">支付宝收款</span>
                     </div>
                   )}
