@@ -155,31 +155,34 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
   const handleExportImage = async () => {
     const node = printRef.current;
     if (!node) return;
+    let clonedNode: HTMLDivElement | null = null;
     try {
-      // Pre-load images to avoid CORS and load issues
-      const images = node.getElementsByTagName('img');
-      const promises = Array.from(images).map(img => {
-        if (img.complete) return Promise.resolve();
-        return new Promise((resolve) => {
-          img.onload = () => resolve(null);
-          img.onerror = (e) => resolve(e);
-        });
-      });
-      await Promise.all(promises);
+      // Clone and convert external images to data URLs to avoid CORS issues
+      clonedNode = node.cloneNode(true) as HTMLDivElement;
+      const images = clonedNode.getElementsByTagName('img');
+      await Promise.all(Array.from(images).map(async (img) => {
+        try {
+          const canvas = window.document.createElement('canvas');
+          canvas.width = img.naturalWidth || img.width;
+          canvas.height = img.naturalHeight || img.height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0);
+            img.src = canvas.toDataURL('image/png');
+          }
+        } catch (_) {
+          // If CORS prevents canvas reading, hide the image
+          img.style.display = 'none';
+        }
+      }));
 
-      // Simple wait for layout stabilizing
-      await new Promise(resolve => setTimeout(resolve, 200));
+      node.parentNode?.insertBefore(clonedNode, node);
+      node.style.display = 'none';
 
-      const dataUrl = await toPng(node, {
+      const dataUrl = await toPng(clonedNode, {
         quality: 0.95,
         pixelRatio: 2,
         backgroundColor: '#ffffff',
-        cacheBust: true,
-        style: {
-          transform: 'none',
-          margin: '0',
-          padding: '24px',
-        }
       });
 
       const link = window.document.createElement('a');
@@ -191,6 +194,11 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
     } catch (err: any) {
       alert('生成图片失败: ' + (err instanceof Error ? err.stack || err.message : JSON.stringify(err)));
       console.error(err);
+    } finally {
+      if (clonedNode) {
+        clonedNode.remove();
+      }
+      node.style.display = '';
     }
   };
 
