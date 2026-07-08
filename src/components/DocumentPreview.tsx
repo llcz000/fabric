@@ -506,9 +506,9 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
           </div>
 
           {/* 4. Terms and Liability Statement */}
-          <div className="bg-slate-50/80 border border-slate-300 rounded-sm p-2 text-[11px] leading-relaxed text-slate-700">
-            <span className="font-bold text-slate-900">备注条款：</span>
-            <span className="whitespace-pre-wrap font-sans">{document.terms || '无备注条款。'}</span>
+          <div className="bg-slate-50/80 border border-slate-300 rounded-sm p-2 text-[11px] leading-relaxed text-slate-700" style={{ fontFamily: 'SimSun, serif' }}>
+            <span>备注条款：</span>
+            <span className="whitespace-pre-wrap">{companyProfile.defaultTerms || '无备注条款。'}</span>
           </div>
 
           {/* 5. Bottom Signatures and Contact Block */}

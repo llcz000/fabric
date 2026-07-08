@@ -31,11 +31,11 @@ export default function DocumentEditor({
   const [date, setDate] = useState(existingDocument?.date || new Date().toISOString().split('T')[0]);
   const [docNo, setDocNo] = useState(existingDocument?.docNo || '');
   
-  // Overridden profile details (defaults to current company profile)
-  const [companyName, setCompanyName] = useState(existingDocument?.companyName || companyProfile.name);
-  const [companyAddress, setCompanyAddress] = useState(existingDocument?.companyAddress || companyProfile.address);
-  const [companyPhone, setCompanyPhone] = useState(existingDocument?.companyPhone || companyProfile.phone);
-  const [terms, setTerms] = useState(existingDocument?.terms || companyProfile.defaultTerms);
+  // Company info (stored but preview uses companyProfile directly)
+  const [companyName, setCompanyName] = useState(existingDocument?.companyName || '');
+  const [companyAddress, setCompanyAddress] = useState(existingDocument?.companyAddress || '');
+  const [companyPhone, setCompanyPhone] = useState(existingDocument?.companyPhone || '');
+  const [terms, setTerms] = useState(existingDocument?.terms || '');
   const [issuer, setIssuer] = useState(existingDocument?.issuer || '');
   const [receiver, setReceiver] = useState(existingDocument?.receiver || '');
   const [bottomPhone, setBottomPhone] = useState(existingDocument?.bottomPhone || '');
@@ -67,15 +67,6 @@ export default function DocumentEditor({
   // Generate doc number prefix hint only, not auto-fill
   const docNoPrefix = docType === DocType.SAMPLE ? 'YB' : 'XS';
 
-  // Sync terms when company profile changes (if not custom overridden)
-  useEffect(() => {
-    if (!existingDocument) {
-      setCompanyName(companyProfile.name);
-      setCompanyAddress(companyProfile.address);
-      setCompanyPhone(companyProfile.phone);
-      setTerms(companyProfile.defaultTerms);
-    }
-  }, [companyProfile, existingDocument]);
 
   // Initialize items
   useEffect(() => {
