@@ -7,3 +7,5 @@ coverage/
 .env*
 !.env.example
 .agents/
+database_fallback.json
+backup_converted.json
