@@ -637,7 +637,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
             {/* Right: Payment QRCodes (WeChat & Alipay) - Only shown for Sample Slip */}
             {isSample && (
               <div className="flex flex-col items-center sm:items-end justify-end text-right space-y-1 ml-auto">
-                <div className="flex gap-8">
+                <div className="flex gap-16">
                   {companyProfile.weChatPayUrl && (
                     <div className="flex flex-col items-center">
                       <img src={companyProfile.weChatPayUrl} className="w-[100px] h-[100px] object-contain border border-slate-200 rounded p-0.5 bg-white shadow-xs" alt="微信收款" referrerPolicy="no-referrer" />
