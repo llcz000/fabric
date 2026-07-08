@@ -92,7 +92,9 @@ a, button, input, select, textarea {
   table {
     border-collapse: collapse !important;
     width: 100% !important;
-    table-layout: fixed !important;
+    table-layout: auto !important;
+    max-width: 100% !important;
+  }
   }
 
   th, td {
