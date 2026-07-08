@@ -525,7 +525,7 @@ export default function DocumentList({
                               <td className="py-1.5 px-3">货号</td>
                               <td className="py-1.5 px-2 text-center">色号</td>
                               <td className="py-1.5 px-3">品名</td>
-                              <td className="py-1.5 px-3 text-right">匹数</td>
+                              <td className="py-1.5 px-3 text-center">匹数</td>
                               <td className="py-1.5 px-3 text-right">米数</td>
                               <td className="py-1.5 px-3 text-right">单价</td>
                               <td className="py-1.5 px-3 text-right">金额</td>
