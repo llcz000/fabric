@@ -40,6 +40,7 @@ export default function DocumentEditor({
   const [receiver, setReceiver] = useState(existingDocument?.receiver || '');
   const [bottomPhone, setBottomPhone] = useState(existingDocument?.bottomPhone || '');
   const [deposit, setDeposit] = useState<number>(existingDocument?.deposit || 0);
+  const [part3Open, setPart3Open] = useState(false);
 
   // Custom number of inputs for piece meters (sales documents)
   const [rollInputsCount, setRollInputsCount] = useState<Record<string, number>>({});
@@ -325,14 +326,14 @@ export default function DocumentEditor({
   };
 
   return (
-    <div id="document-editor" className="space-y-6">
+    <div id="document-editor" className="space-y-3">
       {/* Upper header action selection */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-xs p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-xs p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
           <span className="text-xs font-semibold text-sky-600 bg-sky-50 px-2.5 py-1 rounded-full uppercase tracking-wider">
             {existingDocument ? '编辑单据模式' : '创建新单据'}
           </span>
-          <h2 className="text-2xl font-bold text-slate-800 mt-2 flex items-center gap-2">
+          <h2 className="text-xl font-bold text-slate-800 mt-1 flex items-center gap-2">
             <FileText className="w-6 h-6 text-slate-700" />
             {existingDocument ? '修改单据内容' : '录入新纺织单据'}
           </h2>
@@ -371,7 +372,7 @@ export default function DocumentEditor({
       </div>
 
       {/* Main Form Fields */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-xs p-6 space-y-6">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-xs p-4 space-y-3">
         <h3 className="text-sm font-semibold text-slate-800 uppercase tracking-wider border-l-3 border-sky-500 pl-3">
           第一部分：单据基本信息 (Metadata)
         </h3>
@@ -954,11 +955,16 @@ export default function DocumentEditor({
       </div>
 
       {/* Part 3: Signature & Contact Info */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-xs p-6 space-y-6">
-        <h3 className="text-sm font-semibold text-slate-800 uppercase tracking-wider border-l-3 border-sky-500 pl-3">
-          第三部分：单据签署与联系信息
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-xs p-4">
+        <h3
+          className="text-sm font-semibold text-slate-800 uppercase tracking-wider border-l-3 border-sky-500 pl-3 cursor-pointer flex items-center justify-between"
+          onClick={() => setPart3Open(!part3Open)}
+        >
+          <span>第三部分：单据签署与联系信息</span>
+          <span className="text-slate-400 text-xs normal-case">{part3Open ? '收起 ▲' : '展开 ▼'}</span>
         </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {part3Open && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
               开单人（签字）
@@ -996,10 +1002,11 @@ export default function DocumentEditor({
             />
           </div>
         </div>
+        )}
       </div>
 
       {/* Save / Cancel Action Bar */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-xs p-6 flex items-center justify-end gap-3">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-xs p-4 flex items-center justify-end gap-3">
         <button
           type="button"
           id="btn-cancel-doc-editing"
