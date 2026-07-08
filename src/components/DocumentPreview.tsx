@@ -154,16 +154,17 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
 
   // Export current document as PNG image
   const handleExportImage = async () => {
+    if (generating) return;
     const node = printRef.current;
     if (!node) return;
     setGenerating(true);
-    const savedSrcs: string[] = [];
+    const savedSrcs: { img: HTMLImageElement; src: string }[] = [];
     try {
       // Route external images through proxy to bypass CORS
       const images = node.getElementsByTagName('img');
       Array.from(images).forEach((img) => {
-        savedSrcs.push(img.src);
         if (img.src && /^https?:\/\//.test(img.src) && !img.src.includes('/api/proxy-image')) {
+          savedSrcs.push({ img, src: img.src });
           img.src = '/api/proxy-image?url=' + encodeURIComponent(img.src);
         }
       });
@@ -200,10 +201,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
     } finally {
       setGenerating(false);
       // Restore original image src
-      const images = node.getElementsByTagName('img');
-      Array.from(images).forEach((img, i) => {
-        if (savedSrcs[i]) img.src = savedSrcs[i];
-      });
+      savedSrcs.forEach(({ img, src }) => { img.src = src; });
     }
   };
 
