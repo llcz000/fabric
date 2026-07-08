@@ -263,34 +263,26 @@ export default function DocumentEditor({
 
   // Sum calculations
   const getRollValuesCount = (rollNoStr: string, totalMeters: number): number => {
-    if (!rollNoStr) return 1;
-    const tokens = rollNoStr.trim().split(/[,，\s]+/);
-    let isNumericList = true;
+    if (!rollNoStr) return 0;
+    const tokens = rollNoStr.trim().split(/[,，\s]+/).filter(Boolean);
     let count = 0;
     for (const t of tokens) {
-      if (!t) continue;
-      if (!/^\d+(\.\d+)?$/.test(t)) {
-        isNumericList = false;
-        break;
-      }
+      if (!/^\d+(\.\d+)?$/.test(t)) continue;
       const val = parseFloat(t);
-      if (isNaN(val) || val <= 0) {
-        isNumericList = false;
-        break;
-      }
+      if (isNaN(val) || val <= 0) continue;
       count++;
     }
-    if (isNumericList && count > 0) {
-      return count;
-    }
-    return 1;
+    return count > 0 ? count : 0;
   };
 
-  const totalMeters = items.reduce((sum, item) => sum + (item.meters || 0), 0);
+  // Filter valid items (non-empty rows)
+  const validItems = items.filter(item => item.itemNo.trim() !== '' || item.productName.trim() !== '');
+
+  const totalMeters = validItems.reduce((sum, item) => sum + (item.meters || 0), 0);
   const totalRolls = docType === DocType.SAMPLE
-    ? items.length
-    : items.reduce((sum, item) => sum + getRollValuesCount((item as SalesItem).rollNo, item.meters), 0);
-  const totalAmount = parseFloat(items.reduce((sum, item) => sum + (item.amount || 0), 0).toFixed(2));
+    ? validItems.length
+    : validItems.reduce((sum, item) => sum + getRollValuesCount((item as SalesItem).rollNo, item.meters), 0);
+  const totalAmount = parseFloat(validItems.reduce((sum, item) => sum + (item.amount || 0), 0).toFixed(2));
   const receivableAmount = parseFloat((totalAmount - deposit).toFixed(2));
 
   // Handle save
@@ -300,9 +292,7 @@ export default function DocumentEditor({
       alert('请输入客户。');
       return;
     }
-    
-    // Filter empty records
-    const validItems = items.filter(item => item.itemNo.trim() !== '' || item.productName.trim() !== '');
+
     if (validItems.length === 0) {
       alert('请至少录入一条包含货号或品名的有效明细。');
       return;

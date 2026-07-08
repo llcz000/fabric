@@ -114,27 +114,16 @@ export default function DocumentList({
       return 1;
     }
     const rollNoStr = item.rollNo;
-    if (!rollNoStr) return 1;
-    const tokens = rollNoStr.trim().split(/[,，\s]+/);
-    let isNumericList = true;
+    if (!rollNoStr) return 0;
+    const tokens = rollNoStr.trim().split(/[,，\s]+/).filter(Boolean);
     let count = 0;
     for (const t of tokens) {
-      if (!t) continue;
-      if (!/^\d+(\.\d+)?$/.test(t)) {
-        isNumericList = false;
-        break;
-      }
+      if (!/^\d+(\.\d+)?$/.test(t)) continue;
       const val = parseFloat(t);
-      if (isNaN(val) || val <= 0) {
-        isNumericList = false;
-        break;
-      }
+      if (isNaN(val) || val <= 0) continue;
       count++;
     }
-    if (isNumericList && count > 0) {
-      return count;
-    }
-    return 1;
+    return count > 0 ? count : 0;
   };
 
   // Calculate stats on the filtered subset of individual item records
