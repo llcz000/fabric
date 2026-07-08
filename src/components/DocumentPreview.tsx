@@ -255,12 +255,12 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       <div className="bg-white rounded-3xl border border-slate-200 shadow-md max-w-[850px] mx-auto overflow-hidden">
         
         {/* Printable Section */}
-        <div className="print-container p-4 sm:p-6 space-y-4 bg-white text-slate-900 leading-normal select-text">
+        <div className="print-container p-4 sm:p-6 space-y-2 bg-white text-slate-900 leading-normal select-text">
           
           {/* Header Block, Title & Metadata Grouped tightly to reduce vertical space */}
-          <div className="space-y-1 sm:space-y-1.5">
+          <div className="space-y-0.5">
             {/* 1. Header Corporate Block */}
-            <div className="border-b-2 border-slate-900 pb-1.5">
+            <div className="border-b-2 border-slate-900 pb-1">
               <div className="flex justify-between items-start gap-4">
                 {/* Left: Company Logo Image */}
                 <div className="w-[120px] flex justify-start items-start h-12">
@@ -309,7 +309,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
           </div>
 
           {/* 3. Central Packing Grid Table */}
-          <div className="overflow-hidden border border-slate-900 rounded-xs !mt-1.5">
+          <div className="overflow-hidden border border-slate-900 rounded-xs !mt-1">
             <table className="w-full border-collapse text-left text-[11px] text-slate-800 table-fixed" style={{ fontFamily: 'SimSun, serif' }}>
               {isSample ? (
                 <>
@@ -512,7 +512,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
           </div>
 
           {/* 5. Bottom Signatures and Contact Block */}
-          <div className="signature-section flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 !mt-1.5 pt-1.5 border-t border-dashed border-slate-400" style={{ fontFamily: 'SimSun, serif' }}>
+          <div className="signature-section flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 !mt-1 pt-1 border-t border-dashed border-slate-400" style={{ fontFamily: 'SimSun, serif' }}>
             {/* Left: Signatures inline on one row */}
             <div className="flex flex-wrap items-center gap-x-8 sm:gap-x-12 gap-y-2 text-xs text-slate-800">
               <div>
