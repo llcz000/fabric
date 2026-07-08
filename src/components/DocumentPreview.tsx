@@ -162,11 +162,13 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       // Clone the node so we don't disturb the React-managed DOM
       const clone = node.cloneNode(true) as HTMLElement;
       // Set fixed width on clone for consistent rendering
-      clone.style.position = 'absolute';
-      clone.style.left = '-9999px';
+      clone.style.position = 'fixed';
+      clone.style.left = '0';
       clone.style.top = '0';
       clone.style.width = node.offsetWidth + 'px';
-      window.document.body.appendChild(clone);
+      clone.style.zIndex = '-1';
+      clone.style.opacity = '0';
+      node.parentElement?.appendChild(clone);
 
       // Proxy external images in the clone
       const images = clone.getElementsByTagName('img');
