@@ -3,7 +3,8 @@
     "allow": [
       "Bash(git commit -m 'fix: 备注条款全链路持久化 + 去除货号自动填充 *)",
       "Bash(git commit -m 'fix: 销售发货码单匹数只计算非空有效数值 *)",
-      "Bash(git commit -m 'style: 预览页垂直间距减半，更紧凑 *)"
+      "Bash(git commit -m 'style: 预览页垂直间距减半，更紧凑 *)",
+      "Bash(git commit -m 'fix: 数据大盘日期格式改为 YYYY-MM-DD *)"
     ]
   }
 }

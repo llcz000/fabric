@@ -225,7 +225,7 @@ export default function StatsDashboard({ documents, onViewDoc }: StatsDashboardP
                     <div className="text-right flex items-center gap-2">
                       <div>
                         <div className="text-xs font-bold text-rose-600 font-mono">¥{doc.totalAmount.toFixed(1)}</div>
-                        <div className="text-[9px] text-slate-400">{doc.date}</div>
+                        <div className="text-[9px] text-slate-400">{doc.date.substring(0, 10)}</div>
                       </div>
                       <ArrowUpRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-600 transition-colors" />
                     </div>
