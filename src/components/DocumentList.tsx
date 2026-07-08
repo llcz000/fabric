@@ -419,6 +419,26 @@ export default function DocumentList({
           <div>
             {/* Desktop Table View */}
             <div className="hidden md:block overflow-x-auto">
+              <div className="flex items-center justify-between px-4 pt-3 pb-1">
+                <span className="text-xs text-slate-500">
+                  {filteredDocs.length} 张单据
+                  {filterCustomer || filterItemNo || filterColorNo || filterProductName ? ' (已筛选)' : ''}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const allExpanded = filteredDocs.every(d => expandedDocs.has(d.id));
+                    if (allExpanded) {
+                      setExpandedDocs(new Set());
+                    } else {
+                      setExpandedDocs(new Set(filteredDocs.map(d => d.id)));
+                    }
+                  }}
+                  className="text-xs text-sky-600 hover:text-sky-800 font-medium cursor-pointer"
+                >
+                  {filteredDocs.length > 0 && filteredDocs.every(d => expandedDocs.has(d.id)) ? '收起全部' : '展开全部'}
+                </button>
+              </div>
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50/80 text-slate-700 text-xs font-bold uppercase tracking-wider border-b border-slate-100">
@@ -502,7 +522,7 @@ export default function DocumentList({
                           <>
                             <tr className="bg-slate-100/60 text-[10px] font-bold text-slate-500 uppercase">
                               <td className="py-1.5 px-2 text-center"></td>
-                              <td className="py-1.5 px-3" colSpan={2}>货号</td>
+                              <td className="py-1.5 px-3">货号</td>
                               <td className="py-1.5 px-2 text-center">色号</td>
                               <td className="py-1.5 px-3">品名</td>
                               <td className="py-1.5 px-3 text-right">匹数</td>
@@ -516,7 +536,7 @@ export default function DocumentList({
                               return (
                               <tr key={item.id} className="bg-blue-50/20 border-b border-blue-50 text-xs">
                                 <td className="py-2 px-2 text-center text-slate-300">{idx + 1}</td>
-                                <td className="py-2 px-3 font-semibold text-slate-700" colSpan={2}>{item.itemNo || '-'}</td>
+                                <td className="py-2 px-3 font-semibold text-slate-700">{item.itemNo || '-'}</td>
                                 <td className="py-2 px-2 text-center">
                                   {item.colorNo ? (
                                     <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-white text-slate-700 border border-slate-200">
