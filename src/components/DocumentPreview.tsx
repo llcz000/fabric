@@ -159,15 +159,27 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
     if (!node) return;
     setGenerating(true);
     try {
-      // Temporarily proxy external images to bypass CORS
+      // Convert external images to data URLs via proxy, then toPng
       const images = node.getElementsByTagName('img');
       const swaps: { img: HTMLImageElement; orig: string }[] = [];
-      Array.from(images).forEach((img) => {
+
+      await Promise.all(Array.from(images).map(async (img) => {
         if (img.src && /^https?:\/\//.test(img.src) && !img.src.includes('/api/proxy-image')) {
-          swaps.push({ img, orig: img.src });
-          img.src = '/api/proxy-image?url=' + encodeURIComponent(img.src);
+          try {
+            const res = await fetch('/api/proxy-image?url=' + encodeURIComponent(img.src));
+            if (res.ok) {
+              const blob = await res.blob();
+              const reader = new FileReader();
+              const dataUrl: string = await new Promise((resolve) => {
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.readAsDataURL(blob);
+              });
+              swaps.push({ img, orig: img.src });
+              img.src = dataUrl;
+            }
+          } catch (_) {}
         }
-      });
+      }));
 
       const dataUrl = await toPng(node, {
         quality: 0.9,
@@ -176,7 +188,6 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
         cacheBust: false,
       });
 
-      // Restore immediately after generation
       swaps.forEach(({ img, orig }) => { img.src = orig; });
 
       const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
