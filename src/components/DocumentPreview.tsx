@@ -403,7 +403,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                           <td className="py-1.5 px-2 border-r border-slate-900 text-center break-words">{item.productName}</td>
                           <td className="py-1.5 px-2 border-r border-slate-900 text-center break-words">{sample.composition || '-'}</td>
                           <td className="py-1.5 px-2 border-r border-slate-900 text-center font-bold text-slate-600 break-words">
-                            {sample.weight ? (/^\d+$/.test(sample.weight.trim()) ? `${sample.weight}g/㎡` : sample.weight) : '-'}
+                            {sample.weight || '-'}
                           </td>
                           <td className="py-1.5 px-2 border-r border-slate-900 text-center font-bold break-words">{item.width || '-'}</td>
                           <td className="py-1.5 px-2 border-r border-slate-900 text-center font-bold">{item.meters.toFixed(2)}</td>
