@@ -640,13 +640,13 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
               <div className="flex items-center ml-auto">
                   {companyProfile.weChatPayUrl && (
                     <div className="flex flex-col items-center" style={{ marginRight: 32 }}>
-                      <img src={companyProfile.weChatPayUrl} style={{ width: 240, height: 240, minWidth: 240, minHeight: 240 }} alt="微信收款" referrerPolicy="no-referrer" />
+                      <img src={companyProfile.weChatPayUrl} style={{ width: 240, height: 240, minWidth: 240, minHeight: 240, border: '1px solid #e2e8f0', borderRadius: 4, padding: 2, background: '#fff' }} alt="微信收款" referrerPolicy="no-referrer" />
                       <span className="text-[9px] text-slate-500 font-bold mt-1">微信收款</span>
                     </div>
                   )}
                   {companyProfile.aliPayUrl && (
                     <div className="flex flex-col items-center">
-                      <img src={companyProfile.aliPayUrl} style={{ width: 240, height: 240, minWidth: 240, minHeight: 240 }} alt="支付宝收款" referrerPolicy="no-referrer" />
+                      <img src={companyProfile.aliPayUrl} style={{ width: 240, height: 240, minWidth: 240, minHeight: 240, border: '1px solid #e2e8f0', borderRadius: 4, padding: 2, background: '#fff' }} alt="支付宝收款" referrerPolicy="no-referrer" />
                       <span className="text-[9px] text-slate-500 font-bold mt-1">支付宝收款</span>
                     </div>
                   )}
