@@ -529,7 +529,7 @@ export default function DocumentList({
 
                         {/* Remark (备注) */}
                         <td className="py-3 px-4 text-slate-500 text-xs max-w-[150px] truncate">
-                          <span>{item.remark || item.composition || item.weight || '-'}</span>
+                          <span>{item.remark || '-'}</span>
                         </td>
 
                         {/* Actions toolbox */}
@@ -655,7 +655,7 @@ export default function DocumentList({
                     {item.rollNo || item.remark ? (
                       <div className="text-xs bg-slate-50/40 p-2 rounded-lg border border-slate-100 text-slate-500">
                         {item.rollNo && <span className="text-teal-600 font-bold mr-1">[匹号: {item.rollNo}]</span>}
-                        {item.remark || item.composition || item.weight}
+                        {item.remark}
                       </div>
                     ) : null}
 
