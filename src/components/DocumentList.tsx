@@ -498,21 +498,38 @@ export default function DocumentList({
                         </tr>
 
                         {/* Expanded item rows */}
-                        {isExpanded && matchingItems.map((item, idx) => (
-                          <tr key={item.id} className="bg-blue-50/20 border-b border-blue-50 text-xs">
-                            <td className="py-2 px-2 text-center text-slate-300">{idx + 1}</td>
-                            <td className="py-2 px-3 text-slate-400"></td>
-                            <td className="py-2 px-3">
-                              <span className="font-semibold text-slate-700">{item.itemNo || '-'}</span>
-                              {item.colorNo && <span className="text-slate-400 ml-2">[{item.colorNo}]</span>}
-                            </td>
-                            <td className="py-2 px-2"></td>
-                            <td className="py-2 px-3 text-slate-500 font-medium max-w-[180px] truncate">{item.productName || '-'}</td>
-                            <td className="py-2 px-3 text-right text-sky-600 font-bold">{item.meters.toFixed(2)} 米</td>
-                            <td className="py-2 px-3 text-right text-rose-500 font-bold">¥{item.amount.toFixed(2)}</td>
-                            <td className="py-2 px-4"></td>
-                          </tr>
-                        ))}
+                        {isExpanded && (
+                          <>
+                            <tr className="bg-slate-100/60 text-[10px] font-bold text-slate-500 uppercase">
+                              <td className="py-1.5 px-2 text-center"></td>
+                              <td className="py-1.5 px-3" colSpan={2}>货号</td>
+                              <td className="py-1.5 px-2 text-center">色号</td>
+                              <td className="py-1.5 px-3">品名</td>
+                              <td className="py-1.5 px-3 text-right">米数</td>
+                              <td className="py-1.5 px-3 text-right">单价</td>
+                              <td className="py-1.5 px-3 text-right">金额</td>
+                              <td className="py-1.5 px-4">备注</td>
+                            </tr>
+                            {matchingItems.map((item, idx) => (
+                              <tr key={item.id} className="bg-blue-50/20 border-b border-blue-50 text-xs">
+                                <td className="py-2 px-2 text-center text-slate-300">{idx + 1}</td>
+                                <td className="py-2 px-3 font-semibold text-slate-700" colSpan={2}>{item.itemNo || '-'}</td>
+                                <td className="py-2 px-2 text-center">
+                                  {item.colorNo ? (
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-white text-slate-700 border border-slate-200">
+                                      {item.colorNo}
+                                    </span>
+                                  ) : '-'}
+                                </td>
+                                <td className="py-2 px-3 text-slate-600 font-medium max-w-[150px] truncate">{item.productName || '-'}</td>
+                                <td className="py-2 px-3 text-right text-xs font-extrabold text-sky-700">{item.meters.toFixed(2)} 米</td>
+                                <td className="py-2 px-3 text-right text-xs font-medium text-slate-500">¥{item.price.toFixed(2)}</td>
+                                <td className="py-2 px-3 text-right text-xs font-extrabold text-rose-600">¥{item.amount.toFixed(2)}</td>
+                                <td className="py-2 px-4 text-slate-400 max-w-[120px] truncate text-xs">{item.remark || ''}</td>
+                              </tr>
+                            ))}
+                          </>
+                        )}
                       </React.Fragment>
                     );
                   })}
