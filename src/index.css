@@ -123,6 +123,10 @@ a, button, input, select, textarea {
   }
 }
 
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 /* Animated visual ripples */
 @keyframes ripple {
   0% {

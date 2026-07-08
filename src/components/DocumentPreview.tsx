@@ -256,11 +256,11 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
     <div className="space-y-6">
       {/* Generating overlay */}
       {generating && (
-        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center">
-          <div className="bg-white rounded-2xl shadow-2xl px-10 py-8 text-center space-y-4">
-            <div className="animate-spin w-12 h-12 border-4 border-sky-500 border-t-transparent rounded-full mx-auto"></div>
-            <p className="text-lg font-bold text-slate-700">正在生成图片</p>
-            <p className="text-sm text-slate-400">请稍候...</p>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.6)' }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: '36px 48px', textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+            <div style={{ width: 48, height: 48, border: '4px solid #e2e8f0', borderTopColor: '#0ea5e9', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 16px' }}></div>
+            <p style={{ fontSize: 18, fontWeight: 700, color: '#1e293b', margin: 0 }}>正在生成图片</p>
+            <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 6 }}>请稍候...</p>
           </div>
         </div>
       )}
