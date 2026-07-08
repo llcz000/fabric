@@ -159,42 +159,25 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
     if (!node) return;
     setGenerating(true);
     try {
-      // Clone the node so we don't disturb the React-managed DOM
-      const clone = node.cloneNode(true) as HTMLElement;
-      // Set fixed width on clone for consistent rendering
-      clone.style.position = 'fixed';
-      clone.style.left = '0';
-      clone.style.top = '0';
-      clone.style.width = node.offsetWidth + 'px';
-      clone.style.zIndex = '-1';
-      clone.style.opacity = '0';
-      node.parentElement?.appendChild(clone);
-
-      // Proxy external images in the clone
-      const images = clone.getElementsByTagName('img');
-      const proxyPromises = Array.from(images).map(async (img) => {
-        if (img.src && /^https?:\/\//.test(img.src)) {
-          try {
-            const res = await fetch('/api/proxy-image?url=' + encodeURIComponent(img.src));
-            if (res.ok) {
-              const blob = await res.blob();
-              img.src = URL.createObjectURL(blob);
-            }
-          } catch (_) {}
+      // Temporarily proxy external images to bypass CORS
+      const images = node.getElementsByTagName('img');
+      const swaps: { img: HTMLImageElement; orig: string }[] = [];
+      Array.from(images).forEach((img) => {
+        if (img.src && /^https?:\/\//.test(img.src) && !img.src.includes('/api/proxy-image')) {
+          swaps.push({ img, orig: img.src });
+          img.src = '/api/proxy-image?url=' + encodeURIComponent(img.src);
         }
       });
-      await Promise.all(proxyPromises);
 
-      const dataUrl = await toPng(clone, {
+      const dataUrl = await toPng(node, {
         quality: 0.9,
         pixelRatio: 1.5,
         backgroundColor: '#ffffff',
         cacheBust: false,
       });
 
-      // Clean up blob URLs and clone
-      Array.from(images).forEach(img => { if (img.src.startsWith('blob:')) URL.revokeObjectURL(img.src); });
-      clone.remove();
+      // Restore immediately after generation
+      swaps.forEach(({ img, orig }) => { img.src = orig; });
 
       const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
       if (isMobile) {
