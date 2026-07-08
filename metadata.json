@@ -1,0 +1,6 @@
+{
+  "name": "单据数据库管理系统",
+  "description": "一个专为面料行业设计的单据管理与打印系统，支持样布码单、销售发货码单的录入、自动计算、历史数据库管理以及高清晰度单据预览与打印。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
