@@ -374,7 +374,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
 
           {/* 3. Central Packing Grid Table */}
           <div className="overflow-hidden border border-slate-900 rounded-xs !mt-1">
-            <table className="w-full border-collapse text-left text-[11px] text-slate-800 table-fixed" style={{ fontFamily: 'SimSun, serif' }}>
+            <table className="w-full border-collapse text-left text-[11px] text-slate-800 table-auto" style={{ fontFamily: 'SimSun, serif' }}>
               {isSample ? (
                 <>
                   <thead>
