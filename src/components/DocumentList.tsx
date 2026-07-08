@@ -60,7 +60,7 @@ export default function DocumentList({
 
       // Check if any item matches item-level filters
       return doc.items.some((item) => {
-        const matchesCustomer = !filterCustomer || doc.customerName.toLowerCase().includes(filterCustomer.toLowerCase());
+        const matchesCustomer = !filterCustomer || (doc.customerName || '').toLowerCase().includes(filterCustomer.toLowerCase());
         const matchesItemNo = !filterItemNo || (item.itemNo || '').toLowerCase().includes(filterItemNo.toLowerCase());
         const matchesColorNo = !filterColorNo || (item.colorNo || '').toLowerCase().includes(filterColorNo.toLowerCase());
         const matchesProductName = !filterProductName || (item.productName || '').toLowerCase().includes(filterProductName.toLowerCase());
@@ -71,8 +71,9 @@ export default function DocumentList({
 
   // Expand all matching docs by default when filters change
   React.useEffect(() => {
+    const ids = filteredDocs.map(d => d.id).join(',');
     setExpandedDocs(new Set(filteredDocs.map(d => d.id)));
-  }, [filteredDocs.map(d => d.id).join(',')]); // eslint-disable-line
+  }, [documents.length, filterCustomer, filterItemNo, filterColorNo, filterProductName, typeFilter, startDate, endDate]); // eslint-disable-line
 
   const toggleExpand = (docId: string) => {
     setExpandedDocs(prev => {
@@ -88,7 +89,7 @@ export default function DocumentList({
     const hasFilters = filterCustomer || filterItemNo || filterColorNo || filterProductName;
     if (!hasFilters) return doc.items;
     return doc.items.filter((item) => {
-      const matchesCustomer = !filterCustomer || doc.customerName.toLowerCase().includes(filterCustomer.toLowerCase());
+      const matchesCustomer = !filterCustomer || (doc.customerName || '').toLowerCase().includes(filterCustomer.toLowerCase());
       const matchesItemNo = !filterItemNo || (item.itemNo || '').toLowerCase().includes(filterItemNo.toLowerCase());
       const matchesColorNo = !filterColorNo || (item.colorNo || '').toLowerCase().includes(filterColorNo.toLowerCase());
       const matchesProductName = !filterProductName || (item.productName || '').toLowerCase().includes(filterProductName.toLowerCase());
