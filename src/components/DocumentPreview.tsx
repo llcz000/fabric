@@ -166,7 +166,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       clone.style.left = '-9999px';
       clone.style.top = '0';
       clone.style.width = node.offsetWidth + 'px';
-      document.body.appendChild(clone);
+      window.document.body.appendChild(clone);
 
       // Proxy external images in the clone
       const images = clone.getElementsByTagName('img');
