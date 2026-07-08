@@ -158,23 +158,41 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
     const node = printRef.current;
     if (!node) return;
     setGenerating(true);
-    const savedSrcs: { img: HTMLImageElement; src: string }[] = [];
     try {
-      // Route external images through proxy to bypass CORS
-      const images = node.getElementsByTagName('img');
-      Array.from(images).forEach((img) => {
-        if (img.src && /^https?:\/\//.test(img.src) && !img.src.includes('/api/proxy-image')) {
-          savedSrcs.push({ img, src: img.src });
-          img.src = '/api/proxy-image?url=' + encodeURIComponent(img.src);
+      // Clone the node so we don't disturb the React-managed DOM
+      const clone = node.cloneNode(true) as HTMLElement;
+      // Set fixed width on clone for consistent rendering
+      clone.style.position = 'absolute';
+      clone.style.left = '-9999px';
+      clone.style.top = '0';
+      clone.style.width = node.offsetWidth + 'px';
+      document.body.appendChild(clone);
+
+      // Proxy external images in the clone
+      const images = clone.getElementsByTagName('img');
+      const proxyPromises = Array.from(images).map(async (img) => {
+        if (img.src && /^https?:\/\//.test(img.src)) {
+          try {
+            const res = await fetch('/api/proxy-image?url=' + encodeURIComponent(img.src));
+            if (res.ok) {
+              const blob = await res.blob();
+              img.src = URL.createObjectURL(blob);
+            }
+          } catch (_) {}
         }
       });
+      await Promise.all(proxyPromises);
 
-      const dataUrl = await toPng(node, {
+      const dataUrl = await toPng(clone, {
         quality: 0.9,
         pixelRatio: 1.5,
         backgroundColor: '#ffffff',
         cacheBust: false,
       });
+
+      // Clean up blob URLs and clone
+      images.forEach(img => { if (img.src.startsWith('blob:')) URL.revokeObjectURL(img.src); });
+      clone.remove();
 
       const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
       if (isMobile) {
@@ -200,8 +218,6 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       console.error(err);
     } finally {
       setGenerating(false);
-      // Restore original image src
-      savedSrcs.forEach(({ img, src }) => { img.src = src; });
     }
   };
 
