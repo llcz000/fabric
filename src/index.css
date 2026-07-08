@@ -53,6 +53,18 @@ a, button, input, select, textarea {
   transition-duration: 150ms;
 }
 
+.qr-code-img {
+  width: 240px !important;
+  height: 240px !important;
+}
+
+@media screen and (max-width: 768px) {
+  .qr-code-img {
+    width: 180px !important;
+    height: 180px !important;
+  }
+}
+
 /* Print Styles */
 @media print {
   /* Hide all interactive app elements */
