@@ -262,22 +262,22 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
             {/* 1. Header Corporate Block */}
             <div className="border-b-2 border-slate-900 pb-1.5">
               <div className="flex justify-between items-start gap-4">
-                {/* Left: Company Name, Address and Phone */}
-                <div className="space-y-1 flex-1">
-                  <h1 className="text-lg sm:text-xl font-extrabold tracking-wide text-slate-900">
-                    {companyProfile.name}
-                  </h1>
-                  <div className="text-[11px] text-slate-500 space-y-0.5 font-medium">
-                    <p>地址：{companyProfile.address}</p>
-                    <p>电话：{companyProfile.phone}</p>
-                  </div>
-                </div>
-
-                {/* Right: Company Logo Image */}
-                <div className="w-[120px] flex justify-end items-start h-12">
+                {/* Left: Company Logo Image */}
+                <div className="w-[120px] flex justify-start items-start h-12">
                   {companyProfile.logoUrl && (
                     <img src={companyProfile.logoUrl} className="max-h-12 max-w-full object-contain" alt="Logo" referrerPolicy="no-referrer" />
                   )}
+                </div>
+
+                {/* Right: Company Name, Address and Phone */}
+                <div className="space-y-1 flex-1 text-right" style={{ fontFamily: 'SimSun, serif' }}>
+                  <h1 className="text-lg sm:text-xl tracking-wide text-slate-900">
+                    {companyProfile.name}
+                  </h1>
+                  <div className="text-[11px] text-slate-500 space-y-0.5">
+                    <p>地址：{companyProfile.address}</p>
+                    <p>电话：{companyProfile.phone}</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -290,15 +290,15 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
             </div>
 
             {/* 2. Metadata Section: Customer, NO（单号）, Date horizontally above table */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2 pb-0.5 text-xs font-semibold text-slate-800 border-b border-slate-400/60">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2 pb-0.5 text-xs text-slate-800 border-b border-slate-400/60" style={{ fontFamily: 'SimSun, serif' }}>
               <div className="pb-0.5">
                 <span>客户：</span>
-                <span className="text-xs font-extrabold underline underline-offset-4 decoration-2 decoration-slate-400">{document.customerName}</span>
+                <span className="text-xs underline underline-offset-4 decoration-2 decoration-slate-400">{document.customerName}</span>
               </div>
-              <div className="flex flex-col items-start sm:items-end font-mono text-[11px] leading-tight space-y-0.5">
+              <div className="flex flex-col items-start sm:items-end text-[11px] leading-tight space-y-0.5">
                 <div>
                   <span>NO（单号）：</span>
-                  <span className="font-bold text-slate-900">{document.docNo}</span>
+                  <span className="text-slate-900">{document.docNo}</span>
                 </div>
                 <div>
                   <span>日期：</span>
