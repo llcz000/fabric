@@ -158,32 +158,8 @@ export default function DocumentEditor({
       }
     }
 
-    // Smart prefill for product details if itemNo (货号) matches a previously used fabric
-    if (field === 'itemNo' && value) {
-      const match = findHistoricalProduct(value);
-      if (match) {
-        currentItem.productName = match.productName || '';
-        currentItem.width = match.width || '';
-        if (docType === DocType.SAMPLE) {
-          currentItem.composition = (match as any).composition || '';
-          currentItem.weight = (match as any).weight || '';
-        }
-      }
-    }
-
     updatedItems[index] = currentItem;
     setItems(updatedItems);
-  };
-
-  // Search through all saved documents for item number patterns
-  const findHistoricalProduct = (itemNo: string): DocItem | null => {
-    for (const doc of allSavedDocuments) {
-      const found = doc.items.find(
-        it => it.itemNo.trim().toLowerCase() === itemNo.trim().toLowerCase()
-      );
-      if (found) return found;
-    }
-    return null;
   };
 
   // Quick fill demo items

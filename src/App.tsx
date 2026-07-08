@@ -271,7 +271,7 @@ export default function App() {
             logoUrl: backendProfile.brand_logo || '',
             address: backendProfile.address || '',
             phone: backendProfile.phone || '',
-            defaultTerms: DEFAULT_COMPANY_PROFILE.defaultTerms,
+            defaultTerms: backendProfile.default_terms || DEFAULT_COMPANY_PROFILE.defaultTerms,
             issuerLabel: DEFAULT_COMPANY_PROFILE.issuerLabel,
             receiverLabel: DEFAULT_COMPANY_PROFILE.receiverLabel,
             weChatPayUrl: backendProfile.wechat_qr || '',
@@ -339,7 +339,8 @@ export default function App() {
           address: updatedProfile.address,
           phone: updatedProfile.phone,
           wechat_qr: updatedProfile.weChatPayUrl || '',
-          alipay_qr: updatedProfile.aliPayUrl || ''
+          alipay_qr: updatedProfile.aliPayUrl || '',
+          default_terms: updatedProfile.defaultTerms || ''
         })
       });
     } catch (e) {

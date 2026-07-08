@@ -88,7 +88,8 @@ async function getMySQLPool(): Promise<mysql.Pool> {
         address VARCHAR(500) DEFAULT '',
         phone VARCHAR(100) DEFAULT '',
         wechat_qr VARCHAR(500) DEFAULT '',
-        alipay_qr VARCHAR(500) DEFAULT ''
+        alipay_qr VARCHAR(500) DEFAULT '',
+        default_terms TEXT
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
@@ -131,10 +132,17 @@ async function getMySQLPool(): Promise<mysql.Pool> {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
+    // Add default_terms column for existing databases (safe to run even if column exists)
+    try {
+      await conn.query(`ALTER TABLE company_config ADD COLUMN default_terms TEXT`);
+    } catch (_) {
+      // Column already exists, ignore
+    }
+
     // Insert initial company config row if not exists
     await conn.query(`
-      INSERT IGNORE INTO company_config (id, company_name, brand_name, brand_logo, address, phone, wechat_qr, alipay_qr)
-      VALUES (1, '织梦盛世面料品贸易有限公司', '织梦面料 · DREAM WEAVE', '', '浙江省绍兴市柯桥区中国轻纺城创意路88号3层', '0575-81234567', '', '')
+      INSERT IGNORE INTO company_config (id, company_name, brand_name, brand_logo, address, phone, wechat_qr, alipay_qr, default_terms)
+      VALUES (1, '织梦盛世面料品贸易有限公司', '织梦面料 · DREAM WEAVE', '', '浙江省绍兴市柯桥区中国轻纺城创意路88号3层', '0575-81234567', '', '', '')
     `);
 
     console.log('[Database] MySQL tables auto-initialized / verified successfully!');
@@ -177,7 +185,8 @@ function loadLocalDB(): LocalDB {
       address: '浙江省绍兴市柯桥区中国轻纺城创意路88号3层',
       phone: '0575-81234567',
       wechat_qr: '',
-      alipay_qr: ''
+      alipay_qr: '',
+      default_terms: ''
     },
     orders: [],
     order_items: []
@@ -264,8 +273,8 @@ app.post('/api/company', async (req, res) => {
       const [rows] = await pool.query<RowDataPacket[]>('SELECT id FROM company_config WHERE id = 1');
       if (rows.length > 0) {
         await pool.query(
-          `UPDATE company_config SET 
-            company_name=?, brand_name=?, brand_logo=?, address=?, phone=?, wechat_qr=?, alipay_qr=? 
+          `UPDATE company_config SET
+            company_name=?, brand_name=?, brand_logo=?, address=?, phone=?, wechat_qr=?, alipay_qr=?, default_terms=?
            WHERE id=1`,
           [
             data.company_name || '',
@@ -274,13 +283,14 @@ app.post('/api/company', async (req, res) => {
             data.address || '',
             data.phone || '',
             data.wechat_qr || '',
-            data.alipay_qr || ''
+            data.alipay_qr || '',
+            data.default_terms || ''
           ]
         );
       } else {
         await pool.query(
-          `INSERT INTO company_config (id, company_name, brand_name, brand_logo, address, phone, wechat_qr, alipay_qr) 
-           VALUES (1, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO company_config (id, company_name, brand_name, brand_logo, address, phone, wechat_qr, alipay_qr, default_terms)
+           VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             data.company_name || '',
             data.brand_name || '',
@@ -288,7 +298,8 @@ app.post('/api/company', async (req, res) => {
             data.address || '',
             data.phone || '',
             data.wechat_qr || '',
-            data.alipay_qr || ''
+            data.alipay_qr || '',
+            data.default_terms || ''
           ]
         );
       }
@@ -308,7 +319,8 @@ app.post('/api/company', async (req, res) => {
     address: data.address || '',
     phone: data.phone || '',
     wechat_qr: data.wechat_qr || '',
-    alipay_qr: data.alipay_qr || ''
+    alipay_qr: data.alipay_qr || '',
+    default_terms: data.default_terms || ''
   };
   saveLocalDB(local);
   res.json({ message: '更新成功' });

@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git commit -m 'fix: 备注条款全链路持久化 + 去除货号自动填充 *)"
+    ]
+  }
+}
