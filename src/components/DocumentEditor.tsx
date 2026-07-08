@@ -38,7 +38,7 @@ export default function DocumentEditor({
   const [terms, setTerms] = useState(existingDocument?.terms || companyProfile.defaultTerms);
   const [issuer, setIssuer] = useState(existingDocument?.issuer || '');
   const [receiver, setReceiver] = useState(existingDocument?.receiver || '');
-  const [bottomPhone, setBottomPhone] = useState(existingDocument?.bottomPhone || companyProfile.phone);
+  const [bottomPhone, setBottomPhone] = useState(existingDocument?.bottomPhone || '');
   const [deposit, setDeposit] = useState<number>(existingDocument?.deposit || 0);
 
   // Custom number of inputs for piece meters (sales documents)
@@ -64,35 +64,16 @@ export default function DocumentEditor({
   // Detail Items list
   const [items, setItems] = useState<DocItem[]>([]);
 
-  // Generate doc number if not editing an existing document
-  useEffect(() => {
-    if (!existingDocument) {
-      const prefix = docType === DocType.SAMPLE ? 'YB' : 'XS';
-      const cleanDate = date.replace(/-/g, '');
-      
-      // Count existing docs today to make a unique serial number
-      const todayCount = allSavedDocuments.filter(
-        d => d.type === docType && d.date === date
-      ).length;
-      
-      let seq = todayCount + 1;
-      let checkNo = `${prefix}-${cleanDate}-${String(seq).padStart(3, '0')}`;
-      while (allSavedDocuments.some(d => d.docNo === checkNo)) {
-        seq++;
-        checkNo = `${prefix}-${cleanDate}-${String(seq).padStart(3, '0')}`;
-      }
-      setDocNo(checkNo);
-    }
-  }, [docType, date, existingDocument, allSavedDocuments]);
+  // Generate doc number prefix hint only, not auto-fill
+  const docNoPrefix = docType === DocType.SAMPLE ? 'YB' : 'XS';
 
-  // Sync terms and phone when company profile changes (if not custom overridden)
+  // Sync terms when company profile changes (if not custom overridden)
   useEffect(() => {
     if (!existingDocument) {
       setCompanyName(companyProfile.name);
       setCompanyAddress(companyProfile.address);
       setCompanyPhone(companyProfile.phone);
       setTerms(companyProfile.defaultTerms);
-      setBottomPhone(companyProfile.phone);
     }
   }, [companyProfile, existingDocument]);
 
@@ -490,15 +471,15 @@ export default function DocumentEditor({
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
               <Hash className="w-3.5 h-3.5 text-slate-400" />
-              单据编号 <span className="text-[10px] bg-slate-100 text-slate-500 font-bold px-1.5 py-0.2 rounded-xs">只读</span>
+              单据编号 <span className="text-[10px] bg-slate-100 text-slate-500 font-bold px-1.5 py-0.2 rounded-xs">手动</span>
             </label>
             <input
               type="text"
               id="doc-no-input"
               value={docNo}
-              readOnly
-              className="w-full px-3 py-2 border border-slate-200 bg-slate-100/85 rounded-lg text-sm text-slate-500 font-mono cursor-not-allowed"
-              placeholder="系统自动生成"
+              onChange={(e) => setDocNo(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm font-mono text-slate-700"
+              placeholder={`如 ${docNoPrefix}-20260708-001`}
             />
           </div>
 
@@ -1011,6 +992,51 @@ export default function DocumentEditor({
               <span className="text-amber-800">应付款：</span>
               <strong className="text-amber-700 font-extrabold text-base">¥{receivableAmount.toFixed(2)}</strong>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Part 3: Signature & Contact Info */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-xs p-6 space-y-6">
+        <h3 className="text-sm font-semibold text-slate-800 uppercase tracking-wider border-l-3 border-sky-500 pl-3">
+          第三部分：单据签署与联系信息
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
+              开单人（签字）
+            </label>
+            <input
+              type="text"
+              value={issuer}
+              onChange={(e) => setIssuer(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+              placeholder="开单人姓名"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
+              收货人（签字）
+            </label>
+            <input
+              type="text"
+              value={receiver}
+              onChange={(e) => setReceiver(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+              placeholder="收货人姓名"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
+              底部联系电话
+            </label>
+            <input
+              type="text"
+              value={bottomPhone}
+              onChange={(e) => setBottomPhone(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+              placeholder="如 0575-81234567"
+            />
           </div>
         </div>
       </div>
