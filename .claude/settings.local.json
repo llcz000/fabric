@@ -5,7 +5,8 @@
       "Bash(git commit -m 'fix: 销售发货码单匹数只计算非空有效数值 *)",
       "Bash(git commit -m 'style: 预览页垂直间距减半，更紧凑 *)",
       "Bash(git commit -m 'fix: 数据大盘日期格式改为 YYYY-MM-DD *)",
-      "Bash(git commit -m 'fix: 底部联系电话保存/加载字段映射错误 *)"
+      "Bash(git commit -m 'fix: 底部联系电话保存/加载字段映射错误 *)",
+      "Bash(git commit -m 'style: 预览公司名称改为黑体 *)"
     ]
   }
 }
