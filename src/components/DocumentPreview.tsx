@@ -316,7 +316,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       </div>
 
       {/* Invoice Page Sheet Wrapper: Designed to look like paper */}
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-md max-w-[850px] mx-auto overflow-hidden">
+      <div className="bg-white rounded-3xl border border-slate-200 shadow-md max-w-[960px] mx-auto overflow-hidden">
         
         {/* Printable Section */}
         <div ref={printRef} className="print-container p-4 sm:p-6 space-y-2 bg-white text-slate-900 leading-normal select-text">
