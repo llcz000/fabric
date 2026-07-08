@@ -393,7 +393,7 @@ export default function DocumentList({
 
       {/* 3. Document Data Table */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-xs overflow-hidden">
-        {filteredItems.length === 0 ? (
+        {filteredDocs.length === 0 ? (
           <div className="p-12 text-center max-w-md mx-auto space-y-4">
             <div className="w-16 h-16 rounded-2xl bg-slate-50 text-slate-400 flex items-center justify-center mx-auto border border-slate-100">
               <Database className="w-8 h-8" />
