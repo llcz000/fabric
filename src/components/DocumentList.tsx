@@ -458,12 +458,12 @@ export default function DocumentList({
                 <thead>
                   <tr className="bg-slate-50/80 text-slate-700 text-xs font-bold uppercase tracking-wider border-b border-slate-100">
                     <th className="py-3.5 px-2 text-center w-[30px]"></th>
-                    <th className="py-3.5 px-2" style={{ width: '14%' }}>开单日期</th>
-                    <th className="py-3.5 px-2" style={{ width: '14%' }}>单据编号</th>
-                    <th className="py-3.5 px-1 text-center" style={{ width: '8%' }}>类型</th>
-                    <th className="py-3.5 px-2" style={{ width: '14%' }}>客户</th>
-                    <th className="py-3.5 px-2 text-right" style={{ width: '14%' }}>总计米数</th>
-                    <th className="py-3.5 px-2 text-right" style={{ width: '14%' }}>合计金额</th>
+                    <th className="py-3.5 px-2" style={{ width: 'calc((100% - 190px) / 7)' }}>开单日期</th>
+                    <th className="py-3.5 px-2" style={{ width: 'calc((100% - 190px) / 7)' }}>单据编号</th>
+                    <th className="py-3.5 px-1 text-center" style={{ width: 'calc((100% - 190px) / 7)' }}>类型</th>
+                    <th className="py-3.5 px-2" style={{ width: 'calc((100% - 190px) / 7)' }}>客户</th>
+                    <th className="py-3.5 px-2 text-right" style={{ width: 'calc((100% - 190px) / 7)' }}>总计米数</th>
+                    <th className="py-3.5 px-2 text-right" style={{ width: 'calc((100% - 190px) / 7)' }}>合计金额</th>
                     <th className="py-3.5 px-2 text-center w-[160px]" style={{ width: '160px' }}>操作</th>
                   </tr>
                 </thead>
