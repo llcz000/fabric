@@ -147,6 +147,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
   const isSample = document.type === DocType.SAMPLE;
   const printRef = useRef(null);
   const [generating, setGenerating] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   const handlePrint = () => {
     window.print();
@@ -192,10 +193,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
 
       const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
       if (isMobile) {
-        // Convert to blob and open in new tab
-        const blob = await (await fetch(dataUrl)).blob();
-        const blobUrl = URL.createObjectURL(blob);
-        window.open(blobUrl, '_blank');
+        setPreviewImage(dataUrl);
       } else {
         // Desktop: direct download
         const link = window.document.createElement('a');
@@ -268,6 +266,19 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
             <p style={{ fontSize: 18, fontWeight: 700, color: '#1e293b', margin: 0 }}>正在生成图片</p>
             <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 6 }}>请稍候...</p>
           </div>
+        </div>
+      )}
+
+      {/* Image preview overlay (mobile) */}
+      {previewImage && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, backgroundColor: '#000', overflow: 'auto' }} onClick={() => setPreviewImage(null)}>
+          <button
+            onClick={(e) => { e.stopPropagation(); setPreviewImage(null); }}
+            style={{ position: 'fixed', top: 12, right: 12, zIndex: 1, background: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none', borderRadius: 20, padding: '8px 16px', fontSize: 14, cursor: 'pointer' }}
+          >
+            关闭
+          </button>
+          <img src={previewImage} style={{ width: '100%', display: 'block' }} alt="单据截图" />
         </div>
       )}
 
