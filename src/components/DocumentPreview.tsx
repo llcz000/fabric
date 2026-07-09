@@ -387,7 +387,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
             </div>
 
             {/* 2. Metadata Section: NO, 收货单位, Date above table */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2 pb-0.5 text-xs text-slate-800 border-b border-slate-400/60" style={{ fontFamily: 'SimSun, serif' }}>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2 pb-0.5 text-xs text-slate-800" style={{ fontFamily: 'SimSun, serif' }}>
               <div className="space-y-0.5">
                 <div>
                   <span>NO：</span>
@@ -412,7 +412,6 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                 <>
                   <thead>
                     <tr className="bg-slate-100 border-b border-slate-900 text-slate-900 font-semibold whitespace-nowrap">
-                      <th className="py-1.5 px-2 border-r border-slate-900 text-center w-[40px] whitespace-nowrap">序号</th>
                       <th className="py-1.5 px-2 border-r border-slate-900 text-center w-[70px] whitespace-nowrap">货号</th>
                       <th className="py-1.5 px-2 border-r border-slate-900 text-center w-[60px] whitespace-nowrap">色号</th>
                       <th className="py-1.5 px-2 border-r border-slate-900 text-center w-[80px] whitespace-nowrap">品名</th>
@@ -430,7 +429,6 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                       const sample = item as SampleItem;
                       return (
                         <tr key={item.id} className="border-b border-slate-900">
-                          <td className="py-1.5 px-2 border-r border-slate-900 text-center text-slate-500">{index + 1}</td>
                           <td className="py-1.5 px-2 border-r border-slate-900 text-center uppercase break-words">{item.itemNo}</td>
                           <td className="py-1.5 px-2 border-r border-slate-900 text-center break-words">{item.colorNo || '-'}</td>
                           <td className="py-1.5 px-2 border-r border-slate-900 text-center break-words">{item.productName}</td>
@@ -478,7 +476,6 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                 <>
                   <thead>
                     <tr className="bg-slate-100 border-b border-slate-900 text-slate-900 font-semibold text-center whitespace-nowrap">
-                      <th className="py-1 px-1 border-r border-slate-900 w-[30px]">#</th>
                       <th className="py-1 px-1 border-r border-slate-900 w-[60px]">货号</th>
                       <th className="py-1 px-1 border-r border-slate-900 w-[50px]">色号</th>
                       <th className="py-1 px-1 border-r border-slate-900 w-[70px]">品名</th>
@@ -512,9 +509,6 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                         if (r === 0) {
                           rows.push(
                             <tr key={`${item.id}-${r}`} className="border-b border-slate-900 text-center">
-                              <td rowSpan={rowCount} className="py-1.5 px-1 border-r border-slate-900 text-center text-slate-500">
-                                {index + 1}
-                              </td>
                               <td rowSpan={rowCount} className="py-1.5 px-1 border-r border-slate-900 text-center uppercase break-all">
                                 {item.itemNo}
                               </td>
@@ -609,7 +603,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
           </div>
 
           {/* 5. Bottom Signatures and Contact Block */}
-          <div className="signature-section flex flex-col sm:flex-row sm:justify-between items-start sm:gap-2 pt-0 border-t border-dashed border-slate-400" style={{ fontFamily: 'SimSun, serif' }}>
+          <div className="signature-section flex flex-col sm:flex-row sm:justify-between items-start sm:gap-2 pt-0" style={{ fontFamily: 'SimSun, serif' }}>
             {/* Left: Signatures inline on one row */}
             <div className="flex flex-wrap items-center gap-x-8 sm:gap-x-12 gap-y-4 text-xs text-slate-800" style={{ marginTop: 16 }}>
               <div>
