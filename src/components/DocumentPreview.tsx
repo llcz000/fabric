@@ -605,15 +605,14 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
           {/* 5. Bottom Signatures and Contact Block */}
           <div className="signature-section flex flex-col sm:flex-row sm:justify-between items-start sm:gap-2 pt-0" style={{ fontFamily: 'SimSun, serif' }}>
             {/* Left: Signatures inline on one row */}
-            <div className="flex flex-wrap items-center gap-x-8 sm:gap-x-12 gap-y-4 text-xs text-slate-800" style={{ marginTop: 16 }}>
+            <div className="flex flex-wrap items-center gap-x-3 sm:gap-x-5 gap-y-2 text-xs text-slate-800" style={{ marginTop: 16 }}>
               <div>
                 <span>开单人签字：</span>
                 <span className="underline underline-offset-4 pl-1">
                   {document.issuer || '        '}
                 </span>
               </div>
-
-              <div className="flex flex-wrap items-center gap-x-6 sm:gap-x-8">
+              <div className="flex items-center gap-x-3 sm:gap-x-5">
                 <div>
                   <span>收货人签字：</span>
                   <span className="underline underline-offset-4 pl-1">
