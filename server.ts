@@ -385,8 +385,54 @@ app.get('/api/orders', async (req, res) => {
   try {
     if (!useMySQLFallback) {
       const pool = await getMySQLPool();
-      const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM orders ORDER BY created_at DESC');
-      return res.json(rows);
+      const [rows] = await pool.query<RowDataPacket[]>(
+        `SELECT o.*, oi.id as item_id, oi.product_no, oi.color_no, oi.product_name,
+                oi.composition, oi.weight, oi.width, oi.meters as item_meters,
+                oi.unit_price, oi.amount as item_amount, oi.remark, oi.piece_meters
+         FROM orders o
+         LEFT JOIN order_items oi ON oi.order_id = o.id
+         ORDER BY o.created_at DESC`
+      );
+      // Group flat rows into orders with nested items
+      const orderMap = new Map<number, any>();
+      for (const row of rows) {
+        if (!orderMap.has(row.id)) {
+          orderMap.set(row.id, {
+            ...row,
+            items: [],
+          });
+          // Clean up item columns from order level
+          delete (orderMap.get(row.id) as any).item_id;
+          delete (orderMap.get(row.id) as any).product_no;
+          delete (orderMap.get(row.id) as any).color_no;
+          delete (orderMap.get(row.id) as any).product_name;
+          delete (orderMap.get(row.id) as any).composition;
+          delete (orderMap.get(row.id) as any).weight;
+          delete (orderMap.get(row.id) as any).width;
+          delete (orderMap.get(row.id) as any).item_meters;
+          delete (orderMap.get(row.id) as any).unit_price;
+          delete (orderMap.get(row.id) as any).item_amount;
+          delete (orderMap.get(row.id) as any).remark;
+          delete (orderMap.get(row.id) as any).piece_meters;
+        }
+        if (row.item_id) {
+          orderMap.get(row.id).items.push({
+            id: row.item_id,
+            product_no: row.product_no,
+            color_no: row.color_no,
+            product_name: row.product_name,
+            composition: row.composition,
+            weight: row.weight,
+            width: row.width,
+            meters: row.item_meters,
+            unit_price: row.unit_price,
+            amount: row.item_amount,
+            remark: row.remark,
+            piece_meters: row.piece_meters,
+          });
+        }
+      }
+      return res.json(Array.from(orderMap.values()));
     }
     const local = loadLocalDB();
     res.json(local.orders);
