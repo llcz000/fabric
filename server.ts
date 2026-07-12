@@ -128,10 +128,6 @@ async function getMySQLPool(): Promise<mysql.Pool> {
         order_date VARCHAR(50) NOT NULL,
         style_no VARCHAR(100) DEFAULT '',
         receiving_unit VARCHAR(255) DEFAULT '',
-        company_name VARCHAR(255) DEFAULT '',
-        company_address VARCHAR(500) DEFAULT '',
-        company_phone VARCHAR(100) DEFAULT '',
-        terms TEXT,
         total_meters DECIMAL(12,2) DEFAULT 0,
         total_pieces INT DEFAULT 0,
         total_amount DECIMAL(12,2) DEFAULT 0,
@@ -178,11 +174,23 @@ async function getMySQLPool(): Promise<mysql.Pool> {
       }
     };
 
-    await addColumnIfNotExists('orders', 'company_name', 'VARCHAR(255) DEFAULT \'\'');
-    await addColumnIfNotExists('orders', 'company_address', 'VARCHAR(500) DEFAULT \'\'');
-    await addColumnIfNotExists('orders', 'company_phone', 'VARCHAR(100) DEFAULT \'\'');
-    await addColumnIfNotExists('orders', 'terms', 'TEXT');
     await addColumnIfNotExists('company_config', 'default_terms', 'TEXT');
+
+    // Repair: recalculate order totals from order_items (fixes any zero-total records)
+    try {
+      const [repairResult] = await conn.query<ResultSetHeader>(`
+        UPDATE orders o
+        SET
+          total_meters = (SELECT COALESCE(SUM(meters), 0) FROM order_items WHERE order_id = o.id),
+          total_pieces = (SELECT COUNT(*) FROM order_items WHERE order_id = o.id),
+          total_amount = (SELECT COALESCE(SUM(amount), 0) FROM order_items WHERE order_id = o.id)
+      `);
+      if (repairResult.affectedRows > 0) {
+        console.log(`[Database] Repaired totals for ${repairResult.affectedRows} orders from order_items`);
+      }
+    } catch (_: any) {
+      // order_items table may not exist yet on first run
+    }
 
     // Insert initial company config row if not exists
     await conn.query(`
@@ -306,16 +314,16 @@ app.get('/api/company', async (req, res) => {
       const pool = await getMySQLPool();
       const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM company_config WHERE id = 1');
       if (rows.length > 0) {
-        return res.json({ data: rows[0] });
+        return res.json(rows[0]);
       }
     }
     // Fallback
     const local = loadLocalDB();
-    res.json({ data: local.company_config });
+    res.json(local.company_config);
   } catch (error: any) {
     // Graceful error fallback
     const local = loadLocalDB();
-    res.json({ data: local.company_config });
+    res.json(local.company_config);
   }
 });
 
@@ -378,13 +386,13 @@ app.get('/api/orders', async (req, res) => {
     if (!useMySQLFallback) {
       const pool = await getMySQLPool();
       const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM orders ORDER BY created_at DESC');
-      return res.json({ data: rows });
+      return res.json(rows);
     }
     const local = loadLocalDB();
-    res.json({ data: local.orders });
+    res.json(local.orders);
   } catch (error: any) {
     const local = loadLocalDB();
-    res.json({ data: local.orders });
+    res.json(local.orders);
   }
 });
 
@@ -397,13 +405,13 @@ app.get('/api/orders/:id', async (req, res) => {
       if (orderRows.length === 0) return res.status(404).json({ error: 'Order not found' });
 
       const [itemRows] = await pool.query<RowDataPacket[]>('SELECT * FROM order_items WHERE order_id = ?', [orderId]);
-      return res.json({ data: { ...orderRows[0], items: itemRows } });
+      return res.json({ ...orderRows[0], items: itemRows });
     }
     const local = loadLocalDB();
     const order = local.orders.find((o: any) => o.id == orderId);
     if (!order) return res.status(404).json({ error: 'Order not found' });
     const items = local.order_items.filter((i: any) => i.order_id == orderId);
-    res.json({ data: { ...order, items } });
+    res.json({ ...order, items });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -415,17 +423,13 @@ app.post('/api/orders', async (req, res) => {
     if (!useMySQLFallback) {
       const pool = await getMySQLPool();
       const [result] = await pool.query<ResultSetHeader>(
-        `INSERT INTO orders (order_no, order_date, style_no, receiving_unit, company_name, company_address, company_phone, terms, total_meters, total_pieces, total_amount, sign_person, receiver, receiver_phone, template_type, deposit)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO orders (order_no, order_date, style_no, receiving_unit, total_meters, total_pieces, total_amount, sign_person, receiver, receiver_phone, template_type, deposit)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           data.order_no,
           data.order_date,
           data.style_no || '',
           data.receiving_unit || '',
-          data.company_name || '',
-          data.company_address || '',
-          data.company_phone || '',
-          data.terms || '',
           data.total_meters || 0,
           data.total_pieces || 0,
           data.total_amount || 0,
@@ -461,7 +465,7 @@ app.post('/api/orders', async (req, res) => {
           );
         }
       }
-      return res.json({ success: true, data: { id: orderId } });
+      return res.json({ success: true, id: orderId });
     }
     // Fallback
     const local = loadLocalDB();
@@ -476,7 +480,7 @@ app.post('/api/orders', async (req, res) => {
       }
     }
     saveLocalDB(local);
-    res.json({ success: true, data: { id: newId } });
+    res.json({ success: true, id: newId });
   } catch (error: any) {
     console.error('[API /api/orders POST] Error:', error.message);
     res.status(500).json({ error: error.message });
@@ -490,9 +494,8 @@ app.put('/api/orders/:id', async (req, res) => {
     if (!useMySQLFallback) {
       const pool = await getMySQLPool();
       await pool.query(
-        `UPDATE orders SET 
+        `UPDATE orders SET
           order_no = ?, order_date = ?, style_no = ?, receiving_unit = ?,
-          company_name = ?, company_address = ?, company_phone = ?, terms = ?,
           total_meters = ?, total_pieces = ?, total_amount = ?,
           sign_person = ?, receiver = ?, receiver_phone = ?, template_type = ?, deposit = ?
         WHERE id = ?`,
@@ -501,10 +504,6 @@ app.put('/api/orders/:id', async (req, res) => {
           data.order_date,
           data.style_no || '',
           data.receiving_unit || '',
-          data.company_name || '',
-          data.company_address || '',
-          data.company_phone || '',
-          data.terms || '',
           data.total_meters || 0,
           data.total_pieces || 0,
           data.total_amount || 0,
@@ -597,7 +596,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     if (!cos || !cosConfig) {
       // Fallback: return local file path
       const localUrl = `/uploads/${req.file.filename}`;
-      return res.json({ data: { url: localUrl, source: 'local' } });
+      return res.json({ url: localUrl, source: 'local' });
     }
 
     const key = `uploads/${Date.now()}-${req.file.filename}`;
@@ -611,7 +610,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     });
 
     const url = `https://${cosConfig.bucket}.cos.${cosConfig.region}.myqcloud.com/${key}`;
-    res.json({ data: { url, source: 'cos' } });
+    res.json({ url, source: 'cos' });
   } catch (error: any) {
     console.error('[API /api/upload] Error:', error.message);
     res.status(500).json({ error: error.message });
@@ -647,7 +646,7 @@ app.post('/api/template/upload', upload.single('template_file'), async (req, res
     };
     saveTemplateConfig(config);
 
-    res.json({ success: true, data: { filename: req.file.filename, rows: rows.slice(0, 10) } });
+    res.json({ success: true, filename: req.file.filename, rows: rows.slice(0, 10) });
   } catch (error: any) {
     console.error('[API /api/template/upload] Error:', error.message);
     res.status(500).json({ error: error.message });
@@ -657,7 +656,7 @@ app.post('/api/template/upload', upload.single('template_file'), async (req, res
 // ==================== API Route: Template Config ====================
 app.get('/api/template/config', (req, res) => {
   const config = loadTemplateConfig();
-  res.json({ data: config });
+  res.json(config);
 });
 
 // ==================== Vite Dev Server (for development) ====================

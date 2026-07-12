@@ -187,10 +187,10 @@ function mapBackendOrderToDoc(order: any): DocumentData {
     type: isSample ? DocType.SAMPLE : DocType.SALES,
     date: order.order_date || '',
     customerName: order.receiving_unit || '',
-    companyName: order.company_name || '织梦盛世面料品贸易有限公司',
-    companyAddress: order.company_address || '浙江省绍兴市柯桥区中国轻纺城创意路88号3层',
-    companyPhone: order.company_phone || '0575-81234567',
-    terms: order.terms || (isSample ? `1. 质量异议提出期限：买方在收到货物之日起3日内核对数量与质量。如对品质有任何异议，请在剪样、开裁或深加工前提出，否则视为合格，深加工后恕不退换。\n2. 结算方式：本单据为结算及法律权利主张之重要凭证，请买方妥善留存并按约定账期付清货款。` : ''),
+    companyName: '织梦盛世面料品贸易有限公司',
+    companyAddress: '浙江省绍兴市柯桥区中国轻纺城创意路88号3层',
+    companyPhone: '0575-81234567',
+    terms: (isSample ? `1. 质量异议提出期限：买方在收到货物之日起3日内核对数量与质量。如对品质有任何异议，请在剪样、开裁或深加工前提出，否则视为合格，深加工后恕不退换。\n2. 结算方式：本单据为结算及法律权利主张之重要凭证，请买方妥善留存并按约定账期付清货款。` : ''),
     issuer: order.sign_person || '',
     receiver: order.receiver || '',
     bottomPhone: order.receiver_phone || '',
@@ -235,6 +235,9 @@ function mapDocToBackendPayload(doc: DocumentData): any {
     order_date: doc.date,
     style_no: '',
     receiving_unit: doc.customerName,
+    total_meters: doc.totalMeters || 0,
+    total_pieces: doc.totalRolls || 0,
+    total_amount: doc.totalAmount || 0,
     sign_person: doc.issuer,
     receiver: doc.receiver,
     receiver_phone: doc.bottomPhone || '',
@@ -284,8 +287,8 @@ export default function App() {
       const docsRes = await fetch('/api/orders?per_page=100');
       if (docsRes.ok) {
         const docsJson = await docsRes.json();
-        if (Array.isArray(docsJson.data)) {
-          const mapped = docsJson.data.map(mapBackendOrderToDoc);
+        if (Array.isArray(docsJson)) {
+          const mapped = docsJson.map(mapBackendOrderToDoc);
           setDocuments(mapped);
           return;
         }
