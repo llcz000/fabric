@@ -53,7 +53,7 @@ function generateToken(): string {
 
 function authMiddleware(req: express.Request, res: express.Response, next: express.NextFunction) {
   // Whitelist: login and proxy-image don't require auth
-  if (req.path === '/api/login' || req.path === '/api/proxy-image') return next();
+  if (req.path === '/login' || req.path === '/proxy-image') return next();
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (!token || !authTokens.has(token)) {
     return res.status(401).json({ error: 'Unauthorized' });
