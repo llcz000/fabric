@@ -182,14 +182,23 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
         }
       }));
 
-      // Temporarily expand wrapper to capture full table width for image export
+      // Temporarily force full-width layout for image capture on mobile
       const wrapper = node.closest('.preview-wrapper') as HTMLElement;
-      const origMaxWidth = wrapper?.style.maxWidth || '';
-      const origOverflow = wrapper?.style.overflowX || '';
+      const origWrapWidth = wrapper?.style.width || '';
+      const origWrapMaxW = wrapper?.style.maxWidth || '';
+      const origWrapOverflow = wrapper?.style.overflowX || '';
+      const origNodeWidth = (node as HTMLElement).style.width || '';
+      const origNodeMinW = (node as HTMLElement).style.minWidth || '';
       if (wrapper) {
+        wrapper.style.width = 'fit-content';
         wrapper.style.maxWidth = 'none';
         wrapper.style.overflowX = 'visible';
       }
+      (node as HTMLElement).style.width = 'fit-content';
+      (node as HTMLElement).style.minWidth = `${Math.max((node as HTMLElement).scrollWidth, 780)}px`;
+
+      // Force reflow before capture
+      await new Promise(r => requestAnimationFrame(r));
 
       const dataUrl = await toPng(node, {
         quality: 0.9,
@@ -198,10 +207,14 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
         cacheBust: false,
       });
 
+      // Restore
       if (wrapper) {
-        wrapper.style.maxWidth = origMaxWidth;
-        wrapper.style.overflowX = origOverflow;
+        wrapper.style.width = origWrapWidth;
+        wrapper.style.maxWidth = origWrapMaxW;
+        wrapper.style.overflowX = origWrapOverflow;
       }
+      (node as HTMLElement).style.width = origNodeWidth;
+      (node as HTMLElement).style.minWidth = origNodeMinW;
 
       swaps.forEach(({ img, orig }) => { img.src = orig; });
 
