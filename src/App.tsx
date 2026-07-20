@@ -265,10 +265,15 @@ export default function App() {
   const [docToEdit, setDocToEdit] = useState<DocumentData | null>(null);
 
   // Auth-aware fetch wrapper
-  const authFetch = (url: string, options: RequestInit = {}) => {
+  const authFetch = async (url: string, options: RequestInit = {}) => {
     const headers: Record<string, string> = { ...(options.headers as Record<string, string> || {}) };
     if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
-    return fetch(url, { ...options, headers });
+    const res = await fetch(url, { ...options, headers });
+    if (res.status === 401) {
+      sessionStorage.removeItem('fabric_auth_token');
+      setAuthToken(null);
+    }
+    return res;
   };
 
   const handleLogin = async (password: string) => {
@@ -400,17 +405,28 @@ export default function App() {
         body: JSON.stringify(mapDocToBackendPayload(savedDoc))
       });
 
-      if (res.ok) {
-        const json = await res.json();
-        // Support both { id } and { data: { id } } response formats
-        const returnedId = json.id ?? json.data?.id;
-        if (returnedId != null) {
-          updatedDocId = String(returnedId);
-          savedDoc.id = updatedDocId;
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        if (res.status === 401) {
+          sessionStorage.removeItem('fabric_auth_token');
+          setAuthToken(null);
+          alert('登录已过期，请重新登录');
+          return;
         }
+        alert(`保存失败 (${res.status})：${errText || '服务器错误，请重试'}`);
+        return;
+      }
+
+      const json = await res.json();
+      // Support both { id } and { data: { id } } response formats
+      const returnedId = json.id ?? json.data?.id;
+      if (returnedId != null) {
+        updatedDocId = String(returnedId);
+        savedDoc.id = updatedDocId;
       }
     } catch (e) {
-      console.warn('Backend order save failed, saved locally:', e);
+      alert('连接服务器失败，请检查网络后重试');
+      return;
     }
 
     let updatedDocs: DocumentData[];
