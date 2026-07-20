@@ -548,7 +548,16 @@ app.get('/api/orders', async (req, res) => {
           });
         }
       }
-      return res.json(Array.from(orderMap.values()));
+      // Normalize date fields: convert Date objects to strings for consistent JSON serialization
+      const result = Array.from(orderMap.values()).map((order: any) => ({
+        ...order,
+        order_date: order.order_date instanceof Date
+          ? order.order_date.toISOString().split('T')[0]
+          : String(order.order_date || '').split('T')[0],
+        created_at: order.created_at instanceof Date ? order.created_at.toISOString() : String(order.created_at || ''),
+        updated_at: order.updated_at instanceof Date ? order.updated_at.toISOString() : String(order.updated_at || ''),
+      }));
+      return res.json(result);
     }
     // JSON fallback: group items from local.order_items (consistent with MySQL LEFT JOIN)
     const local = loadLocalDB();
@@ -590,7 +599,11 @@ app.get('/api/orders/:id', async (req, res) => {
       if (orderRows.length === 0) return res.status(404).json({ error: 'Order not found' });
 
       const [itemRows] = await pool.query<RowDataPacket[]>('SELECT * FROM order_items WHERE order_id = ?', [orderId]);
-      return res.json({ ...orderRows[0], items: itemRows });
+      const order = orderRows[0];
+      if (order.order_date instanceof Date) order.order_date = order.order_date.toISOString().split('T')[0];
+      if (order.created_at instanceof Date) order.created_at = order.created_at.toISOString();
+      if (order.updated_at instanceof Date) order.updated_at = order.updated_at.toISOString();
+      return res.json({ ...order, items: itemRows });
     }
     const local = loadLocalDB();
     const order = local.orders.find((o: any) => o.id == orderId);
