@@ -906,8 +906,14 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    // Production: serve static files from dist
-    app.use(express.static(path.join(process.cwd(), 'dist')));
+    // Production: serve static files from dist, prevent HTML caching
+    app.use(express.static(path.join(process.cwd(), 'dist'), {
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.html')) {
+          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        }
+      }
+    }));
   }
 
   app.listen(PORT, () => {
