@@ -126,7 +126,7 @@ export default function DocumentList({
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(documents, null, 2));
     const downloadAnchor = window.document.createElement('a');
     downloadAnchor.setAttribute("href",     dataStr);
-    downloadAnchor.setAttribute("download", `面料单据数据库备份-${new Date().toISOString().split('T')[0]}.json`);
+    downloadAnchor.setAttribute("download", `面料单据数据库备份-${new Date().toLocaleDateString('fr-CA')}.json`);
     window.document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();

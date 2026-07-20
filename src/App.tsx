@@ -446,16 +446,17 @@ export default function App() {
   // Copy/Duplicate Document to start a new record easily
   const handleDuplicateDocument = (doc: DocumentData) => {
     const prefix = doc.type === DocType.SAMPLE ? 'YB' : 'XS';
-    const cleanDate = new Date().toISOString().split('T')[0].replace(/-/g, '');
-    const todayCount = documents.filter(d => d.type === doc.type && d.date === new Date().toISOString().split('T')[0]).length;
+    const localToday = new Date().toLocaleDateString('fr-CA');
+    const cleanDate = localToday.replace(/-/g, '');
+    const todayCount = documents.filter(d => d.type === doc.type && d.date === localToday).length;
     const sequence = String(todayCount + 1).padStart(3, '0');
-    
+
     // Create cloned payload
     const duplicated: DocumentData = {
       ...doc,
       id: 'new-' + Math.random().toString(36).substring(2, 11),
       docNo: `${prefix}-${cleanDate}-${sequence}`,
-      date: new Date().toISOString().split('T')[0], // Reset to today's date
+      date: localToday, // Reset to today's date
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };

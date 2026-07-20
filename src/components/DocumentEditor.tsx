@@ -28,7 +28,7 @@ export default function DocumentEditor({
   
   // Basic metadata fields
   const [customerName, setCustomerName] = useState(existingDocument?.customerName || '');
-  const [date, setDate] = useState(existingDocument?.date || new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(existingDocument?.date || new Date().toLocaleDateString('fr-CA'));
   const [docNo, setDocNo] = useState(existingDocument?.docNo || '');
   
   // Company info (stored but preview uses companyProfile directly)
