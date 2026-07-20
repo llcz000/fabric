@@ -89,7 +89,7 @@ function numberToChineseCapital(num: number): string {
       // Remove trailing zeros in sections
       sectionStr = sectionStr.replace(/零+$/, '');
       if (sectionStr) {
-        integerStr = sectionStr + unit[0][0][unitIndex] + integerStr;
+        integerStr = sectionStr + unit[0][unitIndex] + integerStr;
       } else if (unitIndex === 0) {
         integerStr = '元';
       }
