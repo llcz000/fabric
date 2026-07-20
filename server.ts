@@ -502,7 +502,11 @@ app.get('/api/orders', async (req, res) => {
     if (!useMySQLFallback) {
       const pool = await getMySQLPool();
       const [rows] = await pool.query<RowDataPacket[]>(
-        `SELECT o.*, oi.id as item_id, oi.product_no, oi.color_no, oi.product_name,
+        `SELECT o.id, o.order_no, DATE_FORMAT(o.order_date, '%Y-%m-%d') as order_date,
+                o.style_no, o.receiving_unit, o.total_meters, o.total_pieces, o.total_amount,
+                o.sign_person, o.receiver, o.receiver_phone, o.template_type, o.deposit,
+                o.created_at, o.updated_at,
+                oi.id as item_id, oi.product_no, oi.color_no, oi.product_name,
                 oi.composition, oi.weight, oi.width, oi.meters as item_meters,
                 oi.unit_price, oi.amount as item_amount, oi.remark, oi.piece_meters
          FROM orders o
@@ -548,21 +552,7 @@ app.get('/api/orders', async (req, res) => {
           });
         }
       }
-      // Normalize date fields: convert Date objects to strings for consistent JSON serialization
-      const result = Array.from(orderMap.values()).map((order: any) => {
-        const fmtDate = (v: any) => {
-          if (v instanceof Date) {
-            return `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, '0')}-${String(v.getDate()).padStart(2, '0')}`;
-          }
-          return String(v || '').split('T')[0];
-        };
-        return {
-          ...order,
-          order_date: fmtDate(order.order_date),
-          created_at: order.created_at instanceof Date ? order.created_at.toISOString() : String(order.created_at || ''),
-          updated_at: order.updated_at instanceof Date ? order.updated_at.toISOString() : String(order.updated_at || ''),
-      }));
-      return res.json(result);
+      return res.json(Array.from(orderMap.values()));
     }
     // JSON fallback: group items from local.order_items (consistent with MySQL LEFT JOIN)
     const local = loadLocalDB();
@@ -600,17 +590,16 @@ app.get('/api/orders/:id', async (req, res) => {
   try {
     if (!useMySQLFallback) {
       const pool = await getMySQLPool();
-      const [orderRows] = await pool.query<RowDataPacket[]>('SELECT * FROM orders WHERE id = ?', [orderId]);
+      const [orderRows] = await pool.query<RowDataPacket[]>(
+        `SELECT id, order_no, DATE_FORMAT(order_date, '%Y-%m-%d') as order_date,
+                style_no, receiving_unit, total_meters, total_pieces, total_amount,
+                sign_person, receiver, receiver_phone, template_type, deposit,
+                created_at, updated_at
+         FROM orders WHERE id = ?`, [orderId]);
       if (orderRows.length === 0) return res.status(404).json({ error: 'Order not found' });
 
       const [itemRows] = await pool.query<RowDataPacket[]>('SELECT * FROM order_items WHERE order_id = ?', [orderId]);
-      const order = orderRows[0];
-      if (order.order_date instanceof Date) {
-        order.order_date = `${order.order_date.getFullYear()}-${String(order.order_date.getMonth() + 1).padStart(2, '0')}-${String(order.order_date.getDate()).padStart(2, '0')}`;
-      }
-      if (order.created_at instanceof Date) order.created_at = order.created_at.toISOString();
-      if (order.updated_at instanceof Date) order.updated_at = order.updated_at.toISOString();
-      return res.json({ ...order, items: itemRows });
+      return res.json({ ...orderRows[0], items: itemRows });
     }
     const local = loadLocalDB();
     const order = local.orders.find((o: any) => o.id == orderId);
