@@ -3,18 +3,29 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { DocType, DocumentData, CompanyProfile, DocItem } from './types';
-import DocumentList from './components/DocumentList';
-import DocumentEditor from './components/DocumentEditor';
-import DocumentPreview from './components/DocumentPreview';
-import CompanyProfileEditor from './components/CompanyProfileEditor';
-import StatsDashboard from './components/StatsDashboard';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { 
-  Database, PlusCircle, Settings, LayoutDashboard, 
-  Layers, ChevronRight, FileSpreadsheet, Info, CheckCircle2 
+import {
+  Database, PlusCircle, Settings, LayoutDashboard,
+  Layers, ChevronRight, FileSpreadsheet, Info, CheckCircle2
 } from 'lucide-react';
+
+// Lazy-load heavy components to reduce initial bundle size (mobile login page loads fast)
+const DocumentList = lazy(() => import('./components/DocumentList'));
+const DocumentEditor = lazy(() => import('./components/DocumentEditor'));
+const DocumentPreview = lazy(() => import('./components/DocumentPreview'));
+const CompanyProfileEditor = lazy(() => import('./components/CompanyProfileEditor'));
+const StatsDashboard = lazy(() => import('./components/StatsDashboard'));
+
+const LoadingFallback = () => (
+  <div className="min-h-[60vh] flex items-center justify-center">
+    <div className="text-center">
+      <div className="w-10 h-10 border-4 border-slate-200 border-t-sky-500 rounded-full animate-spin mx-auto mb-3" />
+      <p className="text-sm text-slate-500">加载中...</p>
+    </div>
+  </div>
+);
 
 const STORAGE_KEYS = {
   DOCUMENTS: 'textile_dms_documents',
@@ -523,6 +534,7 @@ export default function App() {
   }
 
   return (
+    <Suspense fallback={<LoadingFallback />}>
     <ErrorBoundary>
     <div className="min-h-screen bg-slate-50/60 flex flex-col text-slate-800">
       
@@ -760,5 +772,6 @@ export default function App() {
       
     </div>
     </ErrorBoundary>
+    </Suspense>
   );
 }
