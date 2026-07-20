@@ -446,7 +446,8 @@ export default function App() {
   // Copy/Duplicate Document to start a new record easily
   const handleDuplicateDocument = (doc: DocumentData) => {
     const prefix = doc.type === DocType.SAMPLE ? 'YB' : 'XS';
-    const localToday = new Date().toLocaleDateString('fr-CA');
+    const d = new Date();
+    const localToday = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     const cleanDate = localToday.replace(/-/g, '');
     const todayCount = documents.filter(d => d.type === doc.type && d.date === localToday).length;
     const sequence = String(todayCount + 1).padStart(3, '0');
