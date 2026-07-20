@@ -101,7 +101,7 @@ function numberToChineseCapital(num: number): string {
 
   // Fix zeros formatting
   integerStr = integerStr.replace(/零+/g, '零');
-  integerStr = integerStr.replace(/^零(?!元)/, '');
+  integerStr = integerStr.replace(/^零(?!元)(?=.)/, '');
   integerStr = integerStr.replace(/零元/, '元');
   integerStr = integerStr.replace(/零万/, '万');
   if (integerStr.startsWith('元') && integerStr.length > 1) {
