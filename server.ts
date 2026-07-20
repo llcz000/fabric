@@ -434,11 +434,34 @@ app.get('/api/orders', async (req, res) => {
       }
       return res.json(Array.from(orderMap.values()));
     }
+    // JSON fallback: group items from local.order_items (consistent with MySQL LEFT JOIN)
     const local = loadLocalDB();
-    res.json(local.orders);
+    const fbOrderMap = new Map<number, any>();
+    for (const order of local.orders) {
+      const { items: _embedded, ...orderBase } = order;
+      fbOrderMap.set(order.id, { ...orderBase, items: [] });
+    }
+    for (const item of local.order_items) {
+      const order = fbOrderMap.get(item.order_id);
+      if (order) {
+        order.items.push(item);
+      }
+    }
+    res.json(Array.from(fbOrderMap.values()));
   } catch (error: any) {
     const local = loadLocalDB();
-    res.json(local.orders);
+    const fbOrderMap = new Map<number, any>();
+    for (const order of local.orders) {
+      const { items: _embedded, ...orderBase } = order;
+      fbOrderMap.set(order.id, { ...orderBase, items: [] });
+    }
+    for (const item of local.order_items) {
+      const order = fbOrderMap.get(item.order_id);
+      if (order) {
+        order.items.push(item);
+      }
+    }
+    res.json(Array.from(fbOrderMap.values()));
   }
 });
 

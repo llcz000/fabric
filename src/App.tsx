@@ -287,8 +287,10 @@ export default function App() {
       const docsRes = await fetch('/api/orders?per_page=100');
       if (docsRes.ok) {
         const docsJson = await docsRes.json();
-        if (Array.isArray(docsJson)) {
-          const mapped = docsJson.map(mapBackendOrderToDoc);
+        // Support both unwrapped array and { data: [...] } formats
+        const docsArray = Array.isArray(docsJson) ? docsJson : docsJson.data;
+        if (Array.isArray(docsArray)) {
+          const mapped = docsArray.map(mapBackendOrderToDoc);
           setDocuments(mapped);
           return;
         }
@@ -368,8 +370,10 @@ export default function App() {
 
       if (res.ok) {
         const json = await res.json();
-        if (json.id) {
-          updatedDocId = String(json.id);
+        // Support both { id } and { data: { id } } response formats
+        const returnedId = json.id ?? json.data?.id;
+        if (returnedId != null) {
+          updatedDocId = String(returnedId);
           savedDoc.id = updatedDocId;
         }
       }
