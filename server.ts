@@ -252,10 +252,7 @@ function saveLocalDB(data: LocalDB) {
   fs.writeFileSync(DATABASE_FALLBACK_FILE, JSON.stringify(data, null, 2), 'utf8');
 }
 
-// Automatically try initializing MySQL at boot
-getMySQLPool().catch(() => {
-  console.log('[Database] Running in JSON local file fallback mode.');
-});
+// MySQL initialization moved into startServer() to avoid race condition
 
 // ==================== Tencent Cloud COS Config ====================
 let cosClient: COS | null = null;
@@ -730,6 +727,14 @@ app.get('/api/template/config', (req, res) => {
 
 // ==================== Vite Dev Server (for development) ====================
 async function startServer() {
+  // Initialize MySQL before accepting connections (avoid race condition)
+  try {
+    await getMySQLPool();
+    console.log('[Database] MySQL initialized successfully.');
+  } catch {
+    console.log('[Database] Running in JSON local file fallback mode.');
+  }
+
   const isDev = process.env.NODE_ENV !== 'production';
 
   if (isDev) {
