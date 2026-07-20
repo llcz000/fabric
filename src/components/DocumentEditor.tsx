@@ -77,7 +77,7 @@ export default function DocumentEditor({
       // Start with 3 empty rows
       setItems([createEmptyItem(docType), createEmptyItem(docType), createEmptyItem(docType)]);
     }
-  }, [existingDocument]);
+  }, [existingDocument, docType]);
 
   // Handle doc type shift
   const handleDocTypeChange = (newType: DocType) => {

@@ -1,11 +1,16 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
+import dns from 'dns';
+import { isIP } from 'net';
 import dotenv from 'dotenv';
 import mysql, { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 import COS from 'cos-nodejs-sdk-v5';
 import ExcelJS from 'exceljs';
 import multer from 'multer';
+import rateLimit from 'express-rate-limit';
+import { z } from 'zod';
 import { createServer as createViteServer } from 'vite';
 
 // Load environment variables
@@ -28,13 +33,73 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(UPLOADS_DIR));
 
+// Rate limiting: 100 requests per 15 minutes per IP
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later.' },
+});
+app.use('/api/', apiLimiter);
+
+// ==================== Simple Token Authentication ====================
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+const authTokens = new Set<string>();
+
+function generateToken(): string {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+function authMiddleware(req: express.Request, res: express.Response, next: express.NextFunction) {
+  // Whitelist: login and proxy-image don't require auth
+  if (req.path === '/api/login' || req.path === '/api/proxy-image') return next();
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token || !authTokens.has(token)) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  next();
+}
+
+app.use('/api', authMiddleware);
+
+app.post('/api/login', (req, res) => {
+  const { password } = req.body;
+  if (password !== ADMIN_PASSWORD) {
+    return res.status(401).json({ error: 'Invalid password' });
+  }
+  const token = generateToken();
+  authTokens.add(token);
+  res.json({ token });
+});
+
+app.post('/api/logout', (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (token) authTokens.delete(token);
+  res.json({ success: true });
+});
+
 // Image proxy endpoint to solve CORS issues for html-to-image on COS/remote images
 app.get('/api/proxy-image', async (req, res) => {
   try {
     const url = req.query.url as string;
     if (!url) return res.status(400).send('Missing url parameter');
-    // Only allow http/https URLs to prevent SSRF
     if (!/^https?:\/\//i.test(url)) return res.status(400).send('Invalid url');
+
+    // SSRF protection: reject internal/private IPs
+    try {
+      const urlObj = new URL(url);
+      const addresses = await dns.promises.resolve4(urlObj.hostname);
+      for (const addr of addresses) {
+        if (addr.startsWith('127.') || addr.startsWith('10.')
+            || addr.startsWith('172.16.') || addr.startsWith('192.168.')
+            || addr === '169.254.169.254' || addr === '0.0.0.0') {
+          return res.status(403).send('Internal IPs not allowed');
+        }
+      }
+    } catch {
+      // DNS resolution failed, allow the external fetch to handle the error
+    }
 
     const imageRes = await fetch(url);
     if (!imageRes.ok) return res.status(404).send('Image not found');
@@ -70,7 +135,26 @@ const storage = multer.diskStorage({
     }
   }
 });
-const upload = multer({ storage });
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max
+  fileFilter: (req, file, cb) => {
+    const allowedMimes = [
+      'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // xlsx
+      'application/json',
+    ];
+    // Always allow template files
+    if (file.fieldname === 'template_file' || file.originalname.endsWith('.xlsx')) {
+      return cb(null, true);
+    }
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('File type not allowed'));
+    }
+  },
+});
 
 // ==================== MySQL Database Config & Lazy Pool Initialization ====================
 let mysqlPool: mysql.Pool | null = null;
@@ -304,6 +388,37 @@ function saveTemplateConfig(config: any) {
   fs.writeFileSync(TEMPLATE_CONFIG_FILE, JSON.stringify(config, null, 4), 'utf8');
 }
 
+// ==================== Input Validation Schemas ====================
+const OrderItemSchema = z.object({
+  product_no: z.string().max(100).optional().default(''),
+  color_no: z.string().max(100).optional().default(''),
+  product_name: z.string().max(255).optional().default(''),
+  composition: z.string().max(255).optional().default(''),
+  weight: z.string().max(100).optional().default(''),
+  width: z.string().max(100).optional().default(''),
+  meters: z.number().min(0).optional().default(0),
+  unit_price: z.number().min(0).optional().default(0),
+  amount: z.number().min(0).optional().default(0),
+  remark: z.string().max(500).optional().default(''),
+  piece_meters: z.array(z.number()).nullable().optional(),
+});
+
+const CreateOrderSchema = z.object({
+  order_no: z.string().max(100),
+  order_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  style_no: z.string().max(100).optional().default(''),
+  receiving_unit: z.string().max(255).optional().default(''),
+  total_meters: z.number().optional().default(0),
+  total_pieces: z.number().int().optional().default(0),
+  total_amount: z.number().optional().default(0),
+  sign_person: z.string().max(100).optional().default(''),
+  receiver: z.string().max(100).optional().default(''),
+  receiver_phone: z.string().max(100).optional().default(''),
+  template_type: z.enum(['sample', 'bulk']).optional().default('sample'),
+  deposit: z.number().min(0).optional().default(0),
+  items: z.array(OrderItemSchema),
+});
+
 // ==================== API Route: Company Config ====================
 app.get('/api/company', async (req, res) => {
   try {
@@ -484,12 +599,15 @@ app.get('/api/orders/:id', async (req, res) => {
 });
 
 app.post('/api/orders', async (req, res) => {
-  const data = req.body;
+  const data = CreateOrderSchema.parse(req.body);
   try {
     if (!useMySQLFallback) {
       const pool = await getMySQLPool();
-      const [result] = await pool.query<ResultSetHeader>(
-        `INSERT INTO orders (order_no, order_date, style_no, receiving_unit, total_meters, total_pieces, total_amount, sign_person, receiver, receiver_phone, template_type, deposit)
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+        const [result] = await conn.query<ResultSetHeader>(
+          `INSERT INTO orders (order_no, order_date, style_no, receiving_unit, total_meters, total_pieces, total_amount, sign_person, receiver, receiver_phone, template_type, deposit)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           data.order_no,
@@ -511,7 +629,7 @@ app.post('/api/orders', async (req, res) => {
       // Insert items
       if (data.items && data.items.length > 0) {
         for (const item of data.items) {
-          await pool.query(
+          await conn.query(
             `INSERT INTO order_items (order_id, product_no, color_no, product_name, composition, weight, width, meters, unit_price, amount, remark, piece_meters)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
@@ -531,7 +649,14 @@ app.post('/api/orders', async (req, res) => {
           );
         }
       }
+      await conn.commit();
       return res.json({ success: true, id: orderId });
+      } catch (txErr: any) {
+        await conn.rollback();
+        throw txErr;
+      } finally {
+        conn.release();
+      }
     }
     // Fallback
     const local = loadLocalDB();
@@ -555,60 +680,70 @@ app.post('/api/orders', async (req, res) => {
 
 app.put('/api/orders/:id', async (req, res) => {
   const orderId = req.params.id;
-  const data = req.body;
+  const data = CreateOrderSchema.parse(req.body);
   try {
     if (!useMySQLFallback) {
       const pool = await getMySQLPool();
-      await pool.query(
-        `UPDATE orders SET
-          order_no = ?, order_date = ?, style_no = ?, receiving_unit = ?,
-          total_meters = ?, total_pieces = ?, total_amount = ?,
-          sign_person = ?, receiver = ?, receiver_phone = ?, template_type = ?, deposit = ?
-        WHERE id = ?`,
-        [
-          data.order_no,
-          data.order_date,
-          data.style_no || '',
-          data.receiving_unit || '',
-          data.total_meters || 0,
-          data.total_pieces || 0,
-          data.total_amount || 0,
-          data.sign_person || '',
-          data.receiver || '',
-          data.receiver_phone || '',
-          data.template_type || 'sample',
-          data.deposit || 0,
-          orderId
-        ]
-      );
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+        await conn.query(
+          `UPDATE orders SET
+            order_no = ?, order_date = ?, style_no = ?, receiving_unit = ?,
+            total_meters = ?, total_pieces = ?, total_amount = ?,
+            sign_person = ?, receiver = ?, receiver_phone = ?, template_type = ?, deposit = ?
+          WHERE id = ?`,
+          [
+            data.order_no,
+            data.order_date,
+            data.style_no || '',
+            data.receiving_unit || '',
+            data.total_meters || 0,
+            data.total_pieces || 0,
+            data.total_amount || 0,
+            data.sign_person || '',
+            data.receiver || '',
+            data.receiver_phone || '',
+            data.template_type || 'sample',
+            data.deposit || 0,
+            orderId
+          ]
+        );
 
-      // Delete old items and re-insert
-      await pool.query('DELETE FROM order_items WHERE order_id = ?', [orderId]);
-      if (data.items && data.items.length > 0) {
-        for (const item of data.items) {
-          await pool.query(
-            `INSERT INTO order_items (order_id, product_no, color_no, product_name, composition, weight, width, meters, unit_price, amount, remark, piece_meters)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-              orderId,
-              item.product_no || '',
-              item.color_no || '',
-              item.product_name || '',
-              item.composition || '',
-              item.weight || '',
-              item.width || '',
-              item.meters || 0,
-              item.unit_price || 0,
-              item.amount || 0,
-              item.remark || '',
-              item.piece_meters ? JSON.stringify(item.piece_meters) : null
-            ]
+        // Delete old items and re-insert
+        await conn.query('DELETE FROM order_items WHERE order_id = ?', [orderId]);
+        if (data.items && data.items.length > 0) {
+          for (const item of data.items) {
+            await conn.query(
+              `INSERT INTO order_items (order_id, product_no, color_no, product_name, composition, weight, width, meters, unit_price, amount, remark, piece_meters)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [
+                orderId,
+                item.product_no || '',
+                item.color_no || '',
+                item.product_name || '',
+                item.composition || '',
+                item.weight || '',
+                item.width || '',
+                item.meters || 0,
+                item.unit_price || 0,
+                item.amount || 0,
+                item.remark || '',
+                item.piece_meters ? JSON.stringify(item.piece_meters) : null
+              ]
           );
         }
+        }
+        await conn.commit();
+        return res.json({ success: true });
+        } catch (txErr: any) {
+          await conn.rollback();
+          throw txErr;
+        } finally {
+          conn.release();
+        }
       }
-      return res.json({ success: true });
-    }
-    // Fallback
+      // Fallback
     const local = loadLocalDB();
     const idx = local.orders.findIndex((o: any) => o.id == orderId);
     if (idx === -1) return res.status(404).json({ error: 'Order not found' });
@@ -635,9 +770,19 @@ app.delete('/api/orders/:id', async (req, res) => {
   try {
     if (!useMySQLFallback) {
       const pool = await getMySQLPool();
-      await pool.query('DELETE FROM order_items WHERE order_id = ?', [orderId]);
-      await pool.query('DELETE FROM orders WHERE id = ?', [orderId]);
-      return res.json({ success: true });
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+        await conn.query('DELETE FROM order_items WHERE order_id = ?', [orderId]);
+        await conn.query('DELETE FROM orders WHERE id = ?', [orderId]);
+        await conn.commit();
+        return res.json({ success: true });
+      } catch (txErr: any) {
+        await conn.rollback();
+        throw txErr;
+      } finally {
+        conn.release();
+      }
     }
     // Fallback
     const local = loadLocalDB();

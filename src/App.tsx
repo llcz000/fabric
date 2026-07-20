@@ -10,6 +10,7 @@ import DocumentEditor from './components/DocumentEditor';
 import DocumentPreview from './components/DocumentPreview';
 import CompanyProfileEditor from './components/CompanyProfileEditor';
 import StatsDashboard from './components/StatsDashboard';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { 
   Database, PlusCircle, Settings, LayoutDashboard, 
   Layers, ChevronRight, FileSpreadsheet, Info, CheckCircle2 
@@ -248,22 +249,53 @@ function mapDocToBackendPayload(doc: DocumentData): any {
 }
 
 export default function App() {
+  // Auth state
+  const [authToken, setAuthToken] = useState<string | null>(sessionStorage.getItem('fabric_auth_token'));
+  const [loginError, setLoginError] = useState('');
+
   // Global App View Route
   const [currentView, setCurrentView] = useState<AppView>('dashboard');
-  
+
   // Data State
   const [documents, setDocuments] = useState<DocumentData[]>([]);
   const [companyProfile, setCompanyProfile] = useState<CompanyProfile>(DEFAULT_COMPANY_PROFILE);
-  
+
   // Current Active Doc operations state
   const [selectedDoc, setSelectedDoc] = useState<DocumentData | null>(null);
   const [docToEdit, setDocToEdit] = useState<DocumentData | null>(null);
+
+  // Auth-aware fetch wrapper
+  const authFetch = (url: string, options: RequestInit = {}) => {
+    const headers: Record<string, string> = { ...(options.headers as Record<string, string> || {}) };
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+    return fetch(url, { ...options, headers });
+  };
+
+  const handleLogin = async (password: string) => {
+    setLoginError('');
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
+      if (res.ok) {
+        const { token } = await res.json();
+        sessionStorage.setItem('fabric_auth_token', token);
+        setAuthToken(token);
+      } else {
+        setLoginError('密码错误');
+      }
+    } catch {
+      setLoginError('连接失败，请检查服务器');
+    }
+  };
 
   // Load from database/API with local storage fallback on mount
   const loadData = async () => {
     try {
       // 1. Load Company Profile
-      const profileRes = await fetch('/api/company');
+      const profileRes = await authFetch('/api/company');
       if (profileRes.ok) {
         const backendProfile = await profileRes.json();
         if (backendProfile && backendProfile.company_name) {
@@ -284,7 +316,7 @@ export default function App() {
       }
 
       // 2. Load Documents
-      const docsRes = await fetch('/api/orders?per_page=100');
+      const docsRes = await authFetch('/api/orders?per_page=100');
       if (docsRes.ok) {
         const docsJson = await docsRes.json();
         // Support both unwrapped array and { data: [...] } formats
@@ -319,8 +351,8 @@ export default function App() {
   };
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (authToken) loadData();
+  }, [authToken]);
 
   // Update localStorage when documents list modifications occur
   const saveDocumentsToStorage = (updatedDocs: DocumentData[]) => {
@@ -334,7 +366,7 @@ export default function App() {
     localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(updatedProfile));
 
     try {
-      await fetch('/api/company', {
+      await authFetch('/api/company', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -362,7 +394,7 @@ export default function App() {
       const url = isEdit ? `/api/orders/${savedDoc.id}` : '/api/orders';
       const method = isEdit ? 'PUT' : 'POST';
 
-      const res = await fetch(url, {
+      const res = await authFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(mapDocToBackendPayload(savedDoc))
@@ -421,7 +453,7 @@ export default function App() {
     if (confirm('警告：确定要从数据库永久删除此单据吗？操作不可撤销。')) {
       try {
         if (!id.startsWith('init-') && !id.startsWith('new-')) {
-          await fetch(`/api/orders/${id}`, { method: 'DELETE' });
+          await authFetch(`/api/orders/${id}`, { method: 'DELETE' });
         }
       } catch (e) {
         console.warn('Backend order delete failed, fallback local only:', e);
@@ -437,7 +469,43 @@ export default function App() {
     saveDocumentsToStorage(backupDocs);
   };
 
+  // Login screen
+  if (!authToken) {
+    return (
+      <ErrorBoundary>
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8 w-full max-w-sm">
+          <div className="text-center mb-6">
+            <div className="w-12 h-12 rounded-xl bg-sky-600 text-white flex items-center justify-center mx-auto mb-3">
+              <Layers className="w-6 h-6" />
+            </div>
+            <h2 className="text-lg font-bold text-slate-800">单据管理系统</h2>
+            <p className="text-sm text-slate-500 mt-1">请输入管理密码</p>
+          </div>
+          <form onSubmit={(e) => { e.preventDefault(); handleLogin((e.target as any).password.value); }}>
+            <input
+              type="password"
+              name="password"
+              placeholder="密码"
+              autoFocus
+              className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm mb-3"
+            />
+            {loginError && <p className="text-red-500 text-xs mb-3">{loginError}</p>}
+            <button
+              type="submit"
+              className="w-full py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-sm font-semibold cursor-pointer transition-colors"
+            >
+              登录
+            </button>
+          </form>
+        </div>
+      </div>
+      </ErrorBoundary>
+    );
+  }
+
   return (
+    <ErrorBoundary>
     <div className="min-h-screen bg-slate-50/60 flex flex-col text-slate-800">
       
       {/* Dynamic top bar - hidden on print view */}
@@ -673,5 +741,6 @@ export default function App() {
       </div>
       
     </div>
+    </ErrorBoundary>
   );
 }
