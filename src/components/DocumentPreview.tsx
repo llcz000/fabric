@@ -349,7 +349,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       </div>
 
       {/* Invoice Page Sheet Wrapper: Designed to look like paper */}
-      <div className="preview-wrapper bg-white rounded-3xl border border-slate-200 shadow-md max-w-[780px] mx-auto overflow-hidden">
+      <div className="preview-wrapper bg-white rounded-3xl border border-slate-200 shadow-md max-w-[780px] mx-auto overflow-x-auto">
 
         {/* Printable Section */}
         <div ref={printRef} className="print-container p-4 sm:p-6 space-y-1.5 bg-white text-slate-900 leading-normal select-text">
@@ -407,7 +407,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
 
           {/* 3. Central Packing Grid Table */}
           <div className="overflow-x-auto border border-slate-900 rounded-xs !mt-1">
-            <table className="w-full border-collapse text-left text-[11px] text-slate-800 table-auto" style={{ fontFamily: 'SimSun, serif' }}>
+            <table className="w-full border-collapse text-left text-[11px] text-slate-800 min-w-[700px]" style={{ fontFamily: 'SimSun, serif' }}>
               {isSample ? (
                 <>
                   <thead>
