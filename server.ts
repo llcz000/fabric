@@ -549,13 +549,18 @@ app.get('/api/orders', async (req, res) => {
         }
       }
       // Normalize date fields: convert Date objects to strings for consistent JSON serialization
-      const result = Array.from(orderMap.values()).map((order: any) => ({
-        ...order,
-        order_date: order.order_date instanceof Date
-          ? order.order_date.toISOString().split('T')[0]
-          : String(order.order_date || '').split('T')[0],
-        created_at: order.created_at instanceof Date ? order.created_at.toISOString() : String(order.created_at || ''),
-        updated_at: order.updated_at instanceof Date ? order.updated_at.toISOString() : String(order.updated_at || ''),
+      const result = Array.from(orderMap.values()).map((order: any) => {
+        const fmtDate = (v: any) => {
+          if (v instanceof Date) {
+            return `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, '0')}-${String(v.getDate()).padStart(2, '0')}`;
+          }
+          return String(v || '').split('T')[0];
+        };
+        return {
+          ...order,
+          order_date: fmtDate(order.order_date),
+          created_at: order.created_at instanceof Date ? order.created_at.toISOString() : String(order.created_at || ''),
+          updated_at: order.updated_at instanceof Date ? order.updated_at.toISOString() : String(order.updated_at || ''),
       }));
       return res.json(result);
     }
@@ -600,7 +605,9 @@ app.get('/api/orders/:id', async (req, res) => {
 
       const [itemRows] = await pool.query<RowDataPacket[]>('SELECT * FROM order_items WHERE order_id = ?', [orderId]);
       const order = orderRows[0];
-      if (order.order_date instanceof Date) order.order_date = order.order_date.toISOString().split('T')[0];
+      if (order.order_date instanceof Date) {
+        order.order_date = `${order.order_date.getFullYear()}-${String(order.order_date.getMonth() + 1).padStart(2, '0')}-${String(order.order_date.getDate()).padStart(2, '0')}`;
+      }
       if (order.created_at instanceof Date) order.created_at = order.created_at.toISOString();
       if (order.updated_at instanceof Date) order.updated_at = order.updated_at.toISOString();
       return res.json({ ...order, items: itemRows });
