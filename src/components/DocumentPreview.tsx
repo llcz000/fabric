@@ -182,12 +182,26 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
         }
       }));
 
+      // Temporarily expand wrapper to capture full table width for image export
+      const wrapper = node.closest('.preview-wrapper') as HTMLElement;
+      const origMaxWidth = wrapper?.style.maxWidth || '';
+      const origOverflow = wrapper?.style.overflowX || '';
+      if (wrapper) {
+        wrapper.style.maxWidth = 'none';
+        wrapper.style.overflowX = 'visible';
+      }
+
       const dataUrl = await toPng(node, {
         quality: 0.9,
         pixelRatio: 2,
         backgroundColor: '#ffffff',
         cacheBust: false,
       });
+
+      if (wrapper) {
+        wrapper.style.maxWidth = origMaxWidth;
+        wrapper.style.overflowX = origOverflow;
+      }
 
       swaps.forEach(({ img, orig }) => { img.src = orig; });
 
