@@ -9,7 +9,6 @@ import mysql, { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 import COS from 'cos-nodejs-sdk-v5';
 import ExcelJS from 'exceljs';
 import multer from 'multer';
-import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { createServer as createViteServer } from 'vite';
 
@@ -32,20 +31,6 @@ fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(UPLOADS_DIR));
-
-// Rate limiting: 100 requests per 15 minutes per IP
-// Trust proxy for rate limiting behind nginx/reverse proxy
-app.set('trust proxy', 1);
-
-const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  standardHeaders: true,
-  legacyHeaders: false,
-  validate: { xForwardedForHeader: false },
-  message: { error: 'Too many requests, please try again later.' },
-});
-app.use('/api/', apiLimiter);
 
 // ==================== Simple Token Authentication ====================
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
