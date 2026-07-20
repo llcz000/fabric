@@ -169,6 +169,7 @@ async function getMySQLPool(): Promise<mysql.Pool> {
     user,
     password,
     database,
+    dateStrings: true,
     connectionLimit: 10,
     enableKeepAlive: true,
     keepAliveInitialDelay: 0
@@ -487,11 +488,7 @@ app.get('/api/orders', async (req, res) => {
     if (!useMySQLFallback) {
       const pool = await getMySQLPool();
       const [rows] = await pool.query<RowDataPacket[]>(
-        `SELECT o.id, o.order_no, DATE_FORMAT(o.order_date, '%Y-%m-%d') as order_date,
-                o.style_no, o.receiving_unit, o.total_meters, o.total_pieces, o.total_amount,
-                o.sign_person, o.receiver, o.receiver_phone, o.template_type, o.deposit,
-                o.created_at, o.updated_at,
-                oi.id as item_id, oi.product_no, oi.color_no, oi.product_name,
+        `SELECT o.*, oi.id as item_id, oi.product_no, oi.color_no, oi.product_name,
                 oi.composition, oi.weight, oi.width, oi.meters as item_meters,
                 oi.unit_price, oi.amount as item_amount, oi.remark, oi.piece_meters
          FROM orders o
@@ -575,12 +572,7 @@ app.get('/api/orders/:id', async (req, res) => {
   try {
     if (!useMySQLFallback) {
       const pool = await getMySQLPool();
-      const [orderRows] = await pool.query<RowDataPacket[]>(
-        `SELECT id, order_no, DATE_FORMAT(order_date, '%Y-%m-%d') as order_date,
-                style_no, receiving_unit, total_meters, total_pieces, total_amount,
-                sign_person, receiver, receiver_phone, template_type, deposit,
-                created_at, updated_at
-         FROM orders WHERE id = ?`, [orderId]);
+      const [orderRows] = await pool.query<RowDataPacket[]>('SELECT * FROM orders WHERE id = ?', [orderId]);
       if (orderRows.length === 0) return res.status(404).json({ error: 'Order not found' });
 
       const [itemRows] = await pool.query<RowDataPacket[]>('SELECT * FROM order_items WHERE order_id = ?', [orderId]);
