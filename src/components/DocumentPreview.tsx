@@ -253,6 +253,10 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
         window.document.body.removeChild(link);
       }
       log('toPng succeeded, dataUrl length=' + dataUrl.length);
+      // Temporarily show logs on mobile for debugging
+      if (isMobile) {
+        alert('生成成功。调试日志:\n' + logs.join('\n'));
+      }
       } catch (err: any) {
       const errMsg = err instanceof Error ? err.message : (typeof err === 'object' && err?.type ? `${err.type} event` : String(err));
       log('ERROR: ' + errMsg);
