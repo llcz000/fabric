@@ -203,12 +203,12 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       const origNodeWidth = (node as HTMLElement).style.width || '';
       const origNodeMinW = (node as HTMLElement).style.minWidth || '';
       if (wrapper) {
-        wrapper.style.width = '860px';
+        wrapper.style.width = '850px';
         wrapper.style.maxWidth = 'none';
         wrapper.style.overflowX = 'visible';
       }
-      (node as HTMLElement).style.width = '840px';
-      (node as HTMLElement).style.minWidth = '840px';
+      (node as HTMLElement).style.width = '828px';
+      (node as HTMLElement).style.minWidth = '828px';
 
       // Force desktop layout on signature section (flex-row, QR codes on right)
       const sigSection = node.querySelector('.signature-section') as HTMLElement;
@@ -479,7 +479,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
 
           {/* 3. Central Packing Grid Table */}
           <div className="overflow-x-auto border border-slate-900 rounded-xs !mt-1">
-            <table className="w-full table-fixed border-collapse text-left text-[11px] text-slate-800" style={{ fontFamily: 'SimSun, serif', borderColor: '#000000', width: '100%' }}>
+            <table className="w-full table-fixed border-collapse text-left text-[11px] text-slate-800" style={{ fontFamily: 'SimSun, serif', borderColor: '#000000', width: '100%', tableLayout: 'fixed' }}>
               <colgroup>
                 <col style={{ width: '94px' }} />
                 <col style={{ width: '78px' }} />
