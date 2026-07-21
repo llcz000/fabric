@@ -479,7 +479,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
 
           {/* 3. Central Packing Grid Table */}
           <div className="overflow-x-auto border border-slate-900 rounded-xs !mt-1">
-            <table className="w-full table-fixed border-collapse text-left text-[11px] text-slate-800" style={{ fontFamily: 'SimSun, serif', borderColor: '#000000' }}>
+            <table className="w-full table-fixed border-collapse text-left text-[11px] text-slate-800" style={{ fontFamily: 'SimSun, serif', borderColor: '#000000', width: '100%' }}>
               <colgroup>
                 <col style={{ width: '94px' }} />
                 <col style={{ width: '78px' }} />
