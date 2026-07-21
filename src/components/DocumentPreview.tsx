@@ -530,12 +530,12 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                     })}
 
                     {/* Summary Row 1: Total Meters & Total Amount */}
-                    <tr className="border-b border-slate-900 text-slate-900 bg-slate-50/10">
-                      <td colSpan={5} className="py-1.5 px-3 border-r border-slate-900 text-left">
+                    <tr className="border-b border-slate-900" style={{ backgroundColor: '#f8fafc' }}>
+                      <td colSpan={5} className="py-1.5 px-3 border-r border-slate-900 text-left text-slate-900" style={{ backgroundColor: '#f8fafc' }}>
                         总计数（米）：<span className="font-bold">{document.totalMeters.toFixed(2)}</span>
                       </td>
-                      <td colSpan={6} className="py-1.5 px-3 text-left">
-                        合计金额：<span className="text-blue-600 font-bold">¥{document.totalAmount.toFixed(2)}</span>
+                      <td colSpan={6} className="py-1.5 px-3 text-left text-slate-900" style={{ backgroundColor: '#f8fafc' }}>
+                        合计金额：<span style={{ color: '#2563eb' }} className="font-bold">¥{document.totalAmount.toFixed(2)}</span>
                         <span className="text-slate-900 text-[10px] ml-2">
                           （大写：{numberToChineseCapital(document.totalAmount)}）
                         </span>
@@ -543,12 +543,12 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                     </tr>
 
                     {/* Summary Row 2: Total Rolls & Receivable Amount */}
-                    <tr className="text-slate-900 bg-slate-50/10">
-                      <td colSpan={5} className="py-1.5 px-3 border-r border-slate-900 text-left">
+                    <tr style={{ backgroundColor: '#f8fafc' }}>
+                      <td colSpan={5} className="py-1.5 px-3 border-r border-slate-900 text-left text-slate-900" style={{ backgroundColor: '#f8fafc' }}>
                         实发总匹数：<span className="font-bold">{document.totalRolls}</span> 匹
                       </td>
-                      <td colSpan={6} className="py-1.5 px-3 text-left">
-                        应收金额：<span className="text-blue-600 font-bold">¥{document.totalAmount.toFixed(2)}</span>
+                      <td colSpan={6} className="py-1.5 px-3 text-left text-slate-900" style={{ backgroundColor: '#f8fafc' }}>
+                        应收金额：<span style={{ color: '#2563eb' }} className="font-bold">¥{document.totalAmount.toFixed(2)}</span>
                         <span className="text-slate-900 text-[10px] ml-2">
                           （大写：{numberToChineseCapital(document.totalAmount)}）
                         </span>
