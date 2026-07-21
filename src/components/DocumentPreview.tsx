@@ -166,28 +166,42 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       const swaps: { img: HTMLImageElement; orig: string }[] = [];
 
       await Promise.all(Array.from(images).map(async (img) => {
-        img.crossOrigin = 'anonymous';
         if (img.src && /^https?:\/\//.test(img.src) && !img.src.includes('/api/proxy-image')) {
           try {
             const res = await fetch('/api/proxy-image?url=' + encodeURIComponent(img.src));
             if (res.ok) {
               const blob = await res.blob();
-              const reader = new FileReader();
-              const dataUrl: string = await new Promise((resolve) => {
+              const dataUrl: string = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
                 reader.onloadend = () => resolve(reader.result as string);
+                reader.onerror = reject;
                 reader.readAsDataURL(blob);
               });
               swaps.push({ img, orig: img.src });
-              // iOS Safari needs explicit reload wait after src change
+              // Create a fresh Image to preload the data URL, then replace the original
               await new Promise<void>((resolve) => {
-                img.onload = () => resolve();
-                img.onerror = () => resolve();
-                img.src = dataUrl;
+                const newImg = new Image();
+                newImg.onload = () => {
+                  img.src = dataUrl;
+                  resolve();
+                };
+                newImg.onerror = () => resolve();
+                newImg.src = dataUrl;
               });
             }
           } catch (_) {}
+        } else {
+          // For same-origin or data URLs, still preload to ensure render
+          await new Promise<void>((resolve) => {
+            if (img.complete) return resolve();
+            img.onload = () => resolve();
+            img.onerror = () => resolve();
+          });
         }
       }));
+
+      // Extra delay for iOS Safari to finish rendering after src swaps
+      await new Promise(r => setTimeout(r, 100));
 
       // Temporarily force full-width layout for image capture on mobile
       const wrapper = node.closest('.preview-wrapper') as HTMLElement;
