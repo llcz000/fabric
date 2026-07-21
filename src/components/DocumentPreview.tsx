@@ -424,7 +424,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
         <div ref={printRef} className="print-container p-4 sm:p-6 bg-white text-slate-900 leading-normal select-text" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
           
           {/* Header Block, Title & Metadata Grouped tightly to reduce vertical space */}
-          <div className="space-y-0.5">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             {/* 1. Header Corporate Block */}
             <div style={{ borderBottom: '2px solid #000', paddingBottom: '4px' }}>
               <div className="flex justify-between items-start gap-4">
@@ -440,7 +440,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                   <h1 className="text-lg sm:text-xl tracking-wide text-slate-900" style={{ fontFamily: 'SimHei, sans-serif' }}>
                     {companyProfile.name}
                   </h1>
-                  <div className="text-[11px] text-slate-500 space-y-0.5">
+                  <div className="text-[11px] text-slate-500" style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                     <p>地址：{companyProfile.address}</p>
                     <p>电话：{companyProfile.phone}</p>
                   </div>
@@ -457,7 +457,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
 
             {/* 2. Metadata Section: NO, 收货单位, Date above table */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2 pb-0.5 text-xs text-slate-800" style={{ fontFamily: 'SimSun, serif' }}>
-              <div className="space-y-0.5">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                 <div>
                   <span>NO：</span>
                   <span className="text-slate-900">{document.docNo}</span>
