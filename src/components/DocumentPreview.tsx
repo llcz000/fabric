@@ -208,7 +208,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
         wrapper.style.overflowX = 'visible';
       }
       (node as HTMLElement).style.width = 'fit-content';
-      (node as HTMLElement).style.minWidth = `${Math.max((node as HTMLElement).scrollWidth, 960)}px`;
+      (node as HTMLElement).style.minWidth = `${Math.max((node as HTMLElement).scrollWidth, 820)}px`;
 
       // Force desktop layout on signature section (flex-row, QR codes on right)
       const sigSection = node.querySelector('.signature-section') as HTMLElement;
@@ -413,7 +413,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       </div>
 
       {/* Invoice Page Sheet Wrapper: Designed to look like paper */}
-      <div className="preview-wrapper bg-white rounded-3xl border border-slate-200 shadow-md max-w-[960px] mx-auto overflow-x-auto">
+      <div className="preview-wrapper bg-white rounded-3xl border border-slate-200 shadow-md max-w-[820px] mx-auto overflow-x-auto">
 
         {/* Printable Section */}
         <div ref={printRef} className="print-container p-4 sm:p-6 space-y-1.5 bg-white text-slate-900 leading-normal select-text">
@@ -471,7 +471,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
 
           {/* 3. Central Packing Grid Table */}
           <div className="overflow-x-auto border border-slate-900 rounded-xs !mt-1">
-            <table className="w-full table-fixed border-collapse text-left text-[11px] text-slate-800 min-w-[700px]" style={{ fontFamily: 'SimSun, serif' }}>
+            <table className="w-full table-fixed border-collapse text-left text-[11px] text-slate-800 min-w-[700px]" style={{ fontFamily: 'SimSun, serif', borderColor: '#0f172a' }}>
               {isSample ? (
                 <>
                   <thead>
