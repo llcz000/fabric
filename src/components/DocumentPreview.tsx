@@ -325,10 +325,6 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       <style>{`
         .qr-code-img{width:240px!important;height:240px!important}
         @media(max-width:768px){.qr-code-img{width:180px!important;height:180px!important}}
-        .preview-wrapper table td, .preview-wrapper table th, .preview-wrapper table tr { border-color: #000000 !important; }
-        .preview-wrapper table td { word-break: break-all !important; }
-        .preview-wrapper table thead tr { background-color: #f1f5f9 !important; }
-        .preview-wrapper table tbody tr { background-color: #f8fafc !important; }
         .preview-wrapper .terms-box { background-color: #f8fafc !important; border-color: #cbd5e1 !important; }
       `}</style>
       {/* Generating overlay */}
@@ -478,206 +474,160 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
           </div>
 
           {/* 3. Central Packing Grid Table */}
-          <div className="overflow-x-auto rounded-xs" style={{ border: '1px solid #000', marginTop: '4px' }}>
-            <table className="w-full table-fixed border-collapse text-left text-[11px] text-slate-800" style={{ fontFamily: 'SimSun, serif', borderColor: '#000000', width: '100%', tableLayout: 'fixed' }}>
-              <colgroup>
-                <col style={{ width: '94px' }} />
-                <col style={{ width: '78px' }} />
-                <col style={{ width: '78px' }} />
-                <col style={{ width: '78px' }} />
-                <col style={{ width: '78px' }} />
-                <col style={{ width: '78px' }} />
-                <col style={{ width: '78px' }} />
-                <col style={{ width: '78px' }} />
-                <col style={{ width: '94px' }} />
-                <col style={{ width: '46px' }} />
-              </colgroup>
-              {isSample ? (
-                <>
-                  <thead>
-                    <tr className="bg-slate-100 border-b border-slate-900 text-slate-900 font-semibold whitespace-nowrap">
-                      <th className="py-1.5 px-1 border-r border-slate-900 text-center whitespace-nowrap" style={{ width: '94px' }}>货号</th>
-                      <th className="py-1.5 px-1 border-r border-slate-900 text-center whitespace-nowrap" style={{ width: '78px' }}>色号</th>
-                      <th className="py-1.5 px-1 border-r border-slate-900 text-center whitespace-nowrap" style={{ width: '78px' }}>品名</th>
-                      <th className="py-1.5 px-1 border-r border-slate-900 text-center whitespace-nowrap" style={{ width: '78px' }}>成分</th>
-                      <th className="py-1.5 px-1 border-r border-slate-900 text-center whitespace-nowrap" style={{ width: '78px' }}>克重</th>
-                      <th className="py-1.5 px-1 border-r border-slate-900 text-center whitespace-nowrap" style={{ width: '78px' }}>门幅</th>
-                      <th className="py-1.5 px-1 border-r border-slate-900 text-center whitespace-nowrap" style={{ width: '78px' }}>米数</th>
-                      <th className="py-1.5 px-1 border-r border-slate-900 text-center whitespace-nowrap" style={{ width: '78px' }}>单价</th>
-                      <th className="py-1.5 px-1 border-r border-slate-900 text-center whitespace-nowrap" style={{ width: '94px' }}>金额</th>
-                      <th className="py-1.5 px-1 text-center whitespace-nowrap" style={{ width: '46px' }}>备注</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-900">
-                    {document.items.map((item, index) => {
-                      const sample = item as SampleItem;
-                      return (
-                        <tr key={item.id} className="border-b border-slate-900">
-                          <td className="py-1.5 px-2 border-r border-slate-900 text-center uppercase" style={{ wordBreak: 'break-all', width: '94px', minWidth: '94px', maxWidth: '94px' }}>{item.itemNo}</td>
-                          <td className="py-1.5 px-2 border-r border-slate-900 text-center" style={{ wordBreak: 'break-all', width: '78px', minWidth: '78px', maxWidth: '78px' }}>{item.colorNo || '-'}</td>
-                          <td className="py-1.5 px-2 border-r border-slate-900 text-center" style={{ wordBreak: 'break-all', width: '78px', minWidth: '78px', maxWidth: '78px' }}>{item.productName}</td>
-                          <td className="py-1.5 px-2 border-r border-slate-900 text-center" style={{ wordBreak: 'break-all', width: '78px', minWidth: '78px', maxWidth: '78px' }}>{sample.composition || '-'}</td>
-                          <td className="py-1.5 px-2 border-r border-slate-900 text-center font-bold text-slate-600" style={{ wordBreak: 'break-all', width: '78px', minWidth: '78px', maxWidth: '78px' }}>
-                            {sample.weight || '-'}
-                          </td>
-                          <td className="py-1.5 px-2 border-r border-slate-900 text-center font-bold" style={{ wordBreak: 'break-all', width: '78px', minWidth: '78px', maxWidth: '78px' }}>{item.width || '-'}</td>
-                          <td className="py-1.5 px-2 border-r border-slate-900 text-center font-bold" style={{ width: '78px', minWidth: '78px', maxWidth: '78px' }}>{item.meters.toFixed(2)}</td>
-                          <td className="py-1.5 px-2 border-r border-slate-900 text-center font-bold" style={{ width: '78px', minWidth: '78px', maxWidth: '78px' }}>¥{item.price.toFixed(2)}</td>
-                          <td className="py-1.5 px-2 border-r border-slate-900 text-center font-bold text-blue-600" style={{ width: '94px', minWidth: '94px', maxWidth: '94px' }}>¥{item.amount.toFixed(2)}</td>
-                          <td className="py-1.5 px-2 text-center break-words" style={{ width: '46px', minWidth: '46px', maxWidth: '46px' }}>{item.remark || ''}</td>
-                        </tr>
+          <div style={{ border: '1px solid #000', marginTop: '4px', fontFamily: 'SimSun, serif', fontSize: '11px', color: '#1e293b' }}>
+            {isSample ? (
+              <div style={{ display: 'grid', gridTemplateColumns: '94px 78px 78px 78px 78px 78px 78px 78px 94px 46px' }}>
+                {/* Header */}
+                <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>货号</div>
+                <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>色号</div>
+                <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>品名</div>
+                <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>成分</div>
+                <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>克重</div>
+                <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>门幅</div>
+                <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>米数</div>
+                <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>单价</div>
+                <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>金额</div>
+                <div style={{ padding: '6px 4px', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>备注</div>
+
+                {/* Data rows */}
+                {document.items.map((item) => {
+                  const sample = item as SampleItem;
+                  return (
+                    <React.Fragment key={item.id}>
+                      <div style={{ padding: '6px 8px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', wordBreak: 'break-all' }}>{item.itemNo}</div>
+                      <div style={{ padding: '6px 8px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', wordBreak: 'break-all' }}>{item.colorNo || '-'}</div>
+                      <div style={{ padding: '6px 8px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', wordBreak: 'break-all' }}>{item.productName}</div>
+                      <div style={{ padding: '6px 8px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', wordBreak: 'break-all' }}>{sample.composition || '-'}</div>
+                      <div style={{ padding: '6px 8px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 700, wordBreak: 'break-all' }}>{sample.weight || '-'}</div>
+                      <div style={{ padding: '6px 8px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 700, wordBreak: 'break-all' }}>{item.width || '-'}</div>
+                      <div style={{ padding: '6px 8px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 700 }}>{item.meters.toFixed(2)}</div>
+                      <div style={{ padding: '6px 8px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 700 }}>¥{item.price.toFixed(2)}</div>
+                      <div style={{ padding: '6px 8px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 700, color: '#2563eb' }}>¥{item.amount.toFixed(2)}</div>
+                      <div style={{ padding: '6px 8px', borderBottom: '1px solid #000', textAlign: 'center', wordBreak: 'break-all' }}>{item.remark || ''}</div>
+                    </React.Fragment>
+                  );
+                })}
+
+                {/* Summary Row 1: Total Meters & Total Amount */}
+                <div style={{ gridColumn: 'span 5', padding: '6px 12px', borderRight: '1px solid #000', borderBottom: '1px solid #000', backgroundColor: '#f8fafc' }}>
+                  总计数（米）：<span style={{ fontWeight: 700 }}>{document.totalMeters.toFixed(2)}</span>
+                </div>
+                <div style={{ gridColumn: 'span 5', padding: '6px 12px', borderBottom: '1px solid #000', backgroundColor: '#f8fafc' }}>
+                  合计金额：<span style={{ color: '#2563eb', fontWeight: 700 }}>¥{document.totalAmount.toFixed(2)}</span>
+                  <span style={{ fontSize: '10px', marginLeft: '8px' }}>
+                    （大写：{numberToChineseCapital(document.totalAmount)}）
+                  </span>
+                </div>
+
+                {/* Summary Row 2: Total Rolls & Receivable Amount */}
+                <div style={{ gridColumn: 'span 5', padding: '6px 12px', borderRight: '1px solid #000', borderBottom: '1px solid #000', backgroundColor: '#f8fafc' }}>
+                  实发总匹数：<span style={{ fontWeight: 700 }}>{document.totalRolls}</span> 匹
+                </div>
+                <div style={{ gridColumn: 'span 5', padding: '6px 12px', borderBottom: '1px solid #000', backgroundColor: '#f8fafc' }}>
+                  应收金额：<span style={{ color: '#2563eb', fontWeight: 700 }}>¥{document.totalAmount.toFixed(2)}</span>
+                  <span style={{ fontSize: '10px', marginLeft: '8px' }}>
+                    （大写：{numberToChineseCapital(document.totalAmount)}）
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: '45px 40px 50px 30px 30px 30px 30px 30px 30px 30px 30px 30px 30px 30px 45px 40px 50px' }}>
+                {/* Header */}
+                <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>货号</div>
+                <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>色号</div>
+                <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>品名</div>
+                <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>1</div>
+                <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>2</div>
+                <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>3</div>
+                <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>4</div>
+                <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>5</div>
+                <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>6</div>
+                <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>7</div>
+                <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>8</div>
+                <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>9</div>
+                <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>10</div>
+                <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>匹数</div>
+                <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>米数</div>
+                <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>单价</div>
+                <div style={{ padding: '4px', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>金额</div>
+
+                {/* Data rows with rowspan */}
+                {document.items.map((item) => {
+                  const sales = item as SalesItem;
+                  const rolls = getRollValues(sales.rollNo, sales.meters);
+                  const rowCount = Math.ceil(rolls.length / 10) || 1;
+
+                  const cells: React.ReactNode[] = [];
+                  const rowSpan = rowCount > 1 ? { gridRow: `span ${rowCount}` } as React.CSSProperties : {};
+
+                  for (let r = 0; r < rowCount; r++) {
+                    const chunkStart = r * 10;
+                    const chunkRolls = rolls.slice(chunkStart, chunkStart + 10);
+
+                    if (r === 0) {
+                      cells.push(
+                        <React.Fragment key={`${item.id}-${r}`}>
+                          <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', wordBreak: 'break-all', ...rowSpan }}>{item.itemNo}</div>
+                          <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', wordBreak: 'break-all', ...rowSpan }}>{item.colorNo || '-'}</div>
+                          <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', wordBreak: 'break-all', ...rowSpan }}>{item.productName}</div>
+                          {Array.from({ length: 10 }).map((_, ci) => {
+                            const rv = chunkRolls[ci];
+                            return (
+                              <div key={ci} style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 700 }}>
+                                {rv !== undefined ? rv.toFixed(1) : ''}
+                              </div>
+                            );
+                          })}
+                          <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 700, ...rowSpan }}>{rolls.length}</div>
+                          <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 700, ...rowSpan }}>{item.meters.toFixed(2)}</div>
+                          <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 700, ...rowSpan }}>¥{item.price.toFixed(2)}</div>
+                          <div style={{ padding: '6px 4px', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 700, color: '#2563eb', ...rowSpan }}>¥{item.amount.toFixed(2)}</div>
+                        </React.Fragment>
                       );
-                    })}
+                    } else {
+                      cells.push(
+                        <React.Fragment key={`${item.id}-${r}`}>
+                          {Array.from({ length: 10 }).map((_, ci) => {
+                            const rv = chunkRolls[ci];
+                            return (
+                              <div key={ci} style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 700 }}>
+                                {rv !== undefined ? rv.toFixed(1) : ''}
+                              </div>
+                            );
+                          })}
+                        </React.Fragment>
+                      );
+                    }
+                  }
+                  return <React.Fragment key={item.id}>{cells}</React.Fragment>;
+                })}
 
-                    {/* Summary Row 1: Total Meters & Total Amount */}
-                    <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #000' }}>
-                      <td colSpan={5} className="py-1.5 px-3 text-left text-slate-900" style={{ backgroundColor: '#f8fafc', borderRight: '1px solid #000' }}>
-                        总计数（米）：<span className="font-bold">{document.totalMeters.toFixed(2)}</span>
-                      </td>
-                      <td colSpan={6} className="py-1.5 px-3 text-left text-slate-900" style={{ backgroundColor: '#f8fafc' }}>
-                        合计金额：<span style={{ color: '#2563eb' }} className="font-bold">¥{document.totalAmount.toFixed(2)}</span>
-                        <span className="text-slate-900 text-[10px] ml-2">
-                          （大写：{numberToChineseCapital(document.totalAmount)}）
-                        </span>
-                      </td>
-                    </tr>
+                {/* Summary Row 1: Total Rolls/Meters & Total Amount */}
+                <div style={{ gridColumn: 'span 9', padding: '6px 12px', borderRight: '1px solid #000', borderBottom: '1px solid #000', backgroundColor: '#f8fafc' }}>
+                  总匹数：<span style={{ fontWeight: 700 }}>{document.totalRolls}</span> 匹 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 总计米数：<span style={{ fontWeight: 700 }}>{document.totalMeters.toFixed(2)}</span> 米
+                </div>
+                <div style={{ gridColumn: 'span 8', padding: '6px 12px', borderBottom: '1px solid #000', backgroundColor: '#f8fafc' }}>
+                  合计金额：<span style={{ color: '#2563eb', fontWeight: 700 }}>¥{document.totalAmount.toFixed(2)}</span>
+                  <span style={{ fontSize: '10px', marginLeft: '8px' }}>
+                    （大写：{numberToChineseCapital(document.totalAmount)}）
+                  </span>
+                </div>
 
-                    {/* Summary Row 2: Total Rolls & Receivable Amount */}
-                    <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #000' }}>
-                      <td colSpan={5} className="py-1.5 px-3 text-left text-slate-900" style={{ backgroundColor: '#f8fafc', borderRight: '1px solid #000' }}>
-                        实发总匹数：<span className="font-bold">{document.totalRolls}</span> 匹
-                      </td>
-                      <td colSpan={6} className="py-1.5 px-3 text-left text-slate-900" style={{ backgroundColor: '#f8fafc' }}>
-                        应收金额：<span style={{ color: '#2563eb' }} className="font-bold">¥{document.totalAmount.toFixed(2)}</span>
-                        <span className="text-slate-900 text-[10px] ml-2">
-                          （大写：{numberToChineseCapital(document.totalAmount)}）
-                        </span>
-                      </td>
-                    </tr>
-                  </tbody>
-                </>
-              ) : (
-                <>
-                  <thead>
-                    <tr className="bg-slate-100 border-b border-slate-900 text-slate-900 font-semibold text-center whitespace-nowrap">
-                      <th className="py-1 px-1 border-r border-slate-900 w-[45px]">货号</th>
-                      <th className="py-1 px-1 border-r border-slate-900 w-[40px]">色号</th>
-                      <th className="py-1 px-1 border-r border-slate-900 w-[50px]">品名</th>
-                      <th className="py-1 px-1 border-r border-slate-900 w-[30px]">1</th>
-                      <th className="py-1 px-1 border-r border-slate-900 w-[30px]">2</th>
-                      <th className="py-1 px-1 border-r border-slate-900 w-[30px]">3</th>
-                      <th className="py-1 px-1 border-r border-slate-900 w-[30px]">4</th>
-                      <th className="py-1 px-1 border-r border-slate-900 w-[30px]">5</th>
-                      <th className="py-1 px-1 border-r border-slate-900 w-[30px]">6</th>
-                      <th className="py-1 px-1 border-r border-slate-900 w-[30px]">7</th>
-                      <th className="py-1 px-1 border-r border-slate-900 w-[30px]">8</th>
-                      <th className="py-1 px-1 border-r border-slate-900 w-[30px]">9</th>
-                      <th className="py-1 px-1 border-r border-slate-900 w-[30px]">10</th>
-                      <th className="py-1 px-1 border-r border-slate-900 w-[30px]">匹数</th>
-                      <th className="py-1 px-1 border-r border-slate-900 w-[45px]">米数</th>
-                      <th className="py-1 px-1 border-r border-slate-900 w-[40px]">单价</th>
-                      <th className="py-1 px-1 w-[50px]">金额</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-900">
-                    {document.items.map((item, index) => {
-                      const sales = item as SalesItem;
-                      const rolls = getRollValues(sales.rollNo, sales.meters);
-                      const rowCount = Math.ceil(rolls.length / 10) || 1;
-                      
-                      const rows = [];
-                      for (let r = 0; r < rowCount; r++) {
-                        const chunkStart = r * 10;
-                        const chunkRolls = rolls.slice(chunkStart, chunkStart + 10);
-                        
-                        if (r === 0) {
-                          rows.push(
-                            <tr key={`${item.id}-${r}`} className="border-b border-slate-900 text-center">
-                              <td rowSpan={rowCount} className="py-1.5 px-1 border-r border-slate-900 text-center uppercase break-all">
-                                {item.itemNo}
-                              </td>
-                              <td rowSpan={rowCount} className="py-1.5 px-1 border-r border-slate-900 text-center break-all">
-                                {item.colorNo || '-'}
-                              </td>
-                              <td rowSpan={rowCount} className="py-1.5 px-1 border-r border-slate-900 text-center break-all">
-                                {item.productName}
-                              </td>
-
-                              {Array.from({ length: 10 }).map((_, colIdx) => {
-                                const rollVal = chunkRolls[colIdx];
-                                return (
-                                  <td key={colIdx} className="py-1.5 px-1 border-r border-slate-900 text-center font-bold">
-                                    {rollVal !== undefined ? rollVal.toFixed(1) : ''}
-                                  </td>
-                                );
-                              })}
-
-                              <td rowSpan={rowCount} className="py-1.5 px-1 border-r border-slate-900 text-center font-bold">
-                                {rolls.length}
-                              </td>
-                              <td rowSpan={rowCount} className="py-1.5 px-1 border-r border-slate-900 text-center font-bold">
-                                {item.meters.toFixed(2)}
-                              </td>
-                              <td rowSpan={rowCount} className="py-1.5 px-1 border-r border-slate-900 text-center font-bold">
-                                ¥{item.price.toFixed(2)}
-                              </td>
-                              <td rowSpan={rowCount} className="py-1.5 px-1 text-center font-bold text-blue-600">
-                                ¥{item.amount.toFixed(2)}
-                              </td>
-                            </tr>
-                          );
-                        } else {
-                          rows.push(
-                            <tr key={`${item.id}-${r}`} className="border-b border-slate-900 text-center">
-                              {Array.from({ length: 10 }).map((_, colIdx) => {
-                                const rollVal = chunkRolls[colIdx];
-                                return (
-                                  <td key={colIdx} className="py-1.5 px-1 border-r border-slate-900 text-center font-bold">
-                                    {rollVal !== undefined ? rollVal.toFixed(1) : ''}
-                                  </td>
-                                );
-                              })}
-                            </tr>
-                          );
-                        }
-                      }
-                      return <React.Fragment key={item.id}>{rows}</React.Fragment>;
-                    })}
-
-                    {/* Summary Row 1: Total Meters & Total Amount */}
-                    <tr className="border-b border-slate-900 text-slate-900 bg-slate-50/10">
-                      <td colSpan={10} className="py-1.5 px-3 border-r border-slate-900 text-left">
-                        总匹数：<span className="font-bold">{document.totalRolls}</span> 匹 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 总计米数：<span className="font-bold">{document.totalMeters.toFixed(2)}</span> 米
-                      </td>
-                      <td colSpan={8} className="py-1.5 px-3 text-left">
-                        合计金额：<span className="text-blue-600 font-bold">¥{document.totalAmount.toFixed(2)}</span>
-                        <span className="text-slate-900 text-[10px] block sm:inline sm:ml-2">
-                          （大写：{numberToChineseCapital(document.totalAmount)}）
-                        </span>
-                      </td>
-                    </tr>
-
-                    {/* Summary Row 2: Deposit (Sales only) & Net Receivable Amount */}
-                    <tr className="text-slate-900 bg-slate-50/10">
-                      {!isSample && (
-                      <td colSpan={10} className="py-1.5 px-3 border-r border-slate-900 text-left">
-                        预收订金：<span className="font-bold">¥{(document.deposit || 0).toFixed(2)}</span>
-                        <span className="text-slate-900 text-[10px] block sm:inline sm:ml-2">
-                          （大写：{numberToChineseCapital(document.deposit || 0)}）
-                        </span>
-                      </td>
-                      )}
-                      <td colSpan={isSample ? 18 : 8} className="py-1.5 px-3 text-left">
-                        应付款：<span className="text-blue-600 font-bold">¥{document.receivableAmount.toFixed(2)}</span>
-                        <span className="text-slate-900 text-[10px] block sm:inline sm:ml-2">
-                          （大写：{numberToChineseCapital(document.receivableAmount)}）
-                        </span>
-                      </td>
-                    </tr>
-                  </tbody>
-                </>
-              )}
-            </table>
+                {/* Summary Row 2: Deposit & Receivable Amount */}
+                <div style={{ gridColumn: 'span 9', padding: '6px 12px', borderRight: '1px solid #000', borderBottom: '1px solid #000', backgroundColor: '#f8fafc' }}>
+                  预收订金：<span style={{ fontWeight: 700 }}>¥{(document.deposit || 0).toFixed(2)}</span>
+                  <span style={{ fontSize: '10px', marginLeft: '8px' }}>
+                    （大写：{numberToChineseCapital(document.deposit || 0)}）
+                  </span>
+                </div>
+                <div style={{ gridColumn: 'span 8', padding: '6px 12px', borderBottom: '1px solid #000', backgroundColor: '#f8fafc' }}>
+                  应付款：<span style={{ color: '#2563eb', fontWeight: 700 }}>¥{document.receivableAmount.toFixed(2)}</span>
+                  <span style={{ fontSize: '10px', marginLeft: '8px' }}>
+                    （大写：{numberToChineseCapital(document.receivableAmount)}）
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 4. Terms and Liability Statement */}
