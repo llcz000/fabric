@@ -474,7 +474,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
           </div>
 
           {/* 3. Central Packing Grid Table */}
-          <div style={{ border: '1px solid #000', marginTop: '4px', fontFamily: 'SimSun, serif', fontSize: '11px', color: '#1e293b' }}>
+          <div style={{ border: '1px solid #000', marginTop: '4px', fontFamily: 'SimSun, serif', fontSize: '11px', color: '#1e293b', width: 'fit-content' }}>
             {isSample ? (
               <div style={{ display: 'grid', gridTemplateColumns: '94px 78px 78px 78px 78px 78px 78px 78px 94px 46px' }}>
                 {/* Header */}
