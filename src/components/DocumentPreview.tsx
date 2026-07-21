@@ -6,7 +6,7 @@
 import React, { useRef, useState } from 'react';
 import { DocumentData, DocType, SampleItem, SalesItem, CompanyProfile } from '../types';
 import { Printer, ArrowLeft, Edit3, Scissors, Download, Landmark, PhoneCall, Image } from 'lucide-react';
-import html2canvas from 'html2canvas';
+import html2canvas from 'html2canvas-pro';
 
 interface DocumentPreviewProps {
   document: DocumentData;
