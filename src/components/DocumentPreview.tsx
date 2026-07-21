@@ -203,12 +203,12 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       const origNodeWidth = (node as HTMLElement).style.width || '';
       const origNodeMinW = (node as HTMLElement).style.minWidth || '';
       if (wrapper) {
-        wrapper.style.width = '800px';
+        wrapper.style.width = '860px';
         wrapper.style.maxWidth = 'none';
         wrapper.style.overflowX = 'visible';
       }
-      (node as HTMLElement).style.width = '780px';
-      (node as HTMLElement).style.minWidth = '780px';
+      (node as HTMLElement).style.width = '840px';
+      (node as HTMLElement).style.minWidth = '840px';
 
       // Force desktop layout on signature section (flex-row, QR codes on right)
       const sigSection = node.querySelector('.signature-section') as HTMLElement;
@@ -421,7 +421,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       </div>
 
       {/* Invoice Page Sheet Wrapper: Designed to look like paper */}
-      <div className="preview-wrapper bg-white rounded-3xl border border-slate-200 shadow-md mx-auto overflow-x-auto" style={{ maxWidth: '780px' }}>
+      <div className="preview-wrapper bg-white rounded-3xl border border-slate-200 shadow-md mx-auto overflow-x-auto" style={{ maxWidth: '840px' }}>
 
         {/* Printable Section */}
         <div ref={printRef} className="print-container p-4 sm:p-6 bg-white text-slate-900 leading-normal select-text" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -484,16 +484,16 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                 <>
                   <thead>
                     <tr className="bg-slate-100 border-b border-slate-900 text-slate-900 font-semibold whitespace-nowrap">
-                      <th className="py-1.5 px-1 border-r border-slate-900 text-center whitespace-nowrap" style={{ width: '88px' }}>货号</th>
-                      <th className="py-1.5 px-1 border-r border-slate-900 text-center whitespace-nowrap" style={{ width: '74px' }}>色号</th>
-                      <th className="py-1.5 px-1 border-r border-slate-900 text-center whitespace-nowrap" style={{ width: '74px' }}>品名</th>
-                      <th className="py-1.5 px-1 border-r border-slate-900 text-center whitespace-nowrap" style={{ width: '74px' }}>成分</th>
-                      <th className="py-1.5 px-1 border-r border-slate-900 text-center whitespace-nowrap" style={{ width: '74px' }}>克重</th>
-                      <th className="py-1.5 px-1 border-r border-slate-900 text-center whitespace-nowrap" style={{ width: '74px' }}>门幅</th>
-                      <th className="py-1.5 px-1 border-r border-slate-900 text-center whitespace-nowrap" style={{ width: '74px' }}>米数</th>
-                      <th className="py-1.5 px-1 border-r border-slate-900 text-center whitespace-nowrap" style={{ width: '74px' }}>单价</th>
-                      <th className="py-1.5 px-1 border-r border-slate-900 text-center whitespace-nowrap" style={{ width: '88px' }}>金额</th>
-                      <th className="py-1.5 px-1 text-center whitespace-nowrap" style={{ width: '40px' }}>备注</th>
+                      <th className="py-1.5 px-1 border-r border-slate-900 text-center whitespace-nowrap" style={{ width: '94px' }}>货号</th>
+                      <th className="py-1.5 px-1 border-r border-slate-900 text-center whitespace-nowrap" style={{ width: '78px' }}>色号</th>
+                      <th className="py-1.5 px-1 border-r border-slate-900 text-center whitespace-nowrap" style={{ width: '78px' }}>品名</th>
+                      <th className="py-1.5 px-1 border-r border-slate-900 text-center whitespace-nowrap" style={{ width: '78px' }}>成分</th>
+                      <th className="py-1.5 px-1 border-r border-slate-900 text-center whitespace-nowrap" style={{ width: '78px' }}>克重</th>
+                      <th className="py-1.5 px-1 border-r border-slate-900 text-center whitespace-nowrap" style={{ width: '78px' }}>门幅</th>
+                      <th className="py-1.5 px-1 border-r border-slate-900 text-center whitespace-nowrap" style={{ width: '78px' }}>米数</th>
+                      <th className="py-1.5 px-1 border-r border-slate-900 text-center whitespace-nowrap" style={{ width: '78px' }}>单价</th>
+                      <th className="py-1.5 px-1 border-r border-slate-900 text-center whitespace-nowrap" style={{ width: '94px' }}>金额</th>
+                      <th className="py-1.5 px-1 text-center whitespace-nowrap" style={{ width: '46px' }}>备注</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-900">
