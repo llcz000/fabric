@@ -513,18 +513,18 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                       const sample = item as SampleItem;
                       return (
                         <tr key={item.id} className="border-b border-slate-900">
-                          <td className="py-1.5 px-2 border-r border-slate-900 text-center uppercase" style={{ wordBreak: 'break-all' }}>{item.itemNo}</td>
-                          <td className="py-1.5 px-2 border-r border-slate-900 text-center" style={{ wordBreak: 'break-all' }}>{item.colorNo || '-'}</td>
-                          <td className="py-1.5 px-2 border-r border-slate-900 text-center" style={{ wordBreak: 'break-all' }}>{item.productName}</td>
-                          <td className="py-1.5 px-2 border-r border-slate-900 text-center" style={{ wordBreak: 'break-all' }}>{sample.composition || '-'}</td>
-                          <td className="py-1.5 px-2 border-r border-slate-900 text-center font-bold text-slate-600" style={{ wordBreak: 'break-all' }}>
+                          <td className="py-1.5 px-2 border-r border-slate-900 text-center uppercase" style={{ wordBreak: 'break-all', width: '94px', minWidth: '94px', maxWidth: '94px' }}>{item.itemNo}</td>
+                          <td className="py-1.5 px-2 border-r border-slate-900 text-center" style={{ wordBreak: 'break-all', width: '78px', minWidth: '78px', maxWidth: '78px' }}>{item.colorNo || '-'}</td>
+                          <td className="py-1.5 px-2 border-r border-slate-900 text-center" style={{ wordBreak: 'break-all', width: '78px', minWidth: '78px', maxWidth: '78px' }}>{item.productName}</td>
+                          <td className="py-1.5 px-2 border-r border-slate-900 text-center" style={{ wordBreak: 'break-all', width: '78px', minWidth: '78px', maxWidth: '78px' }}>{sample.composition || '-'}</td>
+                          <td className="py-1.5 px-2 border-r border-slate-900 text-center font-bold text-slate-600" style={{ wordBreak: 'break-all', width: '78px', minWidth: '78px', maxWidth: '78px' }}>
                             {sample.weight || '-'}
                           </td>
-                          <td className="py-1.5 px-2 border-r border-slate-900 text-center font-bold" style={{ wordBreak: 'break-all' }}>{item.width || '-'}</td>
-                          <td className="py-1.5 px-2 border-r border-slate-900 text-center font-bold">{item.meters.toFixed(2)}</td>
-                          <td className="py-1.5 px-2 border-r border-slate-900 text-center font-bold">¥{item.price.toFixed(2)}</td>
-                          <td className="py-1.5 px-2 border-r border-slate-900 text-center font-bold text-blue-600">¥{item.amount.toFixed(2)}</td>
-                          <td className="py-1.5 px-2 text-center break-words">{item.remark || ''}</td>
+                          <td className="py-1.5 px-2 border-r border-slate-900 text-center font-bold" style={{ wordBreak: 'break-all', width: '78px', minWidth: '78px', maxWidth: '78px' }}>{item.width || '-'}</td>
+                          <td className="py-1.5 px-2 border-r border-slate-900 text-center font-bold" style={{ width: '78px', minWidth: '78px', maxWidth: '78px' }}>{item.meters.toFixed(2)}</td>
+                          <td className="py-1.5 px-2 border-r border-slate-900 text-center font-bold" style={{ width: '78px', minWidth: '78px', maxWidth: '78px' }}>¥{item.price.toFixed(2)}</td>
+                          <td className="py-1.5 px-2 border-r border-slate-900 text-center font-bold text-blue-600" style={{ width: '94px', minWidth: '94px', maxWidth: '94px' }}>¥{item.amount.toFixed(2)}</td>
+                          <td className="py-1.5 px-2 text-center break-words" style={{ width: '46px', minWidth: '46px', maxWidth: '46px' }}>{item.remark || ''}</td>
                         </tr>
                       );
                     })}
