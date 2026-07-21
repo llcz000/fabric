@@ -498,14 +498,14 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                       const sample = item as SampleItem;
                       return (
                         <tr key={item.id} className="border-b border-slate-900">
-                          <td className="py-1.5 px-2 border-r border-slate-900 text-center uppercase break-words">{item.itemNo}</td>
-                          <td className="py-1.5 px-2 border-r border-slate-900 text-center break-words">{item.colorNo || '-'}</td>
-                          <td className="py-1.5 px-2 border-r border-slate-900 text-center break-words">{item.productName}</td>
-                          <td className="py-1.5 px-2 border-r border-slate-900 text-center break-words">{sample.composition || '-'}</td>
-                          <td className="py-1.5 px-2 border-r border-slate-900 text-center font-bold text-slate-600 break-words">
+                          <td className="py-1.5 px-2 border-r border-slate-900 text-center uppercase" style={{ wordBreak: 'break-all' }}>{item.itemNo}</td>
+                          <td className="py-1.5 px-2 border-r border-slate-900 text-center" style={{ wordBreak: 'break-all' }}>{item.colorNo || '-'}</td>
+                          <td className="py-1.5 px-2 border-r border-slate-900 text-center" style={{ wordBreak: 'break-all' }}>{item.productName}</td>
+                          <td className="py-1.5 px-2 border-r border-slate-900 text-center" style={{ wordBreak: 'break-all' }}>{sample.composition || '-'}</td>
+                          <td className="py-1.5 px-2 border-r border-slate-900 text-center font-bold text-slate-600" style={{ wordBreak: 'break-all' }}>
                             {sample.weight || '-'}
                           </td>
-                          <td className="py-1.5 px-2 border-r border-slate-900 text-center font-bold break-words">{item.width || '-'}</td>
+                          <td className="py-1.5 px-2 border-r border-slate-900 text-center font-bold" style={{ wordBreak: 'break-all' }}>{item.width || '-'}</td>
                           <td className="py-1.5 px-2 border-r border-slate-900 text-center font-bold">{item.meters.toFixed(2)}</td>
                           <td className="py-1.5 px-2 border-r border-slate-900 text-center font-bold">¥{item.price.toFixed(2)}</td>
                           <td className="py-1.5 px-2 border-r border-slate-900 text-center font-bold text-blue-600">¥{item.amount.toFixed(2)}</td>
