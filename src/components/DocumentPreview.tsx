@@ -203,7 +203,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       const origNodeWidth = (node as HTMLElement).style.width || '';
       const origNodeMinW = (node as HTMLElement).style.minWidth || '';
       if (wrapper) {
-        wrapper.style.width = 'fit-content';
+        wrapper.style.width = '800px';
         wrapper.style.maxWidth = 'none';
         wrapper.style.overflowX = 'visible';
       }
