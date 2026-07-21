@@ -6,7 +6,7 @@
 import React, { useRef, useState } from 'react';
 import { DocumentData, DocType, SampleItem, SalesItem, CompanyProfile } from '../types';
 import { Printer, ArrowLeft, Edit3, Scissors, Download, Landmark, PhoneCall, Image } from 'lucide-react';
-import { toPng } from 'html-to-image';
+import html2canvas from 'html2canvas';
 
 interface DocumentPreviewProps {
   document: DocumentData;
@@ -226,14 +226,16 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
 
       // Force reflow before capture
       await new Promise(r => requestAnimationFrame(r));
-      log('calling toPng');
+      log('calling html2canvas');
 
-      const dataUrl = await toPng(node, {
-        quality: 0.9,
-        pixelRatio: 2,
+      const canvas = await html2canvas(node, {
+        scale: 2,
         backgroundColor: '#ffffff',
-        cacheBust: false,
+        useCORS: true,
+        allowTaint: false,
+        logging: false,
       });
+      const dataUrl = canvas.toDataURL('image/png');
 
       // Restore
       if (wrapper) {
@@ -258,7 +260,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
         link.click();
         window.document.body.removeChild(link);
       }
-      log('toPng succeeded, dataUrl length=' + dataUrl.length);
+      log('html2canvas succeeded, dataUrl length=' + dataUrl.length);
       // Temporarily show logs on mobile for debugging
       if (isMobile) {
         alert('生成成功。调试日志:\n' + logs.join('\n'));
