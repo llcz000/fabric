@@ -187,7 +187,13 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
               swaps.push({ img, orig: img.src });
               await new Promise<void>((resolve) => {
                 const pre = window.document.createElement('img');
-                pre.onload = () => { log(`img[${idx}] preloaded`); img.src = dataUrl; resolve(); };
+                pre.onload = () => {
+                  log(`img[${idx}] preloaded`);
+                  // Now swap original img src and wait for IT to load
+                  img.onload = () => { log(`img[${idx}] src swapped & loaded`); resolve(); };
+                  img.onerror = () => { log(`img[${idx}] swap error`); resolve(); };
+                  img.src = dataUrl;
+                };
                 pre.onerror = () => { log(`img[${idx}] preload error`); resolve(); };
                 pre.src = dataUrl;
               });
