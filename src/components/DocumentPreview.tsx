@@ -160,35 +160,47 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
     const node = printRef.current;
     if (!node) return;
     setGenerating(true);
+    const logs: string[] = [];
+    const log = (msg: string) => { logs.push(msg); console.log('[ImageExport]', msg); };
     try {
+      log('start, images found: ' + node.getElementsByTagName('img').length);
       // Convert external images to data URLs via proxy, then toPng
       const images = node.getElementsByTagName('img');
       const swaps: { img: HTMLImageElement; orig: string }[] = [];
 
-      await Promise.all(Array.from(images).map(async (img) => {
+      await Promise.all(Array.from(images).map(async (img, idx) => {
+        log(`img[${idx}] src=${img.src.substring(0, 80)}`);
         if (img.src && /^https?:\/\//.test(img.src) && !img.src.includes('/api/proxy-image')) {
           try {
             const res = await fetch('/api/proxy-image?url=' + encodeURIComponent(img.src));
+            log(`img[${idx}] proxy status=${res.status}`);
             if (res.ok) {
               const blob = await res.blob();
+              log(`img[${idx}] blob size=${blob.size} type=${blob.type}`);
               const dataUrl: string = await new Promise<string>((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onloadend = () => resolve(reader.result as string);
                 reader.onerror = () => reject(new Error('FileReader failed'));
                 reader.readAsDataURL(blob);
               });
+              log(`img[${idx}] dataUrl length=${dataUrl.length}`);
               swaps.push({ img, orig: img.src });
               await new Promise<void>((resolve) => {
                 const pre = new Image();
-                pre.onload = () => { img.src = dataUrl; resolve(); };
-                pre.onerror = () => resolve();
+                pre.onload = () => { log(`img[${idx}] preloaded`); img.src = dataUrl; resolve(); };
+                pre.onerror = (e) => { log(`img[${idx}] preload error`); resolve(); };
                 pre.src = dataUrl;
               });
             }
-          } catch (_) {}
+          } catch (e: any) {
+            log(`img[${idx}] exception: ${e?.message || String(e)}`);
+          }
+        } else {
+          log(`img[${idx}] skipped (not external)`);
         }
       }));
 
+      log('all images processed, waiting 200ms');
       await new Promise(r => setTimeout(r, 200));
 
       // Temporarily force full-width layout for image capture on mobile
@@ -208,6 +220,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
 
       // Force reflow before capture
       await new Promise(r => requestAnimationFrame(r));
+      log('calling toPng');
 
       const dataUrl = await toPng(node, {
         quality: 0.9,
@@ -239,10 +252,12 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
         link.click();
         window.document.body.removeChild(link);
       }
-    } catch (err: any) {
+      log('toPng succeeded, dataUrl length=' + dataUrl.length);
+      } catch (err: any) {
       const errMsg = err instanceof Error ? err.message : (typeof err === 'object' && err?.type ? `${err.type} event` : String(err));
-      alert('生成图片失败: ' + errMsg);
-      console.error('Image export failed:', err);
+      log('ERROR: ' + errMsg);
+      console.error('Image export failed:', err, '\nLogs:\n' + logs.join('\n'));
+      alert('生成图片失败: ' + errMsg + '\n\n详细日志:\n' + logs.join('\n'));
     } finally {
       setGenerating(false);
     }
