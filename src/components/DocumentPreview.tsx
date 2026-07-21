@@ -200,15 +200,11 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       const origWrapWidth = wrapper?.style.width || '';
       const origWrapMaxW = wrapper?.style.maxWidth || '';
       const origWrapOverflow = wrapper?.style.overflowX || '';
-      const origNodeWidth = (node as HTMLElement).style.width || '';
-      const origNodeMinW = (node as HTMLElement).style.minWidth || '';
       if (wrapper) {
         wrapper.style.width = '850px';
         wrapper.style.maxWidth = 'none';
         wrapper.style.overflowX = 'visible';
       }
-      (node as HTMLElement).style.width = '828px';
-      (node as HTMLElement).style.minWidth = '828px';
 
       // Force desktop layout on signature section (flex-row, QR codes on right)
       const sigSection = node.querySelector('.signature-section') as HTMLElement;
@@ -243,8 +239,6 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
         wrapper.style.maxWidth = origWrapMaxW;
         wrapper.style.overflowX = origWrapOverflow;
       }
-      (node as HTMLElement).style.width = origNodeWidth;
-      (node as HTMLElement).style.minWidth = origNodeMinW;
       if (sigSection) {
         sigSection.style.display = origSigDisplay;
         sigSection.style.flexDirection = origSigFlexDir;
@@ -420,7 +414,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       <div className="preview-wrapper bg-white rounded-3xl border border-slate-200 shadow-md mx-auto overflow-x-auto" style={{ maxWidth: '840px' }}>
 
         {/* Printable Section */}
-        <div ref={printRef} className="print-container p-4 sm:p-6 bg-white text-slate-900 leading-normal select-text" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <div ref={printRef} className="print-container p-4 sm:p-6 bg-white text-slate-900 leading-normal select-text" style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: 'fit-content' }}>
           
           {/* Header Block, Title & Metadata Grouped tightly to reduce vertical space */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
