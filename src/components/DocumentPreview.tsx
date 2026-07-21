@@ -325,8 +325,11 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       <style>{`
         .qr-code-img{width:240px!important;height:240px!important}
         @media(max-width:768px){.qr-code-img{width:180px!important;height:180px!important}}
-        .preview-wrapper table td, .preview-wrapper table th { border-color: #000000 !important; }
+        .preview-wrapper table td, .preview-wrapper table th, .preview-wrapper table tr { border-color: #000000 !important; }
         .preview-wrapper table td { word-break: break-all !important; }
+        .preview-wrapper table thead tr { background-color: #f1f5f9 !important; }
+        .preview-wrapper table tbody tr { background-color: #f8fafc !important; }
+        .preview-wrapper .terms-box { background-color: #f8fafc !important; border-color: #cbd5e1 !important; }
       `}</style>
       {/* Generating overlay */}
       {generating && (
@@ -666,7 +669,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
           </div>
 
           {/* 4. Terms and Liability Statement */}
-          <div className="bg-slate-50/80 border border-slate-300 rounded-sm p-2 text-[11px] leading-relaxed text-slate-700" style={{ fontFamily: 'SimSun, serif' }}>
+          <div className="terms-box border rounded-sm p-2 text-[11px] leading-relaxed" style={{ fontFamily: 'SimSun, serif', backgroundColor: '#f8fafc', borderColor: '#cbd5e1', color: '#334155' }}>
             <span>备注条款：</span>
             <span className="whitespace-pre-wrap">{companyProfile.defaultTerms || '无备注条款。'}</span>
           </div>
