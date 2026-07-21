@@ -195,7 +195,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
 
       await new Promise(r => setTimeout(r, 200));
 
-      // Temporarily force full-width layout for image capture on mobile
+      // Temporarily force full-width desktop layout for image capture on mobile
       const wrapper = node.closest('.preview-wrapper') as HTMLElement;
       const origWrapWidth = wrapper?.style.width || '';
       const origWrapMaxW = wrapper?.style.maxWidth || '';
@@ -209,6 +209,21 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       }
       (node as HTMLElement).style.width = 'fit-content';
       (node as HTMLElement).style.minWidth = `${Math.max((node as HTMLElement).scrollWidth, 960)}px`;
+
+      // Force desktop layout on signature section (flex-row, QR codes on right)
+      const sigSection = node.querySelector('.signature-section') as HTMLElement;
+      const origSigDisplay = sigSection?.style.display || '';
+      const origSigFlexDir = sigSection?.style.flexDirection || '';
+      const origSigJustify = sigSection?.style.justifyContent || '';
+      const origQrOrder = sigSection?.querySelector('[class*="order-first"]')?.getAttribute('style') || '';
+      if (sigSection) {
+        sigSection.style.display = 'flex';
+        sigSection.style.flexDirection = 'row';
+        sigSection.style.justifyContent = 'space-between';
+        sigSection.style.alignItems = 'flex-start';
+      }
+      const qrDiv = sigSection?.querySelector('[class*="order-first"]') as HTMLElement;
+      if (qrDiv) qrDiv.style.order = '0';
 
       // Force reflow before capture
       await new Promise(r => requestAnimationFrame(r));
@@ -230,6 +245,12 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       }
       (node as HTMLElement).style.width = origNodeWidth;
       (node as HTMLElement).style.minWidth = origNodeMinW;
+      if (sigSection) {
+        sigSection.style.display = origSigDisplay;
+        sigSection.style.flexDirection = origSigFlexDir;
+        sigSection.style.justifyContent = origSigJustify;
+      }
+      if (qrDiv) qrDiv.style.order = '';
 
       swaps.forEach(({ img, orig }) => { img.src = orig; });
 
@@ -450,21 +471,21 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
 
           {/* 3. Central Packing Grid Table */}
           <div className="overflow-x-auto border border-slate-900 rounded-xs !mt-1">
-            <table className="w-full border-collapse text-left text-[11px] text-slate-800 sm:min-w-[700px]" style={{ fontFamily: 'SimSun, serif' }}>
+            <table className="w-full table-fixed border-collapse text-left text-[11px] text-slate-800 min-w-[700px]" style={{ fontFamily: 'SimSun, serif' }}>
               {isSample ? (
                 <>
                   <thead>
                     <tr className="bg-slate-100 border-b border-slate-900 text-slate-900 font-semibold whitespace-nowrap">
-                      <th className="py-1.5 px-1 border-r border-slate-900 text-center w-[55px] whitespace-nowrap">货号</th>
-                      <th className="py-1.5 px-1 border-r border-slate-900 text-center w-[40px] whitespace-nowrap">色号</th>
-                      <th className="py-1.5 px-1 border-r border-slate-900 text-center w-[55px] whitespace-nowrap">品名</th>
-                      <th className="py-1.5 px-1 border-r border-slate-900 text-center w-[50px] whitespace-nowrap">成分</th>
-                      <th className="py-1.5 px-1 border-r border-slate-900 text-center w-[40px] whitespace-nowrap">克重</th>
-                      <th className="py-1.5 px-1 border-r border-slate-900 text-center w-[45px] whitespace-nowrap">门幅</th>
-                      <th className="py-1.5 px-1 border-r border-slate-900 text-center w-[45px] whitespace-nowrap">米数</th>
-                      <th className="py-1.5 px-1 border-r border-slate-900 text-center w-[45px] whitespace-nowrap">单价</th>
-                      <th className="py-1.5 px-1 border-r border-slate-900 text-center w-[50px] whitespace-nowrap">金额</th>
-                      <th className="py-1.5 px-1 text-center w-[45px] whitespace-nowrap">备注</th>
+                      <th className="py-1.5 px-1 border-r border-slate-900 text-center w-[12%] whitespace-nowrap">货号</th>
+                      <th className="py-1.5 px-1 border-r border-slate-900 text-center w-[8%] whitespace-nowrap">色号</th>
+                      <th className="py-1.5 px-1 border-r border-slate-900 text-center w-[14%] whitespace-nowrap">品名</th>
+                      <th className="py-1.5 px-1 border-r border-slate-900 text-center w-[12%] whitespace-nowrap">成分</th>
+                      <th className="py-1.5 px-1 border-r border-slate-900 text-center w-[8%] whitespace-nowrap">克重</th>
+                      <th className="py-1.5 px-1 border-r border-slate-900 text-center w-[8%] whitespace-nowrap">门幅</th>
+                      <th className="py-1.5 px-1 border-r border-slate-900 text-center w-[10%] whitespace-nowrap">米数</th>
+                      <th className="py-1.5 px-1 border-r border-slate-900 text-center w-[10%] whitespace-nowrap">单价</th>
+                      <th className="py-1.5 px-1 border-r border-slate-900 text-center w-[10%] whitespace-nowrap">金额</th>
+                      <th className="py-1.5 px-1 text-center w-[8%] whitespace-nowrap">备注</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-900">
