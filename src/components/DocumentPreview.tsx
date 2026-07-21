@@ -186,7 +186,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
               log(`img[${idx}] dataUrl length=${dataUrl.length}`);
               swaps.push({ img, orig: img.src });
               await new Promise<void>((resolve) => {
-                const pre = document.createElement('img');
+                const pre = window.document.createElement('img');
                 pre.onload = () => { log(`img[${idx}] preloaded`); img.src = dataUrl; resolve(); };
                 pre.onerror = () => { log(`img[${idx}] preload error`); resolve(); };
                 pre.src = dataUrl;
