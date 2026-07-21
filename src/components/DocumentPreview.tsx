@@ -326,6 +326,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
         .qr-code-img{width:240px!important;height:240px!important}
         @media(max-width:768px){.qr-code-img{width:180px!important;height:180px!important}}
         .preview-wrapper table td, .preview-wrapper table th { border-color: #000000 !important; }
+        .preview-wrapper table td { word-break: break-all !important; }
       `}</style>
       {/* Generating overlay */}
       {generating && (
@@ -482,8 +483,8 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                     <tr className="bg-slate-100 border-b border-slate-900 text-slate-900 font-semibold whitespace-nowrap">
                       <th className="py-1.5 px-1 border-r border-slate-900 text-center w-[12%] whitespace-nowrap">货号</th>
                       <th className="py-1.5 px-1 border-r border-slate-900 text-center w-[8%] whitespace-nowrap">色号</th>
-                      <th className="py-1.5 px-1 border-r border-slate-900 text-center w-[14%] whitespace-nowrap">品名</th>
-                      <th className="py-1.5 px-1 border-r border-slate-900 text-center w-[12%] whitespace-nowrap">成分</th>
+                      <th className="py-1.5 px-1 border-r border-slate-900 text-center w-[10%] whitespace-nowrap">品名</th>
+                      <th className="py-1.5 px-1 border-r border-slate-900 text-center w-[10%] whitespace-nowrap">成分</th>
                       <th className="py-1.5 px-1 border-r border-slate-900 text-center w-[8%] whitespace-nowrap">克重</th>
                       <th className="py-1.5 px-1 border-r border-slate-900 text-center w-[8%] whitespace-nowrap">门幅</th>
                       <th className="py-1.5 px-1 border-r border-slate-900 text-center w-[10%] whitespace-nowrap">米数</th>
