@@ -171,37 +171,25 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
             const res = await fetch('/api/proxy-image?url=' + encodeURIComponent(img.src));
             if (res.ok) {
               const blob = await res.blob();
-              const dataUrl: string = await new Promise((resolve, reject) => {
+              const dataUrl: string = await new Promise<string>((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onloadend = () => resolve(reader.result as string);
-                reader.onerror = reject;
+                reader.onerror = () => reject(new Error('FileReader failed'));
                 reader.readAsDataURL(blob);
               });
               swaps.push({ img, orig: img.src });
-              // Create a fresh Image to preload the data URL, then replace the original
               await new Promise<void>((resolve) => {
-                const newImg = new Image();
-                newImg.onload = () => {
-                  img.src = dataUrl;
-                  resolve();
-                };
-                newImg.onerror = () => resolve();
-                newImg.src = dataUrl;
+                const pre = new Image();
+                pre.onload = () => { img.src = dataUrl; resolve(); };
+                pre.onerror = () => resolve();
+                pre.src = dataUrl;
               });
             }
           } catch (_) {}
-        } else {
-          // For same-origin or data URLs, still preload to ensure render
-          await new Promise<void>((resolve) => {
-            if (img.complete) return resolve();
-            img.onload = () => resolve();
-            img.onerror = () => resolve();
-          });
         }
       }));
 
-      // Extra delay for iOS Safari to finish rendering after src swaps
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise(r => setTimeout(r, 200));
 
       // Temporarily force full-width layout for image capture on mobile
       const wrapper = node.closest('.preview-wrapper') as HTMLElement;
@@ -252,8 +240,9 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
         window.document.body.removeChild(link);
       }
     } catch (err: any) {
-      alert('生成图片失败: ' + (err instanceof Error ? err.stack || err.message : JSON.stringify(err)));
-      console.error(err);
+      const errMsg = err instanceof Error ? err.message : (typeof err === 'object' && err?.type ? `${err.type} event` : String(err));
+      alert('生成图片失败: ' + errMsg);
+      console.error('Image export failed:', err);
     } finally {
       setGenerating(false);
     }
