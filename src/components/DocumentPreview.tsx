@@ -450,7 +450,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
 
           {/* 3. Central Packing Grid Table */}
           <div className="overflow-x-auto border border-slate-900 rounded-xs !mt-1">
-            <table className="w-full border-collapse text-left text-[11px] text-slate-800 min-w-[700px]" style={{ fontFamily: 'SimSun, serif' }}>
+            <table className="w-full border-collapse text-left text-[11px] text-slate-800 sm:min-w-[700px]" style={{ fontFamily: 'SimSun, serif' }}>
               {isSample ? (
                 <>
                   <thead>
@@ -648,7 +648,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
           {/* 5. Bottom Signatures and Contact Block */}
           <div className="signature-section flex flex-col sm:flex-row sm:justify-between items-start sm:gap-2 pt-0" style={{ fontFamily: 'SimSun, serif' }}>
             {/* Left: Signatures inline on one row */}
-            <div className="flex flex-wrap items-center gap-x-3 sm:gap-x-5 gap-y-2 text-xs text-slate-800" style={{ marginTop: 16 }}>
+            <div className="flex flex-wrap items-center gap-x-3 sm:gap-x-5 gap-y-2 text-xs text-slate-800">
               <div>
                 <span>开单人签字：</span>
                 <span className="underline underline-offset-4 pl-1">
