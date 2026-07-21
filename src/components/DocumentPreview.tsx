@@ -208,7 +208,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
         wrapper.style.overflowX = 'visible';
       }
       (node as HTMLElement).style.width = 'fit-content';
-      (node as HTMLElement).style.minWidth = `${Math.max((node as HTMLElement).scrollWidth, 820)}px`;
+      (node as HTMLElement).style.minWidth = `${Math.max((node as HTMLElement).scrollWidth, 780)}px`;
 
       // Force desktop layout on signature section (flex-row, QR codes on right)
       const sigSection = node.querySelector('.signature-section') as HTMLElement;
@@ -417,15 +417,15 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       </div>
 
       {/* Invoice Page Sheet Wrapper: Designed to look like paper */}
-      <div className="preview-wrapper bg-white rounded-3xl border border-slate-200 shadow-md max-w-[820px] mx-auto overflow-x-auto">
+      <div className="preview-wrapper bg-white rounded-3xl border border-slate-200 shadow-md max-w-[780px] mx-auto overflow-x-auto">
 
         {/* Printable Section */}
-        <div ref={printRef} className="print-container p-4 sm:p-6 space-y-1.5 bg-white text-slate-900 leading-normal select-text">
+        <div ref={printRef} className="print-container p-4 sm:p-6 bg-white text-slate-900 leading-normal select-text" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
           
           {/* Header Block, Title & Metadata Grouped tightly to reduce vertical space */}
           <div className="space-y-0.5">
             {/* 1. Header Corporate Block */}
-            <div className="border-b-2 border-slate-900 pb-1">
+            <div style={{ borderBottom: '2px solid #000', paddingBottom: '4px' }}>
               <div className="flex justify-between items-start gap-4">
                 {/* Left: Company Logo Image */}
                 <div className="w-[120px] flex justify-start items-start h-12">
