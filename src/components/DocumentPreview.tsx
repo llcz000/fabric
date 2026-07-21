@@ -530,8 +530,8 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                     })}
 
                     {/* Summary Row 1: Total Meters & Total Amount */}
-                    <tr className="border-b border-slate-900" style={{ backgroundColor: '#f8fafc' }}>
-                      <td colSpan={5} className="py-1.5 px-3 border-r border-slate-900 text-left text-slate-900" style={{ backgroundColor: '#f8fafc' }}>
+                    <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #000' }}>
+                      <td colSpan={5} className="py-1.5 px-3 text-left text-slate-900" style={{ backgroundColor: '#f8fafc', borderRight: '1px solid #000' }}>
                         总计数（米）：<span className="font-bold">{document.totalMeters.toFixed(2)}</span>
                       </td>
                       <td colSpan={6} className="py-1.5 px-3 text-left text-slate-900" style={{ backgroundColor: '#f8fafc' }}>
@@ -543,8 +543,8 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                     </tr>
 
                     {/* Summary Row 2: Total Rolls & Receivable Amount */}
-                    <tr style={{ backgroundColor: '#f8fafc' }}>
-                      <td colSpan={5} className="py-1.5 px-3 border-r border-slate-900 text-left text-slate-900" style={{ backgroundColor: '#f8fafc' }}>
+                    <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #000' }}>
+                      <td colSpan={5} className="py-1.5 px-3 text-left text-slate-900" style={{ backgroundColor: '#f8fafc', borderRight: '1px solid #000' }}>
                         实发总匹数：<span className="font-bold">{document.totalRolls}</span> 匹
                       </td>
                       <td colSpan={6} className="py-1.5 px-3 text-left text-slate-900" style={{ backgroundColor: '#f8fafc' }}>
