@@ -166,6 +166,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       const swaps: { img: HTMLImageElement; orig: string }[] = [];
 
       await Promise.all(Array.from(images).map(async (img) => {
+        img.crossOrigin = 'anonymous';
         if (img.src && /^https?:\/\//.test(img.src) && !img.src.includes('/api/proxy-image')) {
           try {
             const res = await fetch('/api/proxy-image?url=' + encodeURIComponent(img.src));
@@ -177,7 +178,12 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                 reader.readAsDataURL(blob);
               });
               swaps.push({ img, orig: img.src });
-              img.src = dataUrl;
+              // iOS Safari needs explicit reload wait after src change
+              await new Promise<void>((resolve) => {
+                img.onload = () => resolve();
+                img.onerror = () => resolve();
+                img.src = dataUrl;
+              });
             }
           } catch (_) {}
         }
