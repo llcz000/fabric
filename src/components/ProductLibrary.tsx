@@ -31,6 +31,23 @@ function blankProduct(): ProductItem {
   return { id: '', itemNo: '', productName: '', composition: '', weight: '', width: '', imageCount: 0, createdAt: nowISO(), updatedAt: nowISO() };
 }
 
+function getAuthHeaders(): Record<string, string> {
+  const token = sessionStorage.getItem('fabric_auth_token');
+  return token ? { 'Authorization': `Bearer ${token}` } : {};
+}
+
+async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  const headers: Record<string, string> = {
+    ...getAuthHeaders(),
+    ...(options.headers as Record<string, string> || {}),
+  };
+  const res = await fetch(url, { ...options, headers });
+  if (res.status === 401) {
+    sessionStorage.removeItem('fabric_auth_token');
+  }
+  return res;
+}
+
 // Blob → base64 data URL for server transport
 function blobToDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -248,8 +265,8 @@ export default function ProductLibrary() {
         const existingId = products.find(x => x.id === p.id);
         const method = existingId ? 'PUT' : 'POST';
         const url = existingId ? `/api/products/${p.id}` : '/api/products';
-        await fetch(url, { method, body: formData });
-      } catch { /* server sync is best-effort; local IndexedDB is primary */ }
+        await authFetch(url, { method, body: formData });
+      } catch { /* server sync is best-effort */ }
 
       showToast('产品已保存');
       setEditModal(false);
@@ -265,7 +282,7 @@ export default function ProductLibrary() {
     if (!deleteTarget) return;
     try {
       await deleteProduct(deleteTarget.id);
-      try { await fetch(`/api/products/${deleteTarget.id}`, { method: 'DELETE' }); } catch { /* best-effort */ }
+      try { await authFetch(`/api/products/${deleteTarget.id}`, { method: 'DELETE' }); } catch { /* best-effort */ }
       setSelectedIds(prev => { const n = new Set(prev); n.delete(deleteTarget.id); return n; });
       showToast('已删除');
       setDeleteTarget(null);
@@ -301,7 +318,7 @@ export default function ProductLibrary() {
     if (selected.length === 0) { showToast('没有可导出的产品'); return; }
     const itemNos = selected.map(p => p.itemNo);
     try {
-      const res = await fetch('/api/products/export', {
+      const res = await authFetch('/api/products/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ itemNos }),
@@ -324,7 +341,7 @@ export default function ProductLibrary() {
     const file = e.target.files?.[0]; if (!file) return;
     const form = new FormData(); form.append('file', file);
     try {
-      const res = await fetch('/api/products/import', { method: 'POST', body: form });
+      const res = await authFetch('/api/products/import', { method: 'POST', body: form });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Import failed');
       showToast(`成功导入 ${data.count} 条记录`);
@@ -340,7 +357,7 @@ export default function ProductLibrary() {
     setSimilarSearching(true);
     try {
       const form = new FormData(); form.append('file', file);
-      const res = await fetch('/api/products/search/similar', { method: 'POST', body: form });
+      const res = await authFetch('/api/products/search/similar', { method: 'POST', body: form });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Search failed');
       const matchIds = new Set<string>(data.results?.map((r: any) => String(r.productId)) || []);
