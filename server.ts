@@ -899,6 +899,12 @@ app.get('/api/template/config', (req, res) => {
 
 // ==================== Product Library API ====================
 
+function toMySQLDateTime(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
 // ── List Products ──────────────────────────────────────
 app.get('/api/products', async (req, res) => {
   try {
@@ -1000,7 +1006,7 @@ app.post('/api/products', upload.any(), async (req, res) => {
     console.log('[POST /api/products] itemNo:', itemNo, 'productName:', productName, 'files:', (req.files as any[])?.length || 0);
     if (!itemNo || !productName) return res.status(400).json({ error: 'itemNo and productName are required' });
 
-    const now = new Date().toISOString();
+    const now = toMySQLDateTime(new Date().toISOString());
     const files = req.files as Express.Multer.File[] || [];
 
     if (!useMySQLFallback) {
@@ -1061,7 +1067,7 @@ app.put('/api/products/:id', upload.any(), async (req, res) => {
       const pool = await getMySQLPool();
       await pool.query(
         'UPDATE products SET item_no=?, product_name=?, composition=?, weight=?, width=?, updated_at=? WHERE id=?',
-        [itemNo, productName, composition || '', weight || '', width || '', new Date().toISOString(), productId]
+        [itemNo, productName, composition || '', weight || '', width || '', toMySQLDateTime(new Date().toISOString()), productId]
       );
 
       // Get current max sort_order
@@ -1321,7 +1327,7 @@ app.post('/api/products/import', upload.single('file'), async (req, res) => {
       }
     }
 
-    const now = new Date().toISOString();
+    const now = toMySQLDateTime(new Date().toISOString());
     let importedCount = 0;
 
     if (!useMySQLFallback) {
