@@ -201,7 +201,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       const origWrapMaxW = wrapper?.style.maxWidth || '';
       const origWrapOverflow = wrapper?.style.overflowX || '';
       if (wrapper) {
-        wrapper.style.width = '850px';
+        wrapper.style.width = '900px';
         wrapper.style.maxWidth = 'none';
         wrapper.style.overflowX = 'visible';
       }
@@ -411,7 +411,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       </div>
 
       {/* Invoice Page Sheet Wrapper: Designed to look like paper */}
-      <div className="preview-wrapper bg-white rounded-3xl border border-slate-200 shadow-md mx-auto overflow-x-auto" style={{ maxWidth: '840px' }}>
+      <div className="preview-wrapper bg-white rounded-3xl border border-slate-200 shadow-md mx-auto overflow-x-auto" style={{ maxWidth: '900px' }}>
 
         {/* Printable Section */}
         <div ref={printRef} className="print-container p-4 sm:p-6 bg-white text-slate-900 leading-normal select-text" style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: 'fit-content' }}>
