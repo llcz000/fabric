@@ -258,15 +258,22 @@ export default function ProductLibrary() {
         formData.append('composition', p.composition);
         formData.append('weight', p.weight);
         formData.append('width', p.width);
-        // Send images as files
         for (const pf of pendingFiles) {
           formData.append('image_files', pf.file, pf.file.name);
         }
         const existingId = products.find(x => x.id === p.id);
         const method = existingId ? 'PUT' : 'POST';
         const url = existingId ? `/api/products/${p.id}` : '/api/products';
-        await authFetch(url, { method, body: formData });
-      } catch { /* server sync is best-effort */ }
+        console.log('[sync]', method, url, 'itemNo:', p.itemNo, 'images:', pendingFiles.length);
+        const syncRes = await authFetch(url, { method, body: formData });
+        const syncData = await syncRes.json().catch(() => ({}));
+        console.log('[sync] response status:', syncRes.status, 'body:', syncData);
+        if (!syncRes.ok) {
+          console.error('[sync] server error:', syncData.error || syncRes.statusText);
+        }
+      } catch (e: any) {
+        console.error('[sync] exception:', e.message || e);
+      }
 
       showToast('产品已保存');
       setEditModal(false);

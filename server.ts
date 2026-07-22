@@ -997,6 +997,7 @@ app.get('/api/products/:productId/images/:imageId', async (req, res) => {
 app.post('/api/products', upload.any(), async (req, res) => {
   try {
     const { itemNo, productName, composition, weight, width } = req.body;
+    console.log('[POST /api/products] itemNo:', itemNo, 'productName:', productName, 'files:', (req.files as any[])?.length || 0);
     if (!itemNo || !productName) return res.status(400).json({ error: 'itemNo and productName are required' });
 
     const now = new Date().toISOString();
