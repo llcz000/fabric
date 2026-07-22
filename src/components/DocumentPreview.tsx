@@ -470,43 +470,43 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
           {/* 3. Central Packing Grid Table */}
           <div style={{ border: '1px solid #000', marginTop: '4px', fontFamily: 'SimSun, serif', fontSize: '11px', color: '#1e293b', width: 'fit-content' }}>
             {isSample ? (
-              <div className="print-grid" style={{ display: 'grid', gridTemplateColumns: '94px 78px 78px 78px 78px 78px 78px 78px 94px 46px' }}>
+              <div className="print-grid" style={{ display: 'grid', gap: '1px', background: '#000', gridTemplateColumns: '94px 78px 78px 78px 78px 78px 78px 78px 94px 46px' }}>
                 {/* Header */}
-                <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>货号</div>
-                <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>色号</div>
-                <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>品名</div>
-                <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>成分</div>
-                <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>克重</div>
-                <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>门幅(cm)</div>
-                <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>米数(米)</div>
-                <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>单价(元)</div>
-                <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>金额(元)</div>
-                <div style={{ padding: '6px 4px', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>备注</div>
+                <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>货号</div>
+                <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>色号</div>
+                <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>品名</div>
+                <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>成分</div>
+                <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>克重</div>
+                <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>门幅(cm)</div>
+                <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>米数(米)</div>
+                <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>单价(元)</div>
+                <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>金额(元)</div>
+                <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>备注</div>
 
                 {/* Data rows */}
                 {document.items.map((item) => {
                   const sample = item as SampleItem;
                   return (
                     <React.Fragment key={item.id}>
-                      <div style={{ padding: '6px 8px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', wordBreak: 'break-all' }}>{item.itemNo}</div>
-                      <div style={{ padding: '6px 8px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', wordBreak: 'break-all' }}>{item.colorNo || '-'}</div>
-                      <div style={{ padding: '6px 8px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', wordBreak: 'break-all' }}>{item.productName}</div>
-                      <div style={{ padding: '6px 8px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', wordBreak: 'break-all' }}>{sample.composition || '-'}</div>
-                      <div style={{ padding: '6px 8px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 700, wordBreak: 'break-all' }}>{sample.weight || '-'}</div>
-                      <div style={{ padding: '6px 8px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 700, wordBreak: 'break-all' }}>{item.width || '-'}</div>
-                      <div style={{ padding: '6px 8px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 700 }}>{item.meters.toFixed(2)}</div>
-                      <div style={{ padding: '6px 8px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 700 }}>¥{item.price.toFixed(2)}</div>
-                      <div style={{ padding: '6px 8px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 700, color: '#2563eb' }}>¥{item.amount.toFixed(2)}</div>
-                      <div style={{ padding: '6px 8px', borderBottom: '1px solid #000', textAlign: 'center', wordBreak: 'break-all' }}>{item.remark || ''}</div>
+                      <div style={{ padding: '6px 8px', background: '#fff', textAlign: 'center', wordBreak: 'break-all' }}>{item.itemNo}</div>
+                      <div style={{ padding: '6px 8px', background: '#fff', textAlign: 'center', wordBreak: 'break-all' }}>{item.colorNo || '-'}</div>
+                      <div style={{ padding: '6px 8px', background: '#fff', textAlign: 'center', wordBreak: 'break-all' }}>{item.productName}</div>
+                      <div style={{ padding: '6px 8px', background: '#fff', textAlign: 'center', wordBreak: 'break-all' }}>{sample.composition || '-'}</div>
+                      <div style={{ padding: '6px 8px', background: '#fff', textAlign: 'center', fontWeight: 700, wordBreak: 'break-all' }}>{sample.weight || '-'}</div>
+                      <div style={{ padding: '6px 8px', background: '#fff', textAlign: 'center', fontWeight: 700, wordBreak: 'break-all' }}>{item.width || '-'}</div>
+                      <div style={{ padding: '6px 8px', background: '#fff', textAlign: 'center', fontWeight: 700 }}>{item.meters.toFixed(2)}</div>
+                      <div style={{ padding: '6px 8px', background: '#fff', textAlign: 'center', fontWeight: 700 }}>¥{item.price.toFixed(2)}</div>
+                      <div style={{ padding: '6px 8px', background: '#fff', textAlign: 'center', fontWeight: 700, color: '#2563eb' }}>¥{item.amount.toFixed(2)}</div>
+                      <div style={{ padding: '6px 8px', background: '#fff', textAlign: 'center', wordBreak: 'break-all' }}>{item.remark || ''}</div>
                     </React.Fragment>
                   );
                 })}
 
                 {/* Summary Row 1: Total Meters & Total Amount */}
-                <div style={{ gridColumn: 'span 5', padding: '6px 12px', borderRight: '1px solid #000', borderBottom: '1px solid #000', backgroundColor: '#f8fafc' }}>
+                <div style={{ gridColumn: 'span 5', padding: '6px 12px', backgroundColor: '#f8fafc' }}>
                   总计数（米）：<span style={{ fontWeight: 700 }}>{document.totalMeters.toFixed(2)}</span>
                 </div>
-                <div style={{ gridColumn: 'span 5', padding: '6px 12px', borderBottom: '1px solid #000', backgroundColor: '#f8fafc' }}>
+                <div style={{ gridColumn: 'span 5', padding: '6px 12px', backgroundColor: '#f8fafc' }}>
                   合计金额：<span style={{ color: '#2563eb', fontWeight: 700 }}>¥{document.totalAmount.toFixed(2)}</span>
                   <span style={{ fontSize: '10px', marginLeft: '8px' }}>
                     （大写：{numberToChineseCapital(document.totalAmount)}）
@@ -514,10 +514,10 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                 </div>
 
                 {/* Summary Row 2: Total Rolls & Receivable Amount */}
-                <div style={{ gridColumn: 'span 5', padding: '6px 12px', borderRight: '1px solid #000', borderBottom: '1px solid #000', backgroundColor: '#f8fafc' }}>
+                <div style={{ gridColumn: 'span 5', padding: '6px 12px', backgroundColor: '#f8fafc' }}>
                   实发总匹数：<span style={{ fontWeight: 700 }}>{document.totalRolls}</span> 匹
                 </div>
-                <div style={{ gridColumn: 'span 5', padding: '6px 12px', borderBottom: '1px solid #000', backgroundColor: '#f8fafc' }}>
+                <div style={{ gridColumn: 'span 5', padding: '6px 12px', backgroundColor: '#f8fafc' }}>
                   应收金额：<span style={{ color: '#2563eb', fontWeight: 700 }}>¥{document.totalAmount.toFixed(2)}</span>
                   <span style={{ fontSize: '10px', marginLeft: '8px' }}>
                     （大写：{numberToChineseCapital(document.totalAmount)}）
@@ -525,25 +525,25 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                 </div>
               </div>
             ) : (
-              <div className="print-grid" style={{ display: 'grid', gridTemplateColumns: '65px 60px 70px 50px 50px 50px 50px 50px 50px 50px 50px 50px 50px 50px 65px 60px 70px' }}>
+              <div className="print-grid" style={{ display: 'grid', gap: '1px', background: '#000', gridTemplateColumns: '65px 60px 70px 50px 50px 50px 50px 50px 50px 50px 50px 50px 50px 50px 65px 60px 70px' }}>
                 {/* Header */}
-                <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>货号</div>
-                <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>色号</div>
-                <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>品名</div>
-                <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>1</div>
-                <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>2</div>
-                <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>3</div>
-                <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>4</div>
-                <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>5</div>
-                <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>6</div>
-                <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>7</div>
-                <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>8</div>
-                <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>9</div>
-                <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>10</div>
-                <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>匹数</div>
-                <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>米数(米)</div>
-                <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>单价(元)</div>
-                <div style={{ padding: '4px', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>金额(元)</div>
+                <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>货号</div>
+                <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>色号</div>
+                <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>品名</div>
+                <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>1</div>
+                <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>2</div>
+                <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>3</div>
+                <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>4</div>
+                <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>5</div>
+                <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>6</div>
+                <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>7</div>
+                <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>8</div>
+                <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>9</div>
+                <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>10</div>
+                <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>匹数</div>
+                <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>米数(米)</div>
+                <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>单价(元)</div>
+                <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>金额(元)</div>
 
                 {/* Data rows with rowspan */}
                 {document.items.map((item) => {
@@ -561,21 +561,21 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                     if (r === 0) {
                       cells.push(
                         <React.Fragment key={`${item.id}-${r}`}>
-                          <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', wordBreak: 'break-all', ...rowSpan }}>{item.itemNo}</div>
-                          <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', wordBreak: 'break-all', ...rowSpan }}>{item.colorNo || '-'}</div>
-                          <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', wordBreak: 'break-all', ...rowSpan }}>{item.productName}</div>
+                          <div style={{ padding: '6px 4px', background: '#fff', textAlign: 'center', wordBreak: 'break-all', ...rowSpan }}>{item.itemNo}</div>
+                          <div style={{ padding: '6px 4px', background: '#fff', textAlign: 'center', wordBreak: 'break-all', ...rowSpan }}>{item.colorNo || '-'}</div>
+                          <div style={{ padding: '6px 4px', background: '#fff', textAlign: 'center', wordBreak: 'break-all', ...rowSpan }}>{item.productName}</div>
                           {Array.from({ length: 10 }).map((_, ci) => {
                             const rv = chunkRolls[ci];
                             return (
-                              <div key={ci} style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 700 }}>
+                              <div key={ci} style={{ padding: '6px 4px', background: '#fff', textAlign: 'center', fontWeight: 700 }}>
                                 {rv !== undefined ? rv.toFixed(1) : ''}
                               </div>
                             );
                           })}
-                          <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 700, ...rowSpan }}>{rolls.length}</div>
-                          <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 700, ...rowSpan }}>{item.meters.toFixed(2)}</div>
-                          <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 700, ...rowSpan }}>¥{item.price.toFixed(2)}</div>
-                          <div style={{ padding: '6px 4px', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 700, color: '#2563eb', ...rowSpan }}>¥{item.amount.toFixed(2)}</div>
+                          <div style={{ padding: '6px 4px', background: '#fff', textAlign: 'center', fontWeight: 700, ...rowSpan }}>{rolls.length}</div>
+                          <div style={{ padding: '6px 4px', background: '#fff', textAlign: 'center', fontWeight: 700, ...rowSpan }}>{item.meters.toFixed(2)}</div>
+                          <div style={{ padding: '6px 4px', background: '#fff', textAlign: 'center', fontWeight: 700, ...rowSpan }}>¥{item.price.toFixed(2)}</div>
+                          <div style={{ padding: '6px 4px', background: '#fff', textAlign: 'center', fontWeight: 700, color: '#2563eb', ...rowSpan }}>¥{item.amount.toFixed(2)}</div>
                         </React.Fragment>
                       );
                     } else {
@@ -584,7 +584,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                           {Array.from({ length: 10 }).map((_, ci) => {
                             const rv = chunkRolls[ci];
                             return (
-                              <div key={ci} style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 700 }}>
+                              <div key={ci} style={{ padding: '6px 4px', background: '#fff', textAlign: 'center', fontWeight: 700 }}>
                                 {rv !== undefined ? rv.toFixed(1) : ''}
                               </div>
                             );
@@ -597,10 +597,10 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                 })}
 
                 {/* Summary Row 1: Total Rolls/Meters & Total Amount */}
-                <div style={{ gridColumn: 'span 9', padding: '6px 12px', borderRight: '1px solid #000', borderBottom: '1px solid #000', backgroundColor: '#f8fafc' }}>
+                <div style={{ gridColumn: 'span 9', padding: '6px 12px', backgroundColor: '#f8fafc' }}>
                   总匹数：<span style={{ fontWeight: 700 }}>{document.totalRolls}</span> 匹 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 总计米数：<span style={{ fontWeight: 700 }}>{document.totalMeters.toFixed(2)}</span> 米
                 </div>
-                <div style={{ gridColumn: 'span 8', padding: '6px 12px', borderBottom: '1px solid #000', backgroundColor: '#f8fafc' }}>
+                <div style={{ gridColumn: 'span 8', padding: '6px 12px', backgroundColor: '#f8fafc' }}>
                   合计金额：<span style={{ color: '#2563eb', fontWeight: 700 }}>¥{document.totalAmount.toFixed(2)}</span>
                   <span style={{ fontSize: '10px', marginLeft: '8px' }}>
                     （大写：{numberToChineseCapital(document.totalAmount)}）
@@ -608,13 +608,13 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                 </div>
 
                 {/* Summary Row 2: Deposit & Receivable Amount */}
-                <div style={{ gridColumn: 'span 9', padding: '6px 12px', borderRight: '1px solid #000', borderBottom: '1px solid #000', backgroundColor: '#f8fafc' }}>
+                <div style={{ gridColumn: 'span 9', padding: '6px 12px', backgroundColor: '#f8fafc' }}>
                   预收订金：<span style={{ fontWeight: 700 }}>¥{(document.deposit || 0).toFixed(2)}</span>
                   <span style={{ fontSize: '10px', marginLeft: '8px' }}>
                     （大写：{numberToChineseCapital(document.deposit || 0)}）
                   </span>
                 </div>
-                <div style={{ gridColumn: 'span 8', padding: '6px 12px', borderBottom: '1px solid #000', backgroundColor: '#f8fafc' }}>
+                <div style={{ gridColumn: 'span 8', padding: '6px 12px', backgroundColor: '#f8fafc' }}>
                   应付款：<span style={{ color: '#2563eb', fontWeight: 700 }}>¥{document.receivableAmount.toFixed(2)}</span>
                   <span style={{ fontSize: '10px', marginLeft: '8px' }}>
                     （大写：{numberToChineseCapital(document.receivableAmount)}）

@@ -95,24 +95,15 @@ a, button, input, select, textarea {
     max-width: 100% !important;
   }
 
-  /* Uniform grid borders: use gap as 1px grid line instead of per-cell borders */
+  /* Uniform grid borders via gap: ensure backgrounds print correctly */
   .print-grid {
-    gap: 1px !important;
-    background: #000 !important;
-  }
-
-  .print-grid > div {
-    border-top: none !important;
-    border-right: none !important;
-    border-bottom: none !important;
-    border-left: none !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
 
-  /* Data cells without explicit background get white to cover gap color */
-  .print-grid > div:not([style*="background"]) {
-    background: white !important;
+  .print-grid > div {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
   /* Make sure tables print borders and background properly */
