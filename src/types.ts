@@ -58,7 +58,7 @@ export interface DocumentData {
   date: string;         // 开单日期
   customerName: string; // 客户
   items: DocItem[];     // 明细记录列表
-  
+
   // 单个单据可以覆盖公司默认设置
   companyName: string;
   companyAddress: string;
@@ -67,14 +67,37 @@ export interface DocumentData {
   issuer: string;       // 开单人/经手人名字或留白
   receiver: string;     // 收货人名字或留白
   bottomPhone: string;  // 底部展示电话
-  
+
   // 汇总数据
   totalMeters: number;  // 总计数（米）
   totalRolls: number;   // 实发总匹数（即记录数）
   totalAmount: number;  // 合计总额（元）
   receivableAmount: number; // 应收金额（元）
   deposit?: number;     // 预收订金（元）
-  
+
   createdAt: string;    // 创建时间戳
   updatedAt: string;    // 修改时间戳
+}
+
+// ==================== Product Library ====================
+
+export interface ProductItem {
+  id: string;
+  itemNo: string;       // 货号
+  productName: string;  // 品名
+  composition: string;  // 成分
+  weight: string;       // 克重
+  width: string;        // 门幅
+  imageCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProductImage {
+  id: string;
+  productId: string;
+  order: number;
+  url: string;           // COS or local URL
+  thumbnailUrl: string;
+  phash?: string;
 }

@@ -26,6 +26,7 @@ const DATABASE_FALLBACK_FILE = path.join(process.cwd(), 'database_fallback.json'
 
 fs.mkdirSync(TEMPLATE_DIR, { recursive: true });
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+fs.mkdirSync(path.join(UPLOADS_DIR, 'products'), { recursive: true });
 
 // Setup middleware
 app.use(express.json());
@@ -234,6 +235,38 @@ async function getMySQLPool(): Promise<mysql.Pool> {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
+    // Product Library tables
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS products (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        item_no VARCHAR(100) NOT NULL,
+        product_name VARCHAR(255) DEFAULT '',
+        composition VARCHAR(255) DEFAULT '',
+        weight VARCHAR(100) DEFAULT '',
+        width VARCHAR(100) DEFAULT '',
+        image_count INT DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_item_no (item_no)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS product_images (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        product_id INT NOT NULL,
+        sort_order INT DEFAULT 0,
+        cos_key VARCHAR(500) DEFAULT '',
+        thumbnail_cos_key VARCHAR(500) DEFAULT '',
+        local_path VARCHAR(500) DEFAULT '',
+        thumbnail_local_path VARCHAR(500) DEFAULT '',
+        phash VARCHAR(16) DEFAULT '',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+        INDEX idx_product_id (product_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
     // Add missing columns for existing databases (safe to run even if column exists)
     const addColumnIfNotExists = async (table: string, column: string, definition: string) => {
       try {
@@ -290,6 +323,8 @@ interface LocalDB {
   company_config: any;
   orders: any[];
   order_items: any[];
+  products: any[];
+  product_images: any[];
 }
 
 function loadLocalDB(): LocalDB {
@@ -316,7 +351,9 @@ function loadLocalDB(): LocalDB {
       default_terms: ''
     },
     orders: [],
-    order_items: []
+    order_items: [],
+    products: [],
+    product_images: []
   };
   saveLocalDB(defaultDB);
   return defaultDB;
@@ -859,6 +896,577 @@ app.get('/api/template/config', (req, res) => {
   const config = loadTemplateConfig();
   res.json(config);
 });
+
+// ==================== Product Library API ====================
+
+// ── List Products ──────────────────────────────────────
+app.get('/api/products', async (req, res) => {
+  try {
+    if (!useMySQLFallback) {
+      const pool = await getMySQLPool();
+      const [productRows] = await pool.query<RowDataPacket[]>('SELECT * FROM products ORDER BY updated_at DESC');
+      const [imageRows] = await pool.query<RowDataPacket[]>('SELECT id, product_id, sort_order FROM product_images ORDER BY sort_order');
+      const imageMap = new Map<number, any[]>();
+      for (const row of imageRows) {
+        if (!imageMap.has(row.product_id)) imageMap.set(row.product_id, []);
+        imageMap.get(row.product_id)!.push({ id: row.id, sort_order: row.sort_order });
+      }
+      const products = productRows.map((p: any) => ({
+        ...p,
+        images: imageMap.get(p.id) || [],
+        image_count: (imageMap.get(p.id) || []).length,
+      }));
+      return res.json(products);
+    }
+    const local = loadLocalDB();
+    const imageMap = new Map<number, any[]>();
+    for (const img of local.product_images) {
+      if (!imageMap.has(img.product_id)) imageMap.set(img.product_id, []);
+      imageMap.get(img.product_id)!.push({ id: img.id, sort_order: img.sort_order });
+    }
+    const products = local.products.map((p: any) => ({
+      ...p,
+      images: imageMap.get(p.id) || [],
+      image_count: (imageMap.get(p.id) || []).length,
+    }));
+    products.sort((a: any, b: any) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime());
+    res.json(products);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Get Single Product ─────────────────────────────────
+app.get('/api/products/:id', async (req, res) => {
+  const id = parseInt(req.params.id);
+  try {
+    if (!useMySQLFallback) {
+      const pool = await getMySQLPool();
+      const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM products WHERE id = ?', [id]);
+      if (rows.length === 0) return res.status(404).json({ error: 'Not found' });
+      const [imgs] = await pool.query<RowDataPacket[]>('SELECT * FROM product_images WHERE product_id = ? ORDER BY sort_order', [id]);
+      return res.json({ ...rows[0], images: imgs });
+    }
+    const local = loadLocalDB();
+    const product = local.products.find((p: any) => p.id == id);
+    if (!product) return res.status(404).json({ error: 'Not found' });
+    const images = local.product_images.filter((i: any) => i.product_id == id).sort((a: any, b: any) => a.sort_order - b.sort_order);
+    res.json({ ...product, images });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Get Product Image ──────────────────────────────────
+app.get('/api/products/:productId/images/:imageId', async (req, res) => {
+  const imageId = parseInt(req.params.imageId);
+  try {
+    if (!useMySQLFallback) {
+      const pool = await getMySQLPool();
+      const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM product_images WHERE id = ?', [imageId]);
+      if (rows.length === 0) return res.status(404).json({ error: 'Not found' });
+      const img = rows[0];
+      // Read image file from cos_key or local_path
+      if (img.cos_key) {
+        const cos = getCOSClient();
+        const cfg = getCOSConfig();
+        if (cos && cfg) {
+          const data = await cos.getObject({ Bucket: cfg.bucket, Region: cfg.region, Key: img.cos_key });
+          res.set('Content-Type', 'image/jpeg');
+          return res.send(data.Body);
+        }
+      }
+      if (img.local_path && fs.existsSync(img.local_path)) {
+        return res.sendFile(path.resolve(img.local_path));
+      }
+      return res.status(404).json({ error: 'Image file not found' });
+    }
+    const local = loadLocalDB();
+    const img = local.product_images.find((i: any) => i.id == imageId);
+    if (!img) return res.status(404).json({ error: 'Not found' });
+    if (img.local_path && fs.existsSync(img.local_path)) {
+      return res.sendFile(path.resolve(img.local_path));
+    }
+    res.status(404).json({ error: 'Image file not found' });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Create Product ─────────────────────────────────────
+app.post('/api/products', upload.any(), async (req, res) => {
+  try {
+    const { itemNo, productName, composition, weight, width } = req.body;
+    if (!itemNo || !productName) return res.status(400).json({ error: 'itemNo and productName are required' });
+
+    const now = new Date().toISOString();
+    const files = req.files as Express.Multer.File[] || [];
+
+    if (!useMySQLFallback) {
+      const pool = await getMySQLPool();
+      const [result] = await pool.query<ResultSetHeader>(
+        'INSERT INTO products (item_no, product_name, composition, weight, width, image_count, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [itemNo, productName, composition || '', weight || '', width || '', files.length, now, now]
+      );
+      const productId = result.insertId;
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const cosKey = await uploadToCOS(file);
+        const thumbKey = cosKey ? cosKey.replace(/(\.[^.]+)$/, '_thumb$1') : '';
+        const localPath = cosKey ? '' : file.path;
+        await pool.query(
+          'INSERT INTO product_images (product_id, sort_order, cos_key, thumbnail_cos_key, local_path) VALUES (?, ?, ?, ?, ?)',
+          [productId, i, cosKey || '', thumbKey || '', localPath]
+        );
+      }
+      return res.json({ id: productId, success: true });
+    }
+
+    const local = loadLocalDB();
+    const newId = local.products.length > 0 ? Math.max(...local.products.map((p: any) => p.id)) + 1 : 1;
+    local.products.push({
+      id: newId, item_no: itemNo, product_name: productName,
+      composition: composition || '', weight: weight || '', width: width || '',
+      image_count: files.length, created_at: now, updated_at: now
+    });
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const cosKey = await uploadToCOS(file);
+      const imgId = local.product_images.length > 0 ? Math.max(...local.product_images.map((x: any) => x.id)) + 1 : 1;
+      local.product_images.push({
+        id: imgId, product_id: newId, sort_order: i,
+        cos_key: cosKey || '', local_path: cosKey ? '' : file.path,
+        thumbnail_cos_key: '', thumbnail_local_path: '', phash: ''
+      });
+    }
+    saveLocalDB(local);
+    res.json({ id: newId, success: true });
+  } catch (e: any) {
+    console.error('[POST /api/products]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Update Product ─────────────────────────────────────
+app.put('/api/products/:id', upload.any(), async (req, res) => {
+  const productId = parseInt(req.params.id);
+  try {
+    const { itemNo, productName, composition, weight, width } = req.body;
+    const files = req.files as Express.Multer.File[] || [];
+
+    if (!useMySQLFallback) {
+      const pool = await getMySQLPool();
+      await pool.query(
+        'UPDATE products SET item_no=?, product_name=?, composition=?, weight=?, width=?, updated_at=? WHERE id=?',
+        [itemNo, productName, composition || '', weight || '', width || '', new Date().toISOString(), productId]
+      );
+
+      // Get current max sort_order
+      const [orderRows] = await pool.query<RowDataPacket[]>('SELECT COALESCE(MAX(sort_order), -1) as maxOrd FROM product_images WHERE product_id = ?', [productId]);
+      let order = (orderRows[0].maxOrd || 0) + 1;
+
+      for (const file of files) {
+        const cosKey = await uploadToCOS(file);
+        await pool.query(
+          'INSERT INTO product_images (product_id, sort_order, cos_key, local_path) VALUES (?, ?, ?, ?)',
+          [productId, order++, cosKey || '', cosKey ? '' : file.path]
+        );
+      }
+
+      // Update image_count
+      const [countRows] = await pool.query<RowDataPacket[]>('SELECT COUNT(*) as cnt FROM product_images WHERE product_id = ?', [productId]);
+      await pool.query('UPDATE products SET image_count = ? WHERE id = ?', [countRows[0].cnt, productId]);
+      return res.json({ success: true });
+    }
+
+    const local = loadLocalDB();
+    const idx = local.products.findIndex((p: any) => p.id == productId);
+    if (idx === -1) return res.status(404).json({ error: 'Not found' });
+
+    local.products[idx] = {
+      ...local.products[idx], item_no: itemNo, product_name: productName,
+      composition: composition || '', weight: weight || '', width: width || '',
+      updated_at: new Date().toISOString()
+    };
+
+    const existingImages = local.product_images.filter((i: any) => i.product_id == productId);
+    let order = existingImages.length > 0 ? Math.max(...existingImages.map((i: any) => i.sort_order)) + 1 : 0;
+
+    for (const file of files) {
+      const cosKey = await uploadToCOS(file);
+      const imgId = local.product_images.length > 0 ? Math.max(...local.product_images.map((x: any) => x.id)) + 1 : 1;
+      local.product_images.push({
+        id: imgId, product_id: productId, sort_order: order++,
+        cos_key: cosKey || '', local_path: cosKey ? '' : file.path,
+        thumbnail_cos_key: '', thumbnail_local_path: '', phash: ''
+      });
+    }
+    local.products[idx].image_count = local.product_images.filter((i: any) => i.product_id == productId).length;
+    saveLocalDB(local);
+    res.json({ success: true });
+  } catch (e: any) {
+    console.error('[PUT /api/products]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Delete Product ─────────────────────────────────────
+app.delete('/api/products/:id', async (req, res) => {
+  const id = parseInt(req.params.id);
+  try {
+    if (!useMySQLFallback) {
+      const pool = await getMySQLPool();
+      // Get image keys for cleanup
+      const [imgs] = await pool.query<RowDataPacket[]>('SELECT cos_key, thumbnail_cos_key, local_path, thumbnail_local_path FROM product_images WHERE product_id = ?', [id]);
+      for (const img of imgs) {
+        if (img.cos_key) await deleteFromCOS(img.cos_key);
+        if (img.thumbnail_cos_key) await deleteFromCOS(img.thumbnail_cos_key);
+        if (img.local_path && fs.existsSync(img.local_path)) fs.unlinkSync(img.local_path);
+        if (img.thumbnail_local_path && fs.existsSync(img.thumbnail_local_path)) fs.unlinkSync(img.thumbnail_local_path);
+      }
+      await pool.query('DELETE FROM products WHERE id = ?', [id]);
+      return res.json({ success: true });
+    }
+    const local = loadLocalDB();
+    const imgs = local.product_images.filter((i: any) => i.product_id == id);
+    for (const img of imgs) {
+      if (img.local_path && fs.existsSync(img.local_path)) fs.unlinkSync(img.local_path);
+    }
+    local.products = local.products.filter((p: any) => p.id != id);
+    local.product_images = local.product_images.filter((i: any) => i.product_id != id);
+    saveLocalDB(local);
+    res.json({ success: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Delete Single Image ────────────────────────────────
+app.delete('/api/products/:productId/images/:imageId', async (req, res) => {
+  const imageId = parseInt(req.params.imageId);
+  try {
+    if (!useMySQLFallback) {
+      const pool = await getMySQLPool();
+      const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM product_images WHERE id = ?', [imageId]);
+      if (rows.length === 0) return res.status(404).json({ error: 'Not found' });
+      const img = rows[0];
+      if (img.cos_key) await deleteFromCOS(img.cos_key);
+      if (img.thumbnail_cos_key) await deleteFromCOS(img.thumbnail_cos_key);
+      if (img.local_path && fs.existsSync(img.local_path)) fs.unlinkSync(img.local_path);
+      await pool.query('DELETE FROM product_images WHERE id = ?', [imageId]);
+      const [cnt] = await pool.query<RowDataPacket[]>('SELECT COUNT(*) as c FROM product_images WHERE product_id = ?', [img.product_id]);
+      await pool.query('UPDATE products SET image_count = ? WHERE id = ?', [cnt[0].c, img.product_id]);
+      return res.json({ success: true });
+    }
+    const local = loadLocalDB();
+    const img = local.product_images.find((i: any) => i.id == imageId);
+    if (!img) return res.status(404).json({ error: 'Not found' });
+    if (img.local_path && fs.existsSync(img.local_path)) fs.unlinkSync(img.local_path);
+    local.product_images = local.product_images.filter((i: any) => i.id != imageId);
+    const p = local.products.find((p: any) => p.id == img.product_id);
+    if (p) p.image_count = local.product_images.filter((i: any) => i.product_id == p.id).length;
+    saveLocalDB(local);
+    res.json({ success: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Excel Export (with images) ─────────────────────────
+app.post('/api/products/export', async (req, res) => {
+  const { ids } = req.body;
+  try {
+    let products: any[] = [];
+    if (!useMySQLFallback) {
+      const pool = await getMySQLPool();
+      if (ids && ids.length > 0) {
+        const placeholders = ids.map(() => '?').join(',');
+        const [rows] = await pool.query<RowDataPacket[]>(`SELECT * FROM products WHERE id IN (${placeholders})`, ids);
+        products = rows;
+      } else {
+        const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM products ORDER BY updated_at DESC');
+        products = rows;
+      }
+    } else {
+      const local = loadLocalDB();
+      products = local.products;
+      if (ids && ids.length > 0) {
+        products = products.filter((p: any) => ids.includes(String(p.id)));
+      }
+    }
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('产品库');
+    worksheet.columns = [
+      { header: '货号', key: 'itemNo', width: 16 },
+      { header: '品名', key: 'productName', width: 24 },
+      { header: '成分', key: 'composition', width: 20 },
+      { header: '克重', key: 'weight', width: 12 },
+      { header: '门幅', key: 'width', width: 10 },
+      { header: '花型', key: 'pattern', width: 30 },
+    ];
+
+    // Get images for each product
+    for (let r = 0; r < products.length; r++) {
+      const p = products[r];
+      const rowNum = r + 2; // Excel rows start at 1, header is 1
+      worksheet.getRow(rowNum).getCell(1).value = p.item_no || p.itemNo || '';
+      worksheet.getRow(rowNum).getCell(2).value = p.product_name || p.productName || '';
+      worksheet.getRow(rowNum).getCell(3).value = p.composition || '';
+      worksheet.getRow(rowNum).getCell(4).value = p.weight || '';
+      worksheet.getRow(rowNum).getCell(5).value = p.width || '';
+
+      let images: any[] = [];
+      if (!useMySQLFallback) {
+        const pool = await getMySQLPool();
+        const [imgs] = await pool.query<RowDataPacket[]>('SELECT * FROM product_images WHERE product_id = ? ORDER BY sort_order', [p.id]);
+        images = imgs;
+      } else {
+        const local = loadLocalDB();
+        images = local.product_images.filter((i: any) => i.product_id == p.id).sort((a: any, b: any) => a.sort_order - b.sort_order);
+      }
+
+      // Embed images in the 花型 column (column 6)
+      const imgGap = 8;
+      let xOffset = 0;
+      const rowHeight = 80;
+      worksheet.getRow(rowNum).height = rowHeight;
+
+      for (const img of images) {
+        let buffer: Buffer | null = null;
+        if (img.cos_key) {
+          const cos = getCOSClient();
+          const cfg = getCOSConfig();
+          if (cos && cfg) {
+            try {
+              const data = await cos.getObject({ Bucket: cfg.bucket, Region: cfg.region, Key: img.cos_key });
+              buffer = data.Body as Buffer;
+            } catch { /* skip */ }
+          }
+        } else if (img.local_path && fs.existsSync(img.local_path)) {
+          buffer = fs.readFileSync(img.local_path);
+        }
+
+        if (buffer) {
+          try {
+            const imageId = workbook.addImage({ buffer, extension: 'jpeg' });
+            worksheet.addImage(imageId, {
+              tl: { col: 5, row: rowNum - 1 }, // 0-indexed
+              ext: { width: 72, height: 72 },
+            });
+            xOffset += 72 + imgGap;
+          } catch { /* skip broken images */ }
+        }
+      }
+    }
+
+    // Style header row
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=产品库_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (e: any) {
+    console.error('[POST /api/products/export]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Excel Import (with images) ─────────────────────────
+app.post('/api/products/import', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile(req.file.path);
+    const worksheet = workbook.worksheets[0];
+
+    // Extract images from worksheet
+    const imageMap = new Map<number, { buffer: Buffer; col: number }[]>();
+    if ((worksheet as any).getImages) {
+      const wsImages = (worksheet as any).getImages();
+      for (const img of wsImages) {
+        const rowIdx = img.range?.tl?.nativeRow ?? img.range?.tl?.row ?? 0;
+        const colIdx = img.range?.tl?.nativeCol ?? img.range?.tl?.col ?? 0;
+        // Get image data from workbook media
+        const mediaIdx = img.imageId;
+        if (workbook.model.media && workbook.model.media[mediaIdx - 1]) {
+          const media = workbook.model.media[mediaIdx - 1];
+          const buf = Buffer.from(media.buffer || '');
+          if (!imageMap.has(rowIdx)) imageMap.set(rowIdx, []);
+          imageMap.get(rowIdx)!.push({ buffer: buf, col: colIdx });
+        }
+      }
+    }
+
+    const now = new Date().toISOString();
+    let importedCount = 0;
+
+    if (!useMySQLFallback) {
+      const pool = await getMySQLPool();
+      worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) return; // Skip header
+        const itemNo = String(row.getCell(1).value || '').trim();
+        const productName = String(row.getCell(2).value || '').trim();
+        if (!itemNo && !productName) return;
+
+        const composition = String(row.getCell(3).value || '').trim();
+        const weight = String(row.getCell(4).value || '').trim();
+        const width = String(row.getCell(5).value || '').trim();
+        const rowImgs = imageMap.get(rowNumber - 1) || [];
+
+        (async () => {
+          try {
+            const [result] = await pool.query<ResultSetHeader>(
+              'INSERT INTO products (item_no, product_name, composition, weight, width, image_count, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)',
+              [itemNo, productName, composition, weight, width, rowImgs.length, now, now]
+            );
+            const productId = result.insertId;
+
+            for (let i = 0; i < rowImgs.length; i++) {
+              const imgBuf = rowImgs[i].buffer;
+              const cosKey = await uploadBufferToCOS(imgBuf, `product_import_${Date.now()}_${i}.jpg`);
+              await pool.query(
+                'INSERT INTO product_images (product_id, sort_order, cos_key, local_path) VALUES (?,?,?,?)',
+                [productId, i, cosKey || '', '']
+              );
+            }
+          } catch (e: any) {
+            console.error('[Import row error]', e.message);
+          }
+        })();
+        importedCount++;
+      });
+    } else {
+      const local = loadLocalDB();
+      let maxProdId = local.products.length > 0 ? Math.max(...local.products.map((p: any) => p.id)) : 0;
+      let maxImgId = local.product_images.length > 0 ? Math.max(...local.product_images.map((i: any) => i.id)) : 0;
+
+      worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) return;
+        const itemNo = String(row.getCell(1).value || '').trim();
+        const productName = String(row.getCell(2).value || '').trim();
+        if (!itemNo && !productName) return;
+
+        const rowImgs = imageMap.get(rowNumber - 1) || [];
+        maxProdId++;
+        local.products.push({
+          id: maxProdId, item_no: itemNo, product_name: productName,
+          composition: String(row.getCell(3).value || '').trim(),
+          weight: String(row.getCell(4).value || '').trim(),
+          width: String(row.getCell(5).value || '').trim(),
+          image_count: rowImgs.length, created_at: now, updated_at: now
+        });
+
+        for (let i = 0; i < rowImgs.length; i++) {
+          maxImgId++;
+          const localPath = path.join(UPLOADS_DIR, 'products', `${maxImgId}.jpg`);
+          fs.mkdirSync(path.dirname(localPath), { recursive: true });
+          fs.writeFileSync(localPath, rowImgs[i].buffer);
+          local.product_images.push({
+            id: maxImgId, product_id: maxProdId, sort_order: i,
+            cos_key: '', local_path: localPath,
+            thumbnail_cos_key: '', thumbnail_local_path: '', phash: ''
+          });
+        }
+        importedCount++;
+      });
+      saveLocalDB(local);
+    }
+
+    // Wait for async operations to settle
+    await new Promise(r => setTimeout(r, 500));
+
+    res.json({ success: true, count: importedCount });
+  } catch (e: any) {
+    console.error('[POST /api/products/import]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Similar Image Search ───────────────────────────────
+app.post('/api/products/search/similar', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    // Compute pHash server-side is complex without canvas.
+    // For server-side, use a simple average hash approach with sharp or jimp.
+    // For now, return all products with images (client will do client-side comparison).
+    // TODO: implement server-side pHash computation
+
+    // Return products that have images, so client can compute hash and compare
+    if (!useMySQLFallback) {
+      const pool = await getMySQLPool();
+      const [rows] = await pool.query<RowDataPacket[]>(
+        'SELECT p.id, p.item_no, p.product_name FROM products p INNER JOIN product_images pi ON pi.product_id = p.id GROUP BY p.id'
+      );
+      return res.json({ results: rows.map((r: any) => ({ productId: r.id, itemNo: r.item_no, productName: r.product_name })) });
+    }
+    const local = loadLocalDB();
+    const productIds = new Set(local.product_images.map((i: any) => i.product_id));
+    const products = local.products.filter((p: any) => productIds.has(p.id));
+    res.json({ results: products.map((p: any) => ({ productId: p.id, itemNo: p.item_no, productName: p.product_name })) });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── COS Upload Helpers ─────────────────────────────────
+async function uploadToCOS(file: Express.Multer.File): Promise<string | null> {
+  const cos = getCOSClient();
+  const cfg = getCOSConfig();
+  if (!cos || !cfg) return null;
+
+  const key = `products/${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${file.originalname}`;
+  try {
+    await cos.putObject({
+      Bucket: cfg.bucket,
+      Region: cfg.region,
+      Key: key,
+      Body: fs.createReadStream(file.path),
+      ContentLength: file.size,
+    });
+    return key;
+  } catch (e: any) {
+    console.error('[COS Upload]', e.message);
+    return null;
+  }
+}
+
+async function uploadBufferToCOS(buffer: Buffer, filename: string): Promise<string | null> {
+  const cos = getCOSClient();
+  const cfg = getCOSConfig();
+  if (!cos || !cfg) return null;
+
+  const key = `products/${Date.now()}_${filename}`;
+  try {
+    await cos.putObject({
+      Bucket: cfg.bucket,
+      Region: cfg.region,
+      Key: key,
+      Body: buffer,
+    });
+    return key;
+  } catch (e: any) {
+    console.error('[COS Upload]', e.message);
+    return null;
+  }
+}
+
+async function deleteFromCOS(key: string): Promise<void> {
+  if (!key) return;
+  const cos = getCOSClient();
+  const cfg = getCOSConfig();
+  if (!cos || !cfg) return;
+  try {
+    await cos.deleteObject({ Bucket: cfg.bucket, Region: cfg.region, Key: key });
+  } catch (e: any) {
+    console.error('[COS Delete]', e.message);
+  }
+}
 
 // ==================== Vite Dev Server (for development) ====================
 async function startServer() {

@@ -8,7 +8,7 @@ import { DocType, DocumentData, CompanyProfile, DocItem } from './types';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import {
   Database, PlusCircle, Settings, LayoutDashboard,
-  Layers, ChevronRight, FileSpreadsheet, Info, CheckCircle2
+  Layers, ChevronRight, FileSpreadsheet, Info, CheckCircle2, Package
 } from 'lucide-react';
 
 // Lazy-load heavy components to reduce initial bundle size (mobile login page loads fast)
@@ -17,6 +17,7 @@ const DocumentEditor = lazy(() => import('./components/DocumentEditor'));
 const DocumentPreview = lazy(() => import('./components/DocumentPreview'));
 const CompanyProfileEditor = lazy(() => import('./components/CompanyProfileEditor'));
 const StatsDashboard = lazy(() => import('./components/StatsDashboard'));
+const ProductLibrary = lazy(() => import('./components/ProductLibrary'));
 
 const LoadingFallback = () => (
   <div className="min-h-[60vh] flex items-center justify-center">
@@ -144,7 +145,7 @@ const INITIAL_DOCUMENTS_DB: DocumentData[] = [
   }
 ];
 
-type AppView = 'dashboard' | 'list' | 'create' | 'settings' | 'preview';
+type AppView = 'dashboard' | 'list' | 'create' | 'settings' | 'preview' | 'products';
 
 // Helper: Map from Backend order model to Frontend DocumentData
 function mapBackendOrderToDoc(order: any): DocumentData {
@@ -605,6 +606,20 @@ export default function App() {
 
               <button
                 type="button"
+                id="nav-btn-products"
+                onClick={() => { setCurrentView('products'); setDocToEdit(null); }}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+                  currentView === 'products'
+                    ? 'bg-sky-50 text-sky-700'
+                    : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
+                }`}
+              >
+                <Package className="w-4 h-4" />
+                产品库
+              </button>
+
+              <button
+                type="button"
                 id="nav-btn-settings"
                 onClick={() => { setCurrentView('settings'); setDocToEdit(null); }}
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
@@ -690,10 +705,15 @@ export default function App() {
 
           {/* Settings / Company Layout view */}
           {currentView === 'settings' && (
-            <CompanyProfileEditor 
+            <CompanyProfileEditor
               profile={companyProfile}
               onSave={handleSaveProfile}
             />
+          )}
+
+          {/* Product Library */}
+          {currentView === 'products' && (
+            <ProductLibrary />
           )}
 
           {/* Invoice Preview Section */}
@@ -745,6 +765,17 @@ export default function App() {
         >
           <Database className="w-5 h-5" />
           <span className="text-[10px] tracking-tight">单据历史</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => { setCurrentView('products'); setDocToEdit(null); }}
+          className={`flex flex-col items-center justify-center gap-1 text-center py-1 px-3 rounded-xl transition-all ${
+            currentView === 'products' ? 'text-sky-600 font-bold bg-sky-50/50' : 'text-slate-400 hover:text-slate-600'
+          }`}
+        >
+          <Package className="w-5 h-5" />
+          <span className="text-[10px] tracking-tight">产品库</span>
         </button>
 
         <button
