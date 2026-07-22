@@ -295,16 +295,26 @@ export default function ProductLibrary() {
   // ── Excel Export ───────────────────────────────────
 
   const handleExport = async () => {
-    const ids = selectedIds.size > 0 ? Array.from(selectedIds) : filteredProducts.map(p => p.id);
-    if (ids.length === 0) { showToast('没有可导出的产品'); return; }
+    const selected = selectedIds.size > 0
+      ? filteredProducts.filter(p => selectedIds.has(p.id))
+      : filteredProducts;
+    if (selected.length === 0) { showToast('没有可导出的产品'); return; }
+    const itemNos = selected.map(p => p.itemNo);
     try {
-      const res = await fetch('/api/products/export', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }) });
-      if (!res.ok) throw new Error('Export failed');
+      const res = await fetch('/api/products/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemNos }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || '导出失败，请确认服务器已重启');
+      }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a'); a.href = url; a.download = `产品库_${new Date().toISOString().slice(0, 10)}.xlsx`; a.click();
       URL.revokeObjectURL(url);
-      showToast(`已导出 ${ids.length} 条记录`);
+      showToast(`已导出 ${itemNos.length} 条记录`);
     } catch (e: any) { showToast('导出失败: ' + (e.message || '')); }
   };
 

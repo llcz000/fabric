@@ -1176,25 +1176,39 @@ app.delete('/api/products/:productId/images/:imageId', async (req, res) => {
 
 // ── Excel Export (with images) ─────────────────────────
 app.post('/api/products/export', async (req, res) => {
-  const { ids } = req.body;
+  const { ids, itemNos } = req.body;
   try {
     let products: any[] = [];
     if (!useMySQLFallback) {
       const pool = await getMySQLPool();
-      if (ids && ids.length > 0) {
-        const placeholders = ids.map(() => '?').join(',');
-        const [rows] = await pool.query<RowDataPacket[]>(`SELECT * FROM products WHERE id IN (${placeholders})`, ids);
+      if (itemNos && itemNos.length > 0) {
+        const placeholders = itemNos.map(() => '?').join(',');
+        const [rows] = await pool.query<RowDataPacket[]>(
+          `SELECT * FROM products WHERE item_no IN (${placeholders}) ORDER BY updated_at DESC`, itemNos);
         products = rows;
+      } else if (ids && ids.length > 0) {
+        // Try numeric IDs first, then string IDs
+        const numIds = ids.map((id: string) => parseInt(id)).filter((n: number) => !isNaN(n));
+        if (numIds.length > 0) {
+          const placeholders = numIds.map(() => '?').join(',');
+          const [rows] = await pool.query<RowDataPacket[]>(
+            `SELECT * FROM products WHERE id IN (${placeholders})`, numIds);
+          products = rows;
+        }
       } else {
         const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM products ORDER BY updated_at DESC');
         products = rows;
       }
     } else {
       const local = loadLocalDB();
-      products = local.products;
-      if (ids && ids.length > 0) {
-        products = products.filter((p: any) => ids.includes(String(p.id)));
+      if (itemNos && itemNos.length > 0) {
+        products = local.products.filter((p: any) => itemNos.includes(p.item_no));
+      } else if (ids && ids.length > 0) {
+        products = local.products.filter((p: any) => ids.includes(String(p.id)));
+      } else {
+        products = local.products;
       }
+      products.sort((a: any, b: any) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime());
     }
 
     const workbook = new ExcelJS.Workbook();
@@ -1208,52 +1222,59 @@ app.post('/api/products/export', async (req, res) => {
       { header: '花型', key: 'pattern', width: 30 },
     ];
 
+    // Style header row
+    const headerRow = worksheet.getRow(1);
+    headerRow.font = { bold: true };
+    headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+
     // Get images for each product
     for (let r = 0; r < products.length; r++) {
       const p = products[r];
-      const rowNum = r + 2; // Excel rows start at 1, header is 1
-      worksheet.getRow(rowNum).getCell(1).value = p.item_no || p.itemNo || '';
-      worksheet.getRow(rowNum).getCell(2).value = p.product_name || p.productName || '';
-      worksheet.getRow(rowNum).getCell(3).value = p.composition || '';
-      worksheet.getRow(rowNum).getCell(4).value = p.weight || '';
-      worksheet.getRow(rowNum).getCell(5).value = p.width || '';
+      const rowNum = r + 2;
+      const row = worksheet.getRow(rowNum);
+      row.getCell(1).value = p.item_no || p.itemNo || '';
+      row.getCell(2).value = p.product_name || p.productName || '';
+      row.getCell(3).value = p.composition || '';
+      row.getCell(4).value = p.weight || '';
+      row.getCell(5).value = p.width || '';
 
       let images: any[] = [];
-      if (!useMySQLFallback) {
-        const pool = await getMySQLPool();
-        const [imgs] = await pool.query<RowDataPacket[]>('SELECT * FROM product_images WHERE product_id = ? ORDER BY sort_order', [p.id]);
-        images = imgs;
-      } else {
-        const local = loadLocalDB();
-        images = local.product_images.filter((i: any) => i.product_id == p.id).sort((a: any, b: any) => a.sort_order - b.sort_order);
-      }
+      try {
+        if (!useMySQLFallback) {
+          const pool = await getMySQLPool();
+          const [imgs] = await pool.query<RowDataPacket[]>('SELECT * FROM product_images WHERE product_id = ? ORDER BY sort_order', [p.id]);
+          images = imgs;
+        } else {
+          const local = loadLocalDB();
+          images = local.product_images.filter((i: any) => i.product_id == p.id).sort((a: any, b: any) => a.sort_order - b.sort_order);
+        }
+      } catch { /* skip images on error */ }
 
-      // Embed images in the 花型 column (column 6)
-      const imgGap = 8;
-      let xOffset = 0;
       const rowHeight = 80;
-      worksheet.getRow(rowNum).height = rowHeight;
+      row.height = rowHeight;
+      let xOffset = 0;
+      const imgGap = 8;
 
       for (const img of images) {
         let buffer: Buffer | null = null;
-        if (img.cos_key) {
-          const cos = getCOSClient();
-          const cfg = getCOSConfig();
-          if (cos && cfg) {
-            try {
+        try {
+          if (img.cos_key) {
+            const cos = getCOSClient();
+            const cfg = getCOSConfig();
+            if (cos && cfg) {
               const data = await cos.getObject({ Bucket: cfg.bucket, Region: cfg.region, Key: img.cos_key });
-              buffer = data.Body as Buffer;
-            } catch { /* skip */ }
+              buffer = Buffer.isBuffer(data.Body) ? data.Body : Buffer.from(data.Body as any);
+            }
+          } else if (img.local_path && fs.existsSync(img.local_path)) {
+            buffer = fs.readFileSync(img.local_path);
           }
-        } else if (img.local_path && fs.existsSync(img.local_path)) {
-          buffer = fs.readFileSync(img.local_path);
-        }
+        } catch { buffer = null; }
 
-        if (buffer) {
+        if (buffer && buffer.length > 0) {
           try {
             const imageId = workbook.addImage({ buffer, extension: 'jpeg' });
             worksheet.addImage(imageId, {
-              tl: { col: 5, row: rowNum - 1 }, // 0-indexed
+              tl: { col: 5, row: rowNum - 1 },
               ext: { width: 72, height: 72 },
             });
             xOffset += 72 + imgGap;
@@ -1262,17 +1283,13 @@ app.post('/api/products/export', async (req, res) => {
       }
     }
 
-    // Style header row
-    worksheet.getRow(1).font = { bold: true };
-    worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
-
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename=产品库_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    res.setHeader('Content-Disposition', `attachment; filename=${encodeURIComponent('产品库_' + new Date().toISOString().slice(0, 10))}.xlsx`);
     await workbook.xlsx.write(res);
     res.end();
   } catch (e: any) {
-    console.error('[POST /api/products/export]', e.message);
-    res.status(500).json({ error: e.message });
+    console.error('[POST /api/products/export]', e.message, e.stack);
+    res.status(500).json({ error: e.message || 'Export error' });
   }
 });
 
