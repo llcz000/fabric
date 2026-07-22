@@ -77,7 +77,7 @@ a, button, input, select, textarea {
 
   /* Center print container to align header and table */
   .print-container {
-    width: auto !important;
+    width: fit-content !important;
     max-width: none !important;
     margin: 0 auto !important;
     padding: 1cm 1.5cm !important;
@@ -96,12 +96,12 @@ a, button, input, select, textarea {
   }
 
   /* Uniform grid borders: use gap as 1px grid line instead of per-cell borders */
-  div[style*="grid-template-columns"] {
+  .print-grid {
     gap: 1px !important;
     background: #000 !important;
   }
 
-  div[style*="grid-template-columns"] > div {
+  .print-grid > div {
     border-top: none !important;
     border-right: none !important;
     border-bottom: none !important;
@@ -111,7 +111,7 @@ a, button, input, select, textarea {
   }
 
   /* Data cells without explicit background get white to cover gap color */
-  div[style*="grid-template-columns"] > div:not([style*="background"]) {
+  .print-grid > div:not([style*="background"]) {
     background: white !important;
   }
 
