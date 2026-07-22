@@ -95,13 +95,16 @@ a, button, input, select, textarea {
     max-width: 100% !important;
   }
 
-  /* Uniform grid borders via gap: ensure backgrounds print correctly */
+  /* Collapse grid cell borders in print: negative margin overlaps adjacent borders */
   .print-grid {
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
+    gap: 0 !important;
+    background: none !important;
   }
 
   .print-grid > div {
+    border: 1px solid #000 !important;
+    margin-right: -1px !important;
+    margin-bottom: -1px !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
