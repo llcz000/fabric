@@ -53,6 +53,18 @@ a, button, input, select, textarea {
   transition-duration: 150ms;
 }
 
+/* Uniform grid borders: negative margin collapses adjacent borders to 1px */
+.print-grid {
+  gap: 0 !important;
+  background: none !important;
+}
+
+.print-grid > div {
+  border: 1px solid #000 !important;
+  margin-right: -1px !important;
+  margin-bottom: -1px !important;
+}
+
 /* Print Styles */
 @media print {
   /* Hide all interactive app elements */
@@ -95,16 +107,9 @@ a, button, input, select, textarea {
     max-width: 100% !important;
   }
 
-  /* Collapse grid cell borders in print: negative margin overlaps adjacent borders */
-  .print-grid {
-    gap: 0 !important;
-    background: none !important;
-  }
-
+  /* Preserve grid background colors when printing */
+  .print-grid,
   .print-grid > div {
-    border: 1px solid #000 !important;
-    margin-right: -1px !important;
-    margin-bottom: -1px !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
