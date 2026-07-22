@@ -525,7 +525,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                 </div>
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: '45px 40px 50px 30px 30px 30px 30px 30px 30px 30px 30px 30px 30px 30px 45px 40px 50px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '65px 60px 70px 50px 50px 50px 50px 50px 50px 50px 50px 50px 50px 50px 65px 60px 60px 70px' }}>
                 {/* Header */}
                 <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>货号</div>
                 <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>色号</div>
