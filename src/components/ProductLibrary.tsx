@@ -316,6 +316,8 @@ export default function ProductLibrary() {
       ? filteredProducts.filter(p => selectedIds.has(p.id))
       : filteredProducts;
     if (selected.length === 0) { showToast('没有可导出的产品'); return; }
+
+    // Try server export first (has image embedding support)
     const itemNos = selected.map(p => p.itemNo);
     try {
       const res = await authFetch('/api/products/export', {
@@ -323,17 +325,40 @@ export default function ProductLibrary() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ itemNos }),
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || '导出失败，请确认服务器已重启');
+      if (res.ok) {
+        const blob = await res.blob();
+        // If blob is too small (< 5KB for 3+ records), likely only headers — fall through to client export
+        if (blob.size > 5000) {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a'); a.href = url;
+          a.download = `产品库_${new Date().toISOString().slice(0, 10)}.xlsx`;
+          a.click(); URL.revokeObjectURL(url);
+          showToast(`已导出 ${selected.length} 条记录`);
+          return;
+        }
       }
-      const blob = await res.blob();
+    } catch { /* fall through to client-side export */ }
+
+    // Client-side fallback: export metadata from IndexedDB as .xls (HTML table)
+    try {
+      const rows: string[] = [];
+      for (const p of selected) {
+        const imgs = await getImages(p.id).catch(() => []);
+        const imgCount = imgs.length > 0 ? `[${imgs.length}张图片]` : '';
+        rows.push(`<tr><td>${esc(p.itemNo)}</td><td>${esc(p.productName)}</td><td>${esc(p.composition)}</td><td>${esc(p.weight)}</td><td>${esc(p.width)}</td><td>${esc(imgCount)}</td></tr>`);
+      }
+      const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body><table><tr><th>货号</th><th>品名</th><th>成分</th><th>克重</th><th>门幅</th><th>花型</th></tr>${rows.join('')}</table></body></html>`;
+      const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8' });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = `产品库_${new Date().toISOString().slice(0, 10)}.xlsx`; a.click();
-      URL.revokeObjectURL(url);
-      showToast(`已导出 ${itemNos.length} 条记录`);
+      const a = document.createElement('a'); a.href = url;
+      a.download = `产品库_${new Date().toISOString().slice(0, 10)}.xls`;
+      a.click(); URL.revokeObjectURL(url);
+      showToast(`已导出 ${selected.length} 条记录（不含图片）`);
     } catch (e: any) { showToast('导出失败: ' + (e.message || '')); }
   };
+
+  // HTML escape for .xls export
+  function esc(s: string) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
   // ── Excel Import ───────────────────────────────────
 
