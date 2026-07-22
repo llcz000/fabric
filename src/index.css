@@ -70,18 +70,17 @@ a, button, input, select, textarea {
     display: block !important;
   }
 
-  /* Reset print page margins */
   @page {
-    margin: 1cm 1.5cm 1cm 1.5cm;
-    size: auto;
+    margin: 0;
+    size: landscape;
   }
 
-  /* Expand print container to take full dimensions */
+  /* Center print container to align header and table */
   .print-container {
-    width: 100% !important;
-    max-width: 100% !important;
-    margin: 0 !important;
-    padding: 0 0.3cm !important;
+    width: auto !important;
+    max-width: none !important;
+    margin: 0 auto !important;
+    padding: 1cm 1.5cm !important;
     box-shadow: none !important;
     border: none !important;
     background: transparent !important;
