@@ -477,10 +477,10 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                 <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>品名</div>
                 <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>成分</div>
                 <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>克重</div>
-                <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>门幅</div>
-                <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>米数</div>
-                <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>单价</div>
-                <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>金额</div>
+                <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>门幅(cm)</div>
+                <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>米数(米)</div>
+                <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>单价(元)</div>
+                <div style={{ padding: '6px 4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>金额(元)</div>
                 <div style={{ padding: '6px 4px', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>备注</div>
 
                 {/* Data rows */}
@@ -541,9 +541,9 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                 <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>9</div>
                 <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>10</div>
                 <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>匹数</div>
-                <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>米数</div>
-                <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>单价</div>
-                <div style={{ padding: '4px', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>金额</div>
+                <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>米数(米)</div>
+                <div style={{ padding: '4px', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>单价(元)</div>
+                <div style={{ padding: '4px', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>金额(元)</div>
 
                 {/* Data rows with rowspan */}
                 {document.items.map((item) => {
