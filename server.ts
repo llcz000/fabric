@@ -9,6 +9,7 @@ import mysql, { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 import COS from 'cos-nodejs-sdk-v5';
 import ExcelJS from 'exceljs';
 import multer from 'multer';
+import sharp from 'sharp';
 import { z } from 'zod';
 import { createServer as createViteServer } from 'vite';
 
@@ -905,6 +906,15 @@ function toMySQLDateTime(iso: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
+async function generateThumbnail(buffer: Buffer): Promise<Buffer | null> {
+  try {
+    return await sharp(buffer)
+      .resize(300, 300, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 60 })
+      .toBuffer();
+  } catch { return null; }
+}
+
 // ── List Products ──────────────────────────────────────
 app.get('/api/products', async (req, res) => {
   try {
@@ -1117,6 +1127,41 @@ app.put('/api/products/:id', upload.any(), async (req, res) => {
     console.error('[PUT /api/products]', e.message);
     res.status(500).json({ error: e.message });
   }
+});
+
+// ── Get Product Thumbnails (batch) ─────────────────────
+app.get('/api/products/:id/thumbnails', async (req, res) => {
+  const productId = parseInt(req.params.id);
+  try {
+    let images: any[] = [];
+    if (!useMySQLFallback) {
+      const pool = await getMySQLPool();
+      const [rows] = await pool.query<RowDataPacket[]>(
+        'SELECT id, sort_order, cos_key, thumbnail_cos_key, local_path, thumbnail_local_path FROM product_images WHERE product_id = ? ORDER BY sort_order', [productId]
+      );
+      images = rows;
+    } else {
+      const local = loadLocalDB();
+      images = local.product_images.filter((i: any) => i.product_id == productId).sort((a: any, b: any) => a.sort_order - b.sort_order);
+    }
+    const result: { id: number; sort_order: number; base64: string }[] = [];
+    for (const img of images) {
+      let buffer: Buffer | null = null;
+      try {
+        // Prefer thumbnail (smaller) over full image
+        if (img.thumbnail_cos_key) {
+          const cos = getCOSClient(); const cfg = getCOSConfig();
+          if (cos && cfg) { const data = await cos.getObject({ Bucket: cfg.bucket, Region: cfg.region, Key: img.thumbnail_cos_key }); buffer = Buffer.isBuffer(data.Body) ? data.Body : Buffer.from(data.Body as any); }
+        } else if (img.thumbnail_local_path && fs.existsSync(img.thumbnail_local_path)) { buffer = fs.readFileSync(img.thumbnail_local_path); }
+        else if (img.cos_key) {
+          const cos = getCOSClient(); const cfg = getCOSConfig();
+          if (cos && cfg) { const data = await cos.getObject({ Bucket: cfg.bucket, Region: cfg.region, Key: img.cos_key }); buffer = Buffer.isBuffer(data.Body) ? data.Body : Buffer.from(data.Body as any); }
+        } else if (img.local_path && fs.existsSync(img.local_path)) { buffer = fs.readFileSync(img.local_path); }
+      } catch { }
+      if (buffer) result.push({ id: img.id, sort_order: img.sort_order, base64: buffer.toString('base64') });
+    }
+    res.json({ images: result });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
 // ── Batch Delete Products ───────────────────────────────
@@ -1432,19 +1477,33 @@ app.post('/api/products/import', upload.single('file'), async (req, res) => {
           );
           const productId = result.insertId;
 
-          for (let i = 0; i < row.rowImgs.length; i++) {
-            const imgBuf = row.rowImgs[i].buffer;
-            const cosKey = await uploadBufferToCOS(imgBuf, `product_import_${Date.now()}_${i}.jpg`);
-            let localPath = '';
-            if (!cosKey) {
-              const fname = `import_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.jpg`;
-              localPath = path.join(UPLOADS_DIR, 'products', fname);
-              fs.mkdirSync(path.dirname(localPath), { recursive: true });
-              fs.writeFileSync(localPath, imgBuf);
-            }
+          // Upload images to COS in parallel within the same row
+          const uploadResults = await Promise.all(
+            row.rowImgs.map(async (img: any, i: number) => {
+              const cosKey = await uploadBufferToCOS(img.buffer, `product_import_${Date.now()}_${i}.jpg`);
+              // Generate and upload thumbnail
+              const thumbBuf = await generateThumbnail(img.buffer);
+              const thumbKey = thumbBuf ? await uploadBufferToCOS(thumbBuf, `product_import_thumb_${Date.now()}_${i}.jpg`) : '';
+              let localPath = '';
+              let thumbLocalPath = '';
+              if (!cosKey) {
+                const fname = `import_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.jpg`;
+                localPath = path.join(UPLOADS_DIR, 'products', fname);
+                fs.mkdirSync(path.dirname(localPath), { recursive: true });
+                fs.writeFileSync(localPath, img.buffer);
+                if (thumbBuf) {
+                  thumbLocalPath = path.join(UPLOADS_DIR, 'products', `thumb_${fname}`);
+                  fs.writeFileSync(thumbLocalPath, thumbBuf);
+                }
+              }
+              return { i, cosKey: cosKey || '', localPath, thumbKey: thumbKey || '', thumbLocalPath };
+            })
+          );
+          // Insert image records sequentially (correct sort_order)
+          for (const r of uploadResults) {
             await pool.query(
-              'INSERT INTO product_images (product_id, sort_order, cos_key, local_path) VALUES (?,?,?,?)',
-              [productId, i, cosKey || '', localPath]
+              'INSERT INTO product_images (product_id, sort_order, cos_key, thumbnail_cos_key, local_path, thumbnail_local_path) VALUES (?,?,?,?,?,?)',
+              [productId, r.i, r.cosKey, r.thumbKey, r.localPath, r.thumbLocalPath]
             );
           }
           importedCount++;

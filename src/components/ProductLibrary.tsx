@@ -427,13 +427,18 @@ export default function ProductLibrary() {
                 updatedAt: sp.updated_at || new Date().toISOString(),
               });
               const imgs = sp.images || [];
-              for (let o = 0; o < imgs.length; o++) {
+              if (imgs.length > 0) {
                 try {
-                  const imgRes = await authFetch(`/api/products/${serverId}/images/${imgs[o].id}`);
-                  if (imgRes.ok) {
-                    const blob = await imgRes.blob();
-                    if (blob.size > 0) {
-                      await addProductImage(serverId, o, blob, blob);
+                  // Batch download: single request for all thumbnails
+                  const batchRes = await authFetch(`/api/products/${serverId}/thumbnails`);
+                  if (batchRes.ok) {
+                    const { images: batchImages } = await batchRes.json();
+                    for (const bi of batchImages || []) {
+                      const byteChars = atob(bi.base64);
+                      const bytes = new Uint8Array(byteChars.length);
+                      for (let j = 0; j < byteChars.length; j++) bytes[j] = byteChars.charCodeAt(j);
+                      const blob = new Blob([bytes], { type: 'image/jpeg' });
+                      await addProductImage(serverId, bi.sort_order || 0, blob, blob);
                     }
                   }
                 } catch { /* skip */ }

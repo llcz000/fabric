@@ -7,11 +7,10 @@
           <value>
             <TabSessionState>
               <option name="provider" value="claude" />
-              <option name="sessionId" value="fa7e6f46-61c5-471d-9c92-17d8fabc13a0" />
-              <option name="cwd" value="$PROJECT_DIR$" />
-              <option name="model" value="deepseek-v4-pro[1m]" />
+              <option name="sessionId" value="f4ea6d9d-ff3a-433f-a8a9-2025ad6b4425" />
+              <option name="cwd" value="D:\fabric" />
+              <option name="model" value="claude-opus-4-8[1m]" />
               <option name="permissionMode" value="bypassPermissions" />
-              <option name="reasoningEffort" value="high" />
             </TabSessionState>
           </value>
         </entry>
