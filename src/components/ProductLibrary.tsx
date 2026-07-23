@@ -289,12 +289,39 @@ export default function ProductLibrary() {
     if (!deleteTarget) return;
     try {
       await deleteProduct(deleteTarget.id);
-      try { await authFetch(`/api/products/${deleteTarget.id}`, { method: 'DELETE' }); } catch { /* best-effort */ }
+      try { await authFetch(`/api/products/${deleteTarget.id}`, { method: 'DELETE' }); } catch { }
       setSelectedIds(prev => { const n = new Set(prev); n.delete(deleteTarget.id); return n; });
       showToast('已删除');
       setDeleteTarget(null);
       await loadProducts();
     } catch (e: any) { showToast('删除失败: ' + (e.message || '')); }
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedIds.size === 0) return;
+    const ids = Array.from(selectedIds);
+    const selectedProducts = filteredProducts.filter(p => selectedIds.has(p.id));
+    const itemNos = selectedProducts.map(p => p.itemNo).filter(Boolean);
+    if (!confirm(`确定删除选中的 ${ids.length} 条记录及其图片吗？此操作不可撤销。`)) return;
+
+    // Delete from local IndexedDB
+    let deleted = 0;
+    for (const id of ids) {
+      try { await deleteProduct(id); deleted++; } catch (e: any) { console.error('Delete error:', id, e); }
+    }
+
+    // Delete from server by itemNo (business key, works regardless of ID mismatch)
+    try {
+      await authFetch('/api/products/batch-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemNos }),
+      });
+    } catch { }
+
+    setSelectedIds(new Set());
+    showToast(`已删除 ${deleted} 条记录`);
+    await loadProducts();
   };
 
   const handleDeleteImage = async (imageId: string, index: number) => {
@@ -568,6 +595,7 @@ export default function ProductLibrary() {
               <div className="border-t border-slate-200 bg-sky-50/30 px-4 py-2 flex items-center gap-3">
                 <span className="text-xs text-slate-600">已选 <b>{selectedIds.size}</b> 项</span>
                 <button onClick={handleExport} className="text-xs text-sky-600 hover:text-sky-800 font-semibold cursor-pointer"><Download className="w-3 h-3 inline mr-1" />导出选中</button>
+                <button onClick={handleBatchDelete} className="text-xs text-red-500 hover:text-red-700 font-semibold cursor-pointer"><Trash2 className="w-3 h-3 inline mr-1" />删除选中</button>
               </div>
             )}
           </>

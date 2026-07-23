@@ -1119,7 +1119,67 @@ app.put('/api/products/:id', upload.any(), async (req, res) => {
   }
 });
 
-// ── Delete Product ─────────────────────────────────────
+// ── Batch Delete Products ───────────────────────────────
+app.post('/api/products/batch-delete', async (req, res) => {
+  const { ids, itemNos } = req.body;
+  let deleted = 0;
+  try {
+    if (!useMySQLFallback) {
+      const pool = await getMySQLPool();
+      if (itemNos && itemNos.length > 0) {
+        const placeholders = itemNos.map(() => '?').join(',');
+        const [imgs] = await pool.query<RowDataPacket[]>(
+          `SELECT pi.cos_key, pi.thumbnail_cos_key, pi.local_path, pi.thumbnail_local_path
+           FROM product_images pi JOIN products p ON pi.product_id = p.id
+           WHERE p.item_no IN (${placeholders})`, itemNos);
+        for (const img of imgs) {
+          try { if (img.cos_key) await deleteFromCOS(img.cos_key); } catch { }
+          try { if (img.local_path && fs.existsSync(img.local_path)) fs.unlinkSync(img.local_path); } catch { }
+        }
+        const [result] = await pool.query<ResultSetHeader>(
+          `DELETE FROM products WHERE item_no IN (${placeholders})`, itemNos);
+        deleted = result.affectedRows;
+      } else if (ids && ids.length > 0) {
+        const numIds = ids.map((id: string) => parseInt(id)).filter((n: number) => !isNaN(n));
+        if (numIds.length > 0) {
+          const placeholders = numIds.map(() => '?').join(',');
+          const [imgs] = await pool.query<RowDataPacket[]>(
+            `SELECT cos_key, thumbnail_cos_key, local_path, thumbnail_local_path FROM product_images WHERE product_id IN (${placeholders})`, numIds);
+          for (const img of imgs) {
+            try { if (img.cos_key) await deleteFromCOS(img.cos_key); } catch { }
+            try { if (img.local_path && fs.existsSync(img.local_path)) fs.unlinkSync(img.local_path); } catch { }
+          }
+          const [result] = await pool.query<ResultSetHeader>(
+            `DELETE FROM products WHERE id IN (${placeholders})`, numIds);
+          deleted = result.affectedRows;
+        }
+      }
+      return res.json({ success: true, deleted });
+    }
+    const local = loadLocalDB();
+    const toDelete = new Set<string>();
+    if (itemNos && itemNos.length > 0) {
+      for (const p of local.products) {
+        if (itemNos.includes(p.item_no)) toDelete.add(String(p.id));
+      }
+    } else if (ids && ids.length > 0) {
+      for (const id of ids) toDelete.add(String(id));
+    }
+    for (const pid of toDelete) {
+      const imgs = local.product_images.filter((i: any) => i.product_id == pid);
+      for (const img of imgs) {
+        if (img.local_path && fs.existsSync(img.local_path)) fs.unlinkSync(img.local_path);
+      }
+    }
+    local.products = local.products.filter((p: any) => !toDelete.has(String(p.id)));
+    local.product_images = local.product_images.filter((i: any) => !toDelete.has(String(i.product_id)));
+    deleted = toDelete.size;
+    saveLocalDB(local);
+    res.json({ success: true, deleted });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
 app.delete('/api/products/:id', async (req, res) => {
   const id = parseInt(req.params.id);
   try {
