@@ -13,7 +13,10 @@ const DB_VERSION = 1;
 const STORE_PRODUCTS = 'products';
 const STORE_IMAGES = 'product_images';
 
+let dbCache: IDBDatabase | null = null;
+
 function openDB(): Promise<IDBDatabase> {
+  if (dbCache) return Promise.resolve(dbCache);
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = () => {
@@ -27,8 +30,14 @@ function openDB(): Promise<IDBDatabase> {
         imagesStore.createIndex('productId', 'productId', { unique: false });
       }
     };
-    req.onsuccess = () => resolve(req.result);
+    req.onsuccess = () => {
+      const db = req.result;
+      db.onclose = () => { dbCache = null; };
+      dbCache = db;
+      resolve(db);
+    };
     req.onerror = () => reject(req.error);
+    req.onblocked = () => reject(new Error('IndexedDB blocked'));
   });
 }
 
