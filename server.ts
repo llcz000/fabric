@@ -1356,9 +1356,17 @@ app.post('/api/products/import', upload.single('file'), async (req, res) => {
             for (let i = 0; i < rowImgs.length; i++) {
               const imgBuf = rowImgs[i].buffer;
               const cosKey = await uploadBufferToCOS(imgBuf, `product_import_${Date.now()}_${i}.jpg`);
+              // Also save locally if COS fails
+              let localPath = '';
+              if (!cosKey) {
+                const fname = `import_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.jpg`;
+                localPath = path.join(UPLOADS_DIR, 'products', fname);
+                fs.mkdirSync(path.dirname(localPath), { recursive: true });
+                fs.writeFileSync(localPath, imgBuf);
+              }
               await pool.query(
                 'INSERT INTO product_images (product_id, sort_order, cos_key, local_path) VALUES (?,?,?,?)',
-                [productId, i, cosKey || '', '']
+                [productId, i, cosKey || '', localPath]
               );
             }
           } catch (e: any) {

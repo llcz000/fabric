@@ -386,14 +386,28 @@ export default function ProductLibrary() {
           for (const sp of serverProducts) {
             const existing = products.find(p => p.itemNo === (sp.item_no || sp.itemNo));
             if (!existing) {
+              const pid = String(sp.id);
               await putProduct({
-                id: String(sp.id), itemNo: sp.item_no || sp.itemNo,
+                id: pid, itemNo: sp.item_no || sp.itemNo,
                 productName: sp.product_name || sp.productName,
                 composition: sp.composition || '', weight: sp.weight || '',
                 width: sp.width || '', imageCount: sp.image_count || sp.images?.length || 0,
                 createdAt: sp.created_at || new Date().toISOString(),
                 updatedAt: sp.updated_at || new Date().toISOString(),
               });
+              // Download and cache thumbnails from server
+              const imgs = sp.images || [];
+              for (let o = 0; o < imgs.length; o++) {
+                try {
+                  const imgRes = await authFetch(`/api/products/${pid}/images/${imgs[o].id}`);
+                  if (imgRes.ok) {
+                    const blob = await imgRes.blob();
+                    if (blob.size > 0) {
+                      await addProductImage(pid, o, blob, blob);
+                    }
+                  }
+                } catch { /* skip image on error */ }
+              }
             }
           }
         }
