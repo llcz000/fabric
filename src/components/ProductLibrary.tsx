@@ -17,7 +17,6 @@ import {
   getImages, getFullImageUrl, addProductImage, deleteImage,
   processImageUpload,
 } from '../lib/db';
-import { computeImageHash } from '../lib/phash';
 
 // ── Helpers ──────────────────────────────────────────
 
@@ -504,11 +503,14 @@ export default function ProductLibrary() {
       const res = await authFetch('/api/products/search/similar', { method: 'POST', body: form });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Search failed');
-      const matchIds = new Set<string>(data.results?.map((r: any) => String(r.productId)) || []);
+      const results: any[] = Array.isArray(data.results) ? data.results : [];
+      const matchIds = new Set<string>(results.map((r: any) => String(r.productId)));
       const matchedProducts = products.filter(p => matchIds.has(p.id));
       if (matchedProducts.length > 0) {
         setItemNoTags(matchedProducts.map(p => p.itemNo));
-        showToast(`找到 ${matchedProducts.length} 个相似产品`);
+        const top = results[0];
+        const topPct = top && typeof top.score === 'number' ? Math.round((1 - top.score) * 100) : null;
+        showToast(`找到 ${matchedProducts.length} 个相似产品${topPct !== null ? `（最高相似度 ${topPct}%）` : ''}`);
       } else { showToast('未找到相似产品'); }
     } catch (err: any) { showToast('搜索失败: ' + (err.message || '')); }
     finally { setSimilarSearching(false); }

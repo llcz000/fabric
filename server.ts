@@ -283,6 +283,7 @@ async function getMySQLPool(): Promise<mysql.Pool> {
     };
 
     await addColumnIfNotExists('company_config', 'default_terms', 'TEXT');
+    await addColumnIfNotExists('product_images', 'feature_vec', 'VARCHAR(512) DEFAULT ""');
 
     // Repair: recalculate order totals from order_items (fixes any zero-total records)
     try {
@@ -915,26 +916,165 @@ async function generateThumbnail(buffer: Buffer): Promise<Buffer | null> {
   } catch { return null; }
 }
 
-async function computePHash(buffer: Buffer): Promise<string | null> {
+async function computeFeature(buffer: Buffer): Promise<string | null> {
   try {
-    const { data, info } = await sharp(buffer)
-      .resize(9, 8, { fit: 'fill' })
-      .grayscale()
-      .raw()
-      .toBuffer({ resolveWithObject: true });
-    const pixels = new Uint8Array(data);
-    // dHash: compare each pixel with its right neighbor
-    let hash = 0n;
-    for (let y = 0; y < 8; y++) {
-      for (let x = 0; x < 8; x++) {
-        hash = hash << 1n;
-        if (pixels[y * 9 + x] < pixels[y * 9 + x + 1]) {
-          hash |= 1n;
-        }
-      }
+    const phashHex = await computeDctPHash(buffer);
+    const colorHex = await computeColorHistogram(buffer);
+    if (!phashHex || !colorHex) return null;
+    return `${phashHex}|${colorHex}`;
+  } catch (e: any) {
+    console.error('[computeFeature]', e?.message || e);
+    return null;
+  }
+}
+
+// DCT-based pHash, 32x32 -> top-left 16x16 -> 256-bit hash -> 64 hex chars
+async function computeDctPHash(buffer: Buffer): Promise<string | null> {
+  const { data } = await sharp(buffer)
+    .resize(32, 32, { fit: 'fill' })
+    .grayscale()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const pixels = new Uint8Array(data);
+  const block: number[][] = [];
+  for (let y = 0; y < 32; y++) {
+    const row: number[] = [];
+    for (let x = 0; x < 32; x++) row.push(pixels[y * 32 + x]);
+    block.push(row);
+  }
+  const dct = dct2D(block, 32, 32);
+  // Take top-left 16x16 = 256 coefficients
+  const flat: number[] = [];
+  for (let y = 0; y < 16; y++) {
+    for (let x = 0; x < 16; x++) flat.push(dct[y][x]);
+  }
+  // Median over AC coefficients (exclude DC at index 0)
+  const acs = flat.slice(1);
+  const sorted = acs.slice().sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)];
+  let hash = 0n;
+  for (let i = 0; i < 256; i++) {
+    hash = hash << 1n;
+    if (flat[i] > median) hash |= 1n;
+  }
+  return hash.toString(16).padStart(64, '0');
+}
+
+// HSV 2D color histogram (H: 16 bins x S: 4 bins = 64 dims) with gray-world
+// white balance. Output: 128 hex chars (8 bits per bin).
+async function computeColorHistogram(buffer: Buffer): Promise<string | null> {
+  const { data, info } = await sharp(buffer)
+    .resize(180, 180, { fit: 'fill' })
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const channels = info.channels;
+  const N = info.width * info.height;
+  const px = new Uint8Array(data);
+  // Gray-world white balance
+  let sumR = 0, sumG = 0, sumB = 0;
+  for (let i = 0; i < N; i++) {
+    sumR += px[i * channels];
+    sumG += px[i * channels + 1];
+    sumB += px[i * channels + 2];
+  }
+  const mean = (sumR + sumG + sumB) / 3;
+  const sr = sumR > 0 ? mean / sumR : 1;
+  const sg = sumG > 0 ? mean / sumG : 1;
+  const sb = sumB > 0 ? mean / sumB : 1;
+  const hist = new Float64Array(64);
+  for (let i = 0; i < N; i++) {
+    let r = px[i * channels] * sr;
+    let g = px[i * channels + 1] * sg;
+    let b = px[i * channels + 2] * sb;
+    if (r > 255) r = 255; if (g > 255) g = 255; if (b > 255) b = 255;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const d = max - min;
+    const s = max === 0 ? 0 : d / max;
+    let h = 0;
+    if (d !== 0) {
+      if (max === r) h = ((g - b) / d) % 6;
+      else if (max === g) h = (b - r) / d + 2;
+      else h = (r - g) / d + 4;
+      h *= 60;
+      if (h < 0) h += 360;
     }
-    return hash.toString(16).padStart(16, '0');
-  } catch { return null; }
+    const hBin = Math.min(15, Math.floor(h / 22.5));
+    const sBin = Math.min(3, Math.floor(s * 4));
+    hist[hBin * 4 + sBin]++;
+  }
+  let total = 0;
+  for (let i = 0; i < 64; i++) total += hist[i];
+  if (total > 0) for (let i = 0; i < 64; i++) hist[i] /= total;
+  let hex = '';
+  for (let i = 0; i < 64; i++) {
+    const q = Math.min(255, Math.max(0, Math.floor(hist[i] * 255)));
+    hex += q.toString(16).padStart(2, '0');
+  }
+  return hex;
+}
+
+// 1D type-II DCT
+function dct1D(row: number[], N: number): number[] {
+  const out = new Array<number>(N);
+  const factor = Math.PI / N;
+  for (let k = 0; k < N; k++) {
+    let sum = 0;
+    for (let n = 0; n < N; n++) {
+      sum += row[n] * Math.cos(factor * (n + 0.5) * k);
+    }
+    out[k] = sum;
+  }
+  return out;
+}
+
+function dct2D(block: number[][], rows: number, cols: number): number[][] {
+  const rowDct = block.map(row => dct1D(row, cols));
+  const result: number[][] = [];
+  for (let r = 0; r < rows; r++) result.push(new Array<number>(cols));
+  for (let c = 0; c < cols; c++) {
+    const col = rowDct.map(r => r[c]);
+    const colDct = dct1D(col, rows);
+    for (let r = 0; r < rows; r++) result[r][c] = colDct[r];
+  }
+  return result;
+}
+
+interface ParsedFeature {
+  phash: bigint;
+  color: Float32Array; // length 64, values 0-1
+}
+
+function parseFeature(s: string): ParsedFeature | null {
+  if (!s || typeof s !== 'string' || !s.includes('|')) return null;
+  const [phashHex, colorHex] = s.split('|');
+  if (!phashHex || !colorHex || phashHex.length !== 64 || colorHex.length !== 128) return null;
+  const phash = BigInt('0x' + phashHex);
+  const color = new Float32Array(64);
+  for (let i = 0; i < 64; i++) {
+    color[i] = parseInt(colorHex.substr(i * 2, 2), 16) / 255;
+  }
+  return { phash, color };
+}
+
+// Combined distance [0,1] — lower = more similar
+function featureDistance(a: ParsedFeature, b: ParsedFeature): number {
+  let xor = a.phash ^ b.phash;
+  let bits = 0;
+  while (xor > 0n) { bits++; xor &= xor - 1n; }
+  const dh = bits / 256;
+  let chi = 0;
+  for (let i = 0; i < 64; i++) {
+    const x = a.color[i], y = b.color[i];
+    const denom = x + y;
+    if (denom > 0) {
+      const d = x - y;
+      chi += (d * d) / denom;
+    }
+  }
+  chi *= 0.5;
+  const dc = Math.min(1, chi / 2.0);
+  return 0.5 * dh + 0.5 * dc;
 }
 
 // ── List Products ──────────────────────────────────────
@@ -1056,7 +1196,7 @@ app.post('/api/products', upload.any(), async (req, res) => {
         const imgBuf = fs.readFileSync(file.path);
         const thumbBuf = await generateThumbnail(imgBuf);
         const thumbKey = (cosKey && thumbBuf) ? await uploadBufferToCOS(thumbBuf, `product_thumb_${Date.now()}_${i}.jpg`) : '';
-        const phash = await computePHash(imgBuf);
+        const feature = await computeFeature(imgBuf);
         // Also save locally for fallback
         let localPath = '';
         let thumbLocalPath = '';
@@ -1071,8 +1211,8 @@ app.post('/api/products', upload.any(), async (req, res) => {
           }
         }
         await pool.query(
-          'INSERT INTO product_images (product_id, sort_order, cos_key, thumbnail_cos_key, local_path, thumbnail_local_path, phash) VALUES (?, ?, ?, ?, ?, ?, ?)',
-          [productId, i, cosKey || '', thumbKey || '', localPath, thumbLocalPath, phash || '']
+          'INSERT INTO product_images (product_id, sort_order, cos_key, thumbnail_cos_key, local_path, thumbnail_local_path, feature_vec) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          [productId, i, cosKey || '', thumbKey || '', localPath, thumbLocalPath, feature || '']
         );
       }
       return res.json({ id: productId, success: true });
@@ -1093,7 +1233,7 @@ app.post('/api/products', upload.any(), async (req, res) => {
       local.product_images.push({
         id: imgId, product_id: newId, sort_order: i,
         cos_key: cosKey || '', local_path: cosKey ? '' : file.path,
-        thumbnail_cos_key: '', thumbnail_local_path: '', phash: ''
+        thumbnail_cos_key: '', thumbnail_local_path: '', feature_vec: ''
       });
     }
     saveLocalDB(local);
@@ -1125,10 +1265,10 @@ app.put('/api/products/:id', upload.any(), async (req, res) => {
       for (const file of files) {
         const cosKey = await uploadToCOS(file);
         const imgBuf = fs.readFileSync(file.path);
-        const phash = await computePHash(imgBuf);
+        const feature = await computeFeature(imgBuf);
         await pool.query(
-          'INSERT INTO product_images (product_id, sort_order, cos_key, local_path, phash) VALUES (?, ?, ?, ?, ?)',
-          [productId, order++, cosKey || '', cosKey ? '' : file.path, phash || '']
+          'INSERT INTO product_images (product_id, sort_order, cos_key, local_path, feature_vec) VALUES (?, ?, ?, ?, ?)',
+          [productId, order++, cosKey || '', cosKey ? '' : file.path, feature || '']
         );
       }
 
@@ -1157,7 +1297,7 @@ app.put('/api/products/:id', upload.any(), async (req, res) => {
       local.product_images.push({
         id: imgId, product_id: productId, sort_order: order++,
         cos_key: cosKey || '', local_path: cosKey ? '' : file.path,
-        thumbnail_cos_key: '', thumbnail_local_path: '', phash: ''
+        thumbnail_cos_key: '', thumbnail_local_path: '', feature_vec: ''
       });
     }
     local.products[idx].image_count = local.product_images.filter((i: any) => i.product_id == productId).length;
@@ -1543,7 +1683,7 @@ app.post('/api/products/import', upload.single('file'), async (req, res) => {
               // Generate and upload thumbnail
               const thumbBuf = await generateThumbnail(img.buffer);
               const thumbKey = thumbBuf ? await uploadBufferToCOS(thumbBuf, `product_import_thumb_${Date.now()}_${i}.jpg`) : '';
-              const phash = await computePHash(img.buffer);
+              const feature = await computeFeature(img.buffer);
               let localPath = '';
               let thumbLocalPath = '';
               if (!cosKey) {
@@ -1556,14 +1696,14 @@ app.post('/api/products/import', upload.single('file'), async (req, res) => {
                   fs.writeFileSync(thumbLocalPath, thumbBuf);
                 }
               }
-              return { i, cosKey: cosKey || '', localPath, thumbKey: thumbKey || '', thumbLocalPath, phash: phash || '' };
+              return { i, cosKey: cosKey || '', localPath, thumbKey: thumbKey || '', thumbLocalPath, feature: feature || '' };
             })
           );
           // Insert image records sequentially (correct sort_order)
           for (const r of uploadResults) {
             await pool.query(
-              'INSERT INTO product_images (product_id, sort_order, cos_key, thumbnail_cos_key, local_path, thumbnail_local_path, phash) VALUES (?,?,?,?,?,?,?)',
-              [productId, r.i, r.cosKey, r.thumbKey, r.localPath, r.thumbLocalPath, r.phash]
+              'INSERT INTO product_images (product_id, sort_order, cos_key, thumbnail_cos_key, local_path, thumbnail_local_path, feature_vec) VALUES (?,?,?,?,?,?,?)',
+              [productId, r.i, r.cosKey, r.thumbKey, r.localPath, r.thumbLocalPath, r.feature]
             );
           }
           importedCount++;
@@ -1605,7 +1745,7 @@ app.post('/api/products/import', upload.single('file'), async (req, res) => {
           local.product_images.push({
             id: maxImgId, product_id: maxProdId, sort_order: i,
             cos_key: '', local_path: localPath,
-            thumbnail_cos_key: '', thumbnail_local_path: '', phash: ''
+            thumbnail_cos_key: '', thumbnail_local_path: '', feature_vec: ''
           });
         }
         importedCount++;
@@ -1625,47 +1765,52 @@ app.post('/api/products/search/similar', upload.single('file'), async (req, res)
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
-    // Compute pHash of query image
+    // Compute feature vector of query image
     const queryBuf = fs.readFileSync(req.file.path);
-    const queryHash = await computePHash(queryBuf);
-    if (!queryHash) return res.status(400).json({ error: 'Could not compute image hash' });
+    const queryFeatureStr = await computeFeature(queryBuf);
+    if (!queryFeatureStr) return res.status(400).json({ error: 'Could not compute image feature' });
+    const queryFeat = parseFeature(queryFeatureStr);
+    if (!queryFeat) return res.status(500).json({ error: 'Failed to parse query feature' });
 
-    // Get all stored image hashes and compare
-    let results: { productId: number; imageId: number; itemNo: string; productName: string; distance: number }[] = [];
+    let results: { productId: number; imageId: number; itemNo: string; productName: string; score: number }[] = [];
 
     if (!useMySQLFallback) {
       const pool = await getMySQLPool();
       const [rows] = await pool.query<RowDataPacket[]>(
-        `SELECT pi.id as image_id, pi.product_id, pi.phash, p.item_no, p.product_name
+        `SELECT pi.id as image_id, pi.product_id, pi.feature_vec, p.item_no, p.product_name
          FROM product_images pi JOIN products p ON pi.product_id = p.id
-         WHERE pi.phash IS NOT NULL AND pi.phash != ''`
+         WHERE pi.feature_vec IS NOT NULL AND pi.feature_vec != ''`
       );
       for (const row of rows) {
-        const dist = hammingDist(queryHash, row.phash);
-        if (dist <= 20) {
+        const feat = parseFeature(row.feature_vec);
+        if (!feat) continue;
+        const score = featureDistance(queryFeat, feat);
+        if (score <= 0.5) {
           results.push({
             productId: row.product_id, imageId: row.image_id,
-            itemNo: row.item_no, productName: row.product_name, distance: dist,
+            itemNo: row.item_no, productName: row.product_name, score,
           });
         }
       }
     } else {
       const local = loadLocalDB();
       for (const img of local.product_images) {
-        if (!img.phash) continue;
-        const dist = hammingDist(queryHash, img.phash);
-        if (dist <= 20) {
+        if (!img.feature_vec) continue;
+        const feat = parseFeature(img.feature_vec);
+        if (!feat) continue;
+        const score = featureDistance(queryFeat, feat);
+        if (score <= 0.5) {
           const prod = local.products.find((p: any) => p.id == img.product_id);
           results.push({
             productId: img.product_id, imageId: img.id,
-            itemNo: prod?.item_no || '', productName: prod?.product_name || '', distance: dist,
+            itemNo: prod?.item_no || '', productName: prod?.product_name || '', score,
           });
         }
       }
     }
 
-    // Sort by similarity (ascending distance) and deduplicate by productId
-    results.sort((a, b) => a.distance - b.distance);
+    // Sort by similarity (ascending score) and deduplicate by productId
+    results.sort((a, b) => a.score - b.score);
     const seen = new Set<number>();
     results = results.filter(r => { const dup = seen.has(r.productId); seen.add(r.productId); return !dup; });
 
@@ -1675,15 +1820,62 @@ app.post('/api/products/search/similar', upload.single('file'), async (req, res)
   }
 });
 
-// Hamming distance between two hex hash strings
-function hammingDist(h1: string, h2: string): number {
-  const a = BigInt('0x' + h1);
-  const b = BigInt('0x' + h2);
-  let xor = a ^ b;
-  let count = 0;
-  while (xor > 0n) { count++; xor &= xor - 1n; }
-  return count;
-}
+// ── Rebuild Feature Vectors (admin backfill) ─────────
+app.post('/api/admin/rebuild-features', async (req, res) => {
+  try {
+    let processed = 0, updated = 0, failed = 0;
+    const onlyMissing = req.body?.all !== true && (req.query?.all !== '1') && (req.body?.all !== 'true');
+
+    const readImageBuffer = async (img: any): Promise<Buffer | null> => {
+      if (img.cos_key) {
+        const cos = getCOSClient();
+        const cfg = getCOSConfig();
+        if (cos && cfg) {
+          try {
+            const data = await cos.getObject({ Bucket: cfg.bucket, Region: cfg.region, Key: img.cos_key });
+            return Buffer.from(data.Body);
+          } catch { /* fall through to local */ }
+        }
+      }
+      if (img.local_path && fs.existsSync(img.local_path)) {
+        try { return fs.readFileSync(img.local_path); } catch { return null; }
+      }
+      return null;
+    };
+
+    if (!useMySQLFallback) {
+      const pool = await getMySQLPool();
+      const where = onlyMissing ? `WHERE feature_vec IS NULL OR feature_vec = ''` : '';
+      const [rows] = await pool.query<RowDataPacket[]>(`SELECT id, cos_key, local_path, feature_vec FROM product_images ${where}`);
+      for (const row of rows) {
+        processed++;
+        const buf = await readImageBuffer(row);
+        if (!buf) { failed++; continue; }
+        const feature = await computeFeature(buf);
+        if (!feature) { failed++; continue; }
+        await pool.query('UPDATE product_images SET feature_vec = ? WHERE id = ?', [feature, row.id]);
+        updated++;
+      }
+    } else {
+      const local = loadLocalDB();
+      for (const img of local.product_images) {
+        if (onlyMissing && img.feature_vec) continue;
+        processed++;
+        const buf = await readImageBuffer(img);
+        if (!buf) { failed++; continue; }
+        const feature = await computeFeature(buf);
+        if (!feature) { failed++; continue; }
+        img.feature_vec = feature;
+        updated++;
+      }
+      saveLocalDB(local);
+    }
+    res.json({ processed, updated, failed });
+  } catch (e: any) {
+    console.error('[POST /api/admin/rebuild-features]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
 
 // ── COS Upload Helpers ─────────────────────────────────
 async function uploadToCOS(file: Express.Multer.File): Promise<string | null> {
