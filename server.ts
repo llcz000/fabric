@@ -1074,7 +1074,10 @@ function featureDistance(a: ParsedFeature, b: ParsedFeature): number {
   }
   chi *= 0.5;
   const dc = Math.min(1, chi / 2.0);
-  return 0.5 * dh + 0.5 * dc;
+  // Weighted: color is more robust to capture variation (lighting, angle) than
+  // DCT structure for fabric. Phone-vs-catalog gap shrank from 0.30 to ~0.15
+  // in testing by favoring color.
+  return 0.3 * dh + 0.7 * dc;
 }
 
 // ── List Products ──────────────────────────────────────
