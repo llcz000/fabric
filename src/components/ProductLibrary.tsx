@@ -362,28 +362,31 @@ export default function ProductLibrary() {
     } catch (e: any) { showToast('删除失败: ' + (e.message || '')); }
   };
 
-  const handleBatchDelete = async () => {
+  // Batch delete state
+  const [batchDeleteTargets, setBatchDeleteTargets] = useState<{ ids: string[]; itemNos: string[]; count: number } | null>(null);
+
+  const handleBatchDelete = () => {
     if (selectedIds.size === 0) return;
     const ids = Array.from(selectedIds);
-    const selectedProducts = filteredProducts.filter(p => selectedIds.has(p.id));
-    const itemNos = selectedProducts.map(p => p.itemNo).filter(Boolean);
-    if (!confirm(`确定删除选中的 ${ids.length} 条记录及其图片吗？此操作不可撤销。`)) return;
+    const itemNos = filteredProducts.filter(p => selectedIds.has(p.id)).map(p => p.itemNo).filter(Boolean);
+    setBatchDeleteTargets({ ids, itemNos, count: ids.length });
+  };
 
-    // Delete from local IndexedDB
+  const confirmBatchDelete = async () => {
+    if (!batchDeleteTargets) return;
+    const { ids, itemNos } = batchDeleteTargets;
+    setBatchDeleteTargets(null);
+
     let deleted = 0;
     for (const id of ids) {
-      try { await deleteProduct(id); deleted++; } catch (e: any) { console.error('Delete error:', id, e); }
+      try { await deleteProduct(id); deleted++; } catch { }
     }
-
-    // Delete from server by itemNo (business key, works regardless of ID mismatch)
     try {
       await authFetch('/api/products/batch-delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ itemNos }),
       });
     } catch { }
-
     setSelectedIds(new Set());
     showToast(`已删除 ${deleted} 条记录`);
     await loadProducts();
@@ -749,6 +752,20 @@ export default function ProductLibrary() {
             <div className="flex justify-end gap-2">
               <button onClick={() => setDeleteTarget(null)} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer">取消</button>
               <button onClick={handleDelete} className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-semibold cursor-pointer">删除</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Batch Delete Confirm ──────────────────────── */}
+      {batchDeleteTargets && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm mx-4 space-y-4">
+            <h3 className="text-lg font-bold text-slate-800">确认批量删除</h3>
+            <p className="text-sm text-slate-600">确定删除选中的 <b>{batchDeleteTargets.count}</b> 条记录及其所有花型图片吗？此操作不可撤销。</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setBatchDeleteTargets(null)} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer">取消</button>
+              <button onClick={confirmBatchDelete} className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-semibold cursor-pointer">删除</button>
             </div>
           </div>
         </div>
