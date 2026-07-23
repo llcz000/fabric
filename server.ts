@@ -1128,6 +1128,7 @@ app.post('/api/products/batch-delete', async (req, res) => {
       const pool = await getMySQLPool();
       if (itemNos && itemNos.length > 0) {
         const placeholders = itemNos.map(() => '?').join(',');
+        // Clean up COS/local image files
         const [imgs] = await pool.query<RowDataPacket[]>(
           `SELECT pi.cos_key, pi.thumbnail_cos_key, pi.local_path, pi.thumbnail_local_path
            FROM product_images pi JOIN products p ON pi.product_id = p.id
@@ -1136,6 +1137,9 @@ app.post('/api/products/batch-delete', async (req, res) => {
           try { if (img.cos_key) await deleteFromCOS(img.cos_key); } catch { }
           try { if (img.local_path && fs.existsSync(img.local_path)) fs.unlinkSync(img.local_path); } catch { }
         }
+        // Explicitly delete images first (in case CASCADE didn't exist at table creation)
+        await pool.query(
+          `DELETE pi FROM product_images pi JOIN products p ON pi.product_id = p.id WHERE p.item_no IN (${placeholders})`, itemNos);
         const [result] = await pool.query<ResultSetHeader>(
           `DELETE FROM products WHERE item_no IN (${placeholders})`, itemNos);
         deleted = result.affectedRows;
@@ -1149,6 +1153,8 @@ app.post('/api/products/batch-delete', async (req, res) => {
             try { if (img.cos_key) await deleteFromCOS(img.cos_key); } catch { }
             try { if (img.local_path && fs.existsSync(img.local_path)) fs.unlinkSync(img.local_path); } catch { }
           }
+          // Explicitly delete images first (in case CASCADE was skipped at table creation)
+          await pool.query(`DELETE FROM product_images WHERE product_id IN (${placeholders})`, numIds);
           const [result] = await pool.query<ResultSetHeader>(
             `DELETE FROM products WHERE id IN (${placeholders})`, numIds);
           deleted = result.affectedRows;
@@ -1193,6 +1199,8 @@ app.delete('/api/products/:id', async (req, res) => {
         if (img.local_path && fs.existsSync(img.local_path)) fs.unlinkSync(img.local_path);
         if (img.thumbnail_local_path && fs.existsSync(img.thumbnail_local_path)) fs.unlinkSync(img.thumbnail_local_path);
       }
+      // Explicitly delete images first
+      await pool.query('DELETE FROM product_images WHERE product_id = ?', [id]);
       await pool.query('DELETE FROM products WHERE id = ?', [id]);
       return res.json({ success: true });
     }
