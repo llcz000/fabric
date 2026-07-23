@@ -937,6 +937,13 @@ async function getExtractor(): Promise<any> {
     env.cacheDir = cacheDir;
     env.allowRemoteModels = true;
     env.allowLocalModels = false;
+    // Use the Chinese mirror for HuggingFace — the remote host cannot reach
+    // huggingface.co directly. hf-mirror.com mirrors the HF API and asset CDN.
+    if (process.env.HF_REMOTE_HOST) {
+      env.remoteHost = process.env.HF_REMOTE_HOST;
+    } else {
+      env.remoteHost = 'https://hf-mirror.com';
+    }
     _extractorPromise = mod.pipeline('image-feature-extraction', 'Xenova/clip-vit-base-patch32');
   }
   return _extractorPromise;
