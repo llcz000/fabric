@@ -1281,7 +1281,7 @@ app.post('/api/products/export', async (req, res) => {
           try {
             const imageId = workbook.addImage({ buffer, extension: 'jpeg' });
             worksheet.addImage(imageId, {
-              tl: { col: 5, row: rowNum - 1 },
+              tl: { col: 5, row: rowNum - 1, colOff: Math.round(xOffset * 9525) },
               ext: { width: 72, height: 72 },
             });
             xOffset += 72 + imgGap;
