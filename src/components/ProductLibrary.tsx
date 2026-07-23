@@ -44,6 +44,7 @@ async function authFetch(url: string, options: RequestInit = {}): Promise<Respon
   const res = await fetch(url, { ...options, headers });
   if (res.status === 401) {
     sessionStorage.removeItem('fabric_auth_token');
+    window.location.reload();
   }
   return res;
 }
