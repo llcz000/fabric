@@ -920,9 +920,8 @@ async function computeFeature(buffer: Buffer): Promise<string | null> {
   try {
     const phashHex = await computeDctPHash(buffer);
     const colorHex = await computeColorHistogram(buffer);
-    const lbpHex = await computeLbpHistogram(buffer);
-    if (!phashHex || !colorHex || !lbpHex) return null;
-    return `${phashHex}|${colorHex}|${lbpHex}`;
+    if (!phashHex || !colorHex) return null;
+    return `${phashHex}|${colorHex}`;
   } catch (e: any) {
     console.error('[computeFeature]', e?.message || e);
     return null;
@@ -961,16 +960,20 @@ async function computeDctPHash(buffer: Buffer): Promise<string | null> {
   return hash.toString(16).padStart(64, '0');
 }
 
-// HSV 2D color histogram (H: 16 bins x S: 4 bins = 64 dims) with gray-world
-// white balance. Output: 128 hex chars (8 bits per bin).
+// 3x3 spatial-block HSV color histogram with gray-world white balance.
+// 9 blocks, each 16 bins (H:8 x S:2), 144 dims total. Captures color layout
+// that the global histogram flattened — fabrics with similar hue but
+// different print distribution separate out. Output: 288 hex chars (8 bits/bin).
 async function computeColorHistogram(buffer: Buffer): Promise<string | null> {
   const { data, info } = await sharp(buffer)
     .resize(180, 180, { fit: 'fill' })
     .raw()
     .toBuffer({ resolveWithObject: true });
   const channels = info.channels;
-  const N = info.width * info.height;
+  const W = info.width;
+  const H = info.height;
   const px = new Uint8Array(data);
+  const N = W * H;
   // Gray-world white balance
   let sumR = 0, sumG = 0, sumB = 0;
   for (let i = 0; i < N; i++) {
@@ -982,106 +985,50 @@ async function computeColorHistogram(buffer: Buffer): Promise<string | null> {
   const sr = sumR > 0 ? mean / sumR : 1;
   const sg = sumG > 0 ? mean / sumG : 1;
   const sb = sumB > 0 ? mean / sumB : 1;
-  const hist = new Float64Array(64);
-  for (let i = 0; i < N; i++) {
-    let r = px[i * channels] * sr;
-    let g = px[i * channels + 1] * sg;
-    let b = px[i * channels + 2] * sb;
-    if (r > 255) r = 255; if (g > 255) g = 255; if (b > 255) b = 255;
-    const max = Math.max(r, g, b);
-    const min = Math.min(r, g, b);
-    const d = max - min;
-    const s = max === 0 ? 0 : d / max;
-    let h = 0;
-    if (d !== 0) {
-      if (max === r) h = ((g - b) / d) % 6;
-      else if (max === g) h = (b - r) / d + 2;
-      else h = (r - g) / d + 4;
-      h *= 60;
-      if (h < 0) h += 360;
+  const NBINS = 16; // H(8) x S(2) per block
+  const hist = new Float64Array(9 * NBINS); // 9 blocks
+  const BW = Math.floor(W / 3);
+  const BH = Math.floor(H / 3);
+  for (let by = 0; by < 3; by++) {
+    for (let bx = 0; bx < 3; bx++) {
+      const base = (by * 3 + bx) * NBINS;
+      for (let y = by * BH; y < (by + 1) * BH; y++) {
+        for (let x = bx * BW; x < (bx + 1) * BW; x++) {
+          const i = y * W + x;
+          let r = px[i * channels] * sr;
+          let g = px[i * channels + 1] * sg;
+          let b = px[i * channels + 2] * sb;
+          if (r > 255) r = 255; if (g > 255) g = 255; if (b > 255) b = 255;
+          const max = Math.max(r, g, b);
+          const min = Math.min(r, g, b);
+          const d = max - min;
+          const s = max === 0 ? 0 : d / max;
+          let h = 0;
+          if (d !== 0) {
+            if (max === r) h = ((g - b) / d) % 6;
+            else if (max === g) h = (b - r) / d + 2;
+            else h = (r - g) / d + 4;
+            h *= 60;
+            if (h < 0) h += 360;
+          }
+          const hBin = Math.min(7, Math.floor(h / 45));
+          const sBin = Math.min(1, Math.floor(s * 2));
+          hist[base + hBin * 2 + sBin]++;
+        }
+      }
     }
-    const hBin = Math.min(15, Math.floor(h / 22.5));
-    const sBin = Math.min(3, Math.floor(s * 4));
-    hist[hBin * 4 + sBin]++;
   }
+  // Normalize globally so chi-square magnitude matches the old 64-bin version
   let total = 0;
-  for (let i = 0; i < 64; i++) total += hist[i];
-  if (total > 0) for (let i = 0; i < 64; i++) hist[i] /= total;
+  for (let i = 0; i < 9 * NBINS; i++) total += hist[i];
+  if (total > 0) for (let i = 0; i < 9 * NBINS; i++) hist[i] /= total;
   let hex = '';
-  for (let i = 0; i < 64; i++) {
+  for (let i = 0; i < 9 * NBINS; i++) {
     const q = Math.min(255, Math.max(0, Math.floor(hist[i] * 255)));
     hex += q.toString(16).padStart(2, '0');
   }
   return hex;
 }
-
-// Rotation-invariant uniform LBP (riu2) texture histogram, 10 bins.
-// Captures weave / print micro-structure that color misses. Output: 20 hex
-// chars (8 bits per bin). Resolution matches color histogram (180x180) so
-// the two share a resize pass mentally (sharp won't dedupe, but cost is low).
-async function computeLbpHistogram(buffer: Buffer): Promise<string | null> {
-  const { data, info } = await sharp(buffer)
-    .resize(180, 180, { fit: 'fill' })
-    .grayscale()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-  const w = info.width;
-  const h = info.height;
-  const px = new Uint8Array(data);
-  const hist = new Float64Array(10);
-  let total = 0;
-  for (let y = 1; y < h - 1; y++) {
-    for (let x = 1; x < w - 1; x++) {
-      const c = px[y * w + x];
-      // 8 neighbors clockwise from top-left
-      const n = [
-        px[(y - 1) * w + (x - 1)],
-        px[(y - 1) * w + x],
-        px[(y - 1) * w + (x + 1)],
-        px[y * w + (x + 1)],
-        px[(y + 1) * w + (x + 1)],
-        px[(y + 1) * w + x],
-        px[(y + 1) * w + (x - 1)],
-        px[y * w + (x - 1)],
-      ];
-      let pattern = 0;
-      for (let i = 0; i < 8; i++) if (n[i] >= c) pattern |= (1 << i);
-      hist[LBP_LUT[pattern]]++;
-      total++;
-    }
-  }
-  if (total > 0) for (let i = 0; i < 10; i++) hist[i] /= total;
-  let hex = '';
-  for (let i = 0; i < 10; i++) {
-    const q = Math.min(255, Math.max(0, Math.floor(hist[i] * 255)));
-    hex += q.toString(16).padStart(2, '0');
-  }
-  return hex;
-}
-
-// Lookup table: 256 LBP patterns -> 10 riu2 bins (0-8 = uniform with that many
-// 1-bits, 9 = non-uniform). Precomputed at startup.
-const LBP_LUT: Uint8Array = (() => {
-  const t = new Uint8Array(256);
-  for (let p = 0; p < 256; p++) {
-    let transitions = 0;
-    let prev = (p >> 7) & 1;
-    for (let i = 6; i >= 0; i--) {
-      const cur = (p >> i) & 1;
-      if (cur !== prev) transitions++;
-      prev = cur;
-    }
-    if (((p >> 7) & 1) !== (p & 1)) transitions++; // wrap-around
-    if (transitions <= 2) {
-      let ones = 0;
-      for (let i = 0; i < 8; i++) if ((p >> i) & 1) ones++;
-      t[p] = ones;
-    } else {
-      t[p] = 9;
-    }
-  }
-  return t;
-})();
 
 // 1D type-II DCT
 function dct1D(row: number[], N: number): number[] {
@@ -1111,27 +1058,19 @@ function dct2D(block: number[][], rows: number, cols: number): number[][] {
 
 interface ParsedFeature {
   phash: bigint;
-  color: Float32Array; // length 64, values 0-1
-  lbp: Float32Array;   // length 10, values 0-1
+  color: Float32Array; // length 144, values 0-1
 }
 
 function parseFeature(s: string): ParsedFeature | null {
   if (!s || typeof s !== 'string' || !s.includes('|')) return null;
-  const parts = s.split('|');
-  if (parts.length !== 3) return null;
-  const [phashHex, colorHex, lbpHex] = parts;
-  if (!phashHex || !colorHex || !lbpHex ||
-      phashHex.length !== 64 || colorHex.length !== 128 || lbpHex.length !== 20) return null;
+  const [phashHex, colorHex] = s.split('|');
+  if (!phashHex || !colorHex || phashHex.length !== 64 || colorHex.length !== 288) return null;
   const phash = BigInt('0x' + phashHex);
-  const color = new Float32Array(64);
-  for (let i = 0; i < 64; i++) {
+  const color = new Float32Array(144);
+  for (let i = 0; i < 144; i++) {
     color[i] = parseInt(colorHex.substr(i * 2, 2), 16) / 255;
   }
-  const lbp = new Float32Array(10);
-  for (let i = 0; i < 10; i++) {
-    lbp[i] = parseInt(lbpHex.substr(i * 2, 2), 16) / 255;
-  }
-  return { phash, color, lbp };
+  return { phash, color };
 }
 
 // Combined distance [0,1] — lower = more similar
@@ -1140,33 +1079,21 @@ function featureDistance(a: ParsedFeature, b: ParsedFeature): number {
   let bits = 0;
   while (xor > 0n) { bits++; xor &= xor - 1n; }
   const dh = bits / 256;
-  // Color chi-square
-  let chiC = 0;
-  for (let i = 0; i < 64; i++) {
+  // Color chi-square over 144 spatial-block bins
+  let chi = 0;
+  for (let i = 0; i < 144; i++) {
     const x = a.color[i], y = b.color[i];
     const denom = x + y;
     if (denom > 0) {
       const d = x - y;
-      chiC += (d * d) / denom;
+      chi += (d * d) / denom;
     }
   }
-  chiC *= 0.5;
-  const dc = Math.min(1, chiC / 2.0);
-  // LBP chi-square
-  let chiL = 0;
-  for (let i = 0; i < 10; i++) {
-    const x = a.lbp[i], y = b.lbp[i];
-    const denom = x + y;
-    if (denom > 0) {
-      const d = x - y;
-      chiL += (d * d) / denom;
-    }
-  }
-  chiL *= 0.5;
-  const dl = Math.min(1, chiL / 2.0);
-  // Weights: color dominant (most capture-robust), LBP adds weave/print
-  // discrimination, DCT structure as a minor tiebreaker.
-  return 0.25 * dh + 0.5 * dc + 0.25 * dl;
+  chi *= 0.5;
+  const dc = Math.min(1, chi / 2.0);
+  // Color dominant (spatial layout is the strongest cue for fabric), DCT
+  // structure as a minor tiebreaker.
+  return 0.3 * dh + 0.7 * dc;
 }
 
 // ── List Products ──────────────────────────────────────
