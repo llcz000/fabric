@@ -92,7 +92,7 @@ const ThumbnailCell = memo(({ productId }: { productId: string }) => {
   if (thumbs.length === 0) return <div className="w-18 h-18 bg-slate-50 rounded flex items-center justify-center"><Image className="w-6 h-6 text-slate-300" /></div>;
 
   return (
-    <div className="flex gap-1.5 min-w-[80px]" data-product-id={productId}>
+    <div className="flex gap-1.5 min-w-[80px] shrink-0" data-product-id={productId}>
       {thumbs.map((t, i) => (
         <img key={t.id} src={t.url} className="w-16 h-16 object-cover rounded border border-slate-200 cursor-pointer hover:opacity-80 shrink-0"
           onClick={() => { const ev = new CustomEvent('open-lightbox', { detail: { productId, index: i } }); window.dispatchEvent(ev); }}

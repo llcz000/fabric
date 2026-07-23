@@ -167,9 +167,15 @@ export async function updateImageOrder(images: { id: string; order: number }[]):
 export function compressImage(file: File, maxWidth: number, quality: number): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    const objectUrl = URL.createObjectURL(file);
+    // Use FileReader for iOS HEIC compatibility
+    const reader = new FileReader();
+    reader.onload = () => {
+      img.src = reader.result as string;
+    };
+    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.readAsDataURL(file);
+
     img.onload = () => {
-      URL.revokeObjectURL(objectUrl);
       try {
         let { width, height } = img;
         if (width > maxWidth) {
@@ -181,25 +187,16 @@ export function compressImage(file: File, maxWidth: number, quality: number): Pr
         canvas.height = height;
         const ctx = canvas.getContext('2d')!;
         ctx.drawImage(img, 0, 0, width, height);
-        // Use toDataURL (more reliable than toBlob across browsers)
-        const dataUrl = canvas.toDataURL('image/jpeg', quality);
-        const byteString = atob(dataUrl.split(',')[1]);
-        const mimeString = dataUrl.split(',')[0].split(':')[1].split(';')[0];
-        const ab = new ArrayBuffer(byteString.length);
-        const ia = new Uint8Array(ab);
-        for (let i = 0; i < byteString.length; i++) {
-          ia[i] = byteString.charCodeAt(i);
-        }
-        resolve(new Blob([ab], { type: mimeString }));
+        // Use fetch to convert dataURL to Blob (reliable on iOS Safari)
+        canvas.toBlob((blob) => {
+          if (blob) resolve(blob);
+          else reject(new Error('Canvas toBlob failed'));
+        }, 'image/jpeg', quality);
       } catch (e) {
         reject(e);
       }
     };
-    img.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      reject(new Error('Failed to load image'));
-    };
-    img.src = objectUrl;
+    img.onerror = () => reject(new Error('Failed to load image'));
   });
 }
 
