@@ -1172,6 +1172,7 @@ app.put('/api/products/:id', upload.any(), async (req, res) => {
 // ── Get Product Thumbnails (batch) ─────────────────────
 app.get('/api/products/:id/thumbnails', async (req, res) => {
   const productId = parseInt(req.params.id);
+  const useFull = req.query.full === '1';
   try {
     let images: any[] = [];
     if (!useMySQLFallback) {
@@ -1187,7 +1188,16 @@ app.get('/api/products/:id/thumbnails', async (req, res) => {
     const result: { id: number; sort_order: number; base64: string }[] = [];
     for (const img of images) {
       let buffer: Buffer | null = null;
-      // Try thumbnail first (smaller), then full image, with individual error handling
+      if (useFull) {
+        // Requesting full image: skip thumbnails
+        if (img.cos_key) {
+          try { const cos = getCOSClient(); const cfg = getCOSConfig(); if (cos && cfg) { const data = await cos.getObject({ Bucket: cfg.bucket, Region: cfg.region, Key: img.cos_key }); buffer = Buffer.isBuffer(data.Body) ? data.Body : Buffer.from(data.Body as any); } } catch { }
+        }
+        if (!buffer && img.local_path && fs.existsSync(img.local_path)) {
+          try { buffer = fs.readFileSync(img.local_path); } catch { }
+        }
+      } else {
+        // Prefer thumbnail (smaller), fall back to full image
       if (img.thumbnail_cos_key) {
         try {
           const cos = getCOSClient(); const cfg = getCOSConfig();
@@ -1206,7 +1216,8 @@ app.get('/api/products/:id/thumbnails', async (req, res) => {
       if (!buffer && img.local_path && fs.existsSync(img.local_path)) {
         try { buffer = fs.readFileSync(img.local_path); } catch { }
       }
-      if (buffer) result.push({ id: img.id, sort_order: img.sort_order, base64: buffer.toString('base64') });
+    }
+    if (buffer) result.push({ id: img.id, sort_order: img.sort_order, base64: buffer.toString('base64') });
     }
     res.json({ images: result });
   } catch (e: any) { res.status(500).json({ error: e.message }); }

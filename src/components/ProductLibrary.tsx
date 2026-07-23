@@ -200,16 +200,19 @@ export default function ProductLibrary() {
   useEffect(() => {
     const handler = async (ev: Event) => {
       const { productId, index } = (ev as CustomEvent).detail;
-      const imgs = await getImages(productId);
-      if (imgs.length === 0) return;
-      const urls: string[] = [];
-      for (const img of imgs) {
-        const full = await getFullImageUrl(img.id);
-        if (full) urls.push(full);
-      }
-      setLightboxImages(urls);
-      setLightboxProductId(productId);
-      setLightboxIndex(Math.min(index, urls.length - 1));
+      // Load full images from server (not IndexedDB cache — that's thumbnail quality)
+      try {
+        const token = sessionStorage.getItem('fabric_auth_token');
+        const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
+        const res = await fetch(`/api/products/${productId}/thumbnails?full=1`, { headers });
+        if (res.ok) {
+          const { images: batchImages } = await res.json();
+          const urls = (batchImages || []).map((bi: any) => `data:image/jpeg;base64,${bi.base64}`);
+          setLightboxImages(urls);
+          setLightboxProductId(productId);
+          setLightboxIndex(Math.min(index, urls.length - 1));
+        }
+      } catch { }
     };
     window.addEventListener('open-lightbox', handler);
     return () => window.removeEventListener('open-lightbox', handler);
