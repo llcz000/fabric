@@ -377,6 +377,28 @@ export default function ProductLibrary() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Import failed');
       showToast(`成功导入 ${data.count} 条记录`);
+
+      // Sync imported products from server to local IndexedDB
+      try {
+        const serverRes = await authFetch('/api/products');
+        if (serverRes.ok) {
+          const serverProducts = await serverRes.json();
+          for (const sp of serverProducts) {
+            const existing = products.find(p => p.itemNo === (sp.item_no || sp.itemNo));
+            if (!existing) {
+              await putProduct({
+                id: String(sp.id), itemNo: sp.item_no || sp.itemNo,
+                productName: sp.product_name || sp.productName,
+                composition: sp.composition || '', weight: sp.weight || '',
+                width: sp.width || '', imageCount: sp.image_count || sp.images?.length || 0,
+                createdAt: sp.created_at || new Date().toISOString(),
+                updatedAt: sp.updated_at || new Date().toISOString(),
+              });
+            }
+          }
+        }
+      } catch { /* sync is best-effort */ }
+
       await loadProducts();
     } catch (err: any) { showToast('导入失败: ' + (err.message || '')); }
     e.target.value = '';

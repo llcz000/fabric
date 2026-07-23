@@ -1333,8 +1333,9 @@ app.post('/api/products/import', upload.single('file'), async (req, res) => {
 
     if (!useMySQLFallback) {
       const pool = await getMySQLPool();
+      const rowPromises: Promise<void>[] = [];
       worksheet.eachRow((row, rowNumber) => {
-        if (rowNumber === 1) return; // Skip header
+        if (rowNumber === 1) return;
         const itemNo = String(row.getCell(1).value || '').trim();
         const productName = String(row.getCell(2).value || '').trim();
         if (!itemNo && !productName) return;
@@ -1344,7 +1345,7 @@ app.post('/api/products/import', upload.single('file'), async (req, res) => {
         const width = String(row.getCell(5).value || '').trim();
         const rowImgs = imageMap.get(rowNumber - 1) || [];
 
-        (async () => {
+        rowPromises.push((async () => {
           try {
             const [result] = await pool.query<ResultSetHeader>(
               'INSERT INTO products (item_no, product_name, composition, weight, width, image_count, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)',
@@ -1363,9 +1364,10 @@ app.post('/api/products/import', upload.single('file'), async (req, res) => {
           } catch (e: any) {
             console.error('[Import row error]', e.message);
           }
-        })();
+        })());
         importedCount++;
       });
+      await Promise.all(rowPromises);
     } else {
       const local = loadLocalDB();
       let maxProdId = local.products.length > 0 ? Math.max(...local.products.map((p: any) => p.id)) : 0;
@@ -1402,9 +1404,6 @@ app.post('/api/products/import', upload.single('file'), async (req, res) => {
       });
       saveLocalDB(local);
     }
-
-    // Wait for async operations to settle
-    await new Promise(r => setTimeout(r, 500));
 
     res.json({ success: true, count: importedCount });
   } catch (e: any) {
