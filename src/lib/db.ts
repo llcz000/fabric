@@ -96,14 +96,17 @@ export async function getImages(productId: string): Promise<{ id: string; order:
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_IMAGES, 'readonly');
     const index = tx.objectStore(STORE_IMAGES).index('productId');
-    const req = index.getAll(productId);
+    const results: any[] = [];
+    const req = index.openCursor(IDBKeyRange.only(productId));
     req.onsuccess = () => {
-      const results = (req.result || []).map((r: any) => ({
-        id: r.id,
-        order: r.order,
-        thumbnail: r.thumbnail,
-      })).sort((a: any, b: any) => a.order - b.order);
-      resolve(results);
+      const cursor = req.result;
+      if (cursor) {
+        results.push({ id: cursor.value.id, order: cursor.value.order, thumbnail: cursor.value.thumbnail });
+        cursor.continue();
+      } else {
+        results.sort((a, b) => a.order - b.order);
+        resolve(results);
+      }
     };
     req.onerror = () => reject(req.error);
   });
