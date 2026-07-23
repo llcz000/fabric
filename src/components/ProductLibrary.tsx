@@ -176,9 +176,6 @@ export default function ProductLibrary() {
         }));
         mapped.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
         setProducts(mapped);
-
-        // Cache in IndexedDB for offline/thumbnail access
-        await syncCacheToLocal(mapped, serverProducts).catch(() => {});
       } else {
         // Fallback: load from IndexedDB cache
         const list = await getAllProducts();
@@ -196,33 +193,6 @@ export default function ProductLibrary() {
       setLoading(false);
     }
   }, []);
-
-  const syncCacheToLocal = async (mapped: ProductItem[], serverProducts: any[]) => {
-    for (const sp of serverProducts) {
-      const serverId = String(sp.id);
-      try {
-        await putProduct({
-          id: serverId, itemNo: sp.item_no || sp.itemNo,
-          productName: sp.product_name || sp.productName,
-          composition: sp.composition || '', weight: sp.weight || '',
-          width: sp.width || '', imageCount: sp.image_count || sp.images?.length || 0,
-          createdAt: sp.created_at || '', updatedAt: sp.updated_at || '',
-        });
-        if ((sp.images || []).length > 0) {
-          try {
-            const batchRes = await authFetch(`/api/products/${serverId}/thumbnails`);
-            if (batchRes.ok) {
-              const { images: batchImages } = await batchRes.json();
-              for (const bi of batchImages || []) {
-                const dataUrl = `data:image/jpeg;base64,${bi.base64}`;
-                await addProductImage(serverId, bi.sort_order || 0, dataUrl, dataUrl);
-              }
-            }
-          } catch { }
-        }
-      } catch { }
-    }
-  };
 
   useEffect(() => { loadProducts(); }, [loadProducts]);
 
