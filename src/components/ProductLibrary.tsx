@@ -106,12 +106,6 @@ const ThumbnailCell = memo(({ productId }: { productId: string }) => {
           onClick={() => { const ev = new CustomEvent('open-lightbox', { detail: { productId, index: i } }); window.dispatchEvent(ev); }}
           alt="" />
       ))}
-      {thumbs.length >= 3 && (
-        <div className="w-16 h-16 bg-slate-100 rounded border flex items-center justify-center cursor-pointer text-xs font-bold text-slate-500 shrink-0"
-          onClick={() => { const ev = new CustomEvent('open-lightbox', { detail: { productId, index: 2 } }); window.dispatchEvent(ev); }}>
-          +{thumbs.length}
-        </div>
-      )}
     </div>
   );
 });
