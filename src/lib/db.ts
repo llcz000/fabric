@@ -167,15 +167,12 @@ export async function updateImageOrder(images: { id: string; order: number }[]):
 export function compressImage(file: File, maxWidth: number, quality: number): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    // Use FileReader for iOS HEIC compatibility
     const reader = new FileReader();
-    reader.onload = () => {
-      img.src = reader.result as string;
-    };
+    reader.onload = () => { img.src = reader.result as string; };
     reader.onerror = () => reject(new Error('Failed to read file'));
     reader.readAsDataURL(file);
 
-    img.onload = () => {
+    img.onload = async () => {
       try {
         let { width, height } = img;
         if (width > maxWidth) {
@@ -187,11 +184,11 @@ export function compressImage(file: File, maxWidth: number, quality: number): Pr
         canvas.height = height;
         const ctx = canvas.getContext('2d')!;
         ctx.drawImage(img, 0, 0, width, height);
-        // Use fetch to convert dataURL to Blob (reliable on iOS Safari)
-        canvas.toBlob((blob) => {
-          if (blob) resolve(blob);
-          else reject(new Error('Canvas toBlob failed'));
-        }, 'image/jpeg', quality);
+        // toDataURL + fetch -> Blob (reliable on all platforms including iOS Safari)
+        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+        const res = await fetch(dataUrl);
+        const blob = await res.blob();
+        resolve(blob);
       } catch (e) {
         reject(e);
       }
