@@ -361,7 +361,7 @@ export default function ProductLibrary() {
     if (!e.target.files) return;
     const newFiles = Array.from(e.target.files).map(f => ({ file: f, url: URL.createObjectURL(f) }));
     setPendingFiles(prev => [...prev, ...newFiles]);
-    e.target.value = '';
+    setTimeout(() => { e.target.value = ''; }, 200);
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -488,7 +488,7 @@ export default function ProductLibrary() {
 
       await loadProducts();
     } catch (err: any) { showToast('导入失败: ' + (err.message || '')); }
-    e.target.value = '';
+    setTimeout(() => { e.target.value = ''; }, 200);
   };
 
   // ── Similar Search ─────────────────────────────────
@@ -509,7 +509,7 @@ export default function ProductLibrary() {
       } else { showToast('未找到相似产品'); }
     } catch (err: any) { showToast('搜索失败: ' + (err.message || '')); }
     finally { setSimilarSearching(false); }
-    e.target.value = '';
+    setTimeout(() => { e.target.value = ''; }, 200);
   };
 
   // ── Render ─────────────────────────────────────────
