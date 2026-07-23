@@ -309,7 +309,27 @@ export default function ProductLibrary() {
         const method = existingId ? 'PUT' : 'POST';
         const url = existingId ? `/api/products/${p.id}` : '/api/products';
         const syncRes = await authFetch(url, { method, body: formData });
-        if (!syncRes.ok) console.error('[sync] server error:', syncRes.status);
+        if (syncRes.ok) {
+          const syncData = await syncRes.json().catch(() => ({}));
+          // For new products, update local ID to match server ID to avoid duplicates
+          if (!existingId && syncData.id) {
+            const serverId = String(syncData.id);
+            // Migrate images from old client-ID before deleting it
+            const imgs = await getImages(p.id).catch(() => []);
+            const migrated: { order: number; thumbnail: Blob; full: Blob }[] = [];
+            for (const img of imgs) {
+              const full = await getFullImage(img.id).catch(() => null);
+              if (full) migrated.push({ order: img.order, thumbnail: img.thumbnail, full });
+            }
+            // Delete old client-ID record
+            await deleteProduct(p.id);
+            // Re-save with server ID
+            await putProduct({ ...p, id: serverId });
+            for (const m of migrated) {
+              await addProductImage(serverId, m.order, m.thumbnail, m.full);
+            }
+          }
+        }
       } catch (e: any) {
         console.error('[sync] exception:', e.message || e);
       }
