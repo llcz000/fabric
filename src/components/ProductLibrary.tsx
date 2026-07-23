@@ -265,13 +265,8 @@ export default function ProductLibrary() {
         const existingId = products.find(x => x.id === p.id);
         const method = existingId ? 'PUT' : 'POST';
         const url = existingId ? `/api/products/${p.id}` : '/api/products';
-        console.log('[sync]', method, url, 'itemNo:', p.itemNo, 'images:', pendingFiles.length);
         const syncRes = await authFetch(url, { method, body: formData });
-        const syncData = await syncRes.json().catch(() => ({}));
-        console.log('[sync] response status:', syncRes.status, 'body:', syncData);
-        if (!syncRes.ok) {
-          console.error('[sync] server error:', syncData.error || syncRes.statusText);
-        }
+        if (!syncRes.ok) console.error('[sync] server error:', syncRes.status);
       } catch (e: any) {
         console.error('[sync] exception:', e.message || e);
       }
@@ -415,19 +410,14 @@ export default function ProductLibrary() {
       }
 
       // Sync imported products from server to local IndexedDB
-      // Use server id (unique) as dedup key, not itemNo (can be duplicated for 缺货号)
       try {
         const serverRes = await authFetch('/api/products');
         if (serverRes.ok) {
           const serverProducts = await serverRes.json();
-          console.log('[sync] Server has', serverProducts.length, 'products');
           for (const sp of serverProducts) {
             const serverId = String(sp.id);
-            console.log('[sync] Product id:', serverId, 'itemNo:', sp.item_no, 'images:', (sp.images || []).length);
-            // Check if already synced by server ID (unique)
             const existingById = products.find(p => p.id === serverId);
             if (!existingById) {
-              console.log('[sync] Syncing new product:', serverId);
               await putProduct({
                 id: serverId, itemNo: sp.item_no || sp.itemNo,
                 productName: sp.product_name || sp.productName,
@@ -436,29 +426,22 @@ export default function ProductLibrary() {
                 createdAt: sp.created_at || new Date().toISOString(),
                 updatedAt: sp.updated_at || new Date().toISOString(),
               });
-              // Download and cache thumbnails from server
               const imgs = sp.images || [];
               for (let o = 0; o < imgs.length; o++) {
                 try {
-                  console.log('[sync] Downloading image', imgs[o].id, 'for product', serverId);
                   const imgRes = await authFetch(`/api/products/${serverId}/images/${imgs[o].id}`);
                   if (imgRes.ok) {
                     const blob = await imgRes.blob();
-                    console.log('[sync] Image download size:', blob.size);
                     if (blob.size > 0) {
                       await addProductImage(serverId, o, blob, blob);
                     }
-                  } else {
-                    console.log('[sync] Image download failed, status:', imgRes.status);
                   }
-                } catch (e: any) { console.log('[sync] Image download error:', e.message); }
+                } catch { /* skip */ }
               }
-            } else {
-              console.log('[sync] Product already exists:', serverId);
             }
           }
         }
-      } catch (e: any) { console.log('[sync] Server sync error:', e.message); }
+      } catch { /* best-effort */ }
 
       await loadProducts();
     } catch (err: any) { showToast('导入失败: ' + (err.message || '')); }

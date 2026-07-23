@@ -1003,7 +1003,7 @@ app.get('/api/products/:productId/images/:imageId', async (req, res) => {
 app.post('/api/products', upload.any(), async (req, res) => {
   try {
     const { itemNo, productName, composition, weight, width } = req.body;
-    console.log('[POST /api/products] itemNo:', itemNo, 'productName:', productName, 'files:', (req.files as any[])?.length || 0);
+    console.log('[POST /api/products] itemNo:', itemNo, 'productName:', productName);
     if (!itemNo || !productName) return res.status(400).json({ error: 'itemNo and productName are required' });
 
     const now = toMySQLDateTime(new Date().toISOString());
@@ -1382,27 +1382,19 @@ app.post('/api/products/import', upload.single('file'), async (req, res) => {
     const imageMap = new Map<number, { buffer: Buffer; col: number }[]>();
     if ((worksheet as any).getImages) {
       const wsImages = (worksheet as any).getImages();
-      console.log('[Import] Found', wsImages.length, 'images in worksheet');
       for (const img of wsImages) {
         const nativeRow = img.range?.tl?.nativeRow;
         const row = img.range?.tl?.row;
         const rowIdx = nativeRow ?? row ?? 0;
         const colIdx = img.range?.tl?.nativeCol ?? img.range?.tl?.col ?? 0;
-        console.log('[Import] Image at nativeRow:', nativeRow, 'row:', row, 'rowIdx:', rowIdx, 'col:', colIdx);
         const mediaIdx = img.imageId;
         if (workbook.model.media && workbook.model.media[mediaIdx]) {
           const media = workbook.model.media[mediaIdx];
           const buf = Buffer.from(media.buffer || '');
-          const sig = buf.slice(0, 4).toString('hex');
-          console.log('[Import] Image mediaIdx:', mediaIdx, 'nativeRow:', nativeRow, 'size:', buf.length, 'sig:', sig);
           if (!imageMap.has(rowIdx)) imageMap.set(rowIdx, []);
           imageMap.get(rowIdx)!.push({ buffer: buf, col: colIdx });
-        } else {
-          console.log('[Import] No media found for imageId:', mediaIdx);
         }
       }
-    } else {
-      console.log('[Import] getImages not available on worksheet');
     }
 
     const now = toMySQLDateTime(new Date().toISOString());
@@ -1421,7 +1413,6 @@ app.post('/api/products/import', upload.single('file'), async (req, res) => {
         const weight = String(row.getCell(4).value || '').trim();
         const width = String(row.getCell(5).value || '').trim();
         const rowImgs = imageMap.get(rowNumber - 1) || [];
-        console.log('[Import] Row', rowNumber, 'itemNo:', itemNo || '(空)', 'imgCount:', rowImgs.length);
 
         const hasData = itemNo || productName || rowImgs.length > 0;
         if (!hasData) return;
