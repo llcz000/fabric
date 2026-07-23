@@ -362,6 +362,9 @@ export default function ProductLibrary() {
     if (!e.target.files) return;
     const newFiles = Array.from(e.target.files).map(f => ({ file: f, url: URL.createObjectURL(f) }));
     setPendingFiles(prev => [...prev, ...newFiles]);
+    // Force dismiss Android file picker
+    e.target.blur();
+    setTimeout(() => window.focus(), 100);
   };
 
   const handleDrop = (e: React.DragEvent) => {
