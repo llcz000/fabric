@@ -108,30 +108,15 @@ export async function getFullImageUrl(imageId: string): Promise<string | null> {
   });
 }
 
-// Convert base64 data URL to Blob
-function base64ToBlob(dataUrl: string): Blob {
-  const base64 = dataUrl.split(',')[1];
-  const binaryStr = atob(base64);
-  const bytes = new Uint8Array(binaryStr.length);
-  for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i) & 0xff;
-  const mime = dataUrl.split(',')[0].split(':')[1].split(';')[0];
-  return new Blob([bytes], { type: mime });
-}
-
 export async function addProductImage(
   productId: string, order: number,
-  thumbnail: Blob, full: Blob,
+  thumbnailUrl: string, fullUrl: string,
 ): Promise<string> {
   const db = await openDB();
   const id = `img_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  // Convert Blobs to base64 data URLs for reliable IndexedDB storage
-  const [thumbUrl, fullUrl] = await Promise.all([
-    blobToDataUrl(thumbnail),
-    blobToDataUrl(full),
-  ]);
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_IMAGES, 'readwrite');
-    tx.objectStore(STORE_IMAGES).add({ id, productId, order, thumbnail: thumbUrl, full: fullUrl });
+    tx.objectStore(STORE_IMAGES).add({ id, productId, order, thumbnail: thumbnailUrl, full: fullUrl });
     tx.oncomplete = () => resolve(id);
     tx.onerror = () => reject(tx.error);
   });
@@ -158,7 +143,7 @@ export async function deleteImage(imageId: string): Promise<void> {
 
 // ── Image compression ─────────────────────────────────
 
-export function compressImage(file: File, maxWidth: number, quality: number): Promise<Blob> {
+export function compressImage(file: File, maxWidth: number, quality: number): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const reader = new FileReader();
@@ -173,19 +158,14 @@ export function compressImage(file: File, maxWidth: number, quality: number): Pr
         const canvas = document.createElement('canvas');
         canvas.width = width; canvas.height = height;
         canvas.getContext('2d')!.drawImage(img, 0, 0, width, height);
-        const dataUrl = canvas.toDataURL('image/jpeg', quality);
-        const base64 = dataUrl.split(',')[1];
-        const binaryStr = atob(base64);
-        const bytes = new Uint8Array(binaryStr.length);
-        for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i) & 0xff;
-        resolve(new Blob([bytes], { type: 'image/jpeg' }));
+        resolve(canvas.toDataURL('image/jpeg', quality));
       } catch (e) { reject(e); }
     };
     img.onerror = () => reject(new Error('Failed to load image'));
   });
 }
 
-export async function processImageUpload(file: File): Promise<{ thumbnail: Blob; full: Blob }> {
+export async function processImageUpload(file: File): Promise<{ thumbnail: string; full: string }> {
   const [thumbnail, full] = await Promise.all([
     compressImage(file, 300, 0.6),
     compressImage(file, 1600, 0.75),

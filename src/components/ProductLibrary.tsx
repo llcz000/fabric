@@ -176,11 +176,8 @@ export default function ProductLibrary() {
                   if (batchRes.ok) {
                     const { images: batchImages } = await batchRes.json();
                     for (const bi of batchImages || []) {
-                      const byteChars = atob(bi.base64);
-                      const bytes = new Uint8Array(byteChars.length);
-                      for (let j = 0; j < byteChars.length; j++) bytes[j] = byteChars.charCodeAt(j);
-                      const blob = new Blob([bytes], { type: 'image/jpeg' });
-                      await addProductImage(serverId, bi.sort_order || 0, blob, blob);
+                      const dataUrl = `data:image/jpeg;base64,${bi.base64}`;
+                      await addProductImage(serverId, bi.sort_order || 0, dataUrl, dataUrl);
                     }
                   }
                 } catch { }
@@ -286,7 +283,7 @@ export default function ProductLibrary() {
       for (const pf of pendingFiles) {
         const { thumbnail, full } = await processImageUpload(pf.file);
         const imgId = await addProductImage(p.id, order, thumbnail, full);
-        setEditImages(prev => [...prev, { id: imgId, order, thumbnailUrl: URL.createObjectURL(thumbnail) }]);
+        setEditImages(prev => [...prev, { id: imgId, order, thumbnailUrl: thumbnail }]);
         order++;
       }
 
@@ -294,15 +291,18 @@ export default function ProductLibrary() {
       if (!p.createdAt) p.createdAt = nowISO();
       await putProduct(p);
 
+      // Await server sync (ensures ID migration completes before reload)
+      const files = [...pendingFiles];
+      try { await syncToServer(p, files); } catch { }
+
       showToast('产品已保存');
       setEditModal(false);
       setPendingFiles([]);
 
-      // Server sync and ID migration (best-effort, don't block UI)
-      const files = [...pendingFiles];
-      syncToServer(p, files).catch(e => console.error('[sync]', e.message));
-
-      await loadProducts();
+      // Simple reload from IndexedDB (no server sync — already done above)
+      const list = await getAllProducts();
+      list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      setProducts(list);
     } catch (e: any) {
       showToast('保存失败: ' + (e.message || '未知错误'));
     } finally {
@@ -329,15 +329,15 @@ export default function ProductLibrary() {
       if (!existingId && syncData.id) {
         const serverId = String(syncData.id);
         const imgs = await getImages(p.id).catch(() => []);
-        const migrated: { order: number; thumbnail: Blob; full: Blob }[] = [];
+        const migrated: { order: number; thumbnailUrl: string; fullUrl: string }[] = [];
         for (const img of imgs) {
-          const full = await getFullImageUrl(img.id).catch(() => null);
-          if (full) migrated.push({ order: img.order, thumbnail: img.thumbnail, full });
+          const fullUrl = await getFullImageUrl(img.id).catch(() => null);
+          if (fullUrl) migrated.push({ order: img.order, thumbnailUrl: img.thumbnailUrl, fullUrl });
         }
         await deleteProduct(p.id);
         await putProduct({ ...p, id: serverId });
         for (const m of migrated) {
-          await addProductImage(serverId, m.order, m.thumbnail, m.full);
+          await addProductImage(serverId, m.order, m.thumbnailUrl, m.fullUrl);
         }
       }
     }
@@ -508,11 +508,8 @@ export default function ProductLibrary() {
                   if (batchRes.ok) {
                     const { images: batchImages } = await batchRes.json();
                     for (const bi of batchImages || []) {
-                      const byteChars = atob(bi.base64);
-                      const bytes = new Uint8Array(byteChars.length);
-                      for (let j = 0; j < byteChars.length; j++) bytes[j] = byteChars.charCodeAt(j);
-                      const blob = new Blob([bytes], { type: 'image/jpeg' });
-                      await addProductImage(serverId, bi.sort_order || 0, blob, blob);
+                      const dataUrl = `data:image/jpeg;base64,${bi.base64}`;
+                      await addProductImage(serverId, bi.sort_order || 0, dataUrl, dataUrl);
                     }
                   }
                 } catch { /* skip */ }
