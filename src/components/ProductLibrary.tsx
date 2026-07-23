@@ -376,7 +376,15 @@ export default function ProductLibrary() {
       const res = await authFetch('/api/products/import', { method: 'POST', body: form });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Import failed');
-      showToast(`成功导入 ${data.count} 条记录`);
+      let msg = `成功导入 ${data.count} 条记录`;
+      if (data.warnings && data.warnings.length > 0) {
+        msg += `，${data.warnings.length} 条缺货号`;
+        showToast(msg);
+        // Show details after short delay
+        setTimeout(() => showToast(data.warnings.join('；')), 2800);
+      } else {
+        showToast(msg);
+      }
 
       // Sync imported products from server to local IndexedDB
       try {
@@ -529,15 +537,17 @@ export default function ProductLibrary() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredProducts.map(p => (
-                    <tr key={p.id} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
+                  {filteredProducts.map(p => {
+                    const missingItemNo = !p.itemNo || p.itemNo === '(缺货号)';
+                    return (
+                    <tr key={p.id} className={`border-b border-slate-100 hover:bg-slate-50/50 transition-colors ${missingItemNo ? 'bg-amber-50/60' : ''}`}>
                       <td className="py-2 px-2">
                         <button onClick={() => toggleSelect(p.id)} className="cursor-pointer text-slate-400 hover:text-sky-600">
                           {selectedIds.has(p.id) ? <CheckSquare className="w-4 h-4 text-sky-600" /> : <Square className="w-4 h-4" />}
                         </button>
                       </td>
                       <td className="py-2 px-2"><ThumbnailCell productId={p.id} /></td>
-                      <td className="py-2 px-2 font-bold text-slate-800">{p.itemNo}</td>
+                      <td className="py-2 px-2 font-bold text-slate-800">{missingItemNo ? <span className="text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded text-xs font-bold">缺货号</span> : p.itemNo}</td>
                       <td className="py-2 px-2 text-slate-700">{p.productName || '-'}</td>
                       <td className="py-2 px-2 text-slate-600">{p.composition || '-'}</td>
                       <td className="py-2 px-2 text-slate-600">{p.weight || '-'}</td>
@@ -549,7 +559,8 @@ export default function ProductLibrary() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

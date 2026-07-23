@@ -1338,6 +1338,7 @@ app.post('/api/products/import', upload.single('file'), async (req, res) => {
 
     const now = toMySQLDateTime(new Date().toISOString());
     let importedCount = 0;
+    const warnings: string[] = [];
 
     if (!useMySQLFallback) {
       const pool = await getMySQLPool();
@@ -1346,19 +1347,23 @@ app.post('/api/products/import', upload.single('file'), async (req, res) => {
         if (rowNumber === 1) return;
         const itemNo = String(row.getCell(1).value || '').trim();
         const productName = String(row.getCell(2).value || '').trim();
-        if (!itemNo && !productName) return;
-
         const composition = String(row.getCell(3).value || '').trim();
         const weight = String(row.getCell(4).value || '').trim();
         const width = String(row.getCell(5).value || '').trim();
         const rowImgs = imageMap.get(rowNumber - 1) || [];
-        console.log('[Import] Row', rowNumber, 'itemNo:', itemNo, 'images:', rowImgs.length);
+
+        const hasData = itemNo || productName || rowImgs.length > 0;
+        if (!hasData) return;
+
+        if (!itemNo) {
+          warnings.push(`第${rowNumber}行缺少货号，已导入但请补充`);
+        }
 
         rowPromises.push((async () => {
           try {
             const [result] = await pool.query<ResultSetHeader>(
               'INSERT INTO products (item_no, product_name, composition, weight, width, image_count, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)',
-              [itemNo, productName, composition, weight, width, rowImgs.length, now, now]
+              [itemNo || '(缺货号)', productName || '', composition, weight, width, rowImgs.length, now, now]
             );
             const productId = result.insertId;
 
@@ -1394,12 +1399,17 @@ app.post('/api/products/import', upload.single('file'), async (req, res) => {
         if (rowNumber === 1) return;
         const itemNo = String(row.getCell(1).value || '').trim();
         const productName = String(row.getCell(2).value || '').trim();
-        if (!itemNo && !productName) return;
-
         const rowImgs = imageMap.get(rowNumber - 1) || [];
+        const hasData = itemNo || productName || rowImgs.length > 0;
+        if (!hasData) return;
+
+        if (!itemNo) {
+          warnings.push(`第${rowNumber}行缺少货号，已导入但请补充`);
+        }
+
         maxProdId++;
         local.products.push({
-          id: maxProdId, item_no: itemNo, product_name: productName,
+          id: maxProdId, item_no: itemNo || '(缺货号)', product_name: productName,
           composition: String(row.getCell(3).value || '').trim(),
           weight: String(row.getCell(4).value || '').trim(),
           width: String(row.getCell(5).value || '').trim(),
@@ -1422,7 +1432,7 @@ app.post('/api/products/import', upload.single('file'), async (req, res) => {
       saveLocalDB(local);
     }
 
-    res.json({ success: true, count: importedCount });
+    res.json({ success: true, count: importedCount, warnings });
   } catch (e: any) {
     console.error('[POST /api/products/import]', e.message);
     res.status(500).json({ error: e.message });
