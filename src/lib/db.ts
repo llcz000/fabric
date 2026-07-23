@@ -175,7 +175,7 @@ export function compressImage(file: File, maxWidth: number, quality: number): Pr
     reader.onerror = () => reject(new Error('Failed to read file'));
     reader.readAsDataURL(file);
 
-    img.onload = async () => {
+    img.onload = () => {
       try {
         let { width, height } = img;
         if (width > maxWidth) {
@@ -187,11 +187,15 @@ export function compressImage(file: File, maxWidth: number, quality: number): Pr
         canvas.height = height;
         const ctx = canvas.getContext('2d')!;
         ctx.drawImage(img, 0, 0, width, height);
-        // toDataURL + fetch -> Blob (reliable on all platforms including iOS Safari)
+        // toDataURL -> base64 decode -> Blob (avoids fetch/atob charCodeAt issues)
         const dataUrl = canvas.toDataURL('image/jpeg', quality);
-        const res = await fetch(dataUrl);
-        const blob = await res.blob();
-        resolve(blob);
+        const base64 = dataUrl.split(',')[1];
+        const binaryStr = atob(base64);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) {
+          bytes[i] = binaryStr.charCodeAt(i) & 0xff;
+        }
+        resolve(new Blob([bytes], { type: 'image/jpeg' }));
       } catch (e) {
         reject(e);
       }
