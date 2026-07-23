@@ -571,14 +571,14 @@ export default function ProductLibrary() {
           <span className="text-xs text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full">{products.length} 条</span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <input type="file" accept="image/*" className="hidden" ref={similarInputRef} onChange={handleSimilarSearch} />
+          <input type="file" accept="image/*" className="sr-only" ref={similarInputRef} onChange={handleSimilarSearch} />
           <button type="button" onClick={() => similarInputRef.current?.click()} disabled={similarSearching}
             className="flex items-center gap-1 px-3 py-2 border border-purple-200 hover:border-purple-300 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-xl text-xs font-semibold cursor-pointer transition-colors">
             <Search className="w-3.5 h-3.5" />{similarSearching ? '搜索中...' : '以图搜图'}
           </button>
           <label className="flex items-center gap-1 px-3 py-2 border border-emerald-200 hover:border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-semibold cursor-pointer transition-colors">
             <Upload className="w-3.5 h-3.5" />导入Excel
-            <input type="file" accept=".xlsx" className="hidden" onChange={handleImport} />
+            <input type="file" accept=".xlsx" className="sr-only" onChange={handleImport} />
           </label>
           <button type="button" onClick={handleExport}
             className="flex items-center gap-1 px-3 py-2 border border-slate-200 hover:border-slate-300 bg-white text-slate-600 rounded-xl text-xs font-semibold cursor-pointer transition-colors">
@@ -728,7 +728,7 @@ export default function ProductLibrary() {
               <span className={`text-xs ${dragOver ? 'text-sky-500' : 'text-slate-400'}`}>
                 {dragOver ? '释放以上传图片' : '点击或拖拽上传花型图片（可多选）'}
               </span>
-              <input type="file" accept="image/*" multiple className="hidden" ref={fileInputRef} onChange={handleSelectImage} />
+              <input type="file" accept="image/*" multiple className="sr-only" ref={fileInputRef} onChange={handleSelectImage} />
             </label>
 
             {/* Pending files preview */}
