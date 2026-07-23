@@ -1030,11 +1030,26 @@ app.post('/api/products', upload.any(), async (req, res) => {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         const cosKey = await uploadToCOS(file);
-        const thumbKey = cosKey ? cosKey.replace(/(\.[^.]+)$/, '_thumb$1') : '';
-        const localPath = cosKey ? '' : file.path;
+        // Generate and upload thumbnail
+        const imgBuf = fs.readFileSync(file.path);
+        const thumbBuf = await generateThumbnail(imgBuf);
+        const thumbKey = (cosKey && thumbBuf) ? await uploadBufferToCOS(thumbBuf, `product_thumb_${Date.now()}_${i}.jpg`) : '';
+        // Also save locally for fallback
+        let localPath = '';
+        let thumbLocalPath = '';
+        if (!cosKey) {
+          const fname = `product_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.jpg`;
+          localPath = path.join(UPLOADS_DIR, 'products', fname);
+          fs.mkdirSync(path.dirname(localPath), { recursive: true });
+          fs.writeFileSync(localPath, imgBuf);
+          if (thumbBuf) {
+            thumbLocalPath = path.join(UPLOADS_DIR, 'products', `thumb_${fname}`);
+            fs.writeFileSync(thumbLocalPath, thumbBuf);
+          }
+        }
         await pool.query(
-          'INSERT INTO product_images (product_id, sort_order, cos_key, thumbnail_cos_key, local_path) VALUES (?, ?, ?, ?, ?)',
-          [productId, i, cosKey || '', thumbKey || '', localPath]
+          'INSERT INTO product_images (product_id, sort_order, cos_key, thumbnail_cos_key, local_path, thumbnail_local_path) VALUES (?, ?, ?, ?, ?, ?)',
+          [productId, i, cosKey || '', thumbKey || '', localPath, thumbLocalPath]
         );
       }
       return res.json({ id: productId, success: true });
@@ -1147,17 +1162,25 @@ app.get('/api/products/:id/thumbnails', async (req, res) => {
     const result: { id: number; sort_order: number; base64: string }[] = [];
     for (const img of images) {
       let buffer: Buffer | null = null;
-      try {
-        // Prefer thumbnail (smaller) over full image
-        if (img.thumbnail_cos_key) {
+      // Try thumbnail first (smaller), then full image, with individual error handling
+      if (img.thumbnail_cos_key) {
+        try {
           const cos = getCOSClient(); const cfg = getCOSConfig();
           if (cos && cfg) { const data = await cos.getObject({ Bucket: cfg.bucket, Region: cfg.region, Key: img.thumbnail_cos_key }); buffer = Buffer.isBuffer(data.Body) ? data.Body : Buffer.from(data.Body as any); }
-        } else if (img.thumbnail_local_path && fs.existsSync(img.thumbnail_local_path)) { buffer = fs.readFileSync(img.thumbnail_local_path); }
-        else if (img.cos_key) {
+        } catch { }
+      }
+      if (!buffer && img.thumbnail_local_path && fs.existsSync(img.thumbnail_local_path)) {
+        try { buffer = fs.readFileSync(img.thumbnail_local_path); } catch { }
+      }
+      if (!buffer && img.cos_key) {
+        try {
           const cos = getCOSClient(); const cfg = getCOSConfig();
           if (cos && cfg) { const data = await cos.getObject({ Bucket: cfg.bucket, Region: cfg.region, Key: img.cos_key }); buffer = Buffer.isBuffer(data.Body) ? data.Body : Buffer.from(data.Body as any); }
-        } else if (img.local_path && fs.existsSync(img.local_path)) { buffer = fs.readFileSync(img.local_path); }
-      } catch { }
+        } catch { }
+      }
+      if (!buffer && img.local_path && fs.existsSync(img.local_path)) {
+        try { buffer = fs.readFileSync(img.local_path); } catch { }
+      }
       if (buffer) result.push({ id: img.id, sort_order: img.sort_order, base64: buffer.toString('base64') });
     }
     res.json({ images: result });
