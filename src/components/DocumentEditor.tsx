@@ -28,6 +28,23 @@ export default function DocumentEditor({
   
   // Basic metadata fields
   const [customerName, setCustomerName] = useState(existingDocument?.customerName || '');
+  const [customerFocused, setCustomerFocused] = useState(false);
+
+  // Customer autocomplete from history
+  const customerHistory = React.useMemo(() => {
+    const names = new Set<string>();
+    for (const doc of allSavedDocuments) {
+      const name = (doc.customerName || '').trim();
+      if (name) names.add(name);
+    }
+    return Array.from(names).sort();
+  }, [allSavedDocuments]);
+
+  const customerSuggestions = React.useMemo(() => {
+    if (!customerName.trim()) return customerHistory.slice(0, 8);
+    const lower = customerName.toLowerCase();
+    return customerHistory.filter(n => n.toLowerCase().includes(lower)).slice(0, 8);
+  }, [customerName, customerHistory]);
   const [date, setDate] = useState(() => {
     if (existingDocument?.date) return existingDocument.date;
     const d = new Date();
@@ -310,15 +327,36 @@ export default function DocumentEditor({
               <User className="w-3.5 h-3.5 text-slate-400" />
               客户 <span className="text-rose-500">*</span>
             </label>
-            <input
-              type="text"
-              id="doc-customer-input"
-              value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm font-medium"
-              placeholder="请输入客户"
-              required
-            />
+            <div className="relative">
+              <input
+                type="text"
+                id="doc-customer-input"
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                onFocus={() => setCustomerFocused(true)}
+                onBlur={() => setTimeout(() => setCustomerFocused(false), 200)}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm font-medium"
+                placeholder="请输入客户"
+                autoComplete="off"
+                required
+              />
+              {customerFocused && customerSuggestions.length > 0 && (
+                <div className="absolute top-full left-0 right-0 z-50 bg-white border border-slate-200 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto">
+                  {customerSuggestions.map((name) => (
+                    <button
+                      key={name}
+                      type="button"
+                      onMouseDown={(e) => { e.preventDefault(); setCustomerName(name); setCustomerFocused(false); }}
+                      className={`w-full text-left px-3 py-2 text-sm hover:bg-sky-50 transition-colors ${
+                        name === customerName ? 'bg-sky-50 text-sky-700 font-semibold' : 'text-slate-700'
+                      }`}
+                    >
+                      {name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="space-y-1.5">
