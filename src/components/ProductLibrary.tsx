@@ -353,7 +353,26 @@ export default function ProductLibrary() {
   };
 
   const handleDeleteImage = async (imageId: string, index: number) => {
-    await deleteImage(imageId);
+    // If both the product id and image id are numeric, the image lives on the
+    // server — call the backend DELETE so COS file + DB row are actually
+    // removed. IndexedDB-only deletion silently loses the delete on reload,
+    // which corrupts feature vectors (CLIP keeps scoring the deleted image).
+    const isServerImage = /^\d+$/.test(imageId);
+    const isServerProduct = editingProduct && /^\d+$/.test(editingProduct.id);
+    if (isServerImage && isServerProduct) {
+      try {
+        const res = await authFetch(`/api/products/${editingProduct.id}/images/${imageId}`, { method: 'DELETE' });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          showToast('删除图片失败: ' + (data.error || res.statusText));
+          return;
+        }
+      } catch (e: any) {
+        showToast('删除图片失败: ' + (e.message || ''));
+        return;
+      }
+    }
+    try { await deleteImage(imageId); } catch {}
     setEditImages(prev => prev.filter((_, i) => i !== index));
   };
 
