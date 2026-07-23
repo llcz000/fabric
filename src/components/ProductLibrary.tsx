@@ -156,6 +156,7 @@ export default function ProductLibrary() {
   const [toast, setToast] = useState<string | null>(null);
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
 
   // ── Load products ──────────────────────────────────
@@ -533,10 +534,11 @@ export default function ProductLibrary() {
             className="flex items-center gap-1 px-3 py-2 border border-purple-200 hover:border-purple-300 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-xl text-xs font-semibold cursor-pointer transition-colors">
             <Search className="w-3.5 h-3.5" />{similarSearching ? '搜索中...' : '以图搜图'}
           </button>
-          <label className="flex items-center gap-1 px-3 py-2 border border-emerald-200 hover:border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-semibold cursor-pointer transition-colors">
+          <button type="button" onClick={() => importInputRef.current?.click()}
+            className="flex items-center gap-1 px-3 py-2 border border-emerald-200 hover:border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-semibold cursor-pointer transition-colors">
             <Upload className="w-3.5 h-3.5" />导入Excel
-            <input type="file" accept=".xlsx" className="sr-only" onChange={handleImport} />
-          </label>
+          </button>
+          <input type="file" accept=".xlsx" className="hidden" ref={importInputRef} onChange={handleImport} />
           <button type="button" onClick={handleExport}
             className="flex items-center gap-1 px-3 py-2 border border-slate-200 hover:border-slate-300 bg-white text-slate-600 rounded-xl text-xs font-semibold cursor-pointer transition-colors">
             <Download className="w-3.5 h-3.5" />导出{selectedIds.size > 0 ? `选中(${selectedIds.size})` : '全部'}
@@ -675,8 +677,9 @@ export default function ProductLibrary() {
             )}
 
             {/* Add images */}
-            <label
+            <div
               className={`block border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors ${dragOver ? 'border-sky-400 bg-sky-50' : 'border-slate-200 hover:border-sky-300'}`}
+              onClick={() => fileInputRef.current?.click()}
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
               onDragLeave={() => setDragOver(false)}
               onDrop={handleDrop}
@@ -686,7 +689,7 @@ export default function ProductLibrary() {
                 {dragOver ? '释放以上传图片' : '点击或拖拽上传花型图片（可多选）'}
               </span>
               <input type="file" accept="image/*" multiple className="sr-only" ref={fileInputRef} onChange={handleSelectImage} />
-            </label>
+            </div>
 
             {/* Pending files preview */}
             {pendingFiles.length > 0 && <PendingPreview files={pendingFiles} onRemove={removePendingFile} />}
