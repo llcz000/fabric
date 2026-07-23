@@ -420,11 +420,14 @@ export default function ProductLibrary() {
         const serverRes = await authFetch('/api/products');
         if (serverRes.ok) {
           const serverProducts = await serverRes.json();
+          console.log('[sync] Server has', serverProducts.length, 'products');
           for (const sp of serverProducts) {
             const serverId = String(sp.id);
+            console.log('[sync] Product id:', serverId, 'itemNo:', sp.item_no, 'images:', (sp.images || []).length);
             // Check if already synced by server ID (unique)
             const existingById = products.find(p => p.id === serverId);
             if (!existingById) {
+              console.log('[sync] Syncing new product:', serverId);
               await putProduct({
                 id: serverId, itemNo: sp.item_no || sp.itemNo,
                 productName: sp.product_name || sp.productName,
@@ -437,19 +440,25 @@ export default function ProductLibrary() {
               const imgs = sp.images || [];
               for (let o = 0; o < imgs.length; o++) {
                 try {
+                  console.log('[sync] Downloading image', imgs[o].id, 'for product', serverId);
                   const imgRes = await authFetch(`/api/products/${serverId}/images/${imgs[o].id}`);
                   if (imgRes.ok) {
                     const blob = await imgRes.blob();
+                    console.log('[sync] Image download size:', blob.size);
                     if (blob.size > 0) {
                       await addProductImage(serverId, o, blob, blob);
                     }
+                  } else {
+                    console.log('[sync] Image download failed, status:', imgRes.status);
                   }
-                } catch { /* skip image on error */ }
+                } catch (e: any) { console.log('[sync] Image download error:', e.message); }
               }
+            } else {
+              console.log('[sync] Product already exists:', serverId);
             }
           }
         }
-      } catch { /* sync is best-effort */ }
+      } catch (e: any) { console.log('[sync] Server sync error:', e.message); }
 
       await loadProducts();
     } catch (err: any) { showToast('导入失败: ' + (err.message || '')); }
