@@ -1280,8 +1280,9 @@ app.post('/api/products/export', async (req, res) => {
         if (buffer && buffer.length > 0) {
           try {
             const imageId = workbook.addImage({ buffer, extension: 'jpeg' });
+            // Use nativeCol/nativeColOff directly (colOff is silently ignored by Anchor)
             worksheet.addImage(imageId, {
-              tl: { col: 5, row: rowNum - 1, colOff: Math.round(xOffset * 9525) },
+              tl: { nativeCol: 5, nativeRow: rowNum - 1, nativeColOff: Math.round(xOffset * 9525), nativeRowOff: 0 },
               ext: { width: 72, height: 72 },
             });
             xOffset += 72 + imgGap;
