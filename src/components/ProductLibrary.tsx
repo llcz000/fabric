@@ -642,7 +642,7 @@ export default function ProductLibrary() {
                         {selectedIds.size === filteredProducts.length && filteredProducts.length > 0 ? <CheckSquare className="w-4 h-4 text-sky-600" /> : <Square className="w-4 h-4" />}
                       </button>
                     </th>
-                    <th className="py-3 px-2 text-left font-semibold text-slate-600">花型</th>
+                    <th className="py-3 px-2 text-left font-semibold text-slate-600" style={{ minWidth: '140px' }}>花型</th>
                     <th className="py-3 px-2 text-left font-semibold text-slate-600">货号</th>
                     <th className="py-3 px-2 text-left font-semibold text-slate-600">品名</th>
                     <th className="py-3 px-2 text-left font-semibold text-slate-600">成分</th>
