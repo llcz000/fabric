@@ -67,9 +67,26 @@ const ThumbnailCell = memo(({ productId }: { productId: string }) => {
 
   useEffect(() => {
     let cancelled = false;
-    getImages(productId).then(imgs => {
+    getImages(productId).then(async imgs => {
       if (cancelled) return;
-      setThumbs(imgs.slice(0, 3).map(i => ({ id: i.id, url: i.thumbnailUrl })));
+      if (imgs.length > 0) {
+        setThumbs(imgs.slice(0, 3).map(i => ({ id: i.id, url: i.thumbnailUrl })));
+        setLoaded(true);
+        return;
+      }
+      // Fallback: fetch thumbnails from server
+      try {
+        const token = sessionStorage.getItem('fabric_auth_token');
+        const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
+        const res = await fetch(`/api/products/${productId}/thumbnails`, { headers });
+        if (res.ok && !cancelled) {
+          const { images: batchImages } = await res.json();
+          setThumbs((batchImages || []).slice(0, 3).map((bi: any) => ({
+            id: String(bi.id),
+            url: `data:image/jpeg;base64,${bi.base64}`,
+          })));
+        }
+      } catch { }
       setLoaded(true);
     });
     return () => { cancelled = true; };
@@ -142,67 +159,70 @@ export default function ProductLibrary() {
   const loadProducts = useCallback(async () => {
     setLoading(true);
     try {
-      // Load from local IndexedDB first
-      const list = await getAllProducts();
-      list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-      setProducts(list);
+      // Primary: load from server (source of truth)
+      const serverRes = await authFetch('/api/products');
+      if (serverRes.ok) {
+        const serverProducts = await serverRes.json();
+        const mapped: ProductItem[] = serverProducts.map((sp: any) => ({
+          id: String(sp.id),
+          itemNo: sp.item_no || sp.itemNo,
+          productName: sp.product_name || sp.productName,
+          composition: sp.composition || '',
+          weight: sp.weight || '',
+          width: sp.width || '',
+          imageCount: sp.image_count || sp.images?.length || 0,
+          createdAt: sp.created_at || '',
+          updatedAt: sp.updated_at || '',
+        }));
+        mapped.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+        setProducts(mapped);
 
-      // Sync from server (best-effort, fills gaps on new devices)
+        // Cache in IndexedDB for offline/thumbnail access
+        await syncCacheToLocal(mapped, serverProducts).catch(() => {});
+      } else {
+        // Fallback: load from IndexedDB cache
+        const list = await getAllProducts();
+        list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+        setProducts(list);
+      }
+    } catch {
+      // Fallback: load from IndexedDB cache
       try {
-        const serverRes = await authFetch('/api/products');
-        if (serverRes.ok) {
-          const serverProducts = await serverRes.json();
-          for (const sp of serverProducts) {
-            const serverId = String(sp.id);
-            const itemNo = sp.item_no || sp.itemNo;
-            // Check for duplicate by itemNo (same product, different ID)
-            const dupByItemNo = list.find(p => p.itemNo === itemNo && p.id !== serverId);
-            if (dupByItemNo) {
-              await deleteProduct(dupByItemNo.id);
-            }
-            if (!list.find(p => p.id === serverId)) {
-              await putProduct({
-                id: serverId, itemNo: sp.item_no || sp.itemNo,
-                productName: sp.product_name || sp.productName,
-                composition: sp.composition || '', weight: sp.weight || '',
-                width: sp.width || '', imageCount: sp.image_count || sp.images?.length || 0,
-                createdAt: sp.created_at || new Date().toISOString(),
-                updatedAt: sp.updated_at || new Date().toISOString(),
-              });
-              // Download thumbnails for new products
-              if ((sp.images || []).length > 0) {
-                try {
-                  const batchRes = await authFetch(`/api/products/${serverId}/thumbnails`);
-                  if (batchRes.ok) {
-                    const { images: batchImages } = await batchRes.json();
-                    for (const bi of batchImages || []) {
-                      const dataUrl = `data:image/jpeg;base64,${bi.base64}`;
-                      await addProductImage(serverId, bi.sort_order || 0, dataUrl, dataUrl);
-                    }
-                  }
-                } catch { }
-              }
-            }
-          }
-          // Reverse sync: remove local products no longer on server
-          const serverItemNos = new Set(serverProducts.map((sp: any) => sp.item_no || sp.itemNo));
-          for (const lp of list) {
-            if (!serverItemNos.has(lp.itemNo)) {
-              await deleteProduct(lp.id);
-            }
-          }
-          // Reload after sync if new products were added
-          const updated = await getAllProducts();
-          updated.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-          if (updated.length !== list.length) setProducts(updated);
-        }
-      } catch { /* server sync best-effort */ }
-    } catch (e: any) {
-      console.error('Load products failed:', e);
+        const list = await getAllProducts();
+        list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+        setProducts(list);
+      } catch { }
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const syncCacheToLocal = async (mapped: ProductItem[], serverProducts: any[]) => {
+    for (const sp of serverProducts) {
+      const serverId = String(sp.id);
+      try {
+        await putProduct({
+          id: serverId, itemNo: sp.item_no || sp.itemNo,
+          productName: sp.product_name || sp.productName,
+          composition: sp.composition || '', weight: sp.weight || '',
+          width: sp.width || '', imageCount: sp.image_count || sp.images?.length || 0,
+          createdAt: sp.created_at || '', updatedAt: sp.updated_at || '',
+        });
+        if ((sp.images || []).length > 0) {
+          try {
+            const batchRes = await authFetch(`/api/products/${serverId}/thumbnails`);
+            if (batchRes.ok) {
+              const { images: batchImages } = await batchRes.json();
+              for (const bi of batchImages || []) {
+                const dataUrl = `data:image/jpeg;base64,${bi.base64}`;
+                await addProductImage(serverId, bi.sort_order || 0, dataUrl, dataUrl);
+              }
+            }
+          } catch { }
+        }
+      } catch { }
+    }
+  };
 
   useEffect(() => { loadProducts(); }, [loadProducts]);
 
@@ -289,57 +309,30 @@ export default function ProductLibrary() {
 
       p.imageCount = order;
       if (!p.createdAt) p.createdAt = nowISO();
-      await putProduct(p);
 
-      // Await server sync (ensures ID migration completes before reload)
-      const files = [...pendingFiles];
-      try { await syncToServer(p, files); } catch { }
+      // Save to server (primary)
+      const formData = new FormData();
+      formData.append('itemNo', p.itemNo);
+      formData.append('productName', p.productName);
+      formData.append('composition', p.composition);
+      formData.append('weight', p.weight);
+      formData.append('width', p.width);
+      for (const pf of [...pendingFiles]) {
+        formData.append('image_files', pf.file, pf.file.name);
+      }
+      const syncRes = await authFetch('/api/products', { method: 'POST', body: formData });
+      if (!syncRes.ok) throw new Error('服务器保存失败');
 
       showToast('产品已保存');
       setEditModal(false);
       setPendingFiles([]);
 
-      // Simple reload from IndexedDB (no server sync — already done above)
-      const list = await getAllProducts();
-      list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-      setProducts(list);
+      // Reload from server
+      await loadProducts();
     } catch (e: any) {
       showToast('保存失败: ' + (e.message || '未知错误'));
     } finally {
       setSaving(false);
-    }
-  };
-
-  const syncToServer = async (p: ProductItem, files: { file: File; url: string }[]) => {
-    const formData = new FormData();
-    formData.append('itemNo', p.itemNo);
-    formData.append('productName', p.productName);
-    formData.append('composition', p.composition);
-    formData.append('weight', p.weight);
-    formData.append('width', p.width);
-    for (const pf of files) {
-      formData.append('image_files', pf.file, pf.file.name);
-    }
-    const existingId = products.find(x => x.id === p.id);
-    const method = existingId ? 'PUT' : 'POST';
-    const url = existingId ? `/api/products/${p.id}` : '/api/products';
-    const syncRes = await authFetch(url, { method, body: formData });
-    if (syncRes.ok) {
-      const syncData = await syncRes.json().catch(() => ({}));
-      if (!existingId && syncData.id) {
-        const serverId = String(syncData.id);
-        const imgs = await getImages(p.id).catch(() => []);
-        const migrated: { order: number; thumbnailUrl: string; fullUrl: string }[] = [];
-        for (const img of imgs) {
-          const fullUrl = await getFullImageUrl(img.id).catch(() => null);
-          if (fullUrl) migrated.push({ order: img.order, thumbnailUrl: img.thumbnailUrl, fullUrl });
-        }
-        await deleteProduct(p.id);
-        await putProduct({ ...p, id: serverId });
-        for (const m of migrated) {
-          await addProductImage(serverId, m.order, m.thumbnailUrl, m.fullUrl);
-        }
-      }
     }
   };
 
