@@ -74,17 +74,21 @@ const ThumbnailCell = memo(({ productId }: { productId: string }) => {
         setLoaded(true);
         return;
       }
-      // Fallback: fetch thumbnails from server
+      // Fallback: fetch thumbnails from server and cache in IndexedDB
       try {
         const token = sessionStorage.getItem('fabric_auth_token');
         const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
         const res = await fetch(`/api/products/${productId}/thumbnails`, { headers });
         if (res.ok && !cancelled) {
           const { images: batchImages } = await res.json();
-          setThumbs((batchImages || []).slice(0, 3).map((bi: any) => ({
-            id: String(bi.id),
-            url: `data:image/jpeg;base64,${bi.base64}`,
-          })));
+          const urls: { id: string; url: string }[] = [];
+          for (const bi of (batchImages || [])) {
+            const dataUrl = `data:image/jpeg;base64,${bi.base64}`;
+            urls.push({ id: String(bi.id), url: dataUrl });
+            // Cache to IndexedDB (fire-and-forget, don't await)
+            addProductImage(productId, bi.sort_order || urls.length - 1, dataUrl, dataUrl).catch(() => {});
+          }
+          setThumbs(urls.slice(0, 3));
         }
       } catch { }
       setLoaded(true);
