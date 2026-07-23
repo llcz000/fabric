@@ -920,8 +920,9 @@ async function computeFeature(buffer: Buffer): Promise<string | null> {
   try {
     const phashHex = await computeDctPHash(buffer);
     const colorHex = await computeColorHistogram(buffer);
-    if (!phashHex || !colorHex) return null;
-    return `${phashHex}|${colorHex}`;
+    const lbpHex = await computeLbpHistogram(buffer);
+    if (!phashHex || !colorHex || !lbpHex) return null;
+    return `${phashHex}|${colorHex}|${lbpHex}`;
   } catch (e: any) {
     console.error('[computeFeature]', e?.message || e);
     return null;
@@ -1014,6 +1015,74 @@ async function computeColorHistogram(buffer: Buffer): Promise<string | null> {
   return hex;
 }
 
+// Rotation-invariant uniform LBP (riu2) texture histogram, 10 bins.
+// Captures weave / print micro-structure that color misses. Output: 20 hex
+// chars (8 bits per bin). Resolution matches color histogram (180x180) so
+// the two share a resize pass mentally (sharp won't dedupe, but cost is low).
+async function computeLbpHistogram(buffer: Buffer): Promise<string | null> {
+  const { data, info } = await sharp(buffer)
+    .resize(180, 180, { fit: 'fill' })
+    .grayscale()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const w = info.width;
+  const h = info.height;
+  const px = new Uint8Array(data);
+  const hist = new Float64Array(10);
+  let total = 0;
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const c = px[y * w + x];
+      // 8 neighbors clockwise from top-left
+      const n = [
+        px[(y - 1) * w + (x - 1)],
+        px[(y - 1) * w + x],
+        px[(y - 1) * w + (x + 1)],
+        px[y * w + (x + 1)],
+        px[(y + 1) * w + (x + 1)],
+        px[(y + 1) * w + x],
+        px[(y + 1) * w + (x - 1)],
+        px[y * w + (x - 1)],
+      ];
+      let pattern = 0;
+      for (let i = 0; i < 8; i++) if (n[i] >= c) pattern |= (1 << i);
+      hist[LBP_LUT[pattern]]++;
+      total++;
+    }
+  }
+  if (total > 0) for (let i = 0; i < 10; i++) hist[i] /= total;
+  let hex = '';
+  for (let i = 0; i < 10; i++) {
+    const q = Math.min(255, Math.max(0, Math.floor(hist[i] * 255)));
+    hex += q.toString(16).padStart(2, '0');
+  }
+  return hex;
+}
+
+// Lookup table: 256 LBP patterns -> 10 riu2 bins (0-8 = uniform with that many
+// 1-bits, 9 = non-uniform). Precomputed at startup.
+const LBP_LUT: Uint8Array = (() => {
+  const t = new Uint8Array(256);
+  for (let p = 0; p < 256; p++) {
+    let transitions = 0;
+    let prev = (p >> 7) & 1;
+    for (let i = 6; i >= 0; i--) {
+      const cur = (p >> i) & 1;
+      if (cur !== prev) transitions++;
+      prev = cur;
+    }
+    if (((p >> 7) & 1) !== (p & 1)) transitions++; // wrap-around
+    if (transitions <= 2) {
+      let ones = 0;
+      for (let i = 0; i < 8; i++) if ((p >> i) & 1) ones++;
+      t[p] = ones;
+    } else {
+      t[p] = 9;
+    }
+  }
+  return t;
+})();
+
 // 1D type-II DCT
 function dct1D(row: number[], N: number): number[] {
   const out = new Array<number>(N);
@@ -1043,18 +1112,26 @@ function dct2D(block: number[][], rows: number, cols: number): number[][] {
 interface ParsedFeature {
   phash: bigint;
   color: Float32Array; // length 64, values 0-1
+  lbp: Float32Array;   // length 10, values 0-1
 }
 
 function parseFeature(s: string): ParsedFeature | null {
   if (!s || typeof s !== 'string' || !s.includes('|')) return null;
-  const [phashHex, colorHex] = s.split('|');
-  if (!phashHex || !colorHex || phashHex.length !== 64 || colorHex.length !== 128) return null;
+  const parts = s.split('|');
+  if (parts.length !== 3) return null;
+  const [phashHex, colorHex, lbpHex] = parts;
+  if (!phashHex || !colorHex || !lbpHex ||
+      phashHex.length !== 64 || colorHex.length !== 128 || lbpHex.length !== 20) return null;
   const phash = BigInt('0x' + phashHex);
   const color = new Float32Array(64);
   for (let i = 0; i < 64; i++) {
     color[i] = parseInt(colorHex.substr(i * 2, 2), 16) / 255;
   }
-  return { phash, color };
+  const lbp = new Float32Array(10);
+  for (let i = 0; i < 10; i++) {
+    lbp[i] = parseInt(lbpHex.substr(i * 2, 2), 16) / 255;
+  }
+  return { phash, color, lbp };
 }
 
 // Combined distance [0,1] — lower = more similar
@@ -1063,21 +1140,33 @@ function featureDistance(a: ParsedFeature, b: ParsedFeature): number {
   let bits = 0;
   while (xor > 0n) { bits++; xor &= xor - 1n; }
   const dh = bits / 256;
-  let chi = 0;
+  // Color chi-square
+  let chiC = 0;
   for (let i = 0; i < 64; i++) {
     const x = a.color[i], y = b.color[i];
     const denom = x + y;
     if (denom > 0) {
       const d = x - y;
-      chi += (d * d) / denom;
+      chiC += (d * d) / denom;
     }
   }
-  chi *= 0.5;
-  const dc = Math.min(1, chi / 2.0);
-  // Weighted: color is more robust to capture variation (lighting, angle) than
-  // DCT structure for fabric. Phone-vs-catalog gap shrank from 0.30 to ~0.15
-  // in testing by favoring color.
-  return 0.3 * dh + 0.7 * dc;
+  chiC *= 0.5;
+  const dc = Math.min(1, chiC / 2.0);
+  // LBP chi-square
+  let chiL = 0;
+  for (let i = 0; i < 10; i++) {
+    const x = a.lbp[i], y = b.lbp[i];
+    const denom = x + y;
+    if (denom > 0) {
+      const d = x - y;
+      chiL += (d * d) / denom;
+    }
+  }
+  chiL *= 0.5;
+  const dl = Math.min(1, chiL / 2.0);
+  // Weights: color dominant (most capture-robust), LBP adds weave/print
+  // discrimination, DCT structure as a minor tiebreaker.
+  return 0.25 * dh + 0.5 * dc + 0.25 * dl;
 }
 
 // ── List Products ──────────────────────────────────────
