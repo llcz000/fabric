@@ -88,18 +88,18 @@ const ThumbnailCell = memo(({ productId }: { productId: string }) => {
   // Cleanup on unmount
   useEffect(() => () => urlsRef.current.forEach(u => URL.revokeObjectURL(u)), []);
 
-  if (!loaded) return <div className="w-16 h-16 bg-slate-100 rounded animate-pulse" />;
-  if (thumbs.length === 0) return <div className="w-16 h-16 bg-slate-50 rounded flex items-center justify-center"><Image className="w-5 h-5 text-slate-300" /></div>;
+  if (!loaded) return <div className="w-18 h-18 bg-slate-100 rounded animate-pulse" />;
+  if (thumbs.length === 0) return <div className="w-18 h-18 bg-slate-50 rounded flex items-center justify-center"><Image className="w-6 h-6 text-slate-300" /></div>;
 
   return (
-    <div className="flex gap-1" data-product-id={productId}>
+    <div className="flex gap-1.5 min-w-[80px]" data-product-id={productId}>
       {thumbs.map((t, i) => (
-        <img key={t.id} src={t.url} className="w-14 h-14 object-cover rounded border border-slate-200 cursor-pointer hover:opacity-80"
+        <img key={t.id} src={t.url} className="w-16 h-16 object-cover rounded border border-slate-200 cursor-pointer hover:opacity-80 shrink-0"
           onClick={() => { const ev = new CustomEvent('open-lightbox', { detail: { productId, index: i } }); window.dispatchEvent(ev); }}
           alt="" />
       ))}
       {thumbs.length >= 3 && (
-        <div className="w-14 h-14 bg-slate-100 rounded border flex items-center justify-center cursor-pointer text-xs font-bold text-slate-500"
+        <div className="w-16 h-16 bg-slate-100 rounded border flex items-center justify-center cursor-pointer text-xs font-bold text-slate-500 shrink-0"
           onClick={() => { const ev = new CustomEvent('open-lightbox', { detail: { productId, index: 2 } }); window.dispatchEvent(ev); }}>
           +{thumbs.length}
         </div>
