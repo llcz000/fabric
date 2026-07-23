@@ -362,7 +362,6 @@ export default function ProductLibrary() {
     if (!e.target.files) return;
     const newFiles = Array.from(e.target.files).map(f => ({ file: f, url: URL.createObjectURL(f) }));
     setPendingFiles(prev => [...prev, ...newFiles]);
-    setTimeout(() => { e.target.value = ''; }, 200);
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -679,16 +678,19 @@ export default function ProductLibrary() {
             {/* Add images */}
             <div
               className={`block border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors ${dragOver ? 'border-sky-400 bg-sky-50' : 'border-slate-200 hover:border-sky-300'}`}
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => {
+                if (fileInputRef.current) fileInputRef.current.value = '';
+                fileInputRef.current?.click();
+              }}
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
               onDragLeave={() => setDragOver(false)}
               onDrop={handleDrop}
             >
               <Image className={`w-6 h-6 mx-auto mb-1 ${dragOver ? 'text-sky-400' : 'text-slate-300'}`} />
               <span className={`text-xs ${dragOver ? 'text-sky-500' : 'text-slate-400'}`}>
-                {dragOver ? '释放以上传图片' : '点击或拖拽上传花型图片（可多次添加）'}
+                {dragOver ? '释放以上传图片' : '点击或拖拽上传花型图片（可多选）'}
               </span>
-              <input type="file" accept="image/*" className="sr-only" ref={fileInputRef} onChange={handleSelectImage} />
+              <input type="file" accept="image/*" multiple className="sr-only" ref={fileInputRef} onChange={handleSelectImage} />
             </div>
 
             {/* Pending files preview */}
