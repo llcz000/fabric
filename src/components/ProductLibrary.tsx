@@ -414,16 +414,18 @@ export default function ProductLibrary() {
       }
 
       // Sync imported products from server to local IndexedDB
+      // Use server id (unique) as dedup key, not itemNo (can be duplicated for 缺货号)
       try {
         const serverRes = await authFetch('/api/products');
         if (serverRes.ok) {
           const serverProducts = await serverRes.json();
           for (const sp of serverProducts) {
-            const existing = products.find(p => p.itemNo === (sp.item_no || sp.itemNo));
-            if (!existing) {
-              const pid = String(sp.id);
+            const serverId = String(sp.id);
+            // Check if already synced by server ID (unique)
+            const existingById = products.find(p => p.id === serverId);
+            if (!existingById) {
               await putProduct({
-                id: pid, itemNo: sp.item_no || sp.itemNo,
+                id: serverId, itemNo: sp.item_no || sp.itemNo,
                 productName: sp.product_name || sp.productName,
                 composition: sp.composition || '', weight: sp.weight || '',
                 width: sp.width || '', imageCount: sp.image_count || sp.images?.length || 0,
@@ -434,11 +436,11 @@ export default function ProductLibrary() {
               const imgs = sp.images || [];
               for (let o = 0; o < imgs.length; o++) {
                 try {
-                  const imgRes = await authFetch(`/api/products/${pid}/images/${imgs[o].id}`);
+                  const imgRes = await authFetch(`/api/products/${serverId}/images/${imgs[o].id}`);
                   if (imgRes.ok) {
                     const blob = await imgRes.blob();
                     if (blob.size > 0) {
-                      await addProductImage(pid, o, blob, blob);
+                      await addProductImage(serverId, o, blob, blob);
                     }
                   }
                 } catch { /* skip image on error */ }
