@@ -167,6 +167,12 @@ export default function ProductLibrary() {
           const serverProducts = await serverRes.json();
           for (const sp of serverProducts) {
             const serverId = String(sp.id);
+            const itemNo = sp.item_no || sp.itemNo;
+            // Check for duplicate by itemNo (same product, different ID)
+            const dupByItemNo = list.find(p => p.itemNo === itemNo && p.id !== serverId);
+            if (dupByItemNo) {
+              await deleteProduct(dupByItemNo.id);
+            }
             if (!list.find(p => p.id === serverId)) {
               await putProduct({
                 id: serverId, itemNo: sp.item_no || sp.itemNo,
