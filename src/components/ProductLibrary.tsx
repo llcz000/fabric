@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import {
   getAllProducts, putProduct, deleteProduct,
-  getImages, getFullImage, addProductImage, deleteImage,
+  getImages, getFullImageUrl, addProductImage, deleteImage,
   processImageUpload,
 } from '../lib/db';
 import { computeImageHash } from '../lib/phash';
@@ -64,29 +64,16 @@ function blobToDataUrl(blob: Blob): Promise<string> {
 const ThumbnailCell = memo(({ productId }: { productId: string }) => {
   const [thumbs, setThumbs] = useState<{ id: string; url: string }[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const urlsRef = useRef<string[]>([]);
 
   useEffect(() => {
     let cancelled = false;
-    // Revoke previous URLs
-    urlsRef.current.forEach(u => URL.revokeObjectURL(u));
-    urlsRef.current = [];
-
     getImages(productId).then(imgs => {
       if (cancelled) return;
-      const items = imgs.slice(0, 3).map(i => {
-        const url = URL.createObjectURL(i.thumbnail);
-        urlsRef.current.push(url);
-        return { id: i.id, url };
-      });
-      setThumbs(items);
+      setThumbs(imgs.slice(0, 3).map(i => ({ id: i.id, url: i.thumbnailUrl })));
       setLoaded(true);
     });
     return () => { cancelled = true; };
   }, [productId]);
-
-  // Cleanup on unmount
-  useEffect(() => () => urlsRef.current.forEach(u => URL.revokeObjectURL(u)), []);
 
   if (!loaded) return <div className="w-18 h-18 bg-slate-100 rounded animate-pulse" />;
   if (thumbs.length === 0) return <div className="w-18 h-18 bg-slate-50 rounded flex items-center justify-center"><Image className="w-6 h-6 text-slate-300" /></div>;
@@ -231,10 +218,10 @@ export default function ProductLibrary() {
       if (imgs.length === 0) return;
       const urls: string[] = [];
       for (const img of imgs) {
-        const full = await getFullImage(img.id);
-        if (full) urls.push(URL.createObjectURL(full));
+        const full = await getFullImageUrl(img.id);
+        if (full) urls.push(full);
       }
-      setLightboxImages(prev => { prev.forEach(u => URL.revokeObjectURL(u)); return urls; });
+      setLightboxImages(urls);
       setLightboxProductId(productId);
       setLightboxIndex(Math.min(index, urls.length - 1));
     };
@@ -244,7 +231,7 @@ export default function ProductLibrary() {
 
   const closeLightbox = useCallback(() => {
     setLightboxProductId(null);
-    setLightboxImages(prev => { prev.forEach(u => URL.revokeObjectURL(u)); return []; });
+    setLightboxImages([]);
     setLightboxIndex(0);
   }, []);
 
@@ -284,7 +271,7 @@ export default function ProductLibrary() {
     setPendingFiles([]);
     try {
       const imgs = await getImages(product.id);
-      setEditImages(imgs.map(i => ({ id: i.id, order: i.order, thumbnailUrl: URL.createObjectURL(i.thumbnail) })));
+      setEditImages(imgs.map(i => ({ id: i.id, order: i.order, thumbnailUrl: i.thumbnailUrl })));
     } catch { setEditImages([]); }
     setEditModal(true);
   };
@@ -344,7 +331,7 @@ export default function ProductLibrary() {
         const imgs = await getImages(p.id).catch(() => []);
         const migrated: { order: number; thumbnail: Blob; full: Blob }[] = [];
         for (const img of imgs) {
-          const full = await getFullImage(img.id).catch(() => null);
+          const full = await getFullImageUrl(img.id).catch(() => null);
           if (full) migrated.push({ order: img.order, thumbnail: img.thumbnail, full });
         }
         await deleteProduct(p.id);

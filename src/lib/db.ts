@@ -3,41 +3,33 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * IndexedDB wrapper for product library storage.
- * Stores product metadata and image blobs for offline access.
+ * Stores product metadata as JSON and images as base64 strings
+ * (more reliable than Blobs on iOS Safari).
  */
 
-import { ProductItem, ProductImage } from '../types';
+import { ProductItem } from '../types';
 
 const DB_NAME = 'textile_dms';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_PRODUCTS = 'products';
 const STORE_IMAGES = 'product_images';
 
-let dbCache: IDBDatabase | null = null;
-
 function openDB(): Promise<IDBDatabase> {
-  if (dbCache) return Promise.resolve(dbCache);
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = () => {
       const db = req.result;
-      if (!db.objectStoreNames.contains(STORE_PRODUCTS)) {
-        const productsStore = db.createObjectStore(STORE_PRODUCTS, { keyPath: 'id' });
-        productsStore.createIndex('itemNo', 'itemNo', { unique: false });
-      }
-      if (!db.objectStoreNames.contains(STORE_IMAGES)) {
-        const imagesStore = db.createObjectStore(STORE_IMAGES, { keyPath: 'id' });
-        imagesStore.createIndex('productId', 'productId', { unique: false });
-      }
+      // DB v1 cleanup: delete old stores and recreate
+      if (db.objectStoreNames.contains(STORE_PRODUCTS)) db.deleteObjectStore(STORE_PRODUCTS);
+      if (db.objectStoreNames.contains(STORE_IMAGES)) db.deleteObjectStore(STORE_IMAGES);
+      const productsStore = db.createObjectStore(STORE_PRODUCTS, { keyPath: 'id' });
+      productsStore.createIndex('itemNo', 'itemNo', { unique: false });
+      const imagesStore = db.createObjectStore(STORE_IMAGES, { keyPath: 'id' });
+      imagesStore.createIndex('productId', 'productId', { unique: false });
     };
-    req.onsuccess = () => {
-      const db = req.result;
-      db.onclose = () => { dbCache = null; };
-      dbCache = db;
-      resolve(db);
-    };
+    req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
-    req.onblocked = () => reject(new Error('IndexedDB blocked'));
+    req.onblocked = () => { alert('请关闭其他标签页后刷新'); reject(new Error('blocked')); };
   });
 }
 
@@ -54,23 +46,11 @@ export async function getAllProducts(): Promise<ProductItem[]> {
   });
 }
 
-export async function getProduct(id: string): Promise<ProductItem | undefined> {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_PRODUCTS, 'readonly');
-    const store = tx.objectStore(STORE_PRODUCTS);
-    const req = store.get(id);
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
 export async function putProduct(product: ProductItem): Promise<void> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_PRODUCTS, 'readwrite');
-    const store = tx.objectStore(STORE_PRODUCTS);
-    store.put(product);
+    tx.objectStore(STORE_PRODUCTS).put(product);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
@@ -78,40 +58,32 @@ export async function putProduct(product: ProductItem): Promise<void> {
 
 export async function deleteProduct(id: string): Promise<void> {
   const db = await openDB();
-  // Delete product and all its images
-  await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(STORE_PRODUCTS, 'readwrite');
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction([STORE_PRODUCTS, STORE_IMAGES], 'readwrite');
     tx.objectStore(STORE_PRODUCTS).delete(id);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-  await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(STORE_IMAGES, 'readwrite');
-    const index = tx.objectStore(STORE_IMAGES).index('productId');
-    const req = index.openCursor(IDBKeyRange.only(id));
-    req.onsuccess = () => {
-      const cursor = req.result;
-      if (cursor) { cursor.delete(); cursor.continue(); }
-    };
+    const imgStore = tx.objectStore(STORE_IMAGES);
+    const idx = imgStore.index('productId');
+    const req = idx.openCursor(IDBKeyRange.only(id));
+    req.onsuccess = () => { const c = req.result; if (c) { c.delete(); c.continue(); } };
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
 }
 
-// ── Product Images ────────────────────────────────────
+// ── Product Images (stored as base64 strings) ─────────
 
-export async function getImages(productId: string): Promise<{ id: string; order: number; thumbnail: Blob }[]> {
+export async function getImages(productId: string): Promise<{ id: string; order: number; thumbnailUrl: string }[]> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_IMAGES, 'readonly');
-    const index = tx.objectStore(STORE_IMAGES).index('productId');
+    const idx = tx.objectStore(STORE_IMAGES).index('productId');
     const results: any[] = [];
-    const req = index.openCursor(IDBKeyRange.only(productId));
+    const req = idx.openCursor(IDBKeyRange.only(productId));
     req.onsuccess = () => {
-      const cursor = req.result;
-      if (cursor) {
-        results.push({ id: cursor.value.id, order: cursor.value.order, thumbnail: cursor.value.thumbnail });
-        cursor.continue();
+      const c = req.result;
+      if (c) {
+        results.push({ id: c.value.id, order: c.value.order, thumbnailUrl: c.value.thumbnail });
+        c.continue();
       } else {
         results.sort((a, b) => a.order - b.order);
         resolve(results);
@@ -121,29 +93,56 @@ export async function getImages(productId: string): Promise<{ id: string; order:
   });
 }
 
-export async function getFullImage(imageId: string): Promise<Blob | null> {
+// Returns a blob URL for the full image
+export async function getFullImageUrl(imageId: string): Promise<string | null> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_IMAGES, 'readonly');
     const req = tx.objectStore(STORE_IMAGES).get(imageId);
-    req.onsuccess = () => resolve(req.result?.full || null);
+    req.onsuccess = () => {
+      const rec = req.result;
+      if (!rec?.full) { resolve(null); return; }
+      resolve(rec.full);
+    };
     req.onerror = () => reject(req.error);
   });
 }
 
+// Convert base64 data URL to Blob
+function base64ToBlob(dataUrl: string): Blob {
+  const base64 = dataUrl.split(',')[1];
+  const binaryStr = atob(base64);
+  const bytes = new Uint8Array(binaryStr.length);
+  for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i) & 0xff;
+  const mime = dataUrl.split(',')[0].split(':')[1].split(';')[0];
+  return new Blob([bytes], { type: mime });
+}
+
 export async function addProductImage(
-  productId: string,
-  order: number,
-  thumbnail: Blob,
-  full: Blob,
+  productId: string, order: number,
+  thumbnail: Blob, full: Blob,
 ): Promise<string> {
   const db = await openDB();
   const id = `img_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  // Convert Blobs to base64 data URLs for reliable IndexedDB storage
+  const [thumbUrl, fullUrl] = await Promise.all([
+    blobToDataUrl(thumbnail),
+    blobToDataUrl(full),
+  ]);
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_IMAGES, 'readwrite');
-    tx.objectStore(STORE_IMAGES).add({ id, productId, order, thumbnail, full });
+    tx.objectStore(STORE_IMAGES).add({ id, productId, order, thumbnail: thumbUrl, full: fullUrl });
     tx.oncomplete = () => resolve(id);
     tx.onerror = () => reject(tx.error);
+  });
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
   });
 }
 
@@ -152,23 +151,6 @@ export async function deleteImage(imageId: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_IMAGES, 'readwrite');
     tx.objectStore(STORE_IMAGES).delete(imageId);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-}
-
-export async function updateImageOrder(images: { id: string; order: number }[]): Promise<void> {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_IMAGES, 'readwrite');
-    const store = tx.objectStore(STORE_IMAGES);
-    for (const img of images) {
-      const req = store.get(img.id);
-      req.onsuccess = () => {
-        const record = req.result;
-        if (record) { record.order = img.order; store.put(record); }
-      };
-    }
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
@@ -187,27 +169,17 @@ export function compressImage(file: File, maxWidth: number, quality: number): Pr
     img.onload = () => {
       try {
         let { width, height } = img;
-        if (width > maxWidth) {
-          height = Math.round((height * maxWidth) / width);
-          width = maxWidth;
-        }
+        if (width > maxWidth) { height = Math.round((height * maxWidth) / width); width = maxWidth; }
         const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d')!;
-        ctx.drawImage(img, 0, 0, width, height);
-        // toDataURL -> base64 decode -> Blob (avoids fetch/atob charCodeAt issues)
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d')!.drawImage(img, 0, 0, width, height);
         const dataUrl = canvas.toDataURL('image/jpeg', quality);
         const base64 = dataUrl.split(',')[1];
         const binaryStr = atob(base64);
         const bytes = new Uint8Array(binaryStr.length);
-        for (let i = 0; i < binaryStr.length; i++) {
-          bytes[i] = binaryStr.charCodeAt(i) & 0xff;
-        }
+        for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i) & 0xff;
         resolve(new Blob([bytes], { type: 'image/jpeg' }));
-      } catch (e) {
-        reject(e);
-      }
+      } catch (e) { reject(e); }
     };
     img.onerror = () => reject(new Error('Failed to load image'));
   });
