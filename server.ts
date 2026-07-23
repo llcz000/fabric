@@ -1411,7 +1411,8 @@ app.post('/api/products/import', upload.single('file'), async (req, res) => {
 
     if (!useMySQLFallback) {
       const pool = await getMySQLPool();
-      const rowPromises: Promise<void>[] = [];
+      // Collect rows first, then process sequentially to preserve image-to-product mapping
+      const rows: { itemNo: string; productName: string; composition: string; weight: string; width: string; rowImgs: any[] }[] = [];
       worksheet.eachRow((row, rowNumber) => {
         if (rowNumber === 1) return;
         const itemNo = String(row.getCell(1).value || '').trim();
@@ -1420,8 +1421,7 @@ app.post('/api/products/import', upload.single('file'), async (req, res) => {
         const weight = String(row.getCell(4).value || '').trim();
         const width = String(row.getCell(5).value || '').trim();
         const rowImgs = imageMap.get(rowNumber - 1) || [];
-        console.log('[Import] Row', rowNumber, 'itemNo:', itemNo || '(空)', 'imgCount:', rowImgs.length,
-          'sigs:', rowImgs.map((b: any) => b.buffer.slice(0, 4).toString('hex')).join(','));
+        console.log('[Import] Row', rowNumber, 'itemNo:', itemNo || '(空)', 'imgCount:', rowImgs.length);
 
         const hasData = itemNo || productName || rowImgs.length > 0;
         if (!hasData) return;
@@ -1429,38 +1429,38 @@ app.post('/api/products/import', upload.single('file'), async (req, res) => {
         if (!itemNo) {
           warnings.push(`第${rowNumber}行缺少货号，已导入但请补充`);
         }
-
-        rowPromises.push((async () => {
-          try {
-            const [result] = await pool.query<ResultSetHeader>(
-              'INSERT INTO products (item_no, product_name, composition, weight, width, image_count, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)',
-              [itemNo || '(缺货号)', productName || '', composition, weight, width, rowImgs.length, now, now]
-            );
-            const productId = result.insertId;
-
-            for (let i = 0; i < rowImgs.length; i++) {
-              const imgBuf = rowImgs[i].buffer;
-              const cosKey = await uploadBufferToCOS(imgBuf, `product_import_${Date.now()}_${i}.jpg`);
-              // Also save locally if COS fails
-              let localPath = '';
-              if (!cosKey) {
-                const fname = `import_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.jpg`;
-                localPath = path.join(UPLOADS_DIR, 'products', fname);
-                fs.mkdirSync(path.dirname(localPath), { recursive: true });
-                fs.writeFileSync(localPath, imgBuf);
-              }
-              await pool.query(
-                'INSERT INTO product_images (product_id, sort_order, cos_key, local_path) VALUES (?,?,?,?)',
-                [productId, i, cosKey || '', localPath]
-              );
-            }
-          } catch (e: any) {
-            console.error('[Import row error]', e.message);
-          }
-        })());
-        importedCount++;
+        rows.push({ itemNo: itemNo || '(缺货号)', productName: productName || '', composition, weight, width, rowImgs });
       });
-      await Promise.all(rowPromises);
+
+      // Process rows sequentially to ensure correct image-to-product association
+      for (const row of rows) {
+        try {
+          const [result] = await pool.query<ResultSetHeader>(
+            'INSERT INTO products (item_no, product_name, composition, weight, width, image_count, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)',
+            [row.itemNo, row.productName, row.composition, row.weight, row.width, row.rowImgs.length, now, now]
+          );
+          const productId = result.insertId;
+
+          for (let i = 0; i < row.rowImgs.length; i++) {
+            const imgBuf = row.rowImgs[i].buffer;
+            const cosKey = await uploadBufferToCOS(imgBuf, `product_import_${Date.now()}_${i}.jpg`);
+            let localPath = '';
+            if (!cosKey) {
+              const fname = `import_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.jpg`;
+              localPath = path.join(UPLOADS_DIR, 'products', fname);
+              fs.mkdirSync(path.dirname(localPath), { recursive: true });
+              fs.writeFileSync(localPath, imgBuf);
+            }
+            await pool.query(
+              'INSERT INTO product_images (product_id, sort_order, cos_key, local_path) VALUES (?,?,?,?)',
+              [productId, i, cosKey || '', localPath]
+            );
+          }
+          importedCount++;
+        } catch (e: any) {
+          console.error('[Import row error]', e.message);
+        }
+      }
     } else {
       const local = loadLocalDB();
       let maxProdId = local.products.length > 0 ? Math.max(...local.products.map((p: any) => p.id)) : 0;
