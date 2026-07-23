@@ -283,7 +283,7 @@ async function getMySQLPool(): Promise<mysql.Pool> {
     };
 
     await addColumnIfNotExists('company_config', 'default_terms', 'TEXT');
-    await addColumnIfNotExists('product_images', 'feature_vec', 'VARCHAR(512) DEFAULT ""');
+    await addColumnIfNotExists('product_images', 'embedding', 'TEXT');
 
     // Repair: recalculate order totals from order_items (fixes any zero-total records)
     try {
@@ -916,284 +916,83 @@ async function generateThumbnail(buffer: Buffer): Promise<Buffer | null> {
   } catch { return null; }
 }
 
+// ==================== Image Feature Extraction (CLIP) ====================
+// Uses CLIP ViT-Base-Patch32 (via @xenova/transformers) to produce a 512-dim
+// image embedding for semantic similarity search. CLIP was trained on
+// 400M image-text pairs, so it learned fabric/weave/print semantics that
+// hand-crafted features (dHash, HSV histogram, LBP) cannot capture.
+// Embeddings are L2-normalized so cosine similarity = dot product. Stored as
+// hex (8 chars per float32 LE) in the `embedding` column.
+
+let _extractorPromise: Promise<any> | null = null;
+async function getExtractor(): Promise<any> {
+  if (!_extractorPromise) {
+    const cacheDir = path.join(process.cwd(), '.transformers_cache');
+    fs.mkdirSync(cacheDir, { recursive: true });
+    // Dynamic import via a variable so TypeScript doesn't try to statically
+    // resolve the (not-yet-installed) module.
+    const moduleName = '@xenova/transformers';
+    const mod: any = await import(moduleName);
+    const env = mod.env;
+    env.cacheDir = cacheDir;
+    env.allowRemoteModels = true;
+    env.allowLocalModels = false;
+    _extractorPromise = mod.pipeline('image-feature-extraction', 'Xenova/clip-vit-base-patch32');
+  }
+  return _extractorPromise;
+}
+
 async function computeFeature(buffer: Buffer): Promise<string | null> {
   try {
-    const phashHex = await computeDctPHash(buffer);
-    const colorHex = await computeColorHistogram(buffer);
-    const lbpHex = await computeLbpHistogram(buffer);
-    if (!phashHex || !colorHex || !lbpHex) return null;
-    return `${phashHex}|${colorHex}|${lbpHex}`;
+    const extractor = await getExtractor();
+    // transformers.js accepts a file path / URL / RawImage. Write to temp file.
+    const tempPath = path.join(UPLOADS_DIR, `_embed_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
+    fs.writeFileSync(tempPath, buffer);
+    let output: any;
+    try {
+      output = await extractor(tempPath, { pooling: 'mean', normalize: true });
+    } finally {
+      try { fs.unlinkSync(tempPath); } catch {}
+    }
+    const data = output.data as Float32Array | number[];
+    const len = data.length;
+    // L2-normalize (defensive — pipeline {normalize:true} should already do it)
+    let norm = 0;
+    for (let i = 0; i < len; i++) norm += data[i] * data[i];
+    norm = Math.sqrt(norm) || 1;
+    const buf = Buffer.alloc(len * 4);
+    for (let i = 0; i < len; i++) buf.writeFloatLE(data[i] / norm, i * 4);
+    return buf.toString('hex');
   } catch (e: any) {
     console.error('[computeFeature]', e?.message || e);
     return null;
   }
 }
 
-// DCT-based pHash, 32x32 -> top-left 16x16 -> 256-bit hash -> 64 hex chars
-async function computeDctPHash(buffer: Buffer): Promise<string | null> {
-  const { data } = await sharp(buffer)
-    .resize(32, 32, { fit: 'fill' })
-    .grayscale()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-  const pixels = new Uint8Array(data);
-  const block: number[][] = [];
-  for (let y = 0; y < 32; y++) {
-    const row: number[] = [];
-    for (let x = 0; x < 32; x++) row.push(pixels[y * 32 + x]);
-    block.push(row);
-  }
-  const dct = dct2D(block, 32, 32);
-  // Take top-left 16x16 = 256 coefficients
-  const flat: number[] = [];
-  for (let y = 0; y < 16; y++) {
-    for (let x = 0; x < 16; x++) flat.push(dct[y][x]);
-  }
-  // Median over AC coefficients (exclude DC at index 0)
-  const acs = flat.slice(1);
-  const sorted = acs.slice().sort((a, b) => a - b);
-  const median = sorted[Math.floor(sorted.length / 2)];
-  let hash = 0n;
-  for (let i = 0; i < 256; i++) {
-    hash = hash << 1n;
-    if (flat[i] > median) hash |= 1n;
-  }
-  return hash.toString(16).padStart(64, '0');
-}
-
-// 3x3 spatial-block HSV color histogram with gray-world white balance.
-// 9 blocks, each 16 bins (H:8 x S:2), 144 dims total. Resolution 512x512
-// preserves enough fabric detail for stable white-balance and block stats.
-// Output: 288 hex chars (8 bits/bin).
-async function computeColorHistogram(buffer: Buffer): Promise<string | null> {
-  const { data, info } = await sharp(buffer)
-    .resize(512, 512, { fit: 'fill' })
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-  const channels = info.channels;
-  const W = info.width;
-  const H = info.height;
-  const px = new Uint8Array(data);
-  const N = W * H;
-  // Gray-world white balance
-  let sumR = 0, sumG = 0, sumB = 0;
-  for (let i = 0; i < N; i++) {
-    sumR += px[i * channels];
-    sumG += px[i * channels + 1];
-    sumB += px[i * channels + 2];
-  }
-  const mean = (sumR + sumG + sumB) / 3;
-  const sr = sumR > 0 ? mean / sumR : 1;
-  const sg = sumG > 0 ? mean / sumG : 1;
-  const sb = sumB > 0 ? mean / sumB : 1;
-  const NBINS = 16; // H(8) x S(2) per block
-  const hist = new Float64Array(9 * NBINS); // 9 blocks
-  const BW = Math.floor(W / 3);
-  const BH = Math.floor(H / 3);
-  for (let by = 0; by < 3; by++) {
-    for (let bx = 0; bx < 3; bx++) {
-      const base = (by * 3 + bx) * NBINS;
-      for (let y = by * BH; y < (by + 1) * BH; y++) {
-        for (let x = bx * BW; x < (bx + 1) * BW; x++) {
-          const i = y * W + x;
-          let r = px[i * channels] * sr;
-          let g = px[i * channels + 1] * sg;
-          let b = px[i * channels + 2] * sb;
-          if (r > 255) r = 255; if (g > 255) g = 255; if (b > 255) b = 255;
-          const max = Math.max(r, g, b);
-          const min = Math.min(r, g, b);
-          const d = max - min;
-          const s = max === 0 ? 0 : d / max;
-          let h = 0;
-          if (d !== 0) {
-            if (max === r) h = ((g - b) / d) % 6;
-            else if (max === g) h = (b - r) / d + 2;
-            else h = (r - g) / d + 4;
-            h *= 60;
-            if (h < 0) h += 360;
-          }
-          const hBin = Math.min(7, Math.floor(h / 45));
-          const sBin = Math.min(1, Math.floor(s * 2));
-          hist[base + hBin * 2 + sBin]++;
-        }
-      }
-    }
-  }
-  // Normalize globally so chi-square magnitude matches the old 64-bin version
-  let total = 0;
-  for (let i = 0; i < 9 * NBINS; i++) total += hist[i];
-  if (total > 0) for (let i = 0; i < 9 * NBINS; i++) hist[i] /= total;
-  let hex = '';
-  for (let i = 0; i < 9 * NBINS; i++) {
-    const q = Math.min(255, Math.max(0, Math.floor(hist[i] * 255)));
-    hex += q.toString(16).padStart(2, '0');
-  }
-  return hex;
-}
-
-// Rotation-invariant uniform LBP (riu2) on 512x512 grayscale, radius=2 with
-// bilinear-interpolated samples. At 512x512 each LBP neighborhood covers ~5x5
-// fabric pixels, big enough to span one weave period — the previous radius-1
-// run on 180x180 only saw pixel noise. Output: 20 hex chars (8 bits/bin).
-async function computeLbpHistogram(buffer: Buffer): Promise<string | null> {
-  const SIZE = 512;
-  const RADIUS = 2;
-  const SAMPLES = 8;
-  const { data, info } = await sharp(buffer)
-    .resize(SIZE, SIZE, { fit: 'fill' })
-    .grayscale()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-  const w = info.width;
-  const h = info.height;
-  const px = new Uint8Array(data);
-  const hist = new Float64Array(10);
-  let total = 0;
-  // Precompute sample offsets on the circle
-  const offsets: { dx: number; dy: number }[] = [];
-  for (let i = 0; i < SAMPLES; i++) {
-    const angle = (2 * Math.PI * i) / SAMPLES;
-    offsets.push({ dx: RADIUS * Math.cos(angle), dy: RADIUS * Math.sin(angle) });
-  }
-  for (let y = RADIUS + 1; y < h - RADIUS - 1; y++) {
-    for (let x = RADIUS + 1; x < w - RADIUS - 1; x++) {
-      const c = px[y * w + x];
-      let pattern = 0;
-      for (let i = 0; i < SAMPLES; i++) {
-        const fx = x + offsets[i].dx;
-        const fy = y + offsets[i].dy;
-        const x0 = Math.floor(fx);
-        const y0 = Math.floor(fy);
-        const wx = fx - x0;
-        const wy = fy - y0;
-        const v00 = px[y0 * w + x0];
-        const v01 = px[y0 * w + x0 + 1];
-        const v10 = px[(y0 + 1) * w + x0];
-        const v11 = px[(y0 + 1) * w + x0 + 1];
-        const v = v00 * (1 - wx) * (1 - wy) + v01 * wx * (1 - wy)
-                + v10 * (1 - wx) * wy       + v11 * wx * wy;
-        if (v >= c) pattern |= (1 << i);
-      }
-      hist[LBP_LUT[pattern]]++;
-      total++;
-    }
-  }
-  if (total > 0) for (let i = 0; i < 10; i++) hist[i] /= total;
-  let hex = '';
-  for (let i = 0; i < 10; i++) {
-    const q = Math.min(255, Math.max(0, Math.floor(hist[i] * 255)));
-    hex += q.toString(16).padStart(2, '0');
-  }
-  return hex;
-}
-
-// Lookup table: 256 LBP patterns -> 10 riu2 bins (0-8 = uniform with that many
-// 1-bits, 9 = non-uniform).
-const LBP_LUT: Uint8Array = (() => {
-  const t = new Uint8Array(256);
-  for (let p = 0; p < 256; p++) {
-    let transitions = 0;
-    let prev = (p >> 7) & 1;
-    for (let i = 6; i >= 0; i--) {
-      const cur = (p >> i) & 1;
-      if (cur !== prev) transitions++;
-      prev = cur;
-    }
-    if (((p >> 7) & 1) !== (p & 1)) transitions++;
-    if (transitions <= 2) {
-      let ones = 0;
-      for (let i = 0; i < 8; i++) if ((p >> i) & 1) ones++;
-      t[p] = ones;
-    } else {
-      t[p] = 9;
-    }
-  }
-  return t;
-})();
-
-// 1D type-II DCT
-function dct1D(row: number[], N: number): number[] {
-  const out = new Array<number>(N);
-  const factor = Math.PI / N;
-  for (let k = 0; k < N; k++) {
-    let sum = 0;
-    for (let n = 0; n < N; n++) {
-      sum += row[n] * Math.cos(factor * (n + 0.5) * k);
-    }
-    out[k] = sum;
-  }
-  return out;
-}
-
-function dct2D(block: number[][], rows: number, cols: number): number[][] {
-  const rowDct = block.map(row => dct1D(row, cols));
-  const result: number[][] = [];
-  for (let r = 0; r < rows; r++) result.push(new Array<number>(cols));
-  for (let c = 0; c < cols; c++) {
-    const col = rowDct.map(r => r[c]);
-    const colDct = dct1D(col, rows);
-    for (let r = 0; r < rows; r++) result[r][c] = colDct[r];
-  }
-  return result;
-}
-
 interface ParsedFeature {
-  phash: bigint;
-  color: Float32Array; // length 144, values 0-1
-  lbp: Float32Array;   // length 10, values 0-1
+  embedding: Float32Array;
 }
 
 function parseFeature(s: string): ParsedFeature | null {
-  if (!s || typeof s !== 'string' || !s.includes('|')) return null;
-  const parts = s.split('|');
-  if (parts.length !== 3) return null;
-  const [phashHex, colorHex, lbpHex] = parts;
-  if (!phashHex || !colorHex || !lbpHex ||
-      phashHex.length !== 64 || colorHex.length !== 288 || lbpHex.length !== 20) return null;
-  const phash = BigInt('0x' + phashHex);
-  const color = new Float32Array(144);
-  for (let i = 0; i < 144; i++) {
-    color[i] = parseInt(colorHex.substr(i * 2, 2), 16) / 255;
-  }
-  const lbp = new Float32Array(10);
-  for (let i = 0; i < 10; i++) {
-    lbp[i] = parseInt(lbpHex.substr(i * 2, 2), 16) / 255;
-  }
-  return { phash, color, lbp };
+  if (!s || typeof s !== 'string') return null;
+  if (s.length % 8 !== 0) return null;
+  try {
+    const buf = Buffer.from(s, 'hex');
+    const embedding = new Float32Array(buf.length / 4);
+    for (let i = 0; i < embedding.length; i++) {
+      embedding[i] = buf.readFloatLE(i * 4);
+    }
+    return { embedding };
+  } catch { return null; }
 }
 
-// Combined distance [0,1] — lower = more similar
+// Distance [0,2] — 0 = identical, lower = more similar. Embeddings are
+// L2-normalized so cosine similarity = dot product; distance = 1 - cos.
 function featureDistance(a: ParsedFeature, b: ParsedFeature): number {
-  let xor = a.phash ^ b.phash;
-  let bits = 0;
-  while (xor > 0n) { bits++; xor &= xor - 1n; }
-  const dh = bits / 256;
-  // Color chi-square over 144 spatial-block bins
-  let chiC = 0;
-  for (let i = 0; i < 144; i++) {
-    const x = a.color[i], y = b.color[i];
-    const denom = x + y;
-    if (denom > 0) {
-      const d = x - y;
-      chiC += (d * d) / denom;
-    }
-  }
-  chiC *= 0.5;
-  const dc = Math.min(1, chiC / 2.0);
-  // LBP chi-square over 10 texture bins
-  let chiL = 0;
-  for (let i = 0; i < 10; i++) {
-    const x = a.lbp[i], y = b.lbp[i];
-    const denom = x + y;
-    if (denom > 0) {
-      const d = x - y;
-      chiL += (d * d) / denom;
-    }
-  }
-  chiL *= 0.5;
-  const dl = Math.min(1, chiL / 2.0);
-  // Color dominant, LBP secondary (weave discrimination), DCT as tiebreaker.
-  return 0.25 * dh + 0.5 * dc + 0.25 * dl;
+  const len = Math.min(a.embedding.length, b.embedding.length);
+  let dot = 0;
+  for (let i = 0; i < len; i++) dot += a.embedding[i] * b.embedding[i];
+  return Math.max(0, Math.min(2, 1 - dot));
 }
 
 // ── List Products ──────────────────────────────────────
@@ -1330,7 +1129,7 @@ app.post('/api/products', upload.any(), async (req, res) => {
           }
         }
         await pool.query(
-          'INSERT INTO product_images (product_id, sort_order, cos_key, thumbnail_cos_key, local_path, thumbnail_local_path, feature_vec) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          'INSERT INTO product_images (product_id, sort_order, cos_key, thumbnail_cos_key, local_path, thumbnail_local_path, embedding) VALUES (?, ?, ?, ?, ?, ?, ?)',
           [productId, i, cosKey || '', thumbKey || '', localPath, thumbLocalPath, feature || '']
         );
       }
@@ -1352,7 +1151,7 @@ app.post('/api/products', upload.any(), async (req, res) => {
       local.product_images.push({
         id: imgId, product_id: newId, sort_order: i,
         cos_key: cosKey || '', local_path: cosKey ? '' : file.path,
-        thumbnail_cos_key: '', thumbnail_local_path: '', feature_vec: ''
+        thumbnail_cos_key: '', thumbnail_local_path: '', embedding: ''
       });
     }
     saveLocalDB(local);
@@ -1386,7 +1185,7 @@ app.put('/api/products/:id', upload.any(), async (req, res) => {
         const imgBuf = fs.readFileSync(file.path);
         const feature = await computeFeature(imgBuf);
         await pool.query(
-          'INSERT INTO product_images (product_id, sort_order, cos_key, local_path, feature_vec) VALUES (?, ?, ?, ?, ?)',
+          'INSERT INTO product_images (product_id, sort_order, cos_key, local_path, embedding) VALUES (?, ?, ?, ?, ?)',
           [productId, order++, cosKey || '', cosKey ? '' : file.path, feature || '']
         );
       }
@@ -1416,7 +1215,7 @@ app.put('/api/products/:id', upload.any(), async (req, res) => {
       local.product_images.push({
         id: imgId, product_id: productId, sort_order: order++,
         cos_key: cosKey || '', local_path: cosKey ? '' : file.path,
-        thumbnail_cos_key: '', thumbnail_local_path: '', feature_vec: ''
+        thumbnail_cos_key: '', thumbnail_local_path: '', embedding: ''
       });
     }
     local.products[idx].image_count = local.product_images.filter((i: any) => i.product_id == productId).length;
@@ -1821,7 +1620,7 @@ app.post('/api/products/import', upload.single('file'), async (req, res) => {
           // Insert image records sequentially (correct sort_order)
           for (const r of uploadResults) {
             await pool.query(
-              'INSERT INTO product_images (product_id, sort_order, cos_key, thumbnail_cos_key, local_path, thumbnail_local_path, feature_vec) VALUES (?,?,?,?,?,?,?)',
+              'INSERT INTO product_images (product_id, sort_order, cos_key, thumbnail_cos_key, local_path, thumbnail_local_path, embedding) VALUES (?,?,?,?,?,?,?)',
               [productId, r.i, r.cosKey, r.thumbKey, r.localPath, r.thumbLocalPath, r.feature]
             );
           }
@@ -1864,7 +1663,7 @@ app.post('/api/products/import', upload.single('file'), async (req, res) => {
           local.product_images.push({
             id: maxImgId, product_id: maxProdId, sort_order: i,
             cos_key: '', local_path: localPath,
-            thumbnail_cos_key: '', thumbnail_local_path: '', feature_vec: ''
+            thumbnail_cos_key: '', thumbnail_local_path: '', embedding: ''
           });
         }
         importedCount++;
@@ -1896,12 +1695,12 @@ app.post('/api/products/search/similar', upload.single('file'), async (req, res)
     if (!useMySQLFallback) {
       const pool = await getMySQLPool();
       const [rows] = await pool.query<RowDataPacket[]>(
-        `SELECT pi.id as image_id, pi.product_id, pi.feature_vec, p.item_no, p.product_name
+        `SELECT pi.id as image_id, pi.product_id, pi.embedding, p.item_no, p.product_name
          FROM product_images pi JOIN products p ON pi.product_id = p.id
-         WHERE pi.feature_vec IS NOT NULL AND pi.feature_vec != ''`
+         WHERE pi.embedding IS NOT NULL AND pi.embedding != ''`
       );
       for (const row of rows) {
-        const feat = parseFeature(row.feature_vec);
+        const feat = parseFeature(row.embedding);
         if (!feat) continue;
         const score = featureDistance(queryFeat, feat);
         if (score <= 0.5) {
@@ -1914,8 +1713,8 @@ app.post('/api/products/search/similar', upload.single('file'), async (req, res)
     } else {
       const local = loadLocalDB();
       for (const img of local.product_images) {
-        if (!img.feature_vec) continue;
-        const feat = parseFeature(img.feature_vec);
+        if (!img.embedding) continue;
+        const feat = parseFeature(img.embedding);
         if (!feat) continue;
         const score = featureDistance(queryFeat, feat);
         if (score <= 0.5) {
@@ -1964,27 +1763,27 @@ app.post('/api/admin/rebuild-features', async (req, res) => {
 
     if (!useMySQLFallback) {
       const pool = await getMySQLPool();
-      const where = onlyMissing ? `WHERE feature_vec IS NULL OR feature_vec = ''` : '';
-      const [rows] = await pool.query<RowDataPacket[]>(`SELECT id, cos_key, local_path, feature_vec FROM product_images ${where}`);
+      const where = onlyMissing ? `WHERE embedding IS NULL OR embedding = ''` : '';
+      const [rows] = await pool.query<RowDataPacket[]>(`SELECT id, cos_key, local_path, embedding FROM product_images ${where}`);
       for (const row of rows) {
         processed++;
         const buf = await readImageBuffer(row);
         if (!buf) { failed++; continue; }
         const feature = await computeFeature(buf);
         if (!feature) { failed++; continue; }
-        await pool.query('UPDATE product_images SET feature_vec = ? WHERE id = ?', [feature, row.id]);
+        await pool.query('UPDATE product_images SET embedding = ? WHERE id = ?', [feature, row.id]);
         updated++;
       }
     } else {
       const local = loadLocalDB();
       for (const img of local.product_images) {
-        if (onlyMissing && img.feature_vec) continue;
+        if (onlyMissing && img.embedding) continue;
         processed++;
         const buf = await readImageBuffer(img);
         if (!buf) { failed++; continue; }
         const feature = await computeFeature(buf);
         if (!feature) { failed++; continue; }
-        img.feature_vec = feature;
+        img.embedding = feature;
         updated++;
       }
       saveLocalDB(local);
