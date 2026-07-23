@@ -1322,8 +1322,8 @@ app.post('/api/products/import', upload.single('file'), async (req, res) => {
         const colIdx = img.range?.tl?.nativeCol ?? img.range?.tl?.col ?? 0;
         console.log('[Import] Image at nativeRow:', nativeRow, 'row:', row, 'rowIdx:', rowIdx, 'col:', colIdx);
         const mediaIdx = img.imageId;
-        if (workbook.model.media && workbook.model.media[mediaIdx - 1]) {
-          const media = workbook.model.media[mediaIdx - 1];
+        if (workbook.model.media && workbook.model.media[mediaIdx]) {
+          const media = workbook.model.media[mediaIdx];
           const buf = Buffer.from(media.buffer || '');
           console.log('[Import] Image buffer size:', buf.length);
           if (!imageMap.has(rowIdx)) imageMap.set(rowIdx, []);
