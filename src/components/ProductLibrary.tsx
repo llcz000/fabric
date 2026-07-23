@@ -686,9 +686,9 @@ export default function ProductLibrary() {
             >
               <Image className={`w-6 h-6 mx-auto mb-1 ${dragOver ? 'text-sky-400' : 'text-slate-300'}`} />
               <span className={`text-xs ${dragOver ? 'text-sky-500' : 'text-slate-400'}`}>
-                {dragOver ? '释放以上传图片' : '点击或拖拽上传花型图片（可多选）'}
+                {dragOver ? '释放以上传图片' : '点击或拖拽上传花型图片（可多次添加）'}
               </span>
-              <input type="file" accept="image/*" multiple className="sr-only" ref={fileInputRef} onChange={handleSelectImage} />
+              <input type="file" accept="image/*" className="sr-only" ref={fileInputRef} onChange={handleSelectImage} />
             </div>
 
             {/* Pending files preview */}
