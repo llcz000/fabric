@@ -148,6 +148,7 @@ export default function ProductLibrary() {
   const [toast, setToast] = useState<string | null>(null);
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [dragOver, setDragOver] = useState(false);
 
   // ── Load products ──────────────────────────────────
 
@@ -330,6 +331,15 @@ export default function ProductLibrary() {
     const newFiles = Array.from(e.target.files).map(f => ({ file: f, url: URL.createObjectURL(f) }));
     setPendingFiles(prev => [...prev, ...newFiles]);
     e.target.value = '';
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const newFiles = Array.from(e.dataTransfer.files).map(f => ({ file: f, url: URL.createObjectURL(f) }));
+      setPendingFiles(prev => [...prev, ...newFiles]);
+    }
   };
 
   const removePendingFile = (index: number) => {
@@ -637,9 +647,16 @@ export default function ProductLibrary() {
             )}
 
             {/* Add images */}
-            <label className="block border-2 border-dashed border-slate-200 rounded-xl p-6 text-center cursor-pointer hover:border-sky-300 transition-colors">
-              <Image className="w-6 h-6 text-slate-300 mx-auto mb-1" />
-              <span className="text-xs text-slate-400">点击或拖拽上传花型图片（可多选）</span>
+            <label
+              className={`block border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors ${dragOver ? 'border-sky-400 bg-sky-50' : 'border-slate-200 hover:border-sky-300'}`}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={handleDrop}
+            >
+              <Image className={`w-6 h-6 mx-auto mb-1 ${dragOver ? 'text-sky-400' : 'text-slate-300'}`} />
+              <span className={`text-xs ${dragOver ? 'text-sky-500' : 'text-slate-400'}`}>
+                {dragOver ? '释放以上传图片' : '点击或拖拽上传花型图片（可多选）'}
+              </span>
               <input type="file" accept="image/*" multiple className="hidden" ref={fileInputRef} onChange={handleSelectImage} />
             </label>
 
