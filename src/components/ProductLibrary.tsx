@@ -295,7 +295,10 @@ export default function ProductLibrary() {
       for (const pf of [...pendingFiles]) {
         formData.append('image_files', pf.file, pf.file.name);
       }
-      const syncRes = await authFetch('/api/products', { method: 'POST', body: formData });
+      const isEdit = /^\d+$/.test(p.id) && products.some(x => x.id === p.id);
+      const url = isEdit ? `/api/products/${p.id}` : '/api/products';
+      const method = isEdit ? 'PUT' : 'POST';
+      const syncRes = await authFetch(url, { method, body: formData });
       if (!syncRes.ok) throw new Error('服务器保存失败');
 
       showToast('产品已保存');
