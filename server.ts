@@ -915,6 +915,28 @@ async function generateThumbnail(buffer: Buffer): Promise<Buffer | null> {
   } catch { return null; }
 }
 
+async function computePHash(buffer: Buffer): Promise<string | null> {
+  try {
+    const { data, info } = await sharp(buffer)
+      .resize(9, 8, { fit: 'fill' })
+      .grayscale()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const pixels = new Uint8Array(data);
+    // dHash: compare each pixel with its right neighbor
+    let hash = 0n;
+    for (let y = 0; y < 8; y++) {
+      for (let x = 0; x < 8; x++) {
+        hash = hash << 1n;
+        if (pixels[y * 9 + x] < pixels[y * 9 + x + 1]) {
+          hash |= 1n;
+        }
+      }
+    }
+    return hash.toString(16).padStart(16, '0');
+  } catch { return null; }
+}
+
 // ── List Products ──────────────────────────────────────
 app.get('/api/products', async (req, res) => {
   try {
@@ -1034,6 +1056,7 @@ app.post('/api/products', upload.any(), async (req, res) => {
         const imgBuf = fs.readFileSync(file.path);
         const thumbBuf = await generateThumbnail(imgBuf);
         const thumbKey = (cosKey && thumbBuf) ? await uploadBufferToCOS(thumbBuf, `product_thumb_${Date.now()}_${i}.jpg`) : '';
+        const phash = await computePHash(imgBuf);
         // Also save locally for fallback
         let localPath = '';
         let thumbLocalPath = '';
@@ -1048,8 +1071,8 @@ app.post('/api/products', upload.any(), async (req, res) => {
           }
         }
         await pool.query(
-          'INSERT INTO product_images (product_id, sort_order, cos_key, thumbnail_cos_key, local_path, thumbnail_local_path) VALUES (?, ?, ?, ?, ?, ?)',
-          [productId, i, cosKey || '', thumbKey || '', localPath, thumbLocalPath]
+          'INSERT INTO product_images (product_id, sort_order, cos_key, thumbnail_cos_key, local_path, thumbnail_local_path, phash) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          [productId, i, cosKey || '', thumbKey || '', localPath, thumbLocalPath, phash || '']
         );
       }
       return res.json({ id: productId, success: true });
@@ -1101,9 +1124,11 @@ app.put('/api/products/:id', upload.any(), async (req, res) => {
 
       for (const file of files) {
         const cosKey = await uploadToCOS(file);
+        const imgBuf = fs.readFileSync(file.path);
+        const phash = await computePHash(imgBuf);
         await pool.query(
-          'INSERT INTO product_images (product_id, sort_order, cos_key, local_path) VALUES (?, ?, ?, ?)',
-          [productId, order++, cosKey || '', cosKey ? '' : file.path]
+          'INSERT INTO product_images (product_id, sort_order, cos_key, local_path, phash) VALUES (?, ?, ?, ?, ?)',
+          [productId, order++, cosKey || '', cosKey ? '' : file.path, phash || '']
         );
       }
 
@@ -1507,6 +1532,7 @@ app.post('/api/products/import', upload.single('file'), async (req, res) => {
               // Generate and upload thumbnail
               const thumbBuf = await generateThumbnail(img.buffer);
               const thumbKey = thumbBuf ? await uploadBufferToCOS(thumbBuf, `product_import_thumb_${Date.now()}_${i}.jpg`) : '';
+              const phash = await computePHash(img.buffer);
               let localPath = '';
               let thumbLocalPath = '';
               if (!cosKey) {
@@ -1519,14 +1545,14 @@ app.post('/api/products/import', upload.single('file'), async (req, res) => {
                   fs.writeFileSync(thumbLocalPath, thumbBuf);
                 }
               }
-              return { i, cosKey: cosKey || '', localPath, thumbKey: thumbKey || '', thumbLocalPath };
+              return { i, cosKey: cosKey || '', localPath, thumbKey: thumbKey || '', thumbLocalPath, phash: phash || '' };
             })
           );
           // Insert image records sequentially (correct sort_order)
           for (const r of uploadResults) {
             await pool.query(
-              'INSERT INTO product_images (product_id, sort_order, cos_key, thumbnail_cos_key, local_path, thumbnail_local_path) VALUES (?,?,?,?,?,?)',
-              [productId, r.i, r.cosKey, r.thumbKey, r.localPath, r.thumbLocalPath]
+              'INSERT INTO product_images (product_id, sort_order, cos_key, thumbnail_cos_key, local_path, thumbnail_local_path, phash) VALUES (?,?,?,?,?,?,?)',
+              [productId, r.i, r.cosKey, r.thumbKey, r.localPath, r.thumbLocalPath, r.phash]
             );
           }
           importedCount++;
@@ -1587,27 +1613,66 @@ app.post('/api/products/import', upload.single('file'), async (req, res) => {
 app.post('/api/products/search/similar', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-    // Compute pHash server-side is complex without canvas.
-    // For server-side, use a simple average hash approach with sharp or jimp.
-    // For now, return all products with images (client will do client-side comparison).
-    // TODO: implement server-side pHash computation
 
-    // Return products that have images, so client can compute hash and compare
+    // Compute pHash of query image
+    const queryBuf = fs.readFileSync(req.file.path);
+    const queryHash = await computePHash(queryBuf);
+    if (!queryHash) return res.status(400).json({ error: 'Could not compute image hash' });
+
+    // Get all stored image hashes and compare
+    let results: { productId: number; imageId: number; itemNo: string; productName: string; distance: number }[] = [];
+
     if (!useMySQLFallback) {
       const pool = await getMySQLPool();
       const [rows] = await pool.query<RowDataPacket[]>(
-        'SELECT p.id, p.item_no, p.product_name FROM products p INNER JOIN product_images pi ON pi.product_id = p.id GROUP BY p.id'
+        `SELECT pi.id as image_id, pi.product_id, pi.phash, p.item_no, p.product_name
+         FROM product_images pi JOIN products p ON pi.product_id = p.id
+         WHERE pi.phash IS NOT NULL AND pi.phash != ''`
       );
-      return res.json({ results: rows.map((r: any) => ({ productId: r.id, itemNo: r.item_no, productName: r.product_name })) });
+      for (const row of rows) {
+        const dist = hammingDist(queryHash, row.phash);
+        if (dist <= 20) {
+          results.push({
+            productId: row.product_id, imageId: row.image_id,
+            itemNo: row.item_no, productName: row.product_name, distance: dist,
+          });
+        }
+      }
+    } else {
+      const local = loadLocalDB();
+      for (const img of local.product_images) {
+        if (!img.phash) continue;
+        const dist = hammingDist(queryHash, img.phash);
+        if (dist <= 20) {
+          const prod = local.products.find((p: any) => p.id == img.product_id);
+          results.push({
+            productId: img.product_id, imageId: img.id,
+            itemNo: prod?.item_no || '', productName: prod?.product_name || '', distance: dist,
+          });
+        }
+      }
     }
-    const local = loadLocalDB();
-    const productIds = new Set(local.product_images.map((i: any) => i.product_id));
-    const products = local.products.filter((p: any) => productIds.has(p.id));
-    res.json({ results: products.map((p: any) => ({ productId: p.id, itemNo: p.item_no, productName: p.product_name })) });
+
+    // Sort by similarity (ascending distance) and deduplicate by productId
+    results.sort((a, b) => a.distance - b.distance);
+    const seen = new Set<number>();
+    results = results.filter(r => { const dup = seen.has(r.productId); seen.add(r.productId); return !dup; });
+
+    res.json({ results: results.slice(0, 50) });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
 });
+
+// Hamming distance between two hex hash strings
+function hammingDist(h1: string, h2: string): number {
+  const a = BigInt('0x' + h1);
+  const b = BigInt('0x' + h2);
+  let xor = a ^ b;
+  let count = 0;
+  while (xor > 0n) { count++; xor &= xor - 1n; }
+  return count;
+}
 
 // ── COS Upload Helpers ─────────────────────────────────
 async function uploadToCOS(file: Express.Multer.File): Promise<string | null> {
