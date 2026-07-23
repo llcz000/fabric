@@ -1314,18 +1314,26 @@ app.post('/api/products/import', upload.single('file'), async (req, res) => {
     const imageMap = new Map<number, { buffer: Buffer; col: number }[]>();
     if ((worksheet as any).getImages) {
       const wsImages = (worksheet as any).getImages();
+      console.log('[Import] Found', wsImages.length, 'images in worksheet');
       for (const img of wsImages) {
-        const rowIdx = img.range?.tl?.nativeRow ?? img.range?.tl?.row ?? 0;
+        const nativeRow = img.range?.tl?.nativeRow;
+        const row = img.range?.tl?.row;
+        const rowIdx = nativeRow ?? row ?? 0;
         const colIdx = img.range?.tl?.nativeCol ?? img.range?.tl?.col ?? 0;
-        // Get image data from workbook media
+        console.log('[Import] Image at nativeRow:', nativeRow, 'row:', row, 'rowIdx:', rowIdx, 'col:', colIdx);
         const mediaIdx = img.imageId;
         if (workbook.model.media && workbook.model.media[mediaIdx - 1]) {
           const media = workbook.model.media[mediaIdx - 1];
           const buf = Buffer.from(media.buffer || '');
+          console.log('[Import] Image buffer size:', buf.length);
           if (!imageMap.has(rowIdx)) imageMap.set(rowIdx, []);
           imageMap.get(rowIdx)!.push({ buffer: buf, col: colIdx });
+        } else {
+          console.log('[Import] No media found for imageId:', mediaIdx);
         }
       }
+    } else {
+      console.log('[Import] getImages not available on worksheet');
     }
 
     const now = toMySQLDateTime(new Date().toISOString());
@@ -1344,6 +1352,7 @@ app.post('/api/products/import', upload.single('file'), async (req, res) => {
         const weight = String(row.getCell(4).value || '').trim();
         const width = String(row.getCell(5).value || '').trim();
         const rowImgs = imageMap.get(rowNumber - 1) || [];
+        console.log('[Import] Row', rowNumber, 'itemNo:', itemNo, 'images:', rowImgs.length);
 
         rowPromises.push((async () => {
           try {
