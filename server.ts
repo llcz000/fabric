@@ -1393,7 +1393,8 @@ app.post('/api/products/import', upload.single('file'), async (req, res) => {
         if (workbook.model.media && workbook.model.media[mediaIdx]) {
           const media = workbook.model.media[mediaIdx];
           const buf = Buffer.from(media.buffer || '');
-          console.log('[Import] Image buffer size:', buf.length);
+          const sig = buf.slice(0, 4).toString('hex');
+          console.log('[Import] Image mediaIdx:', mediaIdx, 'nativeRow:', nativeRow, 'size:', buf.length, 'sig:', sig);
           if (!imageMap.has(rowIdx)) imageMap.set(rowIdx, []);
           imageMap.get(rowIdx)!.push({ buffer: buf, col: colIdx });
         } else {
@@ -1419,6 +1420,8 @@ app.post('/api/products/import', upload.single('file'), async (req, res) => {
         const weight = String(row.getCell(4).value || '').trim();
         const width = String(row.getCell(5).value || '').trim();
         const rowImgs = imageMap.get(rowNumber - 1) || [];
+        console.log('[Import] Row', rowNumber, 'itemNo:', itemNo || '(空)', 'imgCount:', rowImgs.length,
+          'sigs:', rowImgs.map((b: any) => b.buffer.slice(0, 4).toString('hex')).join(','));
 
         const hasData = itemNo || productName || rowImgs.length > 0;
         if (!hasData) return;
