@@ -200,6 +200,13 @@ export default function ProductLibrary() {
               }
             }
           }
+          // Reverse sync: remove local products no longer on server
+          const serverItemNos = new Set(serverProducts.map((sp: any) => sp.item_no || sp.itemNo));
+          for (const lp of list) {
+            if (!serverItemNos.has(lp.itemNo)) {
+              await deleteProduct(lp.id);
+            }
+          }
           // Reload after sync if new products were added
           const updated = await getAllProducts();
           updated.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
