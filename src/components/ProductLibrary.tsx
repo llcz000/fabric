@@ -155,9 +155,51 @@ export default function ProductLibrary() {
   const loadProducts = useCallback(async () => {
     setLoading(true);
     try {
+      // Load from local IndexedDB first
       const list = await getAllProducts();
       list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
       setProducts(list);
+
+      // Sync from server (best-effort, fills gaps on new devices)
+      try {
+        const serverRes = await authFetch('/api/products');
+        if (serverRes.ok) {
+          const serverProducts = await serverRes.json();
+          for (const sp of serverProducts) {
+            const serverId = String(sp.id);
+            if (!list.find(p => p.id === serverId)) {
+              await putProduct({
+                id: serverId, itemNo: sp.item_no || sp.itemNo,
+                productName: sp.product_name || sp.productName,
+                composition: sp.composition || '', weight: sp.weight || '',
+                width: sp.width || '', imageCount: sp.image_count || sp.images?.length || 0,
+                createdAt: sp.created_at || new Date().toISOString(),
+                updatedAt: sp.updated_at || new Date().toISOString(),
+              });
+              // Download thumbnails for new products
+              if ((sp.images || []).length > 0) {
+                try {
+                  const batchRes = await authFetch(`/api/products/${serverId}/thumbnails`);
+                  if (batchRes.ok) {
+                    const { images: batchImages } = await batchRes.json();
+                    for (const bi of batchImages || []) {
+                      const byteChars = atob(bi.base64);
+                      const bytes = new Uint8Array(byteChars.length);
+                      for (let j = 0; j < byteChars.length; j++) bytes[j] = byteChars.charCodeAt(j);
+                      const blob = new Blob([bytes], { type: 'image/jpeg' });
+                      await addProductImage(serverId, bi.sort_order || 0, blob, blob);
+                    }
+                  }
+                } catch { }
+              }
+            }
+          }
+          // Reload after sync if new products were added
+          const updated = await getAllProducts();
+          updated.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+          if (updated.length !== list.length) setProducts(updated);
+        }
+      } catch { /* server sync best-effort */ }
     } catch (e: any) {
       console.error('Load products failed:', e);
     } finally {
