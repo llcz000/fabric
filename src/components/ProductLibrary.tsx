@@ -307,53 +307,52 @@ export default function ProductLibrary() {
       if (!p.createdAt) p.createdAt = nowISO();
       await putProduct(p);
 
-      // Sync to server
-      try {
-        const formData = new FormData();
-        formData.append('itemNo', p.itemNo);
-        formData.append('productName', p.productName);
-        formData.append('composition', p.composition);
-        formData.append('weight', p.weight);
-        formData.append('width', p.width);
-        for (const pf of pendingFiles) {
-          formData.append('image_files', pf.file, pf.file.name);
-        }
-        const existingId = products.find(x => x.id === p.id);
-        const method = existingId ? 'PUT' : 'POST';
-        const url = existingId ? `/api/products/${p.id}` : '/api/products';
-        const syncRes = await authFetch(url, { method, body: formData });
-        if (syncRes.ok) {
-          const syncData = await syncRes.json().catch(() => ({}));
-          // For new products, update local ID to match server ID to avoid duplicates
-          if (!existingId && syncData.id) {
-            const serverId = String(syncData.id);
-            // Migrate images from old client-ID before deleting it
-            const imgs = await getImages(p.id).catch(() => []);
-            const migrated: { order: number; thumbnail: Blob; full: Blob }[] = [];
-            for (const img of imgs) {
-              const full = await getFullImage(img.id).catch(() => null);
-              if (full) migrated.push({ order: img.order, thumbnail: img.thumbnail, full });
-            }
-            // Delete old client-ID record
-            await deleteProduct(p.id);
-            // Re-save with server ID
-            await putProduct({ ...p, id: serverId });
-            for (const m of migrated) {
-              await addProductImage(serverId, m.order, m.thumbnail, m.full);
-            }
-          }
-        }
-      } catch (e: any) {
-        console.error('[sync] exception:', e.message || e);
-      }
-
       showToast('产品已保存');
       setEditModal(false);
+      setPendingFiles([]);
+
+      // Server sync and ID migration (best-effort, don't block UI)
+      const files = [...pendingFiles];
+      syncToServer(p, files).catch(e => console.error('[sync]', e.message));
+
       await loadProducts();
     } catch (e: any) {
       showToast('保存失败: ' + (e.message || '未知错误'));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const syncToServer = async (p: ProductItem, files: { file: File; url: string }[]) => {
+    const formData = new FormData();
+    formData.append('itemNo', p.itemNo);
+    formData.append('productName', p.productName);
+    formData.append('composition', p.composition);
+    formData.append('weight', p.weight);
+    formData.append('width', p.width);
+    for (const pf of files) {
+      formData.append('image_files', pf.file, pf.file.name);
+    }
+    const existingId = products.find(x => x.id === p.id);
+    const method = existingId ? 'PUT' : 'POST';
+    const url = existingId ? `/api/products/${p.id}` : '/api/products';
+    const syncRes = await authFetch(url, { method, body: formData });
+    if (syncRes.ok) {
+      const syncData = await syncRes.json().catch(() => ({}));
+      if (!existingId && syncData.id) {
+        const serverId = String(syncData.id);
+        const imgs = await getImages(p.id).catch(() => []);
+        const migrated: { order: number; thumbnail: Blob; full: Blob }[] = [];
+        for (const img of imgs) {
+          const full = await getFullImage(img.id).catch(() => null);
+          if (full) migrated.push({ order: img.order, thumbnail: img.thumbnail, full });
+        }
+        await deleteProduct(p.id);
+        await putProduct({ ...p, id: serverId });
+        for (const m of migrated) {
+          await addProductImage(serverId, m.order, m.thumbnail, m.full);
+        }
+      }
     }
   };
 
