@@ -949,6 +949,62 @@ async function getExtractor(): Promise<any> {
   return _extractorPromise;
 }
 
+async function extractHsvHistogram(buffer: Buffer): Promise<Float32Array> {
+  const { data, info } = await sharp(buffer)
+    .resize(180, 180, { fit: 'fill' })
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const numPixels = info.width * info.height;
+  const hsvBins = new Float32Array(64);
+
+  // V-channel equalization (suppresses lighting variance)
+  const vValues = new Uint8Array(numPixels);
+  for (let i = 0; i < numPixels; i++) {
+    vValues[i] = Math.max(data[i * 3], data[i * 3 + 1], data[i * 3 + 2]);
+  }
+  const vHist = new Int32Array(256);
+  for (let i = 0; i < numPixels; i++) vHist[vValues[i]]++;
+  const vCDF = new Int32Array(256);
+  let acc = 0;
+  for (let i = 0; i < 256; i++) vCDF[i] = (acc += vHist[i]);
+  const minCDF = vCDF.find(v => v > 0) ?? 0;
+  const denom = numPixels - minCDF || 1;
+
+  // 2D H-S histogram: 16 hue bins * 4 saturation bins = 64 dims
+  for (let i = 0; i < numPixels; i++) {
+    // Equalized Value channel
+    const vEqualized = Math.min(255, Math.max(0, Math.round(((vCDF[vValues[i]] - minCDF) / denom) * 255)));
+    const scale = vValues[i] > 0 ? vEqualized / vValues[i] : 0;
+
+    // Scale original RGB to equalized Value
+    const r = Math.min(255, data[i * 3] * scale) / 255;
+    const g = Math.min(255, data[i * 3 + 1] * scale) / 255;
+    const b = Math.min(255, data[i * 3 + 2] * scale) / 255;
+
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const delta = max - min;
+    let h = 0;
+    if (delta > 0) {
+      if (max === r) h = ((g - b) / delta) % 6;
+      else if (max === g) h = (b - r) / delta + 2;
+      else h = (r - g) / delta + 4;
+      h *= 60; if (h < 0) h += 360;
+    }
+    const s = max === 0 ? 0 : delta / max;
+    const hBin = Math.min(15, Math.floor(h / (360 / 16)));
+    const sBin = Math.min(3, Math.floor(s / 0.25));
+    hsvBins[hBin * 4 + sBin]++;
+  }
+
+  const sum = hsvBins.reduce((a, v) => a + v, 0);
+  if (sum > 0) {
+    for (let i = 0; i < 64; i++) hsvBins[i] /= sum;
+  }
+  return hsvBins;
+}
+
 async function computeFeature(buffer: Buffer): Promise<string | null> {
   try {
     const extractor = await getExtractor();
@@ -969,7 +1025,15 @@ async function computeFeature(buffer: Buffer): Promise<string | null> {
     norm = Math.sqrt(norm) || 1;
     const buf = Buffer.alloc(len * 4);
     for (let i = 0; i < len; i++) buf.writeFloatLE(data[i] / norm, i * 4);
-    return buf.toString('hex');
+    const clipHex = buf.toString('hex');
+
+    // Extract HSV Histogram
+    const hsvFeature = await extractHsvHistogram(buffer);
+    const hsvBuf = Buffer.alloc(64 * 4);
+    for (let i = 0; i < 64; i++) hsvBuf.writeFloatLE(hsvFeature[i], i * 4);
+    const hsvHex = hsvBuf.toString('hex');
+
+    return clipHex + '|' + hsvHex;
   } catch (e: any) {
     console.error('[computeFeature]', e?.message || e);
     return null;
@@ -978,28 +1042,67 @@ async function computeFeature(buffer: Buffer): Promise<string | null> {
 
 interface ParsedFeature {
   embedding: Float32Array;
+  hsv?: Float32Array;
 }
 
 function parseFeature(s: string): ParsedFeature | null {
   if (!s || typeof s !== 'string') return null;
-  if (s.length % 8 !== 0) return null;
   try {
-    const buf = Buffer.from(s, 'hex');
-    const embedding = new Float32Array(buf.length / 4);
-    for (let i = 0; i < embedding.length; i++) {
-      embedding[i] = buf.readFloatLE(i * 4);
+    const pipeIdx = s.indexOf('|');
+    if (pipeIdx !== -1) {
+      // New format: CLIP|HSV
+      const clipHex = s.slice(0, pipeIdx);
+      const hsvHex = s.slice(pipeIdx + 1);
+
+      const clipBuf = Buffer.from(clipHex, 'hex');
+      const embedding = new Float32Array(clipBuf.length / 4);
+      for (let i = 0; i < embedding.length; i++) {
+        embedding[i] = clipBuf.readFloatLE(i * 4);
+      }
+
+      const hsvBuf = Buffer.from(hsvHex, 'hex');
+      const hsv = new Float32Array(hsvBuf.length / 4);
+      for (let i = 0; i < hsv.length; i++) {
+        hsv[i] = hsvBuf.readFloatLE(i * 4);
+      }
+
+      return { embedding, hsv };
+    } else {
+      // Old format: pure CLIP (hex length must be divisible by 8)
+      if (s.length % 8 !== 0) return null;
+      const buf = Buffer.from(s, 'hex');
+      const embedding = new Float32Array(buf.length / 4);
+      for (let i = 0; i < embedding.length; i++) {
+        embedding[i] = buf.readFloatLE(i * 4);
+      }
+      return { embedding };
     }
-    return { embedding };
   } catch { return null; }
 }
 
-// Distance [0,2] — 0 = identical, lower = more similar. Embeddings are
+// Distance [0,1] — 0 = identical, lower = more similar. Embeddings are
 // L2-normalized so cosine similarity = dot product; distance = 1 - cos.
+// Fused score includes HSV Chi-Square distance with 0.3/0.7 weight.
 function featureDistance(a: ParsedFeature, b: ParsedFeature): number {
   const len = Math.min(a.embedding.length, b.embedding.length);
   let dot = 0;
   for (let i = 0; i < len; i++) dot += a.embedding[i] * b.embedding[i];
-  return Math.max(0, Math.min(2, 1 - dot));
+  const clipDist = Math.max(0, Math.min(1, 1 - dot));
+
+  if (a.hsv && b.hsv) {
+    let chiSq = 0;
+    const hsvLen = Math.min(a.hsv.length, b.hsv.length);
+    for (let i = 0; i < hsvLen; i++) {
+      const sum = a.hsv[i] + b.hsv[i];
+      if (sum > 1e-9) {
+        chiSq += ((a.hsv[i] - b.hsv[i]) * (a.hsv[i] - b.hsv[i])) / sum;
+      }
+    }
+    const hsvDist = Math.min(1, 0.5 * chiSq);
+    return 0.3 * clipDist + 0.7 * hsvDist;
+  }
+
+  return clipDist;
 }
 
 // ── List Products ──────────────────────────────────────
