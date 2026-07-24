@@ -916,37 +916,71 @@ async function generateThumbnail(buffer: Buffer): Promise<Buffer | null> {
   } catch { return null; }
 }
 
-// ==================== Image Feature Extraction (CLIP) ====================
-// Uses CLIP ViT-Base-Patch32 (via @xenova/transformers) to produce a 512-dim
-// image embedding for semantic similarity search. CLIP was trained on
-// 400M image-text pairs, so it learned fabric/weave/print semantics that
-// hand-crafted features (dHash, HSV histogram, LBP) cannot capture.
-// Embeddings are L2-normalized so cosine similarity = dot product. Stored as
-// hex (8 chars per float32 LE) in the `embedding` column.
+// ==================== Image Feature Extraction (Color Correlogram) ====================
+// Uses Color Auto-Correlogram to capture both color distribution AND spatial
+// correlation structure of fabric prints. Unlike CLIP (which is too generic
+// for fine-grained fabric discrimination) or global HSV histograms (which
+// lose all spatial information), the correlogram measures the probability
+// that pixels of the same color appear at specific distances from each other.
+// This directly encodes the fabric's pattern/texture layout.
+// Feature: 256-dim (64 quantized colors × 4 distances), L2-normalized.
+// Stored as hex (8 chars per float32 LE) in the `embedding` column,
+// with optional HSV appended: "correlogram|hsv".
 
-let _extractorPromise: Promise<any> | null = null;
-async function getExtractor(): Promise<any> {
-  if (!_extractorPromise) {
-    const cacheDir = path.join(process.cwd(), '.transformers_cache');
-    fs.mkdirSync(cacheDir, { recursive: true });
-    // Dynamic import via a variable so TypeScript doesn't try to statically
-    // resolve the (not-yet-installed) module.
-    const moduleName = '@xenova/transformers';
-    const mod: any = await import(moduleName);
-    const env = mod.env;
-    env.cacheDir = cacheDir;
-    env.allowRemoteModels = true;
-    env.allowLocalModels = false;
-    // Use the Chinese mirror for HuggingFace — the remote host cannot reach
-    // huggingface.co directly. hf-mirror.com mirrors the HF API and asset CDN.
-    if (process.env.HF_REMOTE_HOST) {
-      env.remoteHost = process.env.HF_REMOTE_HOST;
-    } else {
-      env.remoteHost = 'https://hf-mirror.com';
-    }
-    _extractorPromise = mod.pipeline('image-feature-extraction', 'Xenova/clip-vit-base-patch32');
+async function extractColorCorrelogram(buffer: Buffer): Promise<Float32Array> {
+  const { data, info } = await sharp(buffer)
+    .resize(128, 128, { fit: 'fill' })
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  const W = info.width, H = info.height, N = W * H;
+
+  // Quantize RGB to 64 colors (4×4×4)
+  const colorIdx = new Uint8Array(N);
+  for (let i = 0; i < N; i++) {
+    const r = Math.min(3, data[i * 3] >> 6);
+    const g = Math.min(3, data[i * 3 + 1] >> 6);
+    const b = Math.min(3, data[i * 3 + 2] >> 6);
+    colorIdx[i] = (r << 4) | (g << 2) | b;
   }
-  return _extractorPromise;
+
+  // Distances and 4 directions
+  const distances = [1, 3, 5, 7];
+  const dirs: [number, number][] = [[1, 0], [1, 1], [0, 1], [-1, 1]];
+  const feature = new Float32Array(64 * distances.length); // 256 dims
+  const colorCounts = new Int32Array(64);
+
+  for (let i = 0; i < N; i++) {
+    const c = colorIdx[i];
+    colorCounts[c]++;
+    const x = i % W, y = Math.floor(i / W);
+    for (let di = 0; di < distances.length; di++) {
+      const k = distances[di];
+      for (const [dx, dy] of dirs) {
+        const nx = x + dx * k, ny = y + dy * k;
+        if (nx >= 0 && nx < W && ny >= 0 && ny < H && colorIdx[ny * W + nx] === c) {
+          feature[c * distances.length + di]++;
+        }
+      }
+    }
+  }
+
+  // Normalize: divide by (color_count × 4_directions)
+  for (let c = 0; c < 64; c++) {
+    if (colorCounts[c] > 0) {
+      const norm = colorCounts[c] * 4;
+      for (let d = 0; d < distances.length; d++) feature[c * distances.length + d] /= norm;
+    }
+  }
+
+  // L2 normalize
+  let norm = 0;
+  for (let i = 0; i < feature.length; i++) norm += feature[i] * feature[i];
+  norm = Math.sqrt(norm) || 1;
+  for (let i = 0; i < feature.length; i++) feature[i] /= norm;
+
+  return feature;
 }
 
 async function extractHsvHistogram(buffer: Buffer): Promise<Float32Array> {
@@ -1007,33 +1041,19 @@ async function extractHsvHistogram(buffer: Buffer): Promise<Float32Array> {
 
 async function computeFeature(buffer: Buffer): Promise<string | null> {
   try {
-    const extractor = await getExtractor();
-    // transformers.js accepts a file path / URL / RawImage. Write to temp file.
-    const tempPath = path.join(UPLOADS_DIR, `_embed_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
-    fs.writeFileSync(tempPath, buffer);
-    let output: any;
-    try {
-      output = await extractor(tempPath, { pooling: 'mean', normalize: true });
-    } finally {
-      try { fs.unlinkSync(tempPath); } catch {}
-    }
-    const data = output.data as Float32Array | number[];
-    const len = data.length;
-    // L2-normalize (defensive — pipeline {normalize:true} should already do it)
-    let norm = 0;
-    for (let i = 0; i < len; i++) norm += data[i] * data[i];
-    norm = Math.sqrt(norm) || 1;
-    const buf = Buffer.alloc(len * 4);
-    for (let i = 0; i < len; i++) buf.writeFloatLE(data[i] / norm, i * 4);
-    const clipHex = buf.toString('hex');
+    // Color Correlogram (primary feature)
+    const corrFeature = await extractColorCorrelogram(buffer);
+    const corrBuf = Buffer.alloc(256 * 4);
+    for (let i = 0; i < 256; i++) corrBuf.writeFloatLE(corrFeature[i], i * 4);
+    const corrHex = corrBuf.toString('hex');
 
-    // Extract HSV Histogram
+    // HSV Histogram (auxiliary, stored for potential hybrid use)
     const hsvFeature = await extractHsvHistogram(buffer);
     const hsvBuf = Buffer.alloc(64 * 4);
     for (let i = 0; i < 64; i++) hsvBuf.writeFloatLE(hsvFeature[i], i * 4);
     const hsvHex = hsvBuf.toString('hex');
 
-    return clipHex + '|' + hsvHex;
+    return corrHex + '|' + hsvHex;
   } catch (e: any) {
     console.error('[computeFeature]', e?.message || e);
     return null;
@@ -1043,6 +1063,7 @@ async function computeFeature(buffer: Buffer): Promise<string | null> {
 interface ParsedFeature {
   embedding: Float32Array;
   hsv?: Float32Array;
+  type: 'correlogram' | 'clip' | 'unknown';
 }
 
 function parseFeature(s: string): ParsedFeature | null {
@@ -1050,14 +1071,13 @@ function parseFeature(s: string): ParsedFeature | null {
   try {
     const pipeIdx = s.indexOf('|');
     if (pipeIdx !== -1) {
-      // New format: CLIP|HSV
-      const clipHex = s.slice(0, pipeIdx);
+      const firstHex = s.slice(0, pipeIdx);
       const hsvHex = s.slice(pipeIdx + 1);
 
-      const clipBuf = Buffer.from(clipHex, 'hex');
-      const embedding = new Float32Array(clipBuf.length / 4);
+      const firstBuf = Buffer.from(firstHex, 'hex');
+      const embedding = new Float32Array(firstBuf.length / 4);
       for (let i = 0; i < embedding.length; i++) {
-        embedding[i] = clipBuf.readFloatLE(i * 4);
+        embedding[i] = firstBuf.readFloatLE(i * 4);
       }
 
       const hsvBuf = Buffer.from(hsvHex, 'hex');
@@ -1066,24 +1086,37 @@ function parseFeature(s: string): ParsedFeature | null {
         hsv[i] = hsvBuf.readFloatLE(i * 4);
       }
 
-      return { embedding, hsv };
+      // Format detection: 256 floats (2048 hex chars) = Correlogram; 512 floats = CLIP
+      const type = embedding.length === 256 ? 'correlogram' :
+                   embedding.length === 512 ? 'clip' : 'unknown';
+
+      return { embedding, hsv, type };
     } else {
-      // Old format: pure CLIP (hex length must be divisible by 8)
+      // Old format: pure CLIP (no HSV suffix, no pipe)
       if (s.length % 8 !== 0) return null;
       const buf = Buffer.from(s, 'hex');
       const embedding = new Float32Array(buf.length / 4);
       for (let i = 0; i < embedding.length; i++) {
         embedding[i] = buf.readFloatLE(i * 4);
       }
-      return { embedding };
+      return { embedding, type: 'clip' };
     }
   } catch { return null; }
 }
 
-// Distance [0,1] — 0 = identical, lower = more similar. Embeddings are
-// L2-normalized so cosine similarity = dot product; distance = 1 - cos.
-// Fused score includes HSV Chi-Square distance with 0.3/0.7 weight.
+// Distance [0,1] — 0 = identical, lower = more similar.
+// New format (correlogram): 1 - cosine_similarity (pure spatial-color feature).
+// Old format (clip+HSV): 0.3×CLIP_dist + 0.7×HSV_dist (legacy compat).
 function featureDistance(a: ParsedFeature, b: ParsedFeature): number {
+  if (a.type === 'correlogram' && b.type === 'correlogram') {
+    // Color Correlogram: cosine distance (embeddings are L2-normalized)
+    const len = Math.min(a.embedding.length, b.embedding.length);
+    let dot = 0;
+    for (let i = 0; i < len; i++) dot += a.embedding[i] * b.embedding[i];
+    return Math.max(0, Math.min(1, 1 - dot));
+  }
+
+  // Legacy: CLIP + HSV fusion
   const len = Math.min(a.embedding.length, b.embedding.length);
   let dot = 0;
   for (let i = 0; i < len; i++) dot += a.embedding[i] * b.embedding[i];
