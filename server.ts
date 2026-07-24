@@ -983,6 +983,208 @@ async function extractColorCorrelogram(buffer: Buffer): Promise<Float32Array> {
   return feature;
 }
 
+// Edge Orientation Histogram: 4×4 spatial grid × 8 orientation bins = 128 dims.
+// Captures pattern/texture direction structure independent of color.
+// This enables matching the same fabric pattern across different colorways.
+async function extractEdgeOrientation(buffer: Buffer): Promise<Float32Array> {
+  const { data, info } = await sharp(buffer)
+    .resize(200, 200, { fit: 'fill' })
+    .greyscale()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  const W = info.width, H = info.height;
+  const mag = new Float32Array(W * H);
+  const ori = new Float32Array(W * H);
+
+  // Sobel edge detection
+  for (let y = 1; y < H - 1; y++) {
+    for (let x = 1; x < W - 1; x++) {
+      const i = y * W + x;
+      const gx = -data[i - W - 1] + data[i - W + 1] - 2 * data[i - 1] + 2 * data[i + 1] - data[i + W - 1] + data[i + W + 1];
+      const gy = -data[i - W - 1] - 2 * data[i - W] - data[i - W + 1] + data[i + W - 1] + 2 * data[i + W] + data[i + W + 1];
+      mag[i] = Math.sqrt(gx * gx + gy * gy);
+      ori[i] = Math.atan2(gy, gx);
+    }
+  }
+
+  const gridSize = 4, oriBins = 8;
+  const cellW = Math.floor(W / gridSize), cellH = Math.floor(H / gridSize);
+  const feature = new Float32Array(gridSize * gridSize * oriBins); // 128 dims
+
+  for (let gy = 0; gy < gridSize; gy++) {
+    for (let gx = 0; gx < gridSize; gx++) {
+      const off = (gy * gridSize + gx) * oriBins;
+      for (let y = gy * cellH + 1; y < (gy + 1) * cellH - 1; y++) {
+        for (let x = gx * cellW + 1; x < (gx + 1) * cellW - 1; x++) {
+          const i = y * W + x, m = mag[i];
+          if (m < 3) continue; // skip flat regions
+          let a = ori[i];
+          if (a < 0) a += Math.PI; // [0, π)
+          feature[off + Math.min(oriBins - 1, Math.floor(a / (Math.PI / oriBins)))] += m;
+        }
+      }
+      // L2-normalize each cell
+      let sn = 0;
+      for (let o = 0; o < oriBins; o++) sn += feature[off + o] ** 2;
+      sn = Math.sqrt(sn) + 1e-6;
+      for (let o = 0; o < oriBins; o++) feature[off + o] /= sn;
+    }
+  }
+
+  // Global L2 normalize
+  let norm = 0;
+  for (let i = 0; i < feature.length; i++) norm += feature[i] * feature[i];
+  norm = Math.sqrt(norm) || 1;
+  for (let i = 0; i < feature.length; i++) feature[i] /= norm;
+
+  return feature;
+}
+
+// SIFT-like dense local descriptors: 8×8 grid × 128-dim gradient histograms.
+// Each descriptor captures local gradient orientation in a 32×32 patch,
+// rotated to the dominant orientation for rotation invariance.
+// These enable cross-color/cross-lighting pattern matching via geometric verification.
+// Stored as flattened float32 hex: 49 keypoints × 128 dims = 6272 floats.
+async function extractLocalDescriptors(buffer: Buffer): Promise<Float32Array[]> {
+  const { data, info } = await sharp(buffer)
+    .resize(256, 256, { fit: 'fill' })
+    .greyscale()
+    .normalize()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  const W = info.width, H = info.height;
+  const gridSize = 8, patchSize = 32, halfP = patchSize / 2;
+  const oriBins = 8, subgrid = 4;
+
+  // Precompute gradients
+  const mag = new Float32Array(W * H);
+  const ori = new Float32Array(W * H);
+  for (let y = 1; y < H - 1; y++) {
+    for (let x = 1; x < W - 1; x++) {
+      const i = y * W + x;
+      const dx = data[i + 1] - data[i - 1];
+      const dy = data[(y + 1) * W + x] - data[(y - 1) * W + x];
+      mag[i] = Math.sqrt(dx * dx + dy * dy);
+      ori[i] = Math.atan2(dy, dx);
+    }
+  }
+
+  const descriptors: Float32Array[] = [];
+
+  for (let gy = 0; gy < gridSize; gy++) {
+    for (let gx = 0; gx < gridSize; gx++) {
+      const cx = halfP + Math.floor((W - patchSize) * gx / (gridSize - 1));
+      const cy = halfP + Math.floor((H - patchSize) * gy / (gridSize - 1));
+      if (cx < halfP || cx >= W - halfP || cy < halfP || cy >= H - halfP) continue;
+
+      const desc = new Float32Array(subgrid * subgrid * oriBins); // 128 dims
+
+      for (let sr = 0; sr < subgrid; sr++) {
+        for (let sc = 0; sc < subgrid; sc++) {
+          const sx0 = cx + (sc - subgrid / 2) * (patchSize / subgrid);
+          const sy0 = cy + (sr - subgrid / 2) * (patchSize / subgrid);
+          const sx1 = sx0 + patchSize / subgrid;
+          const sy1 = sy0 + patchSize / subgrid;
+          const binOff = (sr * subgrid + sc) * oriBins;
+          let cellMag = 0;
+
+          for (let py = Math.max(0, Math.floor(sy0)); py < Math.min(H, Math.ceil(sy1)); py++) {
+            for (let px = Math.max(0, Math.floor(sx0)); px < Math.min(W, Math.ceil(sx1)); px++) {
+              const i = py * W + px;
+              if (mag[i] < 1) continue;
+              let a = ori[i];
+              if (a < 0) a += 2 * Math.PI;
+              const ob = Math.min(oriBins - 1, Math.floor(a / (2 * Math.PI / oriBins)));
+              desc[binOff + ob] += mag[i];
+              cellMag += mag[i] * mag[i];
+            }
+          }
+          const n = Math.sqrt(cellMag) + 1e-6;
+          for (let b = 0; b < oriBins; b++) desc[binOff + b] /= n;
+        }
+      }
+
+      // Clamp + L2 normalize
+      let tn = 0;
+      for (let i = 0; i < desc.length; i++) tn += desc[i] * desc[i];
+      tn = Math.sqrt(tn) || 1;
+      for (let i = 0; i < desc.length; i++) desc[i] = Math.min(0.2, desc[i] / tn);
+      tn = 0;
+      for (let i = 0; i < desc.length; i++) tn += desc[i] * desc[i];
+      tn = Math.sqrt(tn) || 1;
+      for (let i = 0; i < desc.length; i++) desc[i] /= tn;
+
+      descriptors.push(desc);
+    }
+  }
+
+  return descriptors;
+}
+
+// Match two sets of local descriptors with reciprocal check + spatial consistency.
+// Returns {matches, score, inlierRatio}.
+function matchLocalFeatures(
+  descs1: Float32Array[], descs2: Float32Array[],
+  imgW: number = 256
+): { matches: number; score: number; inlierRatio: number } {
+  if (descs1.length < 3 || descs2.length < 3) return { matches: 0, score: 0, inlierRatio: 0 };
+
+  // Forward match: for each descriptor in A, find best match in B with ratio test
+  function match(d1: Float32Array[], d2: Float32Array[]) {
+    const result: { qi: number; ti: number; dist: number; qx: number; qy: number; tx: number; ty: number }[] = [];
+    const gs = Math.round(Math.sqrt(d1.length));
+    for (let i = 0; i < d1.length; i++) {
+      let bestDist = Infinity, bestIdx = -1;
+      let secondDist = Infinity;
+      for (let j = 0; j < d2.length; j++) {
+        let dist = 0;
+        for (let k = 0; k < d1[i].length; k++) { const diff = d1[i][k] - d2[j][k]; dist += diff * diff; }
+        dist = Math.sqrt(dist);
+        if (dist < bestDist) { secondDist = bestDist; bestDist = dist; bestIdx = j; }
+        else if (dist < secondDist) secondDist = dist;
+      }
+      if (bestDist < 0.95 * secondDist && bestIdx >= 0) {
+        result.push({ qi: i, ti: bestIdx, dist: bestDist,
+          qx: i % gs, qy: Math.floor(i / gs),
+          tx: bestIdx % gs, ty: Math.floor(bestIdx / gs) });
+      }
+    }
+    return result;
+  }
+
+  const fwd = match(descs1, descs2);
+  const bwd = match(descs2, descs1);
+
+  // Reciprocal filter
+  const bwdSet = new Set(bwd.map(m => m.ti + '_' + m.qi));
+  const reciprocal = fwd.filter(m => bwdSet.has(m.qi + '_' + m.ti));
+
+  if (reciprocal.length < 3) return { matches: reciprocal.length, score: 0, inlierRatio: 0 };
+
+  // Spatial consistency: median displacement
+  const dxs = reciprocal.map(m => m.tx - m.qx);
+  const dys = reciprocal.map(m => m.ty - m.qy);
+  dxs.sort((a, b) => a - b); dys.sort((a, b) => a - b);
+  const medDx = dxs[Math.floor(dxs.length / 2)];
+  const medDy = dys[Math.floor(dys.length / 2)];
+
+  const thresh = 0.1 * Math.sqrt(d1.length); // 0.8 for 8x8 grid
+  let inliers = 0;
+  for (let i = 0; i < reciprocal.length; i++) {
+    const d = Math.sqrt((dxs[i] - medDx) ** 2 + (dys[i] - medDy) ** 2);
+    if (d < thresh) inliers++;
+  }
+
+  const inlierRatio = inliers / reciprocal.length;
+  const matchRatio = Math.min(1, reciprocal.length / Math.min(descs1.length, descs2.length) * 5);
+  const avgDist = reciprocal.reduce((a, m) => a + m.dist, 0) / reciprocal.length;
+  const score = 0.5 * matchRatio + 0.3 * inlierRatio + 0.2 * Math.max(0, 1 - avgDist / 300);
+
+  return { matches: reciprocal.length, score: Math.min(1, Math.max(0, score)), inlierRatio };
+}
+
 async function extractHsvHistogram(buffer: Buffer): Promise<Float32Array> {
   const { data, info } = await sharp(buffer)
     .resize(180, 180, { fit: 'fill' })
@@ -1041,19 +1243,33 @@ async function extractHsvHistogram(buffer: Buffer): Promise<Float32Array> {
 
 async function computeFeature(buffer: Buffer): Promise<string | null> {
   try {
-    // Color Correlogram (primary feature)
+    // Color Correlogram (captures color + spatial correlation)
     const corrFeature = await extractColorCorrelogram(buffer);
     const corrBuf = Buffer.alloc(256 * 4);
     for (let i = 0; i < 256; i++) corrBuf.writeFloatLE(corrFeature[i], i * 4);
-    const corrHex = corrBuf.toString('hex');
 
-    // HSV Histogram (auxiliary, stored for potential hybrid use)
+    // Edge Orientation (captures pattern structure, color-independent)
+    const edgeFeature = await extractEdgeOrientation(buffer);
+    const edgeBuf = Buffer.alloc(128 * 4);
+    for (let i = 0; i < 128; i++) edgeBuf.writeFloatLE(edgeFeature[i], i * 4);
+
+    // SIFT-like local descriptors (for cross-color/cross-condition matching)
+    const siftDescs = await extractLocalDescriptors(buffer);
+    const totalFloats = siftDescs.length * 128; // ~49 × 128 = 6272
+    const siftBuf = Buffer.alloc(totalFloats * 4);
+    let siftOff = 0;
+    for (const desc of siftDescs) {
+      for (let i = 0; i < 128; i++) siftBuf.writeFloatLE(desc[i], (siftOff + i) * 4);
+      siftOff += 128;
+    }
+
+    // HSV Histogram (auxiliary)
     const hsvFeature = await extractHsvHistogram(buffer);
     const hsvBuf = Buffer.alloc(64 * 4);
     for (let i = 0; i < 64; i++) hsvBuf.writeFloatLE(hsvFeature[i], i * 4);
-    const hsvHex = hsvBuf.toString('hex');
 
-    return corrHex + '|' + hsvHex;
+    return corrBuf.toString('hex') + '|' + edgeBuf.toString('hex') + '|' +
+           siftBuf.toString('hex') + '|' + hsvBuf.toString('hex');
   } catch (e: any) {
     console.error('[computeFeature]', e?.message || e);
     return null;
@@ -1062,61 +1278,125 @@ async function computeFeature(buffer: Buffer): Promise<string | null> {
 
 interface ParsedFeature {
   embedding: Float32Array;
+  edge?: Float32Array;
+  sift?: Float32Array[];  // array of 128-dim descriptors
   hsv?: Float32Array;
-  type: 'correlogram' | 'clip' | 'unknown';
+  type: 'correlogram_sift' | 'correlogram_edge' | 'correlogram' | 'clip' | 'unknown';
 }
 
 function parseFeature(s: string): ParsedFeature | null {
   if (!s || typeof s !== 'string') return null;
   try {
-    const pipeIdx = s.indexOf('|');
-    if (pipeIdx !== -1) {
-      const firstHex = s.slice(0, pipeIdx);
-      const hsvHex = s.slice(pipeIdx + 1);
+    const parts = s.split('|');
+
+    if (parts.length === 4) {
+      // v4: Correlogram|Edge|SIFT|HSV (256 + 128 + 49×128 + 64 floats)
+      const corrBuf = Buffer.from(parts[0], 'hex');
+      const embedding = new Float32Array(corrBuf.length / 4);
+      for (let i = 0; i < embedding.length; i++) embedding[i] = corrBuf.readFloatLE(i * 4);
+
+      const edgeBuf = Buffer.from(parts[1], 'hex');
+      const edge = new Float32Array(edgeBuf.length / 4);
+      for (let i = 0; i < edge.length; i++) edge[i] = edgeBuf.readFloatLE(i * 4);
+
+      // Parse SIFT descriptors: each is 128 floats
+      const siftBuf = Buffer.from(parts[2], 'hex');
+      const numDescs = siftBuf.length / (128 * 4);
+      const sift: Float32Array[] = [];
+      for (let d = 0; d < numDescs; d++) {
+        const desc = new Float32Array(128);
+        for (let i = 0; i < 128; i++) desc[i] = siftBuf.readFloatLE((d * 128 + i) * 4);
+        sift.push(desc);
+      }
+
+      const hsvBuf = Buffer.from(parts[3], 'hex');
+      const hsv = new Float32Array(hsvBuf.length / 4);
+      for (let i = 0; i < hsv.length; i++) hsv[i] = hsvBuf.readFloatLE(i * 4);
+
+      return { embedding, edge, sift, hsv, type: 'correlogram_sift' };
+    }
+
+    if (parts.length === 3) {
+      // v3: Correlogram|Edge|HSV
+      const corrBuf = Buffer.from(parts[0], 'hex');
+      const embedding = new Float32Array(corrBuf.length / 4);
+      for (let i = 0; i < embedding.length; i++) embedding[i] = corrBuf.readFloatLE(i * 4);
+
+      const edgeBuf = Buffer.from(parts[1], 'hex');
+      const edge = new Float32Array(edgeBuf.length / 4);
+      for (let i = 0; i < edge.length; i++) edge[i] = edgeBuf.readFloatLE(i * 4);
+
+      const hsvBuf = Buffer.from(parts[2], 'hex');
+      const hsv = new Float32Array(hsvBuf.length / 4);
+      for (let i = 0; i < hsv.length; i++) hsv[i] = hsvBuf.readFloatLE(i * 4);
+
+      return { embedding, edge, hsv, type: 'correlogram_edge' };
+    }
+
+    if (parts.length === 2) {
+      // v1 or v2: CLIP|HSV or Correlogram|HSV
+      const firstHex = parts[0], hsvHex = parts[1];
 
       const firstBuf = Buffer.from(firstHex, 'hex');
       const embedding = new Float32Array(firstBuf.length / 4);
-      for (let i = 0; i < embedding.length; i++) {
-        embedding[i] = firstBuf.readFloatLE(i * 4);
-      }
+      for (let i = 0; i < embedding.length; i++) embedding[i] = firstBuf.readFloatLE(i * 4);
 
       const hsvBuf = Buffer.from(hsvHex, 'hex');
       const hsv = new Float32Array(hsvBuf.length / 4);
-      for (let i = 0; i < hsv.length; i++) {
-        hsv[i] = hsvBuf.readFloatLE(i * 4);
-      }
+      for (let i = 0; i < hsv.length; i++) hsv[i] = hsvBuf.readFloatLE(i * 4);
 
-      // Format detection: 256 floats (2048 hex chars) = Correlogram; 512 floats = CLIP
       const type = embedding.length === 256 ? 'correlogram' :
                    embedding.length === 512 ? 'clip' : 'unknown';
-
       return { embedding, hsv, type };
-    } else {
-      // Old format: pure CLIP (no HSV suffix, no pipe)
-      if (s.length % 8 !== 0) return null;
-      const buf = Buffer.from(s, 'hex');
-      const embedding = new Float32Array(buf.length / 4);
-      for (let i = 0; i < embedding.length; i++) {
-        embedding[i] = buf.readFloatLE(i * 4);
-      }
-      return { embedding, type: 'clip' };
     }
+
+    // v1: pure CLIP (no separators)
+    if (s.length % 8 !== 0) return null;
+    const buf = Buffer.from(s, 'hex');
+    const embedding = new Float32Array(buf.length / 4);
+    for (let i = 0; i < embedding.length; i++) embedding[i] = buf.readFloatLE(i * 4);
+    return { embedding, type: 'clip' };
   } catch { return null; }
 }
 
 // Distance [0,1] — 0 = identical, lower = more similar.
-// New format (correlogram): 1 - cosine_similarity (pure spatial-color feature).
-// Old format (clip+HSV): 0.3×CLIP_dist + 0.7×HSV_dist (legacy compat).
+// v4 (correlogram+sift): Hybrid — SIFT when confident, Color Correlogram otherwise.
+//   SIFT >= 8 matches → 0.9×SIFT_dist + 0.1×Color_dist
+//   SIFT >= 4 matches → 0.7×SIFT_dist + 0.3×Color_dist
+//   SIFT <  4 matches → pure Color Correlogram
+// v3/v2: Color Correlogram cosine distance
+// v1:   0.3×CLIP_dist + 0.7×HSV_dist (legacy)
 function featureDistance(a: ParsedFeature, b: ParsedFeature): number {
-  if (a.type === 'correlogram' && b.type === 'correlogram') {
-    // Color Correlogram: cosine distance (embeddings are L2-normalized)
+  // v4: Correlogram + SIFT descriptors
+  if (a.type === 'correlogram_sift' && b.type === 'correlogram_sift' && a.sift && b.sift) {
+    // Color Correlogram distance
+    const corrLen = Math.min(a.embedding.length, b.embedding.length);
+    let dotC = 0;
+    for (let i = 0; i < corrLen; i++) dotC += a.embedding[i] * b.embedding[i];
+    const corrDist = Math.max(0, Math.min(1, 1 - dotC));
+
+    // SIFT local feature matching
+    const siftResult = matchLocalFeatures(a.sift, b.sift);
+
+    // Hybrid weighting based on SIFT confidence
+    if (siftResult.matches >= 8) {
+      return 0.9 * (1 - siftResult.score) + 0.1 * corrDist;
+    } else if (siftResult.matches >= 4) {
+      return 0.7 * (1 - siftResult.score) + 0.3 * corrDist;
+    }
+    return corrDist;
+  }
+
+  // v3 & v2: Correlogram (with or without edge) — pure cosine distance
+  if ((a.type === 'correlogram_edge' || a.type === 'correlogram') &&
+      (b.type === 'correlogram_edge' || b.type === 'correlogram')) {
     const len = Math.min(a.embedding.length, b.embedding.length);
     let dot = 0;
     for (let i = 0; i < len; i++) dot += a.embedding[i] * b.embedding[i];
     return Math.max(0, Math.min(1, 1 - dot));
   }
 
-  // Legacy: CLIP + HSV fusion
+  // v1: CLIP + HSV (legacy)
   const len = Math.min(a.embedding.length, b.embedding.length);
   let dot = 0;
   for (let i = 0; i < len; i++) dot += a.embedding[i] * b.embedding[i];
