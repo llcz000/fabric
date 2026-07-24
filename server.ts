@@ -1170,7 +1170,7 @@ function matchLocalFeatures(
   const medDx = dxs[Math.floor(dxs.length / 2)];
   const medDy = dys[Math.floor(dys.length / 2)];
 
-  const thresh = 0.1 * Math.sqrt(d1.length); // 0.8 for 8x8 grid
+  const thresh = 0.1 * Math.sqrt(descs1.length); // ~0.7 for 8x8 grid
   let inliers = 0;
   for (let i = 0; i < reciprocal.length; i++) {
     const d = Math.sqrt((dxs[i] - medDx) ** 2 + (dys[i] - medDy) ** 2);
