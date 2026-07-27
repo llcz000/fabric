@@ -56,9 +56,7 @@ export default function DocumentEditor({
   const [companyName, setCompanyName] = useState(existingDocument?.companyName || '');
   const [companyAddress, setCompanyAddress] = useState(existingDocument?.companyAddress || '');
   const [companyPhone, setCompanyPhone] = useState(existingDocument?.companyPhone || '');
-  const [terms, setTerms] = useState(existingDocument?.terms ||
-    (existingDocument?.type === DocType.DEPOSIT ? companyProfile.depositTerms :
-     companyProfile.defaultTerms) || '');
+  const [terms, setTerms] = useState('');
   const [issuer, setIssuer] = useState(existingDocument?.issuer || '');
   const [receiver, setReceiver] = useState(existingDocument?.receiver || '');
   const [receiverAddress, setReceiverAddress] = useState(existingDocument?.receiverAddress || '');
@@ -1026,22 +1024,6 @@ export default function DocumentEditor({
         </div>
         )}
       </div>
-
-      {/* Deposit Terms (only for DEPOSIT type) */}
-      {docType === DocType.DEPOSIT && (
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-xs p-4">
-        <h3 className="text-sm font-semibold text-slate-800 uppercase tracking-wider border-l-3 border-sky-500 pl-3">
-          备注条款
-        </h3>
-        <textarea
-          value={terms}
-          onChange={(e) => setTerms(e.target.value)}
-          className="w-full mt-3 px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
-          rows={4}
-          placeholder="请输入定金单备注条款..."
-        />
-      </div>
-      )}
 
       {/* Save / Cancel Action Bar */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-xs p-4 flex items-center justify-end gap-3">
