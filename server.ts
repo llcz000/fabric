@@ -261,7 +261,6 @@ async function getMySQLPool(): Promise<mysql.Pool> {
         thumbnail_cos_key VARCHAR(500) DEFAULT '',
         local_path VARCHAR(500) DEFAULT '',
         thumbnail_local_path VARCHAR(500) DEFAULT '',
-        phash VARCHAR(16) DEFAULT '',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
         INDEX idx_product_id (product_id)
@@ -283,7 +282,6 @@ async function getMySQLPool(): Promise<mysql.Pool> {
     };
 
     await addColumnIfNotExists('company_config', 'default_terms', 'TEXT');
-    await addColumnIfNotExists('product_images', 'embedding', 'TEXT');
 
     // Repair: recalculate order totals from order_items (fixes any zero-total records)
     try {
@@ -899,6 +897,275 @@ app.get('/api/template/config', (req, res) => {
   res.json(config);
 });
 
+// ==================== API Route: Export Order as Excel ====================
+app.get('/api/export_template/:id', async (req, res) => {
+  const orderId = req.params.id;
+  try {
+    let order: any;
+    let items: any[];
+
+    if (!useMySQLFallback) {
+      const pool = await getMySQLPool();
+      const [orderRows] = await pool.query<RowDataPacket[]>('SELECT * FROM orders WHERE id = ?', [orderId]);
+      if (orderRows.length === 0) return res.status(404).json({ error: '订单不存在' });
+      order = orderRows[0];
+      const [itemRows] = await pool.query<RowDataPacket[]>('SELECT * FROM order_items WHERE order_id = ? ORDER BY id', [orderId]);
+      items = itemRows;
+    } else {
+      const local = loadLocalDB();
+      order = local.orders.find((o: any) => o.id == orderId);
+      if (!order) return res.status(404).json({ error: '订单不存在' });
+      items = local.order_items.filter((i: any) => i.order_id == orderId);
+    }
+
+    // Get company config for header info
+    let company: any = {};
+    try {
+      if (!useMySQLFallback) {
+        const pool = await getMySQLPool();
+        const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM company_config WHERE id = 1');
+        if (rows.length > 0) company = rows[0];
+      } else {
+        const local = loadLocalDB();
+        company = local.company_config;
+      }
+    } catch { /* use empty company info */ }
+
+    const templateType = order.template_type || 'sample';
+    const isSample = templateType === 'sample';
+
+    // Try to find a template file
+    const config = loadTemplateConfig();
+    let templatePath: string | null = null;
+    for (const [, info] of Object.entries(config.templates as Record<string, any>)) {
+      if (info.path && fs.existsSync(info.path)) {
+        templatePath = info.path;
+        break;
+      }
+    }
+
+    const workbook = new ExcelJS.Workbook();
+    let worksheet: ExcelJS.Worksheet;
+
+    if (templatePath) {
+      // Load template and fill data into named ranges or specific cells
+      await workbook.xlsx.readFile(templatePath);
+      worksheet = workbook.worksheets[0];
+
+      // Attempt to fill template placeholders
+      const replaceInSheet = (sheet: ExcelJS.Worksheet) => {
+        sheet.eachRow((row) => {
+          row.eachCell((cell) => {
+            if (typeof cell.value === 'string') {
+              let v = cell.value;
+              v = v.replace(/\{\{docNo\}\}/g, order.order_no || '');
+              v = v.replace(/\{\{date\}\}/g, (order.order_date || '').substring(0, 10));
+              v = v.replace(/\{\{customerName\}\}/g, order.receiving_unit || '');
+              v = v.replace(/\{\{styleNo\}\}/g, order.style_no || '');
+              v = v.replace(/\{\{totalMeters\}\}/g, String(order.total_meters || 0));
+              v = v.replace(/\{\{totalPieces\}\}/g, String(order.total_pieces || 0));
+              v = v.replace(/\{\{totalAmount\}\}/g, String(order.total_amount || 0));
+              v = v.replace(/\{\{deposit\}\}/g, String(order.deposit || 0));
+              v = v.replace(/\{\{signPerson\}\}/g, order.sign_person || '');
+              v = v.replace(/\{\{receiver\}\}/g, order.receiver || '');
+              v = v.replace(/\{\{companyName\}\}/g, company.company_name || '');
+              v = v.replace(/\{\{companyAddress\}\}/g, company.address || '');
+              v = v.replace(/\{\{companyPhone\}\}/g, company.phone || '');
+              v = v.replace(/\{\{terms\}\}/g, company.default_terms || '');
+              cell.value = v;
+            }
+          });
+        });
+      };
+      replaceInSheet(worksheet);
+    } else {
+      // Generate Excel from scratch
+      worksheet = workbook.addWorksheet('单据');
+
+      // Column definitions
+      const title = isSample ? '样布码单' : '销售发货码单';
+      const cols = isSample
+        ? ['序号', '货号', '色号', '品名', '成分', '克重', '门幅(cm)', '米数(m)', '单价(元)', '金额(元)', '备注']
+        : ['序号', '货号', '色号', '品名', '匹号/箱号', '门幅(cm)', '米数(m)', '单价(元)', '金额(元)', '备注'];
+
+      // -- Row 1: Company name
+      worksheet.mergeCells(1, 1, 1, cols.length);
+      const titleCell = worksheet.getCell(1, 1);
+      titleCell.value = company.company_name || '';
+      titleCell.font = { name: '宋体', size: 16, bold: true };
+      titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      worksheet.getRow(1).height = 32;
+
+      // -- Row 2: Document title
+      worksheet.mergeCells(2, 1, 2, cols.length);
+      const subTitleCell = worksheet.getCell(2, 1);
+      subTitleCell.value = title;
+      subTitleCell.font = { name: '宋体', size: 14, bold: true };
+      subTitleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      worksheet.getRow(2).height = 28;
+
+      // -- Row 3: Order info
+      const halfCols = Math.floor(cols.length / 2);
+      worksheet.mergeCells(3, 1, 3, halfCols);
+      const cell3_1 = worksheet.getCell(3, 1);
+      cell3_1.value = `单据编号：${order.order_no || ''}`;
+      cell3_1.font = { name: '宋体', size: 11 };
+      worksheet.mergeCells(3, halfCols + 1, 3, cols.length);
+      const cell3_2 = worksheet.getCell(3, halfCols + 1);
+      cell3_2.value = `日期：${(order.order_date || '').substring(0, 10)}`;
+      cell3_2.font = { name: '宋体', size: 11 };
+      cell3_2.alignment = { horizontal: 'right' };
+      worksheet.getRow(3).height = 22;
+
+      // -- Row 4: Customer info
+      worksheet.mergeCells(4, 1, 4, cols.length);
+      const cell4 = worksheet.getCell(4, 1);
+      cell4.value = `客户：${order.receiving_unit || ''}    款号：${order.style_no || ''}`;
+      cell4.font = { name: '宋体', size: 11 };
+      worksheet.getRow(4).height = 22;
+
+      // -- Row 5: Header row
+      const headerRow = worksheet.getRow(5);
+      for (let c = 0; c < cols.length; c++) {
+        const cell = headerRow.getCell(c + 1);
+        cell.value = cols[c];
+        cell.font = { name: '宋体', size: 10, bold: true };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8E8E8' } };
+        cell.border = {
+          top: { style: 'thin' }, bottom: { style: 'thin' },
+          left: { style: 'thin' }, right: { style: 'thin' },
+        };
+        cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+      }
+      headerRow.height = 24;
+
+      // Column widths
+      const colWidths = isSample
+        ? [6, 14, 12, 16, 18, 8, 10, 10, 10, 12, 16]
+        : [6, 14, 12, 16, 14, 10, 10, 10, 12, 16];
+      for (let c = 0; c < colWidths.length; c++) {
+        worksheet.getColumn(c + 1).width = colWidths[c];
+      }
+
+      // -- Data rows
+      const thinBorder: Partial<ExcelJS.Borders> = {
+        top: { style: 'thin' }, bottom: { style: 'thin' },
+        left: { style: 'thin' }, right: { style: 'thin' },
+      };
+
+      for (let r = 0; r < items.length; r++) {
+        const item = items[r];
+        const rowNum = 6 + r;
+        const row = worksheet.getRow(rowNum);
+        row.height = 22;
+
+        const cells = isSample
+          ? [
+              r + 1,
+              item.product_no || '', item.color_no || '', item.product_name || '',
+              item.composition || '', item.weight || '', item.width || '',
+              item.meters || 0, item.unit_price || 0, item.amount || 0, item.remark || '',
+            ]
+          : [
+              r + 1,
+              item.product_no || '', item.color_no || '', item.product_name || '',
+              item.piece_meters ? (() => { try { const arr = typeof item.piece_meters === 'string' ? JSON.parse(item.piece_meters) : item.piece_meters; return Array.isArray(arr) ? arr.join(', ') : item.piece_meters; } catch { return item.piece_meters; } })() : '', item.width || '',
+              item.meters || 0, item.unit_price || 0, item.amount || 0, item.remark || '',
+            ];
+
+        for (let c = 0; c < cells.length; c++) {
+          const cell = row.getCell(c + 1);
+          cell.value = cells[c];
+          cell.font = { name: '宋体', size: 10 };
+          cell.border = thinBorder;
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        }
+      }
+
+      const dataEndRow = 6 + items.length;
+
+      // -- Totals row
+      const totalRow = worksheet.getRow(dataEndRow);
+      totalRow.height = 24;
+      // For sample: cols 1-7 are labels (through 门幅), for sales: cols 1-6
+      const totalMergeEnd = isSample ? 7 : 6;
+      worksheet.mergeCells(dataEndRow, 1, dataEndRow, totalMergeEnd);
+      const totalLabelCell = worksheet.getCell(dataEndRow, 1);
+      totalLabelCell.value = '合计';
+      totalLabelCell.font = { name: '宋体', size: 10, bold: true };
+      totalLabelCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      totalLabelCell.border = thinBorder;
+
+      for (let c = 2; c <= totalMergeEnd; c++) {
+        const cell = worksheet.getCell(dataEndRow, c);
+        cell.border = thinBorder;
+      }
+
+      const metersCol = totalMergeEnd + 1;
+      const priceCol = totalMergeEnd + 2;
+      const amountCol = totalMergeEnd + 3;
+      const remarkCol = totalMergeEnd + 4;
+
+      const metersCell = worksheet.getCell(dataEndRow, metersCol);
+      metersCell.value = order.total_meters || 0;
+      metersCell.font = { name: '宋体', size: 10, bold: true };
+      metersCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      metersCell.border = thinBorder;
+
+      const priceCell = worksheet.getCell(dataEndRow, priceCol);
+      priceCell.border = thinBorder;
+
+      const amountCell = worksheet.getCell(dataEndRow, amountCol);
+      amountCell.value = order.total_amount || 0;
+      amountCell.font = { name: '宋体', size: 10, bold: true };
+      amountCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      amountCell.border = thinBorder;
+
+      const remarkCell = worksheet.getCell(dataEndRow, remarkCol);
+      remarkCell.border = thinBorder;
+
+      // -- Signature & footer section
+      const footerStart = dataEndRow + 2;
+      worksheet.mergeCells(footerStart, 1, footerStart, halfCols);
+      worksheet.getCell(footerStart, 1).value = `开单人：${order.sign_person || ''}`;
+      worksheet.getCell(footerStart, 1).font = { name: '宋体', size: 11 };
+      worksheet.getRow(footerStart).height = 22;
+
+      worksheet.mergeCells(footerStart, halfCols + 1, footerStart, cols.length);
+      const receiverCell = worksheet.getCell(footerStart, halfCols + 1);
+      receiverCell.value = `收货人：${order.receiver || ''}`;
+      receiverCell.font = { name: '宋体', size: 11 };
+      receiverCell.alignment = { horizontal: 'right' };
+
+      // -- Terms
+      if (company.default_terms) {
+        const termsRow = footerStart + 1;
+        worksheet.mergeCells(termsRow, 1, termsRow, cols.length);
+        worksheet.getCell(termsRow, 1).value = `备注：${company.default_terms}`;
+        worksheet.getCell(termsRow, 1).font = { name: '宋体', size: 9, color: { argb: 'FF666666' } };
+        worksheet.getRow(termsRow).height = 20;
+      }
+
+      // -- Print settings
+      worksheet.pageSetup.orientation = 'landscape';
+      worksheet.pageSetup.fitToPage = true;
+      worksheet.pageSetup.fitToWidth = 1;
+      worksheet.pageSetup.paperSize = 9; // A4
+    }
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const base64 = Buffer.from(buffer).toString('base64');
+
+    res.json({
+      excel: base64,
+      filename: `${order.order_no || '单据'}.xlsx`,
+    });
+  } catch (e: any) {
+    console.error('[GET /api/export_template/:id]', e.message, e.stack);
+    res.status(500).json({ error: e.message || '导出失败' });
+  }
+});
+
 // ==================== Product Library API ====================
 
 function toMySQLDateTime(iso: string): string {
@@ -914,508 +1181,6 @@ async function generateThumbnail(buffer: Buffer): Promise<Buffer | null> {
       .jpeg({ quality: 60 })
       .toBuffer();
   } catch { return null; }
-}
-
-// ==================== Image Feature Extraction (Color Correlogram) ====================
-// Uses Color Auto-Correlogram to capture both color distribution AND spatial
-// correlation structure of fabric prints. Unlike CLIP (which is too generic
-// for fine-grained fabric discrimination) or global HSV histograms (which
-// lose all spatial information), the correlogram measures the probability
-// that pixels of the same color appear at specific distances from each other.
-// This directly encodes the fabric's pattern/texture layout.
-// Feature: 256-dim (64 quantized colors × 4 distances), L2-normalized.
-// Stored as hex (8 chars per float32 LE) in the `embedding` column,
-// with optional HSV appended: "correlogram|hsv".
-
-async function extractColorCorrelogram(buffer: Buffer): Promise<Float32Array> {
-  const { data, info } = await sharp(buffer)
-    .resize(128, 128, { fit: 'fill' })
-    .removeAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-
-  const W = info.width, H = info.height, N = W * H;
-
-  // Quantize RGB to 64 colors (4×4×4)
-  const colorIdx = new Uint8Array(N);
-  for (let i = 0; i < N; i++) {
-    const r = Math.min(3, data[i * 3] >> 6);
-    const g = Math.min(3, data[i * 3 + 1] >> 6);
-    const b = Math.min(3, data[i * 3 + 2] >> 6);
-    colorIdx[i] = (r << 4) | (g << 2) | b;
-  }
-
-  // Distances and 4 directions
-  const distances = [1, 3, 5, 7];
-  const dirs: [number, number][] = [[1, 0], [1, 1], [0, 1], [-1, 1]];
-  const feature = new Float32Array(64 * distances.length); // 256 dims
-  const colorCounts = new Int32Array(64);
-
-  for (let i = 0; i < N; i++) {
-    const c = colorIdx[i];
-    colorCounts[c]++;
-    const x = i % W, y = Math.floor(i / W);
-    for (let di = 0; di < distances.length; di++) {
-      const k = distances[di];
-      for (const [dx, dy] of dirs) {
-        const nx = x + dx * k, ny = y + dy * k;
-        if (nx >= 0 && nx < W && ny >= 0 && ny < H && colorIdx[ny * W + nx] === c) {
-          feature[c * distances.length + di]++;
-        }
-      }
-    }
-  }
-
-  // Normalize: divide by (color_count × 4_directions)
-  for (let c = 0; c < 64; c++) {
-    if (colorCounts[c] > 0) {
-      const norm = colorCounts[c] * 4;
-      for (let d = 0; d < distances.length; d++) feature[c * distances.length + d] /= norm;
-    }
-  }
-
-  // L2 normalize
-  let norm = 0;
-  for (let i = 0; i < feature.length; i++) norm += feature[i] * feature[i];
-  norm = Math.sqrt(norm) || 1;
-  for (let i = 0; i < feature.length; i++) feature[i] /= norm;
-
-  return feature;
-}
-
-// Edge Orientation Histogram: 4×4 spatial grid × 8 orientation bins = 128 dims.
-// Captures pattern/texture direction structure independent of color.
-// This enables matching the same fabric pattern across different colorways.
-async function extractEdgeOrientation(buffer: Buffer): Promise<Float32Array> {
-  const { data, info } = await sharp(buffer)
-    .resize(200, 200, { fit: 'fill' })
-    .greyscale()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-
-  const W = info.width, H = info.height;
-  const mag = new Float32Array(W * H);
-  const ori = new Float32Array(W * H);
-
-  // Sobel edge detection
-  for (let y = 1; y < H - 1; y++) {
-    for (let x = 1; x < W - 1; x++) {
-      const i = y * W + x;
-      const gx = -data[i - W - 1] + data[i - W + 1] - 2 * data[i - 1] + 2 * data[i + 1] - data[i + W - 1] + data[i + W + 1];
-      const gy = -data[i - W - 1] - 2 * data[i - W] - data[i - W + 1] + data[i + W - 1] + 2 * data[i + W] + data[i + W + 1];
-      mag[i] = Math.sqrt(gx * gx + gy * gy);
-      ori[i] = Math.atan2(gy, gx);
-    }
-  }
-
-  const gridSize = 4, oriBins = 8;
-  const cellW = Math.floor(W / gridSize), cellH = Math.floor(H / gridSize);
-  const feature = new Float32Array(gridSize * gridSize * oriBins); // 128 dims
-
-  for (let gy = 0; gy < gridSize; gy++) {
-    for (let gx = 0; gx < gridSize; gx++) {
-      const off = (gy * gridSize + gx) * oriBins;
-      for (let y = gy * cellH + 1; y < (gy + 1) * cellH - 1; y++) {
-        for (let x = gx * cellW + 1; x < (gx + 1) * cellW - 1; x++) {
-          const i = y * W + x, m = mag[i];
-          if (m < 3) continue; // skip flat regions
-          let a = ori[i];
-          if (a < 0) a += Math.PI; // [0, π)
-          feature[off + Math.min(oriBins - 1, Math.floor(a / (Math.PI / oriBins)))] += m;
-        }
-      }
-      // L2-normalize each cell
-      let sn = 0;
-      for (let o = 0; o < oriBins; o++) sn += feature[off + o] ** 2;
-      sn = Math.sqrt(sn) + 1e-6;
-      for (let o = 0; o < oriBins; o++) feature[off + o] /= sn;
-    }
-  }
-
-  // Global L2 normalize
-  let norm = 0;
-  for (let i = 0; i < feature.length; i++) norm += feature[i] * feature[i];
-  norm = Math.sqrt(norm) || 1;
-  for (let i = 0; i < feature.length; i++) feature[i] /= norm;
-
-  return feature;
-}
-
-// SIFT-like dense local descriptors: 8×8 grid × 128-dim gradient histograms.
-// Each descriptor captures local gradient orientation in a 32×32 patch,
-// rotated to the dominant orientation for rotation invariance.
-// These enable cross-color/cross-lighting pattern matching via geometric verification.
-// Stored as flattened float32 hex: 49 keypoints × 128 dims = 6272 floats.
-async function extractLocalDescriptors(buffer: Buffer): Promise<Float32Array[]> {
-  const { data, info } = await sharp(buffer)
-    .resize(256, 256, { fit: 'fill' })
-    .greyscale()
-    .normalize()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-
-  const W = info.width, H = info.height;
-  const gridSize = 8, patchSize = 32, halfP = patchSize / 2;
-  const oriBins = 8, subgrid = 4;
-
-  // Precompute gradients
-  const mag = new Float32Array(W * H);
-  const ori = new Float32Array(W * H);
-  for (let y = 1; y < H - 1; y++) {
-    for (let x = 1; x < W - 1; x++) {
-      const i = y * W + x;
-      const dx = data[i + 1] - data[i - 1];
-      const dy = data[(y + 1) * W + x] - data[(y - 1) * W + x];
-      mag[i] = Math.sqrt(dx * dx + dy * dy);
-      ori[i] = Math.atan2(dy, dx);
-    }
-  }
-
-  const descriptors: Float32Array[] = [];
-
-  for (let gy = 0; gy < gridSize; gy++) {
-    for (let gx = 0; gx < gridSize; gx++) {
-      const cx = halfP + Math.floor((W - patchSize) * gx / (gridSize - 1));
-      const cy = halfP + Math.floor((H - patchSize) * gy / (gridSize - 1));
-      if (cx < halfP || cx >= W - halfP || cy < halfP || cy >= H - halfP) continue;
-
-      const desc = new Float32Array(subgrid * subgrid * oriBins); // 128 dims
-
-      for (let sr = 0; sr < subgrid; sr++) {
-        for (let sc = 0; sc < subgrid; sc++) {
-          const sx0 = cx + (sc - subgrid / 2) * (patchSize / subgrid);
-          const sy0 = cy + (sr - subgrid / 2) * (patchSize / subgrid);
-          const sx1 = sx0 + patchSize / subgrid;
-          const sy1 = sy0 + patchSize / subgrid;
-          const binOff = (sr * subgrid + sc) * oriBins;
-          let cellMag = 0;
-
-          for (let py = Math.max(0, Math.floor(sy0)); py < Math.min(H, Math.ceil(sy1)); py++) {
-            for (let px = Math.max(0, Math.floor(sx0)); px < Math.min(W, Math.ceil(sx1)); px++) {
-              const i = py * W + px;
-              if (mag[i] < 1) continue;
-              let a = ori[i];
-              if (a < 0) a += 2 * Math.PI;
-              const ob = Math.min(oriBins - 1, Math.floor(a / (2 * Math.PI / oriBins)));
-              desc[binOff + ob] += mag[i];
-              cellMag += mag[i] * mag[i];
-            }
-          }
-          const n = Math.sqrt(cellMag) + 1e-6;
-          for (let b = 0; b < oriBins; b++) desc[binOff + b] /= n;
-        }
-      }
-
-      // Clamp + L2 normalize
-      let tn = 0;
-      for (let i = 0; i < desc.length; i++) tn += desc[i] * desc[i];
-      tn = Math.sqrt(tn) || 1;
-      for (let i = 0; i < desc.length; i++) desc[i] = Math.min(0.2, desc[i] / tn);
-      tn = 0;
-      for (let i = 0; i < desc.length; i++) tn += desc[i] * desc[i];
-      tn = Math.sqrt(tn) || 1;
-      for (let i = 0; i < desc.length; i++) desc[i] /= tn;
-
-      descriptors.push(desc);
-    }
-  }
-
-  return descriptors;
-}
-
-// Match two sets of local descriptors with reciprocal check + spatial consistency.
-// Returns {matches, score, inlierRatio}.
-function matchLocalFeatures(
-  descs1: Float32Array[], descs2: Float32Array[],
-  imgW: number = 256
-): { matches: number; score: number; inlierRatio: number } {
-  if (descs1.length < 3 || descs2.length < 3) return { matches: 0, score: 0, inlierRatio: 0 };
-
-  // Forward match: for each descriptor in A, find best match in B with ratio test
-  function match(d1: Float32Array[], d2: Float32Array[]) {
-    const result: { qi: number; ti: number; dist: number; qx: number; qy: number; tx: number; ty: number }[] = [];
-    const gs = Math.round(Math.sqrt(d1.length));
-    for (let i = 0; i < d1.length; i++) {
-      let bestDist = Infinity, bestIdx = -1;
-      let secondDist = Infinity;
-      for (let j = 0; j < d2.length; j++) {
-        let dist = 0;
-        for (let k = 0; k < d1[i].length; k++) { const diff = d1[i][k] - d2[j][k]; dist += diff * diff; }
-        dist = Math.sqrt(dist);
-        if (dist < bestDist) { secondDist = bestDist; bestDist = dist; bestIdx = j; }
-        else if (dist < secondDist) secondDist = dist;
-      }
-      if (bestDist < 0.95 * secondDist && bestIdx >= 0) {
-        result.push({ qi: i, ti: bestIdx, dist: bestDist,
-          qx: i % gs, qy: Math.floor(i / gs),
-          tx: bestIdx % gs, ty: Math.floor(bestIdx / gs) });
-      }
-    }
-    return result;
-  }
-
-  const fwd = match(descs1, descs2);
-  const bwd = match(descs2, descs1);
-
-  // Reciprocal filter
-  const bwdSet = new Set(bwd.map(m => m.ti + '_' + m.qi));
-  const reciprocal = fwd.filter(m => bwdSet.has(m.qi + '_' + m.ti));
-
-  if (reciprocal.length < 3) return { matches: reciprocal.length, score: 0, inlierRatio: 0 };
-
-  // Spatial consistency: median displacement
-  const dxs = reciprocal.map(m => m.tx - m.qx);
-  const dys = reciprocal.map(m => m.ty - m.qy);
-  dxs.sort((a, b) => a - b); dys.sort((a, b) => a - b);
-  const medDx = dxs[Math.floor(dxs.length / 2)];
-  const medDy = dys[Math.floor(dys.length / 2)];
-
-  const thresh = 0.1 * Math.sqrt(descs1.length); // ~0.7 for 8x8 grid
-  let inliers = 0;
-  for (let i = 0; i < reciprocal.length; i++) {
-    const d = Math.sqrt((dxs[i] - medDx) ** 2 + (dys[i] - medDy) ** 2);
-    if (d < thresh) inliers++;
-  }
-
-  const inlierRatio = inliers / reciprocal.length;
-  const matchRatio = Math.min(1, reciprocal.length / Math.min(descs1.length, descs2.length) * 5);
-  const avgDist = reciprocal.reduce((a, m) => a + m.dist, 0) / reciprocal.length;
-  const score = 0.5 * matchRatio + 0.3 * inlierRatio + 0.2 * Math.max(0, 1 - avgDist / 300);
-
-  return { matches: reciprocal.length, score: Math.min(1, Math.max(0, score)), inlierRatio };
-}
-
-async function extractHsvHistogram(buffer: Buffer): Promise<Float32Array> {
-  const { data, info } = await sharp(buffer)
-    .resize(180, 180, { fit: 'fill' })
-    .removeAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-  const numPixels = info.width * info.height;
-  const hsvBins = new Float32Array(64);
-
-  // V-channel equalization (suppresses lighting variance)
-  const vValues = new Uint8Array(numPixels);
-  for (let i = 0; i < numPixels; i++) {
-    vValues[i] = Math.max(data[i * 3], data[i * 3 + 1], data[i * 3 + 2]);
-  }
-  const vHist = new Int32Array(256);
-  for (let i = 0; i < numPixels; i++) vHist[vValues[i]]++;
-  const vCDF = new Int32Array(256);
-  let acc = 0;
-  for (let i = 0; i < 256; i++) vCDF[i] = (acc += vHist[i]);
-  const minCDF = vCDF.find(v => v > 0) ?? 0;
-  const denom = numPixels - minCDF || 1;
-
-  // 2D H-S histogram: 16 hue bins * 4 saturation bins = 64 dims
-  for (let i = 0; i < numPixels; i++) {
-    // Equalized Value channel
-    const vEqualized = Math.min(255, Math.max(0, Math.round(((vCDF[vValues[i]] - minCDF) / denom) * 255)));
-    const scale = vValues[i] > 0 ? vEqualized / vValues[i] : 0;
-
-    // Scale original RGB to equalized Value
-    const r = Math.min(255, data[i * 3] * scale) / 255;
-    const g = Math.min(255, data[i * 3 + 1] * scale) / 255;
-    const b = Math.min(255, data[i * 3 + 2] * scale) / 255;
-
-    const max = Math.max(r, g, b);
-    const min = Math.min(r, g, b);
-    const delta = max - min;
-    let h = 0;
-    if (delta > 0) {
-      if (max === r) h = ((g - b) / delta) % 6;
-      else if (max === g) h = (b - r) / delta + 2;
-      else h = (r - g) / delta + 4;
-      h *= 60; if (h < 0) h += 360;
-    }
-    const s = max === 0 ? 0 : delta / max;
-    const hBin = Math.min(15, Math.floor(h / (360 / 16)));
-    const sBin = Math.min(3, Math.floor(s / 0.25));
-    hsvBins[hBin * 4 + sBin]++;
-  }
-
-  const sum = hsvBins.reduce((a, v) => a + v, 0);
-  if (sum > 0) {
-    for (let i = 0; i < 64; i++) hsvBins[i] /= sum;
-  }
-  return hsvBins;
-}
-
-async function computeFeature(buffer: Buffer): Promise<string | null> {
-  try {
-    // Color Correlogram (captures color + spatial correlation)
-    const corrFeature = await extractColorCorrelogram(buffer);
-    const corrBuf = Buffer.alloc(256 * 4);
-    for (let i = 0; i < 256; i++) corrBuf.writeFloatLE(corrFeature[i], i * 4);
-
-    // Edge Orientation (captures pattern structure, color-independent)
-    const edgeFeature = await extractEdgeOrientation(buffer);
-    const edgeBuf = Buffer.alloc(128 * 4);
-    for (let i = 0; i < 128; i++) edgeBuf.writeFloatLE(edgeFeature[i], i * 4);
-
-    // SIFT-like local descriptors (for cross-color/cross-condition matching)
-    const siftDescs = await extractLocalDescriptors(buffer);
-    const totalFloats = siftDescs.length * 128; // ~49 × 128 = 6272
-    const siftBuf = Buffer.alloc(totalFloats * 4);
-    let siftOff = 0;
-    for (const desc of siftDescs) {
-      for (let i = 0; i < 128; i++) siftBuf.writeFloatLE(desc[i], (siftOff + i) * 4);
-      siftOff += 128;
-    }
-
-    // HSV Histogram (auxiliary)
-    const hsvFeature = await extractHsvHistogram(buffer);
-    const hsvBuf = Buffer.alloc(64 * 4);
-    for (let i = 0; i < 64; i++) hsvBuf.writeFloatLE(hsvFeature[i], i * 4);
-
-    return corrBuf.toString('hex') + '|' + edgeBuf.toString('hex') + '|' +
-           siftBuf.toString('hex') + '|' + hsvBuf.toString('hex');
-  } catch (e: any) {
-    console.error('[computeFeature]', e?.message || e);
-    return null;
-  }
-}
-
-interface ParsedFeature {
-  embedding: Float32Array;
-  edge?: Float32Array;
-  sift?: Float32Array[];  // array of 128-dim descriptors
-  hsv?: Float32Array;
-  type: 'correlogram_sift' | 'correlogram_edge' | 'correlogram' | 'clip' | 'unknown';
-}
-
-function parseFeature(s: string): ParsedFeature | null {
-  if (!s || typeof s !== 'string') return null;
-  try {
-    const parts = s.split('|');
-
-    if (parts.length === 4) {
-      // v4: Correlogram|Edge|SIFT|HSV (256 + 128 + 49×128 + 64 floats)
-      const corrBuf = Buffer.from(parts[0], 'hex');
-      const embedding = new Float32Array(corrBuf.length / 4);
-      for (let i = 0; i < embedding.length; i++) embedding[i] = corrBuf.readFloatLE(i * 4);
-
-      const edgeBuf = Buffer.from(parts[1], 'hex');
-      const edge = new Float32Array(edgeBuf.length / 4);
-      for (let i = 0; i < edge.length; i++) edge[i] = edgeBuf.readFloatLE(i * 4);
-
-      // Parse SIFT descriptors: each is 128 floats
-      const siftBuf = Buffer.from(parts[2], 'hex');
-      const numDescs = siftBuf.length / (128 * 4);
-      const sift: Float32Array[] = [];
-      for (let d = 0; d < numDescs; d++) {
-        const desc = new Float32Array(128);
-        for (let i = 0; i < 128; i++) desc[i] = siftBuf.readFloatLE((d * 128 + i) * 4);
-        sift.push(desc);
-      }
-
-      const hsvBuf = Buffer.from(parts[3], 'hex');
-      const hsv = new Float32Array(hsvBuf.length / 4);
-      for (let i = 0; i < hsv.length; i++) hsv[i] = hsvBuf.readFloatLE(i * 4);
-
-      return { embedding, edge, sift, hsv, type: 'correlogram_sift' };
-    }
-
-    if (parts.length === 3) {
-      // v3: Correlogram|Edge|HSV
-      const corrBuf = Buffer.from(parts[0], 'hex');
-      const embedding = new Float32Array(corrBuf.length / 4);
-      for (let i = 0; i < embedding.length; i++) embedding[i] = corrBuf.readFloatLE(i * 4);
-
-      const edgeBuf = Buffer.from(parts[1], 'hex');
-      const edge = new Float32Array(edgeBuf.length / 4);
-      for (let i = 0; i < edge.length; i++) edge[i] = edgeBuf.readFloatLE(i * 4);
-
-      const hsvBuf = Buffer.from(parts[2], 'hex');
-      const hsv = new Float32Array(hsvBuf.length / 4);
-      for (let i = 0; i < hsv.length; i++) hsv[i] = hsvBuf.readFloatLE(i * 4);
-
-      return { embedding, edge, hsv, type: 'correlogram_edge' };
-    }
-
-    if (parts.length === 2) {
-      // v1 or v2: CLIP|HSV or Correlogram|HSV
-      const firstHex = parts[0], hsvHex = parts[1];
-
-      const firstBuf = Buffer.from(firstHex, 'hex');
-      const embedding = new Float32Array(firstBuf.length / 4);
-      for (let i = 0; i < embedding.length; i++) embedding[i] = firstBuf.readFloatLE(i * 4);
-
-      const hsvBuf = Buffer.from(hsvHex, 'hex');
-      const hsv = new Float32Array(hsvBuf.length / 4);
-      for (let i = 0; i < hsv.length; i++) hsv[i] = hsvBuf.readFloatLE(i * 4);
-
-      const type = embedding.length === 256 ? 'correlogram' :
-                   embedding.length === 512 ? 'clip' : 'unknown';
-      return { embedding, hsv, type };
-    }
-
-    // v1: pure CLIP (no separators)
-    if (s.length % 8 !== 0) return null;
-    const buf = Buffer.from(s, 'hex');
-    const embedding = new Float32Array(buf.length / 4);
-    for (let i = 0; i < embedding.length; i++) embedding[i] = buf.readFloatLE(i * 4);
-    return { embedding, type: 'clip' };
-  } catch { return null; }
-}
-
-// Distance [0,1] — 0 = identical, lower = more similar.
-// v4 (correlogram+sift): Hybrid — SIFT when confident, Color Correlogram otherwise.
-//   SIFT >= 8 matches → 0.9×SIFT_dist + 0.1×Color_dist
-//   SIFT >= 4 matches → 0.7×SIFT_dist + 0.3×Color_dist
-//   SIFT <  4 matches → pure Color Correlogram
-// v3/v2: Color Correlogram cosine distance
-// v1:   0.3×CLIP_dist + 0.7×HSV_dist (legacy)
-function featureDistance(a: ParsedFeature, b: ParsedFeature): number {
-  // v4: Correlogram + SIFT descriptors
-  if (a.type === 'correlogram_sift' && b.type === 'correlogram_sift' && a.sift && b.sift) {
-    // Color Correlogram distance
-    const corrLen = Math.min(a.embedding.length, b.embedding.length);
-    let dotC = 0;
-    for (let i = 0; i < corrLen; i++) dotC += a.embedding[i] * b.embedding[i];
-    const corrDist = Math.max(0, Math.min(1, 1 - dotC));
-
-    // SIFT local feature matching
-    const siftResult = matchLocalFeatures(a.sift, b.sift);
-
-    // Hybrid weighting based on SIFT confidence
-    if (siftResult.matches >= 8) {
-      return 0.9 * (1 - siftResult.score) + 0.1 * corrDist;
-    } else if (siftResult.matches >= 4) {
-      return 0.7 * (1 - siftResult.score) + 0.3 * corrDist;
-    }
-    return corrDist;
-  }
-
-  // v3 & v2: Correlogram (with or without edge) — pure cosine distance
-  if ((a.type === 'correlogram_edge' || a.type === 'correlogram') &&
-      (b.type === 'correlogram_edge' || b.type === 'correlogram')) {
-    const len = Math.min(a.embedding.length, b.embedding.length);
-    let dot = 0;
-    for (let i = 0; i < len; i++) dot += a.embedding[i] * b.embedding[i];
-    return Math.max(0, Math.min(1, 1 - dot));
-  }
-
-  // v1: CLIP + HSV (legacy)
-  const len = Math.min(a.embedding.length, b.embedding.length);
-  let dot = 0;
-  for (let i = 0; i < len; i++) dot += a.embedding[i] * b.embedding[i];
-  const clipDist = Math.max(0, Math.min(1, 1 - dot));
-
-  if (a.hsv && b.hsv) {
-    let chiSq = 0;
-    const hsvLen = Math.min(a.hsv.length, b.hsv.length);
-    for (let i = 0; i < hsvLen; i++) {
-      const sum = a.hsv[i] + b.hsv[i];
-      if (sum > 1e-9) {
-        chiSq += ((a.hsv[i] - b.hsv[i]) * (a.hsv[i] - b.hsv[i])) / sum;
-      }
-    }
-    const hsvDist = Math.min(1, 0.5 * chiSq);
-    return 0.3 * clipDist + 0.7 * hsvDist;
-  }
-
-  return clipDist;
 }
 
 // ── List Products ──────────────────────────────────────
@@ -1537,7 +1302,6 @@ app.post('/api/products', upload.any(), async (req, res) => {
         const imgBuf = fs.readFileSync(file.path);
         const thumbBuf = await generateThumbnail(imgBuf);
         const thumbKey = (cosKey && thumbBuf) ? await uploadBufferToCOS(thumbBuf, `product_thumb_${Date.now()}_${i}.jpg`) : '';
-        const feature = await computeFeature(imgBuf);
         // Also save locally for fallback
         let localPath = '';
         let thumbLocalPath = '';
@@ -1552,8 +1316,8 @@ app.post('/api/products', upload.any(), async (req, res) => {
           }
         }
         await pool.query(
-          'INSERT INTO product_images (product_id, sort_order, cos_key, thumbnail_cos_key, local_path, thumbnail_local_path, embedding) VALUES (?, ?, ?, ?, ?, ?, ?)',
-          [productId, i, cosKey || '', thumbKey || '', localPath, thumbLocalPath, feature || '']
+          'INSERT INTO product_images (product_id, sort_order, cos_key, thumbnail_cos_key, local_path, thumbnail_local_path) VALUES (?, ?, ?, ?, ?, ?)',
+          [productId, i, cosKey || '', thumbKey || '', localPath, thumbLocalPath]
         );
       }
       return res.json({ id: productId, success: true });
@@ -1574,7 +1338,7 @@ app.post('/api/products', upload.any(), async (req, res) => {
       local.product_images.push({
         id: imgId, product_id: newId, sort_order: i,
         cos_key: cosKey || '', local_path: cosKey ? '' : file.path,
-        thumbnail_cos_key: '', thumbnail_local_path: '', embedding: ''
+        thumbnail_cos_key: '', thumbnail_local_path: ''
       });
     }
     saveLocalDB(local);
@@ -1606,10 +1370,9 @@ app.put('/api/products/:id', upload.any(), async (req, res) => {
       for (const file of files) {
         const cosKey = await uploadToCOS(file);
         const imgBuf = fs.readFileSync(file.path);
-        const feature = await computeFeature(imgBuf);
         await pool.query(
-          'INSERT INTO product_images (product_id, sort_order, cos_key, local_path, embedding) VALUES (?, ?, ?, ?, ?)',
-          [productId, order++, cosKey || '', cosKey ? '' : file.path, feature || '']
+          'INSERT INTO product_images (product_id, sort_order, cos_key, local_path) VALUES (?, ?, ?, ?)',
+          [productId, order++, cosKey || '', cosKey ? '' : file.path]
         );
       }
 
@@ -1638,7 +1401,7 @@ app.put('/api/products/:id', upload.any(), async (req, res) => {
       local.product_images.push({
         id: imgId, product_id: productId, sort_order: order++,
         cos_key: cosKey || '', local_path: cosKey ? '' : file.path,
-        thumbnail_cos_key: '', thumbnail_local_path: '', embedding: ''
+        thumbnail_cos_key: '', thumbnail_local_path: ''
       });
     }
     local.products[idx].image_count = local.product_images.filter((i: any) => i.product_id == productId).length;
@@ -2024,7 +1787,6 @@ app.post('/api/products/import', upload.single('file'), async (req, res) => {
               // Generate and upload thumbnail
               const thumbBuf = await generateThumbnail(img.buffer);
               const thumbKey = thumbBuf ? await uploadBufferToCOS(thumbBuf, `product_import_thumb_${Date.now()}_${i}.jpg`) : '';
-              const feature = await computeFeature(img.buffer);
               let localPath = '';
               let thumbLocalPath = '';
               if (!cosKey) {
@@ -2037,14 +1799,14 @@ app.post('/api/products/import', upload.single('file'), async (req, res) => {
                   fs.writeFileSync(thumbLocalPath, thumbBuf);
                 }
               }
-              return { i, cosKey: cosKey || '', localPath, thumbKey: thumbKey || '', thumbLocalPath, feature: feature || '' };
+              return { i, cosKey: cosKey || '', localPath, thumbKey: thumbKey || '', thumbLocalPath };
             })
           );
           // Insert image records sequentially (correct sort_order)
           for (const r of uploadResults) {
             await pool.query(
-              'INSERT INTO product_images (product_id, sort_order, cos_key, thumbnail_cos_key, local_path, thumbnail_local_path, embedding) VALUES (?,?,?,?,?,?,?)',
-              [productId, r.i, r.cosKey, r.thumbKey, r.localPath, r.thumbLocalPath, r.feature]
+              'INSERT INTO product_images (product_id, sort_order, cos_key, thumbnail_cos_key, local_path, thumbnail_local_path) VALUES (?,?,?,?,?,?)',
+              [productId, r.i, r.cosKey, r.thumbKey, r.localPath, r.thumbLocalPath]
             );
           }
           importedCount++;
@@ -2086,7 +1848,7 @@ app.post('/api/products/import', upload.single('file'), async (req, res) => {
           local.product_images.push({
             id: maxImgId, product_id: maxProdId, sort_order: i,
             cos_key: '', local_path: localPath,
-            thumbnail_cos_key: '', thumbnail_local_path: '', embedding: ''
+            thumbnail_cos_key: '', thumbnail_local_path: ''
           });
         }
         importedCount++;
@@ -2101,122 +1863,6 @@ app.post('/api/products/import', upload.single('file'), async (req, res) => {
   }
 });
 
-// ── Similar Image Search ───────────────────────────────
-app.post('/api/products/search/similar', upload.single('file'), async (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-
-    // Compute feature vector of query image
-    const queryBuf = fs.readFileSync(req.file.path);
-    const queryFeatureStr = await computeFeature(queryBuf);
-    if (!queryFeatureStr) return res.status(400).json({ error: 'Could not compute image feature' });
-    const queryFeat = parseFeature(queryFeatureStr);
-    if (!queryFeat) return res.status(500).json({ error: 'Failed to parse query feature' });
-
-    let results: { productId: number; imageId: number; itemNo: string; productName: string; score: number }[] = [];
-
-    if (!useMySQLFallback) {
-      const pool = await getMySQLPool();
-      const [rows] = await pool.query<RowDataPacket[]>(
-        `SELECT pi.id as image_id, pi.product_id, pi.embedding, p.item_no, p.product_name
-         FROM product_images pi JOIN products p ON pi.product_id = p.id
-         WHERE pi.embedding IS NOT NULL AND pi.embedding != ''`
-      );
-      for (const row of rows) {
-        const feat = parseFeature(row.embedding);
-        if (!feat) continue;
-        const score = featureDistance(queryFeat, feat);
-        if (score <= 0.5) {
-          results.push({
-            productId: row.product_id, imageId: row.image_id,
-            itemNo: row.item_no, productName: row.product_name, score,
-          });
-        }
-      }
-    } else {
-      const local = loadLocalDB();
-      for (const img of local.product_images) {
-        if (!img.embedding) continue;
-        const feat = parseFeature(img.embedding);
-        if (!feat) continue;
-        const score = featureDistance(queryFeat, feat);
-        if (score <= 0.5) {
-          const prod = local.products.find((p: any) => p.id == img.product_id);
-          results.push({
-            productId: img.product_id, imageId: img.id,
-            itemNo: prod?.item_no || '', productName: prod?.product_name || '', score,
-          });
-        }
-      }
-    }
-
-    // Sort by similarity (ascending score) and deduplicate by productId
-    results.sort((a, b) => a.score - b.score);
-    const seen = new Set<number>();
-    results = results.filter(r => { const dup = seen.has(r.productId); seen.add(r.productId); return !dup; });
-
-    res.json({ results: results.slice(0, 50) });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// ── Rebuild Feature Vectors (admin backfill) ─────────
-app.post('/api/admin/rebuild-features', async (req, res) => {
-  try {
-    let processed = 0, updated = 0, failed = 0;
-    const onlyMissing = req.body?.all !== true && (req.query?.all !== '1') && (req.body?.all !== 'true');
-
-    const readImageBuffer = async (img: any): Promise<Buffer | null> => {
-      if (img.cos_key) {
-        const cos = getCOSClient();
-        const cfg = getCOSConfig();
-        if (cos && cfg) {
-          try {
-            const data = await cos.getObject({ Bucket: cfg.bucket, Region: cfg.region, Key: img.cos_key });
-            return Buffer.from(data.Body);
-          } catch { /* fall through to local */ }
-        }
-      }
-      if (img.local_path && fs.existsSync(img.local_path)) {
-        try { return fs.readFileSync(img.local_path); } catch { return null; }
-      }
-      return null;
-    };
-
-    if (!useMySQLFallback) {
-      const pool = await getMySQLPool();
-      const where = onlyMissing ? `WHERE embedding IS NULL OR embedding = ''` : '';
-      const [rows] = await pool.query<RowDataPacket[]>(`SELECT id, cos_key, local_path, embedding FROM product_images ${where}`);
-      for (const row of rows) {
-        processed++;
-        const buf = await readImageBuffer(row);
-        if (!buf) { failed++; continue; }
-        const feature = await computeFeature(buf);
-        if (!feature) { failed++; continue; }
-        await pool.query('UPDATE product_images SET embedding = ? WHERE id = ?', [feature, row.id]);
-        updated++;
-      }
-    } else {
-      const local = loadLocalDB();
-      for (const img of local.product_images) {
-        if (onlyMissing && img.embedding) continue;
-        processed++;
-        const buf = await readImageBuffer(img);
-        if (!buf) { failed++; continue; }
-        const feature = await computeFeature(buf);
-        if (!feature) { failed++; continue; }
-        img.embedding = feature;
-        updated++;
-      }
-      saveLocalDB(local);
-    }
-    res.json({ processed, updated, failed });
-  } catch (e: any) {
-    console.error('[POST /api/admin/rebuild-features]', e.message);
-    res.status(500).json({ error: e.message });
-  }
-});
 
 // ── COS Upload Helpers ─────────────────────────────────
 async function uploadToCOS(file: Express.Multer.File): Promise<string | null> {
