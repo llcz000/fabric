@@ -69,6 +69,7 @@ async function convertOne(filePath, outputPath) {
     return { ok: true, sizeKB: (stat.size / 1024).toFixed(0) };
   } catch (err) {
     return { ok: false, error: err.message };
+  }
 }
 
 async function main() {
