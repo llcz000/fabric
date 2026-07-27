@@ -673,8 +673,8 @@ app.post('/api/orders', async (req, res) => {
               item.color_no || '',
               item.product_name || '',
               item.composition || '',
-              parseFloat(item.weight) || 0,
-              parseFloat(item.width) || 0,
+              String(item.weight ?? 0),
+              String(item.width ?? 0),
               item.meters || 0,
               item.unit_price || 0,
               item.amount || 0,
@@ -759,8 +759,8 @@ app.put('/api/orders/:id', async (req, res) => {
                 item.color_no || '',
                 item.product_name || '',
                 item.composition || '',
-                parseFloat(item.weight) || 0,
-                parseFloat(item.width) || 0,
+                String(item.weight ?? 0),
+                String(item.width ?? 0),
                 item.meters || 0,
                 item.unit_price || 0,
                 item.amount || 0,
@@ -1757,7 +1757,7 @@ app.post('/api/products/export', async (req, res) => {
             const imageId = workbook.addImage({ buffer, extension: 'jpeg' });
             // Use nativeCol/nativeColOff directly (colOff is silently ignored by Anchor)
             worksheet.addImage(imageId, {
-              tl: { nativeCol: 5, nativeRow: rowNum - 1, nativeColOff: Math.round(xOffset * 9525), nativeRowOff: 0 },
+              tl: { col: 5, nativeRow: rowNum - 1, nativeColOff: Math.round(xOffset * 9525), nativeRowOff: 0 } as any,
               ext: { width: 72, height: 72 },
             });
             xOffset += 72 + imgGap;
@@ -1797,7 +1797,7 @@ app.post('/api/products/import', upload.single('file'), async (req, res) => {
         const mediaIdx = img.imageId;
         if (workbook.model.media && workbook.model.media[mediaIdx]) {
           const media = workbook.model.media[mediaIdx];
-          const buf = Buffer.from(media.buffer || '');
+          const buf = Buffer.isBuffer(media.buffer) ? media.buffer : Buffer.from((media.buffer || '') as string);
           if (!imageMap.has(rowIdx)) imageMap.set(rowIdx, []);
           imageMap.get(rowIdx)!.push({ buffer: buf, col: colIdx });
         }

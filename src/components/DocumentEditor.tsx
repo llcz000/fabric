@@ -829,7 +829,7 @@ export default function DocumentEditor({
                         <label className="text-[10px] font-bold text-slate-400 block">门幅 (cm)</label>
                         <input
                           type="text"
-                          value={item.width}
+                          value={sample.width}
                           onChange={(e) => handleCellChange(index, 'width', e.target.value)}
                           placeholder="180"
                           className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-500 text-xs text-slate-600 bg-white"

@@ -165,10 +165,10 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
     setGenerating(true);
     try {
       // Convert external images to data URLs via proxy, then html2canvas
-      const images = node.getElementsByTagName('img');
+      const images = Array.from(node.getElementsByTagName('img') as HTMLCollectionOf<HTMLImageElement>);
       const swaps: { img: HTMLImageElement; orig: string }[] = [];
 
-      await Promise.all(Array.from(images).map(async (img, idx) => {
+      await Promise.all(images.map(async (img, idx) => {
         if (img.src && /^https?:\/\//.test(img.src) && !img.src.includes('/api/proxy-image')) {
           try {
             const res = await fetch('/api/proxy-image?url=' + encodeURIComponent(img.src));
