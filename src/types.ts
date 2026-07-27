@@ -88,6 +88,7 @@ export interface DocumentData {
   totalAmount: number;  // 合计总额（元）
   receivableAmount: number; // 应收金额（元）
   deposit?: number;     // 预收订金（元）
+  deductionMeters?: number; // 扣损米数（米），仅销售发货码单使用
 
   createdAt: string;    // 创建时间戳
   updatedAt: string;    // 修改时间戳

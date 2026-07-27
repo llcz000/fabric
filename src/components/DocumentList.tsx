@@ -45,7 +45,7 @@ export default function DocumentList({
 
   // Filter documents: whether any item matches AND doc-level fields match
   const filteredDocs = React.useMemo(() => {
-    return documents.filter((doc) => {
+    const filtered = documents.filter((doc) => {
       // Doc-level filters
       const matchesType = typeFilter === 'all' || doc.type === typeFilter;
       const matchesStartDate = !startDate || doc.date >= startDate;
@@ -67,6 +67,9 @@ export default function DocumentList({
         return matchesCustomer && matchesItemNo && matchesColorNo && matchesProductName;
       });
     });
+    // Sort by date descending (most recent first)
+    filtered.sort((a, b) => b.date.localeCompare(a.date));
+    return filtered;
   }, [documents, filterCustomer, filterItemNo, filterColorNo, filterProductName, typeFilter, startDate, endDate]);
 
   // Expand all matching docs by default when filters change
@@ -467,6 +470,7 @@ export default function DocumentList({
                     <th className="py-3.5 px-2" style={{ width: 'calc((100% - 190px) / 7)' }}>单据编号</th>
                     <th className="py-3.5 px-1 text-center" style={{ width: 'calc((100% - 190px) / 7)' }}>类型</th>
                     <th className="py-3.5 px-2" style={{ width: 'calc((100% - 190px) / 7)' }}>客户</th>
+                    <th className="py-3.5 px-2 text-right" style={{ width: 'calc((100% - 190px) / 7)' }}>扣损米数</th>
                     <th className="py-3.5 px-2 text-right" style={{ width: 'calc((100% - 190px) / 7)' }}>总计米数</th>
                     <th className="py-3.5 px-2 text-right" style={{ width: 'calc((100% - 190px) / 7)' }}>合计金额</th>
                     <th className="py-3.5 px-2 text-center" style={{ width: '160px' }}>操作</th>
@@ -510,6 +514,9 @@ export default function DocumentList({
                         </td>
                         <td className="py-3 px-2 font-extrabold text-slate-700 max-w-[100px] truncate text-xs">
                           {doc.customerName}
+                        </td>
+                        <td className="py-3 px-2 text-right text-amber-600 font-extrabold text-xs">
+                          {(doc.deductionMeters || 0) > 0 ? `${doc.deductionMeters!.toFixed(2)} 米` : '-'}
                         </td>
                         <td className="py-3 px-2 text-right text-sky-700 font-extrabold text-xs">
                           {doc.totalMeters.toFixed(2)} 米
@@ -634,6 +641,10 @@ export default function DocumentList({
                       <div>
                         <span className="text-slate-400">记录数</span>
                         <div className="font-bold text-slate-700">{matchingItems.length} 条</div>
+                      </div>
+                      <div>
+                        <span className="text-slate-400">扣损米数</span>
+                        <div className="font-extrabold text-amber-600">{(doc.deductionMeters || 0) > 0 ? `${doc.deductionMeters!.toFixed(2)} 米` : '-'}</div>
                       </div>
                       <div>
                         <span className="text-slate-400">总计米数</span>

@@ -651,6 +651,9 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                 {/* Summary Row 1: Total Rolls/Meters & Total Amount */}
                 <div style={{ gridColumn: 'span 9', padding: '6px 12px', backgroundColor: '#f8fafc' }}>
                   总匹数：<span style={{ fontWeight: 700 }}>{document.totalRolls}</span> 匹 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 总计米数：<span style={{ fontWeight: 700 }}>{document.totalMeters.toFixed(2)}</span> 米
+                  {(document.deductionMeters || 0) > 0 && (
+                    <span style={{ marginLeft: '16px', color: '#b45309' }}>扣损米数：<span style={{ fontWeight: 700 }}>{document.deductionMeters!.toFixed(2)}</span> 米</span>
+                  )}
                 </div>
                 <div style={{ gridColumn: 'span 8', padding: '6px 12px', backgroundColor: '#f8fafc' }}>
                   合计金额：<span style={{ color: '#2563eb', fontWeight: 700 }}>¥{document.totalAmount.toFixed(2)}</span>
