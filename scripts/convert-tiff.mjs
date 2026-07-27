@@ -2,44 +2,86 @@
  * Batch convert TIFF files to JPG
  * Usage: node scripts/convert-tiff.mjs
  *
- * - Scans D:/tiff/ for .tiff/.tif files
- * - Extracts 货号 from filename (chars before 2nd "-")
- * - Converts to ~200KB JPG, outputs to D:/jpg/
- * - Concurrent: 2 at a time (200MB TIFFs are memory-heavy)
+ * Uses geotiff + sharp to handle large TIFFs that exceed libvips memory limits.
  */
-
 import fs from 'fs';
 import path from 'path';
-import sharp from 'sharp';
+import GeoTIFF from 'geotiff';
+
+// Dynamic import so VIPS_MAX_MEM is set before sharp loads
+process.env.VIPS_MAX_MEM = '2048';
+const { default: sharp } = await import('sharp');
 
 const INPUT_DIR = 'D:/tiff';
 const OUTPUT_DIR = 'D:/jpg';
-const CONCURRENCY = 1; // Process one at a time for large (200MB+) TIFFs
 const MAX_WIDTH = 1200;
 const JPEG_QUALITY = 70;
 
-// Extract 货号: take chars before the 2nd "-" in filename
-// "xx-1.tiff" → "xx-1", "xx-2-yy.tiff" → "xx-2", "xx.tiff" → "xx"
 function extractItemNo(filename) {
-  const name = path.basename(filename, path.extname(filename)); // remove ext
+  const name = path.basename(filename, path.extname(filename));
   const parts = name.split('-');
   if (parts.length >= 2) {
-    return parts.slice(0, 2).join('-'); // "xx-2-yy" → "xx-2"
+    return parts.slice(0, 2).join('-');
   }
-  return name; // "xx" → "xx"
+  return name;
+}
+
+/** Interleave separate band arrays into interleaved RGB buffer for sharp */
+function interleaveRGB(r, g, b) {
+  const len = r.length;
+  const out = Buffer.allocUnsafe(len * 3);
+  for (let i = 0, j = 0; i < len; i++) {
+    out[j++] = r[i];
+    out[j++] = g[i];
+    out[j++] = b[i];
+  }
+  return out;
 }
 
 async function convertOne(filePath, outputPath) {
+  // Try sharp first (faster, less memory), fall back to geotiff
   try {
-    await sharp(filePath, { limitInputPixels: false, failOn: 'none', sequentialRead: true })
+    await sharp(filePath, { limitInputPixels: false, failOn: 'error' })
       .resize(MAX_WIDTH, undefined, { withoutEnlargement: true, fit: 'inside' })
       .jpeg({ quality: JPEG_QUALITY, mozjpeg: true })
       .toFile(outputPath);
     const stat = fs.statSync(outputPath);
-    const sizeKB = (stat.size / 1024).toFixed(0);
-    return { ok: true, sizeKB };
-  } catch (err) {
-    return { ok: false, error: err.message };
+    return { ok: true, sizeKB: (stat.size / 1024).toFixed(0), method: 'sharp' };
+  } catch (_sharpErr) {
+    // Fallback: geotiff + sharp raw
+    try {
+      const tiff = await GeoTIFF.fromFile(filePath);
+      const img = await tiff.getImage();
+      const width = img.getWidth();
+      const height = img.getHeight();
+
+      // Read RGB bands
+      const rasters = await img.readRasters();
+      let rgb;
+      if (rasters.length >= 3) {
+        rgb = interleaveRGB(rasters[0], rasters[1], rasters[2]);
+      } else if (rasters.length === 1) {
+        // Grayscale → RGB
+        const gray = rasters[0];
+        rgb = Buffer.allocUnsafe(gray.length * 3);
+        for (let i = 0, j = 0; i < gray.length; i++) {
+          const v = gray[i];
+          rgb[j++] = v; rgb[j++] = v; rgb[j++] = v;
+        }
+      } else {
+        return { ok: false, error: `Unexpected band count: ${rasters.length}` };
+      }
+
+      await sharp(rgb, { raw: { width, height, channels: 3 }, limitInputPixels: false })
+        .resize(MAX_WIDTH, undefined, { withoutEnlargement: true, fit: 'inside' })
+        .jpeg({ quality: JPEG_QUALITY, mozjpeg: true })
+        .toFile(outputPath);
+
+      const stat = fs.statSync(outputPath);
+      return { ok: true, sizeKB: (stat.size / 1024).toFixed(0), method: 'geotiff+sharp' };
+    } catch (geoErr) {
+      return { ok: false, error: geoErr.message };
+    }
   }
 }
 
@@ -60,48 +102,36 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`找到 ${files.length} 个 TIFF 文件，并发数: ${CONCURRENCY}\n`);
+  console.log(`找到 ${files.length} 个 TIFF 文件\n`);
 
-  let done = 0;
-  let skipped = 0;
-  let failed = 0;
+  let done = 0, skipped = 0, failed = 0;
   const errors = [];
 
-  // Process with concurrency limit
-  const queue = [...files];
-  async function worker() {
-    while (queue.length > 0) {
-      const filePath = queue.shift();
-      const itemNo = extractItemNo(path.basename(filePath));
-      const outPath = path.join(OUTPUT_DIR, `${itemNo}.jpg`);
+  for (const filePath of files) {
+    const itemNo = extractItemNo(path.basename(filePath));
+    const outPath = path.join(OUTPUT_DIR, `${itemNo}.jpg`);
 
-      // Skip if already exists
-      if (fs.existsSync(outPath)) {
-        skipped++;
-        done++;
-        process.stdout.write(`\r[${done}/${files.length}] ${itemNo}.jpg (已存在，跳过)                    `);
-        continue;
-      }
+    if (fs.existsSync(outPath)) {
+      skipped++; done++;
+      process.stdout.write(`\r[${done}/${files.length}] ${itemNo}.jpg (跳过)                    `);
+      continue;
+    }
 
-      const result = await convertOne(filePath, outPath);
-      done++;
-      if (result.ok) {
-        process.stdout.write(`\r[${done}/${files.length}] ${itemNo}.jpg (${result.sizeKB}KB)                    `);
-      } else {
-        failed++;
-        errors.push({ file: path.basename(filePath), error: result.error });
-        process.stdout.write(`\r[${done}/${files.length}] ${path.basename(filePath)} ❌ ${result.error}                    `);
-      }
+    const result = await convertOne(filePath, outPath);
+    done++;
+    if (result.ok) {
+      process.stdout.write(`\r[${done}/${files.length}] ${itemNo}.jpg (${result.sizeKB}KB ${result.method})                    `);
+    } else {
+      failed++;
+      errors.push({ file: path.basename(filePath), error: result.error });
+      process.stdout.write(`\r[${done}/${files.length}] ${itemNo} ❌ ${result.error.slice(0, 80)}                    `);
     }
   }
-
-  const workers = Array.from({ length: CONCURRENCY }, () => worker());
-  await Promise.all(workers);
 
   console.log(`\n\n✅ 完成！成功: ${done - failed}，跳过: ${skipped}，失败: ${failed}`);
   if (errors.length > 0) {
     console.log('\n失败列表:');
-    errors.forEach(e => console.log(`  - ${e.file}: ${e.error}`));
+    errors.forEach(e => console.log(`  - ${e.file}`));
   }
   console.log(`\n输出目录: ${OUTPUT_DIR}`);
 }
