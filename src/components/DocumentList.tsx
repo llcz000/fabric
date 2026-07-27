@@ -80,11 +80,6 @@ export default function DocumentList({
     return filtered;
   }, [documents, filterCustomer, filterItemNo, filterColorNo, filterProductName, typeFilter, startDate, endDate, settledFilter]);
 
-  // Expand all matching docs by default when filters change
-  React.useEffect(() => {
-    const ids = filteredDocs.map(d => d.id).join(',');
-    setExpandedDocs(new Set(filteredDocs.map(d => d.id)));
-  }, [documents.length, filterCustomer, filterItemNo, filterColorNo, filterProductName, typeFilter, startDate, endDate, settledFilter]); // eslint-disable-line
 
   const toggleExpand = (docId: string) => {
     setExpandedDocs(prev => {
