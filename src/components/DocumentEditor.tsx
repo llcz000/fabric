@@ -165,11 +165,13 @@ export default function DocumentEditor({
     if (field === 'meters' || field === 'price' || field === 'deductionMeters') {
       const numValue = value === '' ? 0 : parseFloat(value);
       currentItem[field] = isNaN(numValue) ? 0 : numValue;
-      
-      // Auto-calculate amount
-      const m = field === 'meters' ? (isNaN(parseFloat(value)) ? 0 : parseFloat(value)) : currentItem.meters;
-      const p = field === 'price' ? (isNaN(parseFloat(value)) ? 0 : parseFloat(value)) : currentItem.price;
-      currentItem.amount = parseFloat((m * p).toFixed(2));
+
+      // Auto-calculate amount using net meters (meters - deductionMeters)
+      const m = field === 'meters' ? (isNaN(parseFloat(value)) ? 0 : parseFloat(value)) : (currentItem.meters || 0);
+      const d = field === 'deductionMeters' ? (isNaN(parseFloat(value)) ? 0 : parseFloat(value)) : (currentItem.deductionMeters || 0);
+      const p = field === 'price' ? (isNaN(parseFloat(value)) ? 0 : parseFloat(value)) : (currentItem.price || 0);
+      const netMeters = Math.max(0, m - d);
+      currentItem.amount = parseFloat((netMeters * p).toFixed(2));
     } else {
       currentItem[field] = value;
     }
@@ -189,7 +191,8 @@ export default function DocumentEditor({
       }
       if (hasValidNumbers) {
         currentItem.meters = parseFloat(totalM.toFixed(2));
-        currentItem.amount = parseFloat((currentItem.meters * currentItem.price).toFixed(2));
+        const netM = Math.max(0, currentItem.meters - (currentItem.deductionMeters || 0));
+        currentItem.amount = parseFloat((netM * currentItem.price).toFixed(2));
       }
     }
 
@@ -604,7 +607,8 @@ export default function DocumentEditor({
                                         const currentItem = { ...updatedItems[index] } as any;
                                         currentItem.rollNo = rollNoStr;
                                         currentItem.meters = parseFloat(totalM.toFixed(2));
-                                        currentItem.amount = parseFloat((currentItem.meters * currentItem.price).toFixed(2));
+                                        const netMeters = Math.max(0, currentItem.meters - (currentItem.deductionMeters || 0));
+                                        currentItem.amount = parseFloat((netMeters * currentItem.price).toFixed(2));
                                         updatedItems[index] = currentItem;
                                         setItems(updatedItems);
                                       }
