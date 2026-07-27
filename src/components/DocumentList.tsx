@@ -101,6 +101,8 @@ export default function DocumentList({
   const statsItems = React.useMemo(() => {
     const items: { meters: number; amount: number; type: DocType; rollNo?: string }[] = [];
     filteredDocs.forEach(doc => {
+      // Exclude deposit orders from stats
+      if (doc.type === DocType.DEPOSIT) return;
       getDocMatchingItems(doc).forEach(item => {
         items.push({ meters: item.meters, amount: item.amount, type: doc.type, rollNo: (item as any).rollNo });
       });
@@ -193,7 +195,7 @@ export default function DocumentList({
               单据库存储总量
             </span>
             <div className="flex items-baseline gap-1.5 mt-1">
-              <span className="text-2xl font-extrabold text-slate-800">{documents.length}</span>
+              <span className="text-2xl font-extrabold text-slate-800">{documents.filter(d => d.type !== DocType.DEPOSIT).length}</span>
               <span className="text-xs text-slate-500 font-medium">份单据</span>
             </div>
           </div>
@@ -358,6 +360,7 @@ export default function DocumentList({
               <option value="all">全部类型</option>
               <option value={DocType.SAMPLE}>样布码单</option>
               <option value={DocType.SALES}>销售发货码单</option>
+              <option value={DocType.DEPOSIT}>定金单</option>
             </select>
           </div>
 
@@ -472,6 +475,7 @@ export default function DocumentList({
                 <tbody className="divide-y divide-slate-100 text-sm">
                   {filteredDocs.map((doc) => {
                     const isSample = doc.type === DocType.SAMPLE;
+                    const isDeposit = doc.type === DocType.DEPOSIT;
                     const isExpanded = expandedDocs.has(doc.id);
                     const matchingItems = getDocMatchingItems(doc);
 
@@ -497,9 +501,11 @@ export default function DocumentList({
                           <span className={`inline-flex items-center px-1 py-0.5 rounded text-[10px] font-semibold ${
                             isSample
                               ? 'bg-indigo-50 text-indigo-700 border border-indigo-100'
-                              : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                              : isDeposit
+                                ? 'bg-amber-50 text-amber-700 border border-amber-100'
+                                : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
                           }`}>
-                            {isSample ? '样布' : '发货'}
+                            {isSample ? '样布' : (isDeposit ? '定金' : '发货')}
                           </span>
                         </td>
                         <td className="py-3 px-2 font-extrabold text-slate-700 max-w-[100px] truncate text-xs">
@@ -561,8 +567,12 @@ export default function DocumentList({
                       {filteredDocs.filter(d => expandedDocs.has(d.id)).map((doc) => {
                         const matchingItems = getDocMatchingItems(doc);
                         return matchingItems.map((item, idx) => {
-                          const rollCount = doc.type === DocType.SAMPLE ? 1 :
-                            ((item.rollNo || '').trim().split(/[,，\s]+/).filter((t: string) => /^\d+(\.\d+)?$/.test(t) && parseFloat(t) > 0).length || 0);
+                          let rollCount = 1;
+                          if (doc.type !== DocType.SAMPLE) {
+                            const rollStr = ((item as any).rollNo || '').trim();
+                            const tokens = rollStr.split(/[,，\s]+/);
+                            rollCount = tokens.filter(function(t) { var v = parseFloat(t); return !isNaN(v) && v > 0; }).length || 0;
+                          }
                           return (
                             <tr key={`${doc.id}-${item.id}`} className="hover:bg-slate-50/40">
                               <td className="py-2 px-2 text-center text-slate-300">{idx + 1}</td>
@@ -588,6 +598,7 @@ export default function DocumentList({
             <div className="block md:hidden divide-y divide-slate-100">
               {filteredDocs.map((doc) => {
                 const isSample = doc.type === DocType.SAMPLE;
+                const isDeposit = doc.type === DocType.DEPOSIT;
                 const isExpanded = expandedDocs.has(doc.id);
                 const matchingItems = getDocMatchingItems(doc);
 
@@ -605,10 +616,12 @@ export default function DocumentList({
                       <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${
                         isSample
                           ? 'bg-indigo-50 text-indigo-700 border border-indigo-100'
-                          : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                          : isDeposit
+                            ? 'bg-amber-50 text-amber-700 border border-amber-100'
+                            : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
                       }`}>
                         <Tag className="w-3 h-3" />
-                        {isSample ? '样布' : '发货'}
+                        {isSample ? '样布' : (isDeposit ? '定金' : '发货')}
                       </span>
                     </div>
 

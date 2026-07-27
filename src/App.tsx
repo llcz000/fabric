@@ -59,6 +59,7 @@ const INITIAL_DOCUMENTS_DB: DocumentData[] = [
     companyAddress: '浙江省绍兴市柯桥区中国轻纺城创意路88号3层',
     companyPhone: '0575-81234567',
     bottomPhone: '0575-81234567',
+    receiverAddress: '',
     terms: `1. 质量异议提出期限：买方在收到货物之日起3日内核对数量与质量。如对品质有任何异议，请在剪样、开裁或深加工前提出，否则视为合格，深加工后恕不退换。\n2. 结算方式：本单据为结算及法律权利主张之重要凭证，请买方妥善留存并按约定账期付清货款。`,
     issuer: '张晓芬',
     receiver: '',
@@ -107,6 +108,7 @@ const INITIAL_DOCUMENTS_DB: DocumentData[] = [
     companyAddress: '浙江省绍兴市柯桥区中国轻纺城创意路88号3层',
     companyPhone: '0575-81234567',
     bottomPhone: '0575-81234567',
+    receiverAddress: '',
     terms: `1. 质量异议提出期限：买方在收到货物之日起3日内核对数量与质量。如对品质有任何异议，请在剪样、开裁或深加工前提出，否则视为合格，深加工后恕不退换。\n2. 结算方式：本单据为结算及法律权利主张之重要凭证，请买方妥善留存并按约定账期付清货款。`,
     issuer: '李建华',
     receiver: '王振华',
@@ -150,6 +152,7 @@ type AppView = 'dashboard' | 'list' | 'create' | 'settings' | 'preview' | 'produ
 // Helper: Map from Backend order model to Frontend DocumentData
 function mapBackendOrderToDoc(order: any): DocumentData {
   const isSample = order.template_type === 'sample';
+  const isDeposit = order.template_type === 'deposit';
   
   const mappedItems = (order.items || []).map((it: any) => {
     let rollNoStr = '';
@@ -178,6 +181,17 @@ function mapBackendOrderToDoc(order: any): DocumentData {
         amount: parseFloat(it.amount || 0),
         remark: it.remark || '',
       };
+    } else if (isDeposit) {
+      return {
+        id: String(it.id),
+        itemNo: it.product_no || '',
+        colorNo: it.color_no || '',
+        productName: it.product_name || '',
+        meters: parseFloat(it.meters || 0),
+        price: parseFloat(it.unit_price || 0),
+        amount: parseFloat(it.amount || 0),
+        remark: '',
+      };
     } else {
       return {
         id: String(it.id),
@@ -197,7 +211,7 @@ function mapBackendOrderToDoc(order: any): DocumentData {
   return {
     id: String(order.id),
     docNo: order.order_no || '',
-    type: isSample ? DocType.SAMPLE : DocType.SALES,
+    type: isSample ? DocType.SAMPLE : (isDeposit ? DocType.DEPOSIT : DocType.SALES),
     date: order.order_date || '',
     customerName: order.receiving_unit || '',
     companyName: '织梦盛世面料品贸易有限公司',
@@ -206,12 +220,15 @@ function mapBackendOrderToDoc(order: any): DocumentData {
     terms: (isSample ? `1. 质量异议提出期限：买方在收到货物之日起3日内核对数量与质量。如对品质有任何异议，请在剪样、开裁或深加工前提出，否则视为合格，深加工后恕不退换。\n2. 结算方式：本单据为结算及法律权利主张之重要凭证，请买方妥善留存并按约定账期付清货款。` : ''),
     issuer: order.sign_person || '',
     receiver: order.receiver || '',
+    receiverAddress: order.receiver_address || '',
     bottomPhone: order.receiver_phone || '',
     items: mappedItems,
     totalMeters: parseFloat(order.total_meters || 0),
     totalRolls: parseInt(order.total_pieces || 0),
     totalAmount: parseFloat(order.total_amount || 0),
-    receivableAmount: parseFloat(order.total_amount || 0) - parseFloat(order.deposit || 0),
+    receivableAmount: isDeposit
+      ? parseFloat(order.total_amount || 0)
+      : parseFloat(order.total_amount || 0) - parseFloat(order.deposit || 0),
     deposit: parseFloat(order.deposit || 0),
     createdAt: order.created_at || new Date().toISOString(),
     updatedAt: order.updated_at || new Date().toISOString()
@@ -221,20 +238,21 @@ function mapBackendOrderToDoc(order: any): DocumentData {
 // Map from Frontend DocumentData to Backend Order Payload
 function mapDocToBackendPayload(doc: DocumentData): any {
   const isSample = doc.type === DocType.SAMPLE;
-  
+  const isDeposit = doc.type === DocType.DEPOSIT;
+
   const itemsPayload = doc.items.map((it: any) => {
     let pieceMeters: number[] | null = null;
-    if (!isSample && it.rollNo) {
+    if (!isSample && !isDeposit && it.rollNo) {
       pieceMeters = it.rollNo.split(/[,，\s]+/).map(parseFloat).filter(v => !isNaN(v) && v > 0);
     }
-    
+
     return {
       product_no: it.itemNo || '',
       color_no: it.colorNo || '',
       product_name: it.productName || '',
-      composition: (it as any).composition || '',
-      weight: (it as any).weight || '',
-      width: it.width || '',
+      composition: isDeposit ? '' : ((it as any).composition || ''),
+      weight: isDeposit ? '' : ((it as any).weight || ''),
+      width: isDeposit ? '' : (it.width || ''),
       meters: parseFloat(it.meters || 0),
       unit_price: parseFloat(it.price || 0),
       amount: parseFloat(it.amount || 0),
@@ -254,8 +272,9 @@ function mapDocToBackendPayload(doc: DocumentData): any {
     sign_person: doc.issuer,
     receiver: doc.receiver,
     receiver_phone: doc.bottomPhone || '',
-    template_type: isSample ? 'sample' : 'bulk',
-    deposit: doc.deposit || 0,
+    receiver_address: doc.receiverAddress || '',
+    template_type: isSample ? 'sample' : (isDeposit ? 'deposit' : 'bulk'),
+    deposit: isDeposit ? 0 : (doc.deposit || 0),
     items: itemsPayload
   };
 }
@@ -457,7 +476,7 @@ export default function App() {
 
   // Copy/Duplicate Document to start a new record easily
   const handleDuplicateDocument = (doc: DocumentData) => {
-    const prefix = doc.type === DocType.SAMPLE ? 'YB' : 'XS';
+    const prefix = doc.type === DocType.SAMPLE ? 'YB' : (doc.type === DocType.DEPOSIT ? 'DJ' : 'XS');
     const d = new Date();
     const localToday = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     const cleanDate = localToday.replace(/-/g, '');
@@ -738,7 +757,7 @@ export default function App() {
       {/* Corporate footer - hidden on print */}
       <footer className="no-print border-t border-slate-100 bg-white py-6 mt-12 text-center text-xs text-slate-400 font-medium pb-24 md:pb-6">
         <div className="max-w-7xl mx-auto px-4 space-y-2">
-          <div>面料行业单据数据库管理系统（样布码单 / 销售发货码单）</div>
+          <div>面料行业单据数据库管理系统（样布码单 / 销售发货码单 / 定金单）</div>
           <div>本软件数据完全存储于您的浏览器本地沙箱，支持一键备份和恢复。</div>
         </div>
       </footer>

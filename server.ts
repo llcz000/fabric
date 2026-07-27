@@ -210,6 +210,7 @@ async function getMySQLPool(): Promise<mysql.Pool> {
         sign_person VARCHAR(100) DEFAULT '',
         receiver VARCHAR(100) DEFAULT '',
         receiver_phone VARCHAR(100) DEFAULT '',
+        receiver_address VARCHAR(500) DEFAULT '',
         template_type VARCHAR(20) DEFAULT 'sample',
         deposit DECIMAL(12,2) DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -282,6 +283,7 @@ async function getMySQLPool(): Promise<mysql.Pool> {
     };
 
     await addColumnIfNotExists('company_config', 'default_terms', 'TEXT');
+    await addColumnIfNotExists('orders', 'receiver_address', 'VARCHAR(500) DEFAULT \'\'');
 
     // Repair: recalculate order totals from order_items (fixes any zero-total records)
     try {
@@ -441,7 +443,8 @@ const CreateOrderSchema = z.object({
   sign_person: z.string().max(100).optional().default(''),
   receiver: z.string().max(100).optional().default(''),
   receiver_phone: z.string().max(100).optional().default(''),
-  template_type: z.enum(['sample', 'bulk']).optional().default('sample'),
+  receiver_address: z.string().max(500).optional().default(''),
+  template_type: z.enum(['sample', 'bulk', 'deposit']).optional().default('sample'),
   deposit: z.number().min(0).optional().default(0),
   items: z.array(OrderItemSchema),
 });
@@ -634,8 +637,8 @@ app.post('/api/orders', async (req, res) => {
       try {
         await conn.beginTransaction();
         const [result] = await conn.query<ResultSetHeader>(
-          `INSERT INTO orders (order_no, order_date, style_no, receiving_unit, total_meters, total_pieces, total_amount, sign_person, receiver, receiver_phone, template_type, deposit)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO orders (order_no, order_date, style_no, receiving_unit, total_meters, total_pieces, total_amount, sign_person, receiver, receiver_phone, receiver_address, template_type, deposit)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           data.order_no,
           data.order_date,
@@ -647,6 +650,7 @@ app.post('/api/orders', async (req, res) => {
           data.sign_person || '',
           data.receiver || '',
           data.receiver_phone || '',
+          data.receiver_address || '',
           data.template_type || 'sample',
           data.deposit || 0
         ]
@@ -718,7 +722,7 @@ app.put('/api/orders/:id', async (req, res) => {
           `UPDATE orders SET
             order_no = ?, order_date = ?, style_no = ?, receiving_unit = ?,
             total_meters = ?, total_pieces = ?, total_amount = ?,
-            sign_person = ?, receiver = ?, receiver_phone = ?, template_type = ?, deposit = ?
+            sign_person = ?, receiver = ?, receiver_phone = ?, receiver_address = ?, template_type = ?, deposit = ?
           WHERE id = ?`,
           [
             data.order_no,
@@ -731,6 +735,7 @@ app.put('/api/orders/:id', async (req, res) => {
             data.sign_person || '',
             data.receiver || '',
             data.receiver_phone || '',
+            data.receiver_address || '',
             data.template_type || 'sample',
             data.deposit || 0,
             orderId
@@ -933,6 +938,7 @@ app.get('/api/export_template/:id', async (req, res) => {
 
     const templateType = order.template_type || 'sample';
     const isSample = templateType === 'sample';
+    const isDeposit = templateType === 'deposit';
 
     // Try to find a template file
     const config = loadTemplateConfig();
@@ -983,10 +989,12 @@ app.get('/api/export_template/:id', async (req, res) => {
       worksheet = workbook.addWorksheet('单据');
 
       // Column definitions
-      const title = isSample ? '样布码单' : '销售发货码单';
+      const title = isSample ? '样布码单' : (isDeposit ? '定金单' : '销售发货码单');
       const cols = isSample
         ? ['序号', '货号', '色号', '品名', '成分', '克重', '门幅(cm)', '米数(m)', '单价(元)', '金额(元)', '备注']
-        : ['序号', '货号', '色号', '品名', '匹号/箱号', '门幅(cm)', '米数(m)', '单价(元)', '金额(元)', '备注'];
+        : isDeposit
+          ? ['序号', '货号', '色号', '品名', '米数(m)', '单价(元)', '金额(元)']
+          : ['序号', '货号', '色号', '品名', '匹号/箱号', '门幅(cm)', '米数(m)', '单价(元)', '金额(元)', '备注'];
 
       // -- Row 1: Company name
       worksheet.mergeCells(1, 1, 1, cols.length);
@@ -1042,7 +1050,9 @@ app.get('/api/export_template/:id', async (req, res) => {
       // Column widths
       const colWidths = isSample
         ? [6, 14, 12, 16, 18, 8, 10, 10, 10, 12, 16]
-        : [6, 14, 12, 16, 14, 10, 10, 10, 12, 16];
+        : isDeposit
+          ? [6, 14, 12, 18, 12, 12, 14]
+          : [6, 14, 12, 16, 14, 10, 10, 10, 12, 16];
       for (let c = 0; c < colWidths.length; c++) {
         worksheet.getColumn(c + 1).width = colWidths[c];
       }
@@ -1066,12 +1076,18 @@ app.get('/api/export_template/:id', async (req, res) => {
               item.composition || '', item.weight || '', item.width || '',
               item.meters || 0, item.unit_price || 0, item.amount || 0, item.remark || '',
             ]
-          : [
-              r + 1,
-              item.product_no || '', item.color_no || '', item.product_name || '',
-              item.piece_meters ? (() => { try { const arr = typeof item.piece_meters === 'string' ? JSON.parse(item.piece_meters) : item.piece_meters; return Array.isArray(arr) ? arr.join(', ') : item.piece_meters; } catch { return item.piece_meters; } })() : '', item.width || '',
-              item.meters || 0, item.unit_price || 0, item.amount || 0, item.remark || '',
-            ];
+          : isDeposit
+            ? [
+                r + 1,
+                item.product_no || '', item.color_no || '', item.product_name || '',
+                item.meters || 0, item.unit_price || 0, item.amount || 0,
+              ]
+            : [
+                r + 1,
+                item.product_no || '', item.color_no || '', item.product_name || '',
+                item.piece_meters ? (() => { try { const arr = typeof item.piece_meters === 'string' ? JSON.parse(item.piece_meters) : item.piece_meters; return Array.isArray(arr) ? arr.join(', ') : item.piece_meters; } catch { return item.piece_meters; } })() : '', item.width || '',
+                item.meters || 0, item.unit_price || 0, item.amount || 0, item.remark || '',
+              ];
 
         for (let c = 0; c < cells.length; c++) {
           const cell = row.getCell(c + 1);
@@ -1087,8 +1103,8 @@ app.get('/api/export_template/:id', async (req, res) => {
       // -- Totals row
       const totalRow = worksheet.getRow(dataEndRow);
       totalRow.height = 24;
-      // For sample: cols 1-7 are labels (through 门幅), for sales: cols 1-6
-      const totalMergeEnd = isSample ? 7 : 6;
+      // For sample: cols 1-7 are labels (through 门幅), for sales: cols 1-6, for deposit: cols 1-4
+      const totalMergeEnd = isSample ? 7 : (isDeposit ? 4 : 6);
       worksheet.mergeCells(dataEndRow, 1, dataEndRow, totalMergeEnd);
       const totalLabelCell = worksheet.getCell(dataEndRow, 1);
       totalLabelCell.value = '合计';
@@ -1121,8 +1137,10 @@ app.get('/api/export_template/:id', async (req, res) => {
       amountCell.alignment = { horizontal: 'center', vertical: 'middle' };
       amountCell.border = thinBorder;
 
-      const remarkCell = worksheet.getCell(dataEndRow, remarkCol);
-      remarkCell.border = thinBorder;
+      if (!isDeposit) {
+        const remarkCell = worksheet.getCell(dataEndRow, remarkCol);
+        remarkCell.border = thinBorder;
+      }
 
       // -- Signature & footer section
       const footerStart = dataEndRow + 2;
@@ -1137,11 +1155,23 @@ app.get('/api/export_template/:id', async (req, res) => {
       receiverCell.font = { name: '宋体', size: 11 };
       receiverCell.alignment = { horizontal: 'right' };
 
+      let termsRowOffset = 0;
+      // -- Receiver address (deposit only)
+      if (isDeposit) {
+        termsRowOffset = 1;
+        const addrRow = footerStart + 1;
+        worksheet.mergeCells(addrRow, 1, addrRow, cols.length);
+        worksheet.getCell(addrRow, 1).value = `收货地址：${order.receiver_address || ''}`;
+        worksheet.getCell(addrRow, 1).font = { name: '宋体', size: 11 };
+        worksheet.getRow(addrRow).height = 22;
+      }
+
       // -- Terms
-      if (company.default_terms) {
-        const termsRow = footerStart + 1;
+      const termsContent = isDeposit ? (company.default_terms || '') : (company.default_terms || '');
+      if (termsContent) {
+        const termsRow = footerStart + 1 + termsRowOffset;
         worksheet.mergeCells(termsRow, 1, termsRow, cols.length);
-        worksheet.getCell(termsRow, 1).value = `备注：${company.default_terms}`;
+        worksheet.getCell(termsRow, 1).value = `备注：${termsContent}`;
         worksheet.getCell(termsRow, 1).font = { name: '宋体', size: 9, color: { argb: 'FF666666' } };
         worksheet.getRow(termsRow).height = 20;
       }

@@ -6,6 +6,7 @@
 export enum DocType {
   SAMPLE = 'sample', // 样布码单
   SALES = 'sales',   // 销售发货码单
+  DEPOSIT = 'deposit', // 定金单
 }
 
 export interface SampleItem {
@@ -35,7 +36,18 @@ export interface SalesItem {
   remark: string;       // 备注
 }
 
-export type DocItem = SampleItem | SalesItem;
+export interface DepositItem {
+  id: string;
+  itemNo: string;       // 货号
+  colorNo: string;      // 色号
+  productName: string;  // 品名
+  meters: number;       // 米数（米）
+  price: number;        // 单价（元）
+  amount: number;       // 金额（元），金额 = 米数 * 单价
+  remark: string;       // 备注（定金单不使用）
+}
+
+export type DocItem = SampleItem | SalesItem | DepositItem;
 
 export interface CompanyProfile {
   name: string;         // 公司名称
@@ -66,6 +78,7 @@ export interface DocumentData {
   terms: string;        // 备注条款
   issuer: string;       // 开单人/经手人名字或留白
   receiver: string;     // 收货人名字或留白
+  receiverAddress: string; // 收货地址（定金单使用）
   bottomPhone: string;  // 底部展示电话
 
   // 汇总数据
@@ -99,5 +112,4 @@ export interface ProductImage {
   order: number;
   url: string;           // COS or local URL
   thumbnailUrl: string;
-  phash?: string;
 }

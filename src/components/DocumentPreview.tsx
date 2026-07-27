@@ -146,6 +146,7 @@ function formatDateChinese(dateStr: string): string {
 
 export default function DocumentPreview({ document, companyProfile, onEdit, onBack }: DocumentPreviewProps) {
   const isSample = document.type === DocType.SAMPLE;
+  const isDeposit = document.type === DocType.DEPOSIT;
   const printRef = useRef(null);
   const [generating, setGenerating] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -446,7 +447,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
             {/* Document Title centered below the horizontal line */}
             <div className="text-center py-0">
               <h2 className="text-sm sm:text-base font-black tracking-[0.5em] text-slate-950 uppercase pl-[0.5em]">
-                {isSample ? '样布码单' : '销售发货码单'}
+                {isSample ? '样布码单' : (isDeposit ? '定金单' : '销售发货码单')}
               </h2>
             </div>
 
@@ -495,7 +496,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                       <div style={{ padding: '6px 8px', background: '#fff', textAlign: 'center', wordBreak: 'break-all' }}>{item.productName}</div>
                       <div style={{ padding: '6px 8px', background: '#fff', textAlign: 'center', wordBreak: 'break-all' }}>{sample.composition || '-'}</div>
                       <div style={{ padding: '6px 8px', background: '#fff', textAlign: 'center', fontWeight: 700, wordBreak: 'break-all' }}>{sample.weight || '-'}</div>
-                      <div style={{ padding: '6px 8px', background: '#fff', textAlign: 'center', fontWeight: 700, wordBreak: 'break-all' }}>{item.width || '-'}</div>
+                      <div style={{ padding: '6px 8px', background: '#fff', textAlign: 'center', fontWeight: 700, wordBreak: 'break-all' }}>{(item as SampleItem).width || '-'}</div>
                       <div style={{ padding: '6px 8px', background: '#fff', textAlign: 'center', fontWeight: 700 }}>{item.meters.toFixed(2)}</div>
                       <div style={{ padding: '6px 8px', background: '#fff', textAlign: 'center', fontWeight: 700 }}>¥{item.price.toFixed(2)}</div>
                       <div style={{ padding: '6px 8px', background: '#fff', textAlign: 'center', fontWeight: 700, color: '#2563eb' }}>¥{item.amount.toFixed(2)}</div>
@@ -521,6 +522,39 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                 </div>
                 <div style={{ gridColumn: 'span 5', padding: '6px 12px', backgroundColor: '#f8fafc' }}>
                   应收金额：<span style={{ color: '#2563eb', fontWeight: 700 }}>¥{document.totalAmount.toFixed(2)}</span>
+                  <span style={{ fontSize: '10px', marginLeft: '8px' }}>
+                    （大写：{numberToChineseCapital(document.totalAmount)}）
+                  </span>
+                </div>
+              </div>
+            ) : isDeposit ? (
+              <div className="print-grid" style={{ display: 'grid', gap: '1px', background: '#000', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 1fr' }}>
+                {/* Header */}
+                <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>货号</div>
+                <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>色号</div>
+                <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>品名</div>
+                <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>米数(米)</div>
+                <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>单价(元)</div>
+                <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>金额(元)</div>
+
+                {/* Data rows */}
+                {document.items.map((item) => (
+                  <React.Fragment key={item.id}>
+                    <div style={{ padding: '6px 8px', background: '#fff', textAlign: 'center', wordBreak: 'break-all' }}>{item.itemNo}</div>
+                    <div style={{ padding: '6px 8px', background: '#fff', textAlign: 'center', wordBreak: 'break-all' }}>{item.colorNo || '-'}</div>
+                    <div style={{ padding: '6px 8px', background: '#fff', textAlign: 'center', wordBreak: 'break-all' }}>{item.productName}</div>
+                    <div style={{ padding: '6px 8px', background: '#fff', textAlign: 'center', fontWeight: 700 }}>{item.meters.toFixed(2)}</div>
+                    <div style={{ padding: '6px 8px', background: '#fff', textAlign: 'center', fontWeight: 700 }}>¥{item.price.toFixed(2)}</div>
+                    <div style={{ padding: '6px 8px', background: '#fff', textAlign: 'center', fontWeight: 700, color: '#2563eb' }}>¥{item.amount.toFixed(2)}</div>
+                  </React.Fragment>
+                ))}
+
+                {/* Summary Row */}
+                <div style={{ gridColumn: 'span 3', padding: '6px 12px', backgroundColor: '#f8fafc' }}>
+                  合计米数：<span style={{ fontWeight: 700 }}>{document.totalMeters.toFixed(2)}</span>
+                </div>
+                <div style={{ gridColumn: 'span 3', padding: '6px 12px', backgroundColor: '#f8fafc' }}>
+                  合计金额：<span style={{ color: '#2563eb', fontWeight: 700 }}>¥{document.totalAmount.toFixed(2)}</span>
                   <span style={{ fontSize: '10px', marginLeft: '8px' }}>
                     （大写：{numberToChineseCapital(document.totalAmount)}）
                   </span>
@@ -629,7 +663,11 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
           {/* 4. Terms and Liability Statement */}
           <div className="terms-box border rounded-sm p-2 text-[11px] leading-relaxed" style={{ fontFamily: 'SimSun, serif', backgroundColor: '#f8fafc', borderColor: '#cbd5e1', color: '#334155' }}>
             <span>备注条款：</span>
-            <span className="whitespace-pre-wrap">{companyProfile.defaultTerms || '无备注条款。'}</span>
+            <span className="whitespace-pre-wrap">
+              {isDeposit
+                ? (document.terms || '无备注条款。')
+                : (companyProfile.defaultTerms || '无备注条款。')}
+            </span>
           </div>
 
           {/* 5. Bottom Signatures and Contact Block */}
@@ -656,6 +694,14 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                   </span>
                 </div>
               </div>
+              {isDeposit && (
+              <div className="w-full text-xs text-slate-800 mt-1">
+                <span>收货地址：</span>
+                <span className="underline underline-offset-4">
+                  {document.receiverAddress || '        '}
+                </span>
+              </div>
+              )}
             </div>
 
             {/* Right: Payment QRCodes (WeChat & Alipay) - Only shown for Sample Slip */}

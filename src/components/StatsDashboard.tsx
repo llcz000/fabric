@@ -16,15 +16,18 @@ export default function StatsDashboard({ documents, onViewDoc }: StatsDashboardP
   // Aggregate stats
   const sampleDocs = documents.filter(d => d.type === DocType.SAMPLE);
   const salesDocs = documents.filter(d => d.type === DocType.SALES);
+  const depositDocs = documents.filter(d => d.type === DocType.DEPOSIT);
 
   const totalMeters = documents.reduce((sum, d) => sum + d.totalMeters, 0);
   const totalAmount = documents.reduce((sum, d) => sum + d.totalAmount, 0);
 
   const sampleMeters = sampleDocs.reduce((sum, d) => sum + d.totalMeters, 0);
   const salesMeters = salesDocs.reduce((sum, d) => sum + d.totalMeters, 0);
+  const depositMeters = depositDocs.reduce((sum, d) => sum + d.totalMeters, 0);
 
   const sampleAmount = sampleDocs.reduce((sum, d) => sum + d.totalAmount, 0);
   const salesAmount = salesDocs.reduce((sum, d) => sum + d.totalAmount, 0);
+  const depositAmount = depositDocs.reduce((sum, d) => sum + d.totalAmount, 0);
 
   // Top products ranking
   const productMetersMap: { [product: string]: number } = {};
@@ -65,7 +68,7 @@ export default function StatsDashboard({ documents, onViewDoc }: StatsDashboardP
       </div>
 
       {/* 2. Visual Split Analysis card */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         
         {/* Sampling volume card */}
         <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-xs flex flex-col justify-between space-y-4">
@@ -139,6 +142,35 @@ export default function StatsDashboard({ documents, onViewDoc }: StatsDashboardP
           </div>
         </div>
 
+        {/* Deposit volume card */}
+        <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-xs flex flex-col justify-between space-y-4">
+          <div className="flex items-start justify-between">
+            <div className="space-y-1">
+              <span className="text-xs font-semibold text-amber-500 bg-amber-50 px-2.5 py-1 rounded-full">
+                定金专属指标 · 定金单
+              </span>
+              <h3 className="text-lg font-bold text-slate-800 pt-1">定金统计</h3>
+            </div>
+            <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
+              <Receipt className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4 border-t border-slate-50 pt-4">
+            <div>
+              <span className="text-xs text-slate-400 block font-medium">定金单数</span>
+              <span className="text-lg font-extrabold text-slate-700">{depositDocs.length} 份</span>
+            </div>
+            <div>
+              <span className="text-xs text-slate-400 block font-medium">定金米数</span>
+              <span className="text-lg font-extrabold text-amber-600">{depositMeters.toFixed(1)} 米</span>
+            </div>
+            <div>
+              <span className="text-xs text-slate-400 block font-medium">定金金额</span>
+              <span className="text-lg font-extrabold text-rose-600">¥{depositAmount.toLocaleString('en-US', {maximumFractionDigits:0})}</span>
+            </div>
+          </div>
+        </div>
+
       </div>
 
       {/* 3. Hot Fabric Ranking & History log */}
@@ -203,6 +235,7 @@ export default function StatsDashboard({ documents, onViewDoc }: StatsDashboardP
             <div className="space-y-3 pt-1">
               {recentDocs.map((doc) => {
                 const isSample = doc.type === DocType.SAMPLE;
+                const isDeposit = doc.type === DocType.DEPOSIT;
                 return (
                   <div 
                     key={doc.id}
@@ -213,9 +246,9 @@ export default function StatsDashboard({ documents, onViewDoc }: StatsDashboardP
                       <div className="flex items-center gap-1.5">
                         <span className="text-xs font-bold font-mono text-slate-800">{doc.docNo}</span>
                         <span className={`text-[10px] px-1.5 py-0.5 rounded-sm font-semibold ${
-                          isSample ? 'bg-indigo-50 text-indigo-700' : 'bg-emerald-50 text-emerald-700'
+                          isSample ? 'bg-indigo-50 text-indigo-700' : isDeposit ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'
                         }`}>
-                          {isSample ? '样布' : '发货'}
+                          {isSample ? '样布' : (isDeposit ? '定金' : '发货')}
                         </span>
                       </div>
                       <p className="text-xs font-bold text-slate-500 truncate max-w-[150px]">

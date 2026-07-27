@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { DocType, DocumentData, DocItem, CompanyProfile, SampleItem, SalesItem } from '../types';
+import { DocType, DocumentData, DocItem, CompanyProfile, SampleItem, SalesItem, DepositItem } from '../types';
 import { Plus, Trash2, Save, FileText, Calendar, User, Hash, AlertTriangle } from 'lucide-react';
 
 interface DocumentEditorProps {
@@ -59,6 +59,7 @@ export default function DocumentEditor({
   const [terms, setTerms] = useState(existingDocument?.terms || '');
   const [issuer, setIssuer] = useState(existingDocument?.issuer || '');
   const [receiver, setReceiver] = useState(existingDocument?.receiver || '');
+  const [receiverAddress, setReceiverAddress] = useState(existingDocument?.receiverAddress || '');
   const [bottomPhone, setBottomPhone] = useState(existingDocument?.bottomPhone || '');
   const [deposit, setDeposit] = useState<number>(existingDocument?.deposit || 0);
   const [part3Open, setPart3Open] = useState(false);
@@ -87,7 +88,7 @@ export default function DocumentEditor({
   const [items, setItems] = useState<DocItem[]>([]);
 
   // Generate doc number prefix hint only, not auto-fill
-  const docNoPrefix = docType === DocType.SAMPLE ? 'YB' : 'XS';
+  const docNoPrefix = docType === DocType.SAMPLE ? 'YB' : (docType === DocType.DEPOSIT ? 'DJ' : 'XS');
 
 
   // Initialize items
@@ -128,6 +129,17 @@ export default function DocumentEditor({
         amount: 0,
         remark: '',
       } as SampleItem;
+    } else if (type === DocType.DEPOSIT) {
+      return {
+        id,
+        itemNo: '',
+        colorNo: '',
+        productName: '',
+        meters: 0,
+        price: 0,
+        amount: 0,
+        remark: '',
+      } as DepositItem;
     } else {
       return {
         id,
@@ -224,11 +236,13 @@ export default function DocumentEditor({
   const validItems = items.filter(item => item.itemNo.trim() !== '' || item.productName.trim() !== '');
 
   const totalMeters = validItems.reduce((sum, item) => sum + (item.meters || 0), 0);
-  const totalRolls = docType === DocType.SAMPLE
+  const totalRolls = (docType === DocType.SAMPLE || docType === DocType.DEPOSIT)
     ? validItems.length
     : validItems.reduce((sum, item) => sum + getRollValuesCount((item as SalesItem).rollNo, item.meters), 0);
   const totalAmount = parseFloat(validItems.reduce((sum, item) => sum + (item.amount || 0), 0).toFixed(2));
-  const receivableAmount = parseFloat((totalAmount - deposit).toFixed(2));
+  const receivableAmount = docType === DocType.DEPOSIT
+    ? parseFloat(totalAmount.toFixed(2))
+    : parseFloat((totalAmount - deposit).toFixed(2));
 
   // Handle save
   const handleSave = () => {
@@ -256,12 +270,13 @@ export default function DocumentEditor({
       terms,
       issuer: issuer.trim(),
       receiver: receiver.trim(),
+      receiverAddress: receiverAddress.trim(),
       bottomPhone: bottomPhone.trim(),
       totalMeters: parseFloat(totalMeters.toFixed(2)),
       totalRolls,
       totalAmount,
       receivableAmount,
-      deposit,
+      deposit: docType === DocType.DEPOSIT ? 0 : deposit,
       createdAt: existingDocument?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -311,6 +326,18 @@ export default function DocumentEditor({
             }`}
           >
             销售发货码单 (Sales)
+          </button>
+          <button
+            type="button"
+            id="tab-select-deposit"
+            onClick={() => handleDocTypeChange(DocType.DEPOSIT)}
+            className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 ${
+              docType === DocType.DEPOSIT
+                ? 'bg-sky-600 text-white shadow-md scale-[1.02]'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+            }`}
+          >
+            定金单 (Deposit)
           </button>
         </div>
       </div>
@@ -437,14 +464,16 @@ export default function DocumentEditor({
                     <th className="py-1.5 px-2 text-xs font-bold w-[90px]">克重</th>
                     <th className="py-1.5 px-2 text-xs font-bold w-[90px]">门幅 (cm)</th>
                   </>
-                ) : (
+                ) : docType === DocType.SALES ? (
                   <th className="py-1.5 px-2 text-xs font-bold w-[280px]">各匹米数 (米数)</th>
-                )}
+                ) : null}
 
                 <th className="py-1.5 px-2 text-xs font-bold w-[90px]">米数 (米)</th>
                 <th className="py-1.5 px-2 text-xs font-bold w-[90px]">单价 (元)</th>
                 <th className="py-1.5 px-3 text-xs font-bold w-[110px]">金额 (元)</th>
+                {docType !== DocType.DEPOSIT && (
                 <th className="py-1.5 px-2 text-xs font-bold min-w-[120px]">备注</th>
+                )}
                 <th className="py-1.5 px-3 text-xs font-bold text-center w-12">操作</th>
               </tr>
             </thead>
@@ -521,7 +550,7 @@ export default function DocumentEditor({
                         <td className="py-1.5 px-1">
                           <input
                             type="text"
-                            value={item.width}
+                            value={(item as SampleItem).width}
                             onChange={(e) => handleCellChange(index, 'width', e.target.value)}
                             placeholder="180"
                             className="w-full px-2 py-1.5 border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-sky-500 text-xs text-slate-600"
@@ -529,7 +558,7 @@ export default function DocumentEditor({
                           />
                         </td>
                       </>
-                    ) : (
+                    ) : docType === DocType.SALES ? (
                       <td className="py-1.5 px-1">
                         <div className="grid grid-cols-5 gap-1 max-w-[280px]">
                           {(() => {
@@ -589,7 +618,7 @@ export default function DocumentEditor({
                           })()}
                         </div>
                       </td>
-                    )}
+                    ) : null}
 
                     {/* Meters (米数) */}
                     <td className="py-1.5 px-1">
@@ -623,6 +652,7 @@ export default function DocumentEditor({
                     </td>
 
                     {/* Remark */}
+                    {docType !== DocType.DEPOSIT && (
                     <td className="py-1.5 px-1">
                       <input
                         type="text"
@@ -633,6 +663,7 @@ export default function DocumentEditor({
                         id={`input-remark-${index}`}
                       />
                     </td>
+                    )}
 
                     {/* Row Delete Action */}
                     <td className="py-1.5 px-3 text-center">
@@ -750,7 +781,7 @@ export default function DocumentEditor({
                         />
                       </div>
                     </>
-                  ) : (
+                  ) : docType === DocType.SALES ? (
                     <div className="col-span-2 space-y-1 bg-slate-100/50 p-2.5 rounded-xl border border-slate-200">
                       <label className="text-[10px] font-bold text-slate-500 block">各匹米数 (数值自动累加到下方米数)</label>
                       <div className="grid grid-cols-5 gap-1 mt-1">
@@ -811,7 +842,7 @@ export default function DocumentEditor({
                         })()}
                       </div>
                     </div>
-                  )}
+                  ) : null}
 
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-slate-400 block">米数 (米)</label>
@@ -846,6 +877,7 @@ export default function DocumentEditor({
                   </div>
 
                   {/* Remark */}
+                  {docType !== DocType.DEPOSIT && (
                   <div className="col-span-2 space-y-1">
                     <label className="text-[10px] font-bold text-slate-400 block">备注</label>
                     <input
@@ -856,6 +888,7 @@ export default function DocumentEditor({
                       className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-500 text-xs text-slate-500 bg-white"
                     />
                   </div>
+                  )}
 
                 </div>
               </div>
@@ -901,7 +934,7 @@ export default function DocumentEditor({
               <strong className="text-rose-600 font-bold">¥{totalAmount.toFixed(2)}</strong>
             </div>
             <div className="flex items-center gap-1 border-l border-slate-200 pl-4 bg-amber-50/40 px-2 py-0.5 rounded-md">
-              <span className="text-amber-800">应付款：</span>
+              <span className="text-amber-800">{docType === DocType.DEPOSIT ? '合计金额：' : '应付款：'}</span>
               <strong className="text-amber-700 font-extrabold text-base">¥{receivableAmount.toFixed(2)}</strong>
             </div>
           </div>
@@ -943,6 +976,20 @@ export default function DocumentEditor({
               placeholder="收货人姓名"
             />
           </div>
+          {docType === DocType.DEPOSIT && (
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
+              收货地址
+            </label>
+            <input
+              type="text"
+              value={receiverAddress}
+              onChange={(e) => setReceiverAddress(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+              placeholder="请输入收货地址"
+            />
+          </div>
+          )}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
               底部联系电话
@@ -958,6 +1005,22 @@ export default function DocumentEditor({
         </div>
         )}
       </div>
+
+      {/* Deposit Terms (only for DEPOSIT type) */}
+      {docType === DocType.DEPOSIT && (
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-xs p-4">
+        <h3 className="text-sm font-semibold text-slate-800 uppercase tracking-wider border-l-3 border-sky-500 pl-3">
+          备注条款
+        </h3>
+        <textarea
+          value={terms}
+          onChange={(e) => setTerms(e.target.value)}
+          className="w-full mt-3 px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+          rows={4}
+          placeholder="请输入定金单备注条款..."
+        />
+      </div>
+      )}
 
       {/* Save / Cancel Action Bar */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-xs p-4 flex items-center justify-end gap-3">
