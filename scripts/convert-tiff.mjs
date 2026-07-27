@@ -39,50 +39,36 @@ function interleaveRGB(r, g, b) {
 }
 
 async function convertOne(filePath, outputPath) {
-  // Try sharp first (faster, less memory), fall back to geotiff
   try {
-    await sharp(filePath, { limitInputPixels: false, failOn: 'error' })
+    const tiff = await GeoTIFF.fromFile(filePath);
+    const img = await tiff.getImage();
+    const width = img.getWidth();
+    const height = img.getHeight();
+
+    const rasters = await img.readRasters();
+    let rgb;
+    if (rasters.length >= 3) {
+      rgb = interleaveRGB(rasters[0], rasters[1], rasters[2]);
+    } else if (rasters.length === 1) {
+      const gray = rasters[0];
+      rgb = Buffer.allocUnsafe(gray.length * 3);
+      for (let i = 0, j = 0; i < gray.length; i++) {
+        const v = gray[i];
+        rgb[j++] = v; rgb[j++] = v; rgb[j++] = v;
+      }
+    } else {
+      return { ok: false, error: `Unexpected band count: ${rasters.length}` };
+    }
+
+    await sharp(rgb, { raw: { width, height, channels: 3 }, limitInputPixels: false })
       .resize(MAX_WIDTH, undefined, { withoutEnlargement: true, fit: 'inside' })
       .jpeg({ quality: JPEG_QUALITY, mozjpeg: true })
       .toFile(outputPath);
+
     const stat = fs.statSync(outputPath);
-    return { ok: true, sizeKB: (stat.size / 1024).toFixed(0), method: 'sharp' };
-  } catch (_sharpErr) {
-    // Fallback: geotiff + sharp raw
-    try {
-      const tiff = await GeoTIFF.fromFile(filePath);
-      const img = await tiff.getImage();
-      const width = img.getWidth();
-      const height = img.getHeight();
-
-      // Read RGB bands
-      const rasters = await img.readRasters();
-      let rgb;
-      if (rasters.length >= 3) {
-        rgb = interleaveRGB(rasters[0], rasters[1], rasters[2]);
-      } else if (rasters.length === 1) {
-        // Grayscale → RGB
-        const gray = rasters[0];
-        rgb = Buffer.allocUnsafe(gray.length * 3);
-        for (let i = 0, j = 0; i < gray.length; i++) {
-          const v = gray[i];
-          rgb[j++] = v; rgb[j++] = v; rgb[j++] = v;
-        }
-      } else {
-        return { ok: false, error: `Unexpected band count: ${rasters.length}` };
-      }
-
-      await sharp(rgb, { raw: { width, height, channels: 3 }, limitInputPixels: false })
-        .resize(MAX_WIDTH, undefined, { withoutEnlargement: true, fit: 'inside' })
-        .jpeg({ quality: JPEG_QUALITY, mozjpeg: true })
-        .toFile(outputPath);
-
-      const stat = fs.statSync(outputPath);
-      return { ok: true, sizeKB: (stat.size / 1024).toFixed(0), method: 'geotiff+sharp' };
-    } catch (geoErr) {
-      return { ok: false, error: geoErr.message };
-    }
-  }
+    return { ok: true, sizeKB: (stat.size / 1024).toFixed(0) };
+  } catch (err) {
+    return { ok: false, error: err.message };
 }
 
 async function main() {
@@ -120,7 +106,7 @@ async function main() {
     const result = await convertOne(filePath, outPath);
     done++;
     if (result.ok) {
-      process.stdout.write(`\r[${done}/${files.length}] ${itemNo}.jpg (${result.sizeKB}KB ${result.method})                    `);
+      process.stdout.write(`\r[${done}/${files.length}] ${itemNo}.jpg (${result.sizeKB}KB)                    `);
     } else {
       failed++;
       errors.push({ file: path.basename(filePath), error: result.error });
