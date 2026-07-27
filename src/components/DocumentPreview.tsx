@@ -420,7 +420,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
         <div ref={printRef} className="print-container p-4 sm:p-6 bg-white text-slate-900 leading-normal select-text" style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: 'fit-content' }}>
 
           {/* Header Block, Title & Metadata Grouped tightly to reduce vertical space */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: 0 }}>
             {/* 1. Header Corporate Block */}
             <div style={{ borderBottom: '2px solid #000', paddingBottom: '4px', position: 'relative' }}>
               {/* Left: Company Logo Image - absolutely positioned to not affect width */}
@@ -675,7 +675,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
           </div>
 
           {/* 4. Terms and Liability Statement */}
-          <div className="terms-box border rounded-sm p-2 text-[11px] leading-relaxed" style={{ fontFamily: 'SimSun, serif', backgroundColor: '#f8fafc', borderColor: '#cbd5e1', color: '#334155' }}>
+          <div className="terms-box border rounded-sm p-2 text-[11px] leading-relaxed" style={{ fontFamily: 'SimSun, serif', backgroundColor: '#f8fafc', borderColor: '#cbd5e1', color: '#334155', minWidth: 0, overflowWrap: 'break-word' }}>
             <span>备注条款：</span>
             <span className="whitespace-pre-wrap">
               {isDeposit
@@ -685,7 +685,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
           </div>
 
           {/* 5. Bottom Signatures and Contact Block */}
-          <div className="signature-section flex flex-col sm:flex-row sm:justify-between items-start sm:gap-2 pt-0" style={{ fontFamily: 'SimSun, serif' }}>
+          <div className="signature-section flex flex-col sm:flex-row sm:justify-between items-start sm:gap-2 pt-0" style={{ fontFamily: 'SimSun, serif', minWidth: 0 }}>
             {/* Left: Signatures inline on one row */}
             <div className="flex flex-wrap items-center gap-x-3 sm:gap-x-5 gap-y-2 text-xs text-slate-800">
               <div>
