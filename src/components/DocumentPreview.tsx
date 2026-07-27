@@ -422,15 +422,17 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
           {/* Header Block, Title & Metadata Grouped tightly to reduce vertical space */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: 0 }}>
             {/* 1. Header Corporate Block */}
-            <div style={{ borderBottom: '2px solid #000', paddingBottom: '4px', position: 'relative' }}>
-              {/* Left: Company Logo Image - absolutely positioned to not affect width */}
-              {companyProfile.logoUrl && (
-                <div className="absolute left-0 top-0 h-12 flex items-start" style={{ zIndex: 1 }}>
-                  <img src={companyProfile.logoUrl} className="max-h-12 max-w-[80px] object-contain" alt="Logo" referrerPolicy="no-referrer" />
+            <div style={{ borderBottom: '2px solid #000', paddingBottom: '4px' }}>
+              <div className="flex justify-between items-start gap-4">
+                {/* Left: Company Logo Image */}
+                <div className="w-[120px] flex justify-start items-start h-12">
+                  {companyProfile.logoUrl && (
+                    <img src={companyProfile.logoUrl} className="max-h-12 max-w-full object-contain" alt="Logo" referrerPolicy="no-referrer" />
+                  )}
                 </div>
-              )}
-              {/* Right: Company Name, Address and Phone - determines container width */}
-              <div className="text-right" style={{ fontFamily: 'SimSun, serif', minHeight: companyProfile.logoUrl ? '3rem' : 'auto' }}>
+
+                {/* Right: Company Name, Address and Phone */}
+                <div className="space-y-1 flex-1 text-right" style={{ fontFamily: 'SimSun, serif' }}>
                   <h1 className="text-lg sm:text-xl tracking-wide text-slate-900" style={{ fontFamily: 'SimHei, sans-serif' }}>
                     {companyProfile.name}
                   </h1>
@@ -439,6 +441,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                     <p>电话：{companyProfile.phone}</p>
                   </div>
                 </div>
+              </div>
             </div>
             <div className="text-center py-0">
               <h2 className="text-sm sm:text-base font-black tracking-[0.5em] text-slate-950 uppercase pl-[0.5em]">
@@ -523,7 +526,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                 </div>
               </div>
             ) : isDeposit ? (
-              <div className="print-grid" style={{ display: 'grid', gap: '1px', background: '#000', gridTemplateColumns: '94px 78px 130px 80px 80px 94px' }}>
+              <div className="print-grid" style={{ display: 'grid', gap: '1px', background: '#000', gridTemplateColumns: '110px 94px 250px 110px 110px 110px' }}>
                 {/* Header */}
                 <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>货号</div>
                 <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>色号</div>
