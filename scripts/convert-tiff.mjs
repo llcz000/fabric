@@ -17,7 +17,6 @@ const OUTPUT_DIR = 'D:/jpg';
 const CONCURRENCY = 1; // Process one at a time for large (200MB+) TIFFs
 const MAX_WIDTH = 1200;
 const JPEG_QUALITY = 70;
-const JPEG_QUALITY = 70;
 
 // Extract 货号: take chars before the 2nd "-" in filename
 // "xx-1.tiff" → "xx-1", "xx-2-yy.tiff" → "xx-2", "xx.tiff" → "xx"
