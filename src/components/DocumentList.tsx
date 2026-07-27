@@ -420,8 +420,8 @@ export default function DocumentList({
               className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm text-slate-600 bg-white cursor-pointer"
             >
               <option value="all">全部</option>
-              <option value="yes">已结清</option>
-              <option value="no">未结清</option>
+              <option value="yes">是</option>
+              <option value="no">否</option>
             </select>
           </div>
         </div>
@@ -548,7 +548,7 @@ export default function DocumentList({
                                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
                                 : 'bg-slate-100 text-slate-500 border border-slate-200'
                             }`}>
-                              {(doc as any).settled ? '已结清' : '未结清'}
+                              {(doc as any).settled ? '是' : '否'}
                             </span>
                           ) : (
                             <span className="text-[10px] text-slate-300">-</span>
@@ -687,7 +687,7 @@ export default function DocumentList({
                       <div>
                         <span className="text-slate-400">结清状态</span>
                         <div className={`font-bold text-xs ${doc.type !== DocType.DEPOSIT && (doc as any).settled ? 'text-emerald-600' : 'text-slate-400'}`}>
-                          {doc.type !== DocType.DEPOSIT ? ((doc as any).settled ? '已结清' : '未结清') : '-'}
+                          {doc.type !== DocType.DEPOSIT ? ((doc as any).settled ? '是' : '否') : '-'}
                         </div>
                       </div>
                       <div>

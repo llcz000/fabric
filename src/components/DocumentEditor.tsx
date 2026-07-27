@@ -471,7 +471,7 @@ export default function DocumentEditor({
                   : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100'
               }`}
             >
-              {settled ? '✓ 已结清' : '未结清'}
+              {settled ? '✓ 是' : '否'}
             </button>
           </div>
           )}
