@@ -227,7 +227,7 @@ function mapBackendOrderToDoc(order: any): DocumentData {
     totalRolls: parseInt(order.total_pieces || 0),
     totalAmount: parseFloat(order.total_amount || 0),
     receivableAmount: isDeposit
-      ? parseFloat(order.total_amount || 0)
+      ? parseFloat((order.total_amount || 0)) * (1 - parseFloat(order.deposit || 0) / 100)
       : parseFloat(order.total_amount || 0) - parseFloat(order.deposit || 0),
     deposit: parseFloat(order.deposit || 0),
     createdAt: order.created_at || new Date().toISOString(),
@@ -274,7 +274,7 @@ function mapDocToBackendPayload(doc: DocumentData): any {
     receiver_phone: doc.bottomPhone || '',
     receiver_address: doc.receiverAddress || '',
     template_type: isSample ? 'sample' : (isDeposit ? 'deposit' : 'bulk'),
-    deposit: isDeposit ? 0 : (doc.deposit || 0),
+    deposit: doc.deposit || 0,
     items: itemsPayload
   };
 }

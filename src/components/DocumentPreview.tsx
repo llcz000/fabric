@@ -420,7 +420,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
         <div ref={printRef} className="print-container p-4 sm:p-6 bg-white text-slate-900 leading-normal select-text" style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: 'fit-content' }}>
           
           {/* Header Block, Title & Metadata Grouped tightly to reduce vertical space */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', width: 'fit-content' }}>
             {/* 1. Header Corporate Block */}
             <div style={{ borderBottom: '2px solid #000', paddingBottom: '4px' }}>
               <div className="flex justify-between items-start gap-4">
@@ -559,6 +559,25 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                     （大写：{numberToChineseCapital(document.totalAmount)}）
                   </span>
                 </div>
+
+                {/* Deposit Amount Row (only for deposit) */}
+                {(() => {
+                  const depositPercent = document.deposit || 0;
+                  const depositAmount = document.totalAmount * depositPercent / 100;
+                  return (
+                    <>
+                      <div style={{ gridColumn: 'span 3', padding: '6px 12px', backgroundColor: '#f8fafc' }}>
+                        定金金额：<span style={{ fontWeight: 700 }}>{depositPercent}%</span>
+                        <span style={{ fontSize: '10px', marginLeft: '8px' }}>
+                          （大写：{numberToChineseCapital(depositAmount)}）
+                        </span>
+                      </div>
+                      <div style={{ gridColumn: 'span 3', padding: '6px 12px', backgroundColor: '#f8fafc' }}>
+                        <span style={{ color: '#2563eb', fontWeight: 700 }}>¥{depositAmount.toFixed(2)}</span>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             ) : (
               <div className="print-grid" style={{ display: 'grid', gap: '1px', background: '#000', gridTemplateColumns: '65px 60px 70px 50px 50px 50px 50px 50px 50px 50px 50px 50px 50px 50px 65px 60px 70px' }}>
@@ -661,7 +680,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
           </div>
 
           {/* 4. Terms and Liability Statement */}
-          <div className="terms-box border rounded-sm p-2 text-[11px] leading-relaxed" style={{ fontFamily: 'SimSun, serif', backgroundColor: '#f8fafc', borderColor: '#cbd5e1', color: '#334155' }}>
+          <div className="terms-box border rounded-sm p-2 text-[11px] leading-relaxed" style={{ fontFamily: 'SimSun, serif', backgroundColor: '#f8fafc', borderColor: '#cbd5e1', color: '#334155', width: 'fit-content' }}>
             <span>备注条款：</span>
             <span className="whitespace-pre-wrap">
               {isDeposit
@@ -671,7 +690,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
           </div>
 
           {/* 5. Bottom Signatures and Contact Block */}
-          <div className="signature-section flex flex-col sm:flex-row sm:justify-between items-start sm:gap-2 pt-0" style={{ fontFamily: 'SimSun, serif' }}>
+          <div className="signature-section flex flex-col sm:flex-row sm:justify-between items-start sm:gap-2 pt-0" style={{ fontFamily: 'SimSun, serif', width: 'fit-content' }}>
             {/* Left: Signatures inline on one row */}
             <div className="flex flex-wrap items-center gap-x-3 sm:gap-x-5 gap-y-2 text-xs text-slate-800">
               <div>

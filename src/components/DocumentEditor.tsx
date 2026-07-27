@@ -241,7 +241,7 @@ export default function DocumentEditor({
     : validItems.reduce((sum, item) => sum + getRollValuesCount((item as SalesItem).rollNo, item.meters), 0);
   const totalAmount = parseFloat(validItems.reduce((sum, item) => sum + (item.amount || 0), 0).toFixed(2));
   const receivableAmount = docType === DocType.DEPOSIT
-    ? parseFloat(totalAmount.toFixed(2))
+    ? parseFloat((totalAmount * (1 - deposit / 100)).toFixed(2))
     : parseFloat((totalAmount - deposit).toFixed(2));
 
   // Handle save
@@ -276,7 +276,7 @@ export default function DocumentEditor({
       totalRolls,
       totalAmount,
       receivableAmount,
-      deposit: docType === DocType.DEPOSIT ? 0 : deposit,
+      deposit,
       createdAt: existingDocument?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -933,10 +933,29 @@ export default function DocumentEditor({
               <span>合计金额：</span>
               <strong className="text-rose-600 font-bold">¥{totalAmount.toFixed(2)}</strong>
             </div>
-            <div className="flex items-center gap-1 border-l border-slate-200 pl-4 bg-amber-50/40 px-2 py-0.5 rounded-md">
-              <span className="text-amber-800">{docType === DocType.DEPOSIT ? '合计金额：' : '应付款：'}</span>
-              <strong className="text-amber-700 font-extrabold text-base">¥{receivableAmount.toFixed(2)}</strong>
-            </div>
+            {docType === DocType.DEPOSIT ? (
+              <div className="flex items-center gap-2 border-l border-slate-200 pl-4 bg-sky-50/40 px-2 py-0.5 rounded-md">
+                <span className="text-sky-700 text-sm whitespace-nowrap">定金比例</span>
+                <input
+                  type="number"
+                  step="any"
+                  min="0"
+                  max="100"
+                  value={deposit || ''}
+                  onChange={(e) => setDeposit(parseFloat(e.target.value) || 0)}
+                  className="w-16 px-2 py-0.5 border border-slate-200 rounded-md text-center text-sm font-bold text-sky-700"
+                />
+                <span className="text-sky-600 text-sm">%</span>
+                <span className="text-sky-800 text-xs ml-1">
+                  = ¥{((totalAmount * (deposit || 0)) / 100).toFixed(2)}
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1 border-l border-slate-200 pl-4 bg-amber-50/40 px-2 py-0.5 rounded-md">
+                <span className="text-amber-800">应付款：</span>
+                <strong className="text-amber-700 font-extrabold text-base">¥{receivableAmount.toFixed(2)}</strong>
+              </div>
+            )}
           </div>
         </div>
       </div>

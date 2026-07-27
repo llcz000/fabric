@@ -1142,8 +1142,33 @@ app.get('/api/export_template/:id', async (req, res) => {
         remarkCell.border = thinBorder;
       }
 
+      // -- Deposit amount row (deposit orders only)
+      let footerOffset = 0;
+      if (isDeposit) {
+        footerOffset = 1;
+        const depositRowNum = dataEndRow + 1;
+        const depositRow = worksheet.getRow(depositRowNum);
+        depositRow.height = 24;
+        worksheet.mergeCells(depositRowNum, 1, depositRowNum, totalMergeEnd);
+        const depositLabelCell = worksheet.getCell(depositRowNum, 1);
+        const depositPct = parseFloat(order.deposit || 0);
+        const depositAmount = (parseFloat(order.total_amount || 0) * depositPct) / 100;
+        depositLabelCell.value = `定金比例：${depositPct}%  定金金额：¥${depositAmount.toFixed(2)}`;
+        depositLabelCell.font = { name: '宋体', size: 10, bold: true };
+        depositLabelCell.alignment = { horizontal: 'center', vertical: 'middle' };
+        depositLabelCell.border = thinBorder;
+        for (let c = 2; c <= totalMergeEnd; c++) {
+          const cell = worksheet.getCell(depositRowNum, c);
+          cell.border = thinBorder;
+        }
+        for (let c = totalMergeEnd + 1; c <= cols.length; c++) {
+          const cell = worksheet.getCell(depositRowNum, c);
+          cell.border = thinBorder;
+        }
+      }
+
       // -- Signature & footer section
-      const footerStart = dataEndRow + 2;
+      const footerStart = dataEndRow + 2 + footerOffset;
       worksheet.mergeCells(footerStart, 1, footerStart, halfCols);
       worksheet.getCell(footerStart, 1).value = `开单人：${order.sign_person || ''}`;
       worksheet.getCell(footerStart, 1).font = { name: '宋体', size: 11 };
