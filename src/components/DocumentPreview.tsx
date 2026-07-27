@@ -283,7 +283,9 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
   // Export beautifully formatted template-based Excel via backend
   const handleExportExcel = async () => {
     try {
-      const res = await fetch(`/api/export_template/${document.id}`);
+      const token = sessionStorage.getItem('fabric_auth_token');
+      const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
+      const res = await fetch(`/api/export_template/${document.id}`, { headers });
       if (!res.ok) {
         throw new Error('导出失败');
       }
