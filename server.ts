@@ -194,8 +194,7 @@ async function getMySQLPool(): Promise<mysql.Pool> {
         wechat_qr VARCHAR(500) DEFAULT '',
         alipay_qr VARCHAR(500) DEFAULT '',
         default_terms TEXT,
-        deposit_terms TEXT,
-        sales_terms TEXT
+        deposit_terms TEXT
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
@@ -286,7 +285,6 @@ async function getMySQLPool(): Promise<mysql.Pool> {
 
     await addColumnIfNotExists('company_config', 'default_terms', 'TEXT');
     await addColumnIfNotExists('company_config', 'deposit_terms', 'TEXT');
-    await addColumnIfNotExists('company_config', 'sales_terms', 'TEXT');
     await addColumnIfNotExists('orders', 'receiver_address', 'VARCHAR(500) DEFAULT \'\'');
 
     // Repair: recalculate order totals from order_items (fixes any zero-total records)
@@ -484,7 +482,7 @@ app.post('/api/company', async (req, res) => {
         await pool.query(
           `UPDATE company_config SET
             company_name = ?, brand_name = ?, brand_logo = ?, address = ?, phone = ?,
-            wechat_qr = ?, alipay_qr = ?, default_terms = ?, deposit_terms = ?, sales_terms = ?
+            wechat_qr = ?, alipay_qr = ?, default_terms = ?, deposit_terms = ?
           WHERE id = 1`,
           [
             data.company_name || '',
@@ -495,14 +493,13 @@ app.post('/api/company', async (req, res) => {
             data.wechat_qr || '',
             data.alipay_qr || '',
             data.default_terms || '',
-            data.deposit_terms || '',
-            data.sales_terms || ''
+            data.deposit_terms || ''
           ]
         );
       } else {
         await pool.query(
-          `INSERT INTO company_config (id, company_name, brand_name, brand_logo, address, phone, wechat_qr, alipay_qr, default_terms, deposit_terms, sales_terms)
-           VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO company_config (id, company_name, brand_name, brand_logo, address, phone, wechat_qr, alipay_qr, default_terms, deposit_terms)
+           VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             data.company_name || '',
             data.brand_name || '',
@@ -512,8 +509,7 @@ app.post('/api/company', async (req, res) => {
             data.wechat_qr || '',
             data.alipay_qr || '',
             data.default_terms || '',
-            data.deposit_terms || '',
-            data.sales_terms || ''
+            data.deposit_terms || ''
           ]
         );
       }

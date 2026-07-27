@@ -58,7 +58,6 @@ export default function DocumentEditor({
   const [companyPhone, setCompanyPhone] = useState(existingDocument?.companyPhone || '');
   const [terms, setTerms] = useState(existingDocument?.terms ||
     (existingDocument?.type === DocType.DEPOSIT ? companyProfile.depositTerms :
-     existingDocument?.type === DocType.SALES ? companyProfile.salesTerms :
      companyProfile.defaultTerms) || '');
   const [issuer, setIssuer] = useState(existingDocument?.issuer || '');
   const [receiver, setReceiver] = useState(existingDocument?.receiver || '');
