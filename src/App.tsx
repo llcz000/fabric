@@ -44,7 +44,9 @@ const DEFAULT_COMPANY_PROFILE: CompanyProfile = {
   receiverLabel: '收货人（签收）：',
   defaultTerms: `1. 质量异议提出期限：买方在收到货物之日起3日内核对数量与质量。如对品质有任何异议，请在剪样、开裁或深加工前提出，否则视为合格，深加工后恕不退换。
 2. 结算方式：本单据为结算及法律权利主张之重要凭证，请买方妥善留存并按约定账期付清货款。
-3. 签收效力：开单人与收货人签字即具有同等合同效力，开单电话可作为业务沟通与对账的主要凭证。`
+3. 签收效力：开单人与收货人签字即具有同等合同效力，开单电话可作为业务沟通与对账的主要凭证。`,
+  depositTerms: '',
+  salesTerms: ''
 };
 
 // Initial realistic default documents database
@@ -217,7 +219,7 @@ function mapBackendOrderToDoc(order: any): DocumentData {
     companyName: '织梦盛世面料品贸易有限公司',
     companyAddress: '浙江省绍兴市柯桥区中国轻纺城创意路88号3层',
     companyPhone: '0575-81234567',
-    terms: (isSample ? `1. 质量异议提出期限：买方在收到货物之日起3日内核对数量与质量。如对品质有任何异议，请在剪样、开裁或深加工前提出，否则视为合格，深加工后恕不退换。\n2. 结算方式：本单据为结算及法律权利主张之重要凭证，请买方妥善留存并按约定账期付清货款。` : ''),
+    terms: '',
     issuer: order.sign_person || '',
     receiver: order.receiver || '',
     receiverAddress: order.receiver_address || '',
@@ -343,6 +345,8 @@ export default function App() {
             address: backendProfile.address || '',
             phone: backendProfile.phone || '',
             defaultTerms: backendProfile.default_terms || DEFAULT_COMPANY_PROFILE.defaultTerms,
+            depositTerms: backendProfile.deposit_terms || DEFAULT_COMPANY_PROFILE.depositTerms,
+            salesTerms: backendProfile.sales_terms || DEFAULT_COMPANY_PROFILE.salesTerms,
             issuerLabel: DEFAULT_COMPANY_PROFILE.issuerLabel,
             receiverLabel: DEFAULT_COMPANY_PROFILE.receiverLabel,
             weChatPayUrl: backendProfile.wechat_qr || '',
@@ -413,7 +417,9 @@ export default function App() {
           phone: updatedProfile.phone,
           wechat_qr: updatedProfile.weChatPayUrl || '',
           alipay_qr: updatedProfile.aliPayUrl || '',
-          default_terms: updatedProfile.defaultTerms || ''
+          default_terms: updatedProfile.defaultTerms || '',
+          deposit_terms: updatedProfile.depositTerms || '',
+          sales_terms: updatedProfile.salesTerms || ''
         })
       });
     } catch (e) {

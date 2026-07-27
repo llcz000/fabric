@@ -56,7 +56,9 @@ export interface CompanyProfile {
   logoUrl?: string;     // 自定义Logo图片地址
   address: string;      // 公司地址
   phone: string;        // 公司电话
-  defaultTerms: string; // 默认备注条款/免责声明
+  defaultTerms: string; // 默认备注条款/免责声明（样布码单）
+  depositTerms: string; // 定金单备注条款
+  salesTerms: string;   // 销售发货码单备注条款
   issuerLabel: string;  // 开单人签字栏文案（如：开单人（签字））
   receiverLabel: string; // 收货人签字栏文案（如：收货人（签字））
   weChatPayUrl?: string; // 微信收款码 Base64/URL

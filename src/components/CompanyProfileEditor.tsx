@@ -18,6 +18,8 @@ export default function CompanyProfileEditor({ profile, onSave }: CompanyProfile
   const [address, setAddress] = useState(profile.address);
   const [phone, setPhone] = useState(profile.phone);
   const [defaultTerms, setDefaultTerms] = useState(profile.defaultTerms);
+  const [depositTerms, setDepositTerms] = useState(profile.depositTerms || '');
+  const [salesTerms, setSalesTerms] = useState(profile.salesTerms || '');
   const [issuerLabel, setIssuerLabel] = useState(profile.issuerLabel);
   const [receiverLabel, setReceiverLabel] = useState(profile.receiverLabel);
   const [isSaved, setIsSaved] = useState(false);
@@ -32,6 +34,8 @@ export default function CompanyProfileEditor({ profile, onSave }: CompanyProfile
     setAddress(profile.address);
     setPhone(profile.phone);
     setDefaultTerms(profile.defaultTerms);
+    setDepositTerms(profile.depositTerms || '');
+    setSalesTerms(profile.salesTerms || '');
     setIssuerLabel(profile.issuerLabel);
     setReceiverLabel(profile.receiverLabel);
     setLogoUrl(profile.logoUrl || '');
@@ -69,6 +73,8 @@ export default function CompanyProfileEditor({ profile, onSave }: CompanyProfile
       address,
       phone,
       defaultTerms,
+      depositTerms,
+      salesTerms,
       issuerLabel,
       receiverLabel,
       weChatPayUrl,
@@ -89,6 +95,8 @@ export default function CompanyProfileEditor({ profile, onSave }: CompanyProfile
       setDefaultTerms(
         '1. 质量异议提出期限：买方在收到货物之日起3日内核对数量与质量。如对品质有任何异议，请在剪样、开裁或深加工前提出，否则视为合格，深加工后恕不退换。\n2. 结算方式：本单据为结算及法律权利主张之重要凭证，请买方妥善留存并按约定账期付清货款。\n3. 签收效力：开单人与收货人签字即具有同等合同效力，开单电话可作为业务沟通与对账的主要凭证。'
       );
+      setDepositTerms('');
+      setSalesTerms('');
       setLogoUrl('');
       setWeChatPayUrl('');
       setAliPayUrl('');
@@ -309,16 +317,45 @@ export default function CompanyProfileEditor({ profile, onSave }: CompanyProfile
         <div className="space-y-1 pt-3 border-t border-slate-50">
           <label className="text-xs font-medium text-slate-600 flex items-center gap-1">
             <ClipboardList className="w-3.5 h-3.5 text-slate-400" />
-            默认备注条款（将在单据下方显示）
+            默认备注条款 - 样布码单（将在单据下方显示）
           </label>
           <textarea
             id="company-default-terms-input"
             value={defaultTerms}
             onChange={(e) => setDefaultTerms(e.target.value)}
-            rows={5}
+            rows={4}
             className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm text-slate-600 leading-relaxed font-mono"
-            required
-            placeholder="请输入单据下方的备注条款、免责声明或质检协议..."
+            placeholder="请输入样布码单备注条款..."
+          />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-slate-600 flex items-center gap-1">
+            <ClipboardList className="w-3.5 h-3.5 text-amber-400" />
+            默认备注条款 - 定金单
+          </label>
+          <textarea
+            id="company-deposit-terms-input"
+            value={depositTerms}
+            onChange={(e) => setDepositTerms(e.target.value)}
+            rows={4}
+            className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm text-slate-600 leading-relaxed font-mono"
+            placeholder="请输入定金单备注条款..."
+          />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-slate-600 flex items-center gap-1">
+            <ClipboardList className="w-3.5 h-3.5 text-emerald-400" />
+            默认备注条款 - 销售发货码单
+          </label>
+          <textarea
+            id="company-sales-terms-input"
+            value={salesTerms}
+            onChange={(e) => setSalesTerms(e.target.value)}
+            rows={4}
+            className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm text-slate-600 leading-relaxed font-mono"
+            placeholder="请输入销售发货码单备注条款..."
           />
         </div>
 

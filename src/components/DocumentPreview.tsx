@@ -417,22 +417,20 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       <div className="preview-wrapper bg-white rounded-3xl border border-slate-200 shadow-md mx-auto" style={{ width: 'fit-content' }}>
 
         {/* Printable Section */}
-        <div ref={printRef} className="print-container p-4 sm:p-6 bg-white text-slate-900 leading-normal select-text" style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: 'fit-content' }}>
-          
-          {/* Header Block, Title & Metadata Grouped tightly to reduce vertical space */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', width: 'fit-content' }}>
-            {/* 1. Header Corporate Block */}
-            <div style={{ borderBottom: '2px solid #000', paddingBottom: '4px' }}>
-              <div className="flex justify-between items-start gap-4">
-                {/* Left: Company Logo Image */}
-                <div className="w-[120px] flex justify-start items-start h-12">
-                  {companyProfile.logoUrl && (
-                    <img src={companyProfile.logoUrl} className="max-h-12 max-w-full object-contain" alt="Logo" referrerPolicy="no-referrer" />
-                  )}
-                </div>
+        <div ref={printRef} className="print-container p-4 sm:p-6 bg-white text-slate-900 leading-normal select-text" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
 
-                {/* Right: Company Name, Address and Phone */}
-                <div className="space-y-1 flex-1 text-right" style={{ fontFamily: 'SimSun, serif' }}>
+          {/* Header Block, Title & Metadata Grouped tightly to reduce vertical space */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            {/* 1. Header Corporate Block */}
+            <div style={{ borderBottom: '2px solid #000', paddingBottom: '4px', position: 'relative' }}>
+              {/* Left: Company Logo Image - absolutely positioned to not affect width */}
+              {companyProfile.logoUrl && (
+                <div className="absolute left-0 top-0 h-12 flex items-start" style={{ zIndex: 1 }}>
+                  <img src={companyProfile.logoUrl} className="max-h-12 max-w-[80px] object-contain" alt="Logo" referrerPolicy="no-referrer" />
+                </div>
+              )}
+              {/* Right: Company Name, Address and Phone - determines container width */}
+              <div className="text-right" style={{ fontFamily: 'SimSun, serif', minHeight: companyProfile.logoUrl ? '3rem' : 'auto' }}>
                   <h1 className="text-lg sm:text-xl tracking-wide text-slate-900" style={{ fontFamily: 'SimHei, sans-serif' }}>
                     {companyProfile.name}
                   </h1>
@@ -441,10 +439,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                     <p>电话：{companyProfile.phone}</p>
                   </div>
                 </div>
-              </div>
             </div>
-
-            {/* Document Title centered below the horizontal line */}
             <div className="text-center py-0">
               <h2 className="text-sm sm:text-base font-black tracking-[0.5em] text-slate-950 uppercase pl-[0.5em]">
                 {isSample ? '样布码单' : (isDeposit ? '定金单' : '销售发货码单')}
@@ -680,17 +675,17 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
           </div>
 
           {/* 4. Terms and Liability Statement */}
-          <div className="terms-box border rounded-sm p-2 text-[11px] leading-relaxed" style={{ fontFamily: 'SimSun, serif', backgroundColor: '#f8fafc', borderColor: '#cbd5e1', color: '#334155', width: 'fit-content' }}>
+          <div className="terms-box border rounded-sm p-2 text-[11px] leading-relaxed" style={{ fontFamily: 'SimSun, serif', backgroundColor: '#f8fafc', borderColor: '#cbd5e1', color: '#334155' }}>
             <span>备注条款：</span>
             <span className="whitespace-pre-wrap">
               {isDeposit
-                ? (document.terms || '无备注条款。')
-                : (companyProfile.defaultTerms || '无备注条款。')}
+                ? (document.terms || companyProfile.depositTerms || '无备注条款。')
+                : (document.terms || companyProfile.defaultTerms || '无备注条款。')}
             </span>
           </div>
 
           {/* 5. Bottom Signatures and Contact Block */}
-          <div className="signature-section flex flex-col sm:flex-row sm:justify-between items-start sm:gap-2 pt-0" style={{ fontFamily: 'SimSun, serif', width: 'fit-content' }}>
+          <div className="signature-section flex flex-col sm:flex-row sm:justify-between items-start sm:gap-2 pt-0" style={{ fontFamily: 'SimSun, serif' }}>
             {/* Left: Signatures inline on one row */}
             <div className="flex flex-wrap items-center gap-x-3 sm:gap-x-5 gap-y-2 text-xs text-slate-800">
               <div>
