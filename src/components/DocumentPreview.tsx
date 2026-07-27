@@ -148,7 +148,10 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
   const isSample = document.type === DocType.SAMPLE;
   const isDeposit = document.type === DocType.DEPOSIT;
   const isSales = document.type === DocType.SALES;
-  const hasDeduction = isSales && document.items.some(item => ((item as SalesItem).deductionMeters || 0) > 0);
+  const hasDeduction = isSales && (
+    (document.deductionMeters || 0) > 0 ||
+    document.items.some(item => ((item as SalesItem).deductionMeters || 0) > 0)
+  );
   const printRef = useRef(null);
   const [generating, setGenerating] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
