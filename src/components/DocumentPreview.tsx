@@ -526,7 +526,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                 </div>
               </div>
             ) : isDeposit ? (
-              <div className="print-grid" style={{ display: 'grid', gap: '1px', background: '#000', gridTemplateColumns: '110px 94px 250px 110px 110px 110px' }}>
+              <div className="print-grid" style={{ display: 'grid', gap: '1px', background: '#000', gridTemplateColumns: '110px 110px 110px 110px 110px 120px' }}>
                 {/* Header */}
                 <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>货号</div>
                 <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>色号</div>

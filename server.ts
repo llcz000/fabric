@@ -1055,7 +1055,7 @@ app.get('/api/export_template/:id', async (req, res) => {
       const colWidths = isSample
         ? [6, 14, 12, 16, 18, 8, 10, 10, 10, 12, 16]
         : isDeposit
-          ? [6, 16, 14, 28, 14, 14, 14]
+          ? [6, 14, 14, 14, 14, 14, 16]
           : [6, 14, 12, 16, 14, 10, 10, 10, 12, 16];
       for (let c = 0; c < colWidths.length; c++) {
         worksheet.getColumn(c + 1).width = colWidths[c];
