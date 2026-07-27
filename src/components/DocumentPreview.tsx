@@ -579,7 +579,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                 })()}
               </div>
             ) : (
-              <div className="print-grid" style={{ display: 'grid', gap: '1px', background: '#000', gridTemplateColumns: hasDeduction ? '65px 60px 70px 50px 50px 50px 50px 50px 50px 50px 50px 50px 50px 50px 65px 60px 50px 60px 70px' : '65px 60px 70px 50px 50px 50px 50px 50px 50px 50px 50px 50px 50px 50px 65px 60px 70px' }}>
+              <div className="print-grid" style={{ display: 'grid', gap: '1px', background: '#000', gridTemplateColumns: hasDeduction ? '65px 60px 70px 50px 50px 50px 50px 50px 50px 50px 50px 50px 50px 65px 60px 50px 60px 70px' : '65px 60px 70px 50px 50px 50px 50px 50px 50px 50px 50px 50px 50px 50px 65px 60px 70px' }}>
                 {/* Header */}
                 <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>货号</div>
                 <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>色号</div>
@@ -657,13 +657,13 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                 })}
 
                 {/* Summary Row 1: Total Rolls/Meters & Total Amount */}
-                <div style={{ gridColumn: hasDeduction ? 'span 10' : 'span 9', padding: '6px 12px', backgroundColor: '#f8fafc' }}>
+                <div style={{ gridColumn: 'span 9', padding: '6px 12px', backgroundColor: '#f8fafc' }}>
                   总匹数：<span style={{ fontWeight: 700 }}>{document.totalRolls}</span> 匹 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 总计米数：<span style={{ fontWeight: 700 }}>{document.totalMeters.toFixed(2)}</span> 米
                   {(document.deductionMeters || 0) > 0 && (
                     <span style={{ marginLeft: '16px', color: '#b45309' }}>扣损合计：<span style={{ fontWeight: 700 }}>{document.deductionMeters!.toFixed(2)}</span> 米</span>
                   )}
                 </div>
-                <div style={{ gridColumn: hasDeduction ? 'span 8' : 'span 8', padding: '6px 12px', backgroundColor: '#f8fafc' }}>
+                <div style={{ gridColumn: hasDeduction ? 'span 9' : 'span 8', padding: '6px 12px', backgroundColor: '#f8fafc' }}>
                   合计金额：<span style={{ color: '#2563eb', fontWeight: 700 }}>¥{document.totalAmount.toFixed(2)}</span>
                   <span style={{ fontSize: '10px', marginLeft: '8px' }}>
                     （大写：{numberToChineseCapital(document.totalAmount)}）
@@ -671,13 +671,13 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                 </div>
 
                 {/* Summary Row 2: Deposit & Receivable Amount */}
-                <div style={{ gridColumn: hasDeduction ? 'span 10' : 'span 9', padding: '6px 12px', backgroundColor: '#f8fafc' }}>
+                <div style={{ gridColumn: 'span 9', padding: '6px 12px', backgroundColor: '#f8fafc' }}>
                   预收订金：<span style={{ fontWeight: 700 }}>¥{(document.deposit || 0).toFixed(2)}</span>
                   <span style={{ fontSize: '10px', marginLeft: '8px' }}>
                     （大写：{numberToChineseCapital(document.deposit || 0)}）
                   </span>
                 </div>
-                <div style={{ gridColumn: hasDeduction ? 'span 8' : 'span 8', padding: '6px 12px', backgroundColor: '#f8fafc' }}>
+                <div style={{ gridColumn: hasDeduction ? 'span 9' : 'span 8', padding: '6px 12px', backgroundColor: '#f8fafc' }}>
                   应付款：<span style={{ color: '#2563eb', fontWeight: 700 }}>¥{document.receivableAmount.toFixed(2)}</span>
                   <span style={{ fontSize: '10px', marginLeft: '8px' }}>
                     （大写：{numberToChineseCapital(document.receivableAmount)}）
