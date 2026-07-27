@@ -204,6 +204,7 @@ function mapBackendOrderToDoc(order: any): DocumentData {
         meters: parseFloat(it.meters || 0),
         price: parseFloat(it.unit_price || 0),
         amount: parseFloat(it.amount || 0),
+        deductionMeters: parseFloat(it.deduction_meters || 0),
         remark: it.remark || '',
       };
     }
@@ -231,6 +232,7 @@ function mapBackendOrderToDoc(order: any): DocumentData {
       ? parseFloat((order.total_amount || 0)) * (1 - parseFloat(order.deposit || 0) / 100)
       : parseFloat(order.total_amount || 0) - parseFloat(order.deposit || 0),
     deposit: parseFloat(order.deposit || 0),
+    deductionMeters: parseFloat(order.deduction_meters || 0),
     createdAt: order.created_at || new Date().toISOString(),
     updatedAt: order.updated_at || new Date().toISOString()
   };
@@ -258,7 +260,8 @@ function mapDocToBackendPayload(doc: DocumentData): any {
       unit_price: parseFloat(it.price || 0),
       amount: parseFloat(it.amount || 0),
       remark: it.remark || '',
-      piece_meters: pieceMeters
+      piece_meters: pieceMeters,
+      deduction_meters: it.deductionMeters || 0
     };
   });
 
@@ -276,6 +279,7 @@ function mapDocToBackendPayload(doc: DocumentData): any {
     receiver_address: doc.receiverAddress || '',
     template_type: isSample ? 'sample' : (isDeposit ? 'deposit' : 'bulk'),
     deposit: doc.deposit || 0,
+    deduction_meters: doc.deductionMeters || 0,
     items: itemsPayload
   };
 }

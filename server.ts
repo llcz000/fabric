@@ -214,6 +214,7 @@ async function getMySQLPool(): Promise<mysql.Pool> {
         receiver_address VARCHAR(500) DEFAULT '',
         template_type VARCHAR(20) DEFAULT 'sample',
         deposit DECIMAL(12,2) DEFAULT 0,
+        deduction_meters DECIMAL(12,2) DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -234,6 +235,7 @@ async function getMySQLPool(): Promise<mysql.Pool> {
         amount DECIMAL(12,2) DEFAULT 0,
         remark VARCHAR(500) DEFAULT '',
         piece_meters JSON NULL,
+        deduction_meters DECIMAL(12,2) DEFAULT 0,
         KEY fk_order_items_order_id (order_id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
@@ -286,6 +288,8 @@ async function getMySQLPool(): Promise<mysql.Pool> {
     await addColumnIfNotExists('company_config', 'default_terms', 'TEXT');
     await addColumnIfNotExists('company_config', 'deposit_terms', 'TEXT');
     await addColumnIfNotExists('orders', 'receiver_address', 'VARCHAR(500) DEFAULT \'\'');
+    await addColumnIfNotExists('orders', 'deduction_meters', 'DECIMAL(12,2) DEFAULT 0');
+    await addColumnIfNotExists('order_items', 'deduction_meters', 'DECIMAL(12,2) DEFAULT 0');
 
     // Repair: recalculate order totals from order_items (fixes any zero-total records)
     try {
@@ -432,6 +436,7 @@ const OrderItemSchema = z.object({
   amount: z.number().min(0).optional().default(0),
   remark: z.string().max(500).optional().default(''),
   piece_meters: z.array(z.number()).nullable().optional(),
+  deduction_meters: z.number().min(0).optional().default(0),
 });
 
 const CreateOrderSchema = z.object({
@@ -448,6 +453,7 @@ const CreateOrderSchema = z.object({
   receiver_address: z.string().max(500).optional().default(''),
   template_type: z.enum(['sample', 'bulk', 'deposit']).optional().default('sample'),
   deposit: z.number().min(0).optional().default(0),
+  deduction_meters: z.number().min(0).optional().default(0),
   items: z.array(OrderItemSchema),
 });
 
@@ -534,7 +540,7 @@ app.get('/api/orders', async (req, res) => {
       const [rows] = await pool.query<RowDataPacket[]>(
         `SELECT o.*, oi.id as item_id, oi.product_no, oi.color_no, oi.product_name,
                 oi.composition, oi.weight, oi.width, oi.meters as item_meters,
-                oi.unit_price, oi.amount as item_amount, oi.remark, oi.piece_meters
+                oi.unit_price, oi.amount as item_amount, oi.remark, oi.piece_meters, oi.deduction_meters as item_deduction_meters
          FROM orders o
          LEFT JOIN order_items oi ON oi.order_id = o.id
          ORDER BY o.created_at DESC`
@@ -560,6 +566,7 @@ app.get('/api/orders', async (req, res) => {
           delete (orderMap.get(row.id) as any).item_amount;
           delete (orderMap.get(row.id) as any).remark;
           delete (orderMap.get(row.id) as any).piece_meters;
+          delete (orderMap.get(row.id) as any).item_deduction_meters;
         }
         if (row.item_id) {
           orderMap.get(row.id).items.push({
@@ -575,6 +582,7 @@ app.get('/api/orders', async (req, res) => {
             amount: row.item_amount,
             remark: row.remark,
             piece_meters: row.piece_meters,
+            deduction_meters: row.item_deduction_meters,
           });
         }
       }
@@ -641,8 +649,8 @@ app.post('/api/orders', async (req, res) => {
       try {
         await conn.beginTransaction();
         const [result] = await conn.query<ResultSetHeader>(
-          `INSERT INTO orders (order_no, order_date, style_no, receiving_unit, total_meters, total_pieces, total_amount, sign_person, receiver, receiver_phone, receiver_address, template_type, deposit)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO orders (order_no, order_date, style_no, receiving_unit, total_meters, total_pieces, total_amount, sign_person, receiver, receiver_phone, receiver_address, template_type, deposit, deduction_meters)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           data.order_no,
           data.order_date,
@@ -656,7 +664,8 @@ app.post('/api/orders', async (req, res) => {
           data.receiver_phone || '',
           data.receiver_address || '',
           data.template_type || 'sample',
-          data.deposit || 0
+          data.deposit || 0,
+          data.deduction_meters || 0
         ]
       );
       const orderId = result.insertId;
@@ -665,8 +674,8 @@ app.post('/api/orders', async (req, res) => {
       if (data.items && data.items.length > 0) {
         for (const item of data.items) {
           await conn.query(
-            `INSERT INTO order_items (order_id, product_no, color_no, product_name, composition, weight, width, meters, unit_price, amount, remark, piece_meters)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO order_items (order_id, product_no, color_no, product_name, composition, weight, width, meters, unit_price, amount, remark, piece_meters, deduction_meters)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               orderId,
               item.product_no || '',
@@ -679,7 +688,8 @@ app.post('/api/orders', async (req, res) => {
               item.unit_price || 0,
               item.amount || 0,
               item.remark || '',
-              item.piece_meters ? JSON.stringify(item.piece_meters) : null
+              item.piece_meters ? JSON.stringify(item.piece_meters) : null,
+              item.deduction_meters || 0
             ]
           );
         }
@@ -726,7 +736,7 @@ app.put('/api/orders/:id', async (req, res) => {
           `UPDATE orders SET
             order_no = ?, order_date = ?, style_no = ?, receiving_unit = ?,
             total_meters = ?, total_pieces = ?, total_amount = ?,
-            sign_person = ?, receiver = ?, receiver_phone = ?, receiver_address = ?, template_type = ?, deposit = ?
+            sign_person = ?, receiver = ?, receiver_phone = ?, receiver_address = ?, template_type = ?, deposit = ?, deduction_meters = ?
           WHERE id = ?`,
           [
             data.order_no,
@@ -742,6 +752,7 @@ app.put('/api/orders/:id', async (req, res) => {
             data.receiver_address || '',
             data.template_type || 'sample',
             data.deposit || 0,
+            data.deduction_meters || 0,
             orderId
           ]
         );
@@ -765,7 +776,8 @@ app.put('/api/orders/:id', async (req, res) => {
                 item.unit_price || 0,
                 item.amount || 0,
                 item.remark || '',
-                item.piece_meters ? JSON.stringify(item.piece_meters) : null
+                item.piece_meters ? JSON.stringify(item.piece_meters) : null,
+              item.deduction_meters || 0
               ]
           );
         }
