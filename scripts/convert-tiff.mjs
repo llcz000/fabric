@@ -14,8 +14,9 @@ import sharp from 'sharp';
 
 const INPUT_DIR = 'D:/tiff';
 const OUTPUT_DIR = 'D:/jpg';
-const CONCURRENCY = 2;
+const CONCURRENCY = 1; // Process one at a time for large (200MB+) TIFFs
 const MAX_WIDTH = 1200;
+const JPEG_QUALITY = 70;
 const JPEG_QUALITY = 70;
 
 // Extract 货号: take chars before the 2nd "-" in filename
@@ -31,7 +32,7 @@ function extractItemNo(filename) {
 
 async function convertOne(filePath, outputPath) {
   try {
-    await sharp(filePath, { limitInputPixels: false })
+    await sharp(filePath, { limitInputPixels: false, failOn: 'none', sequentialRead: true })
       .resize(MAX_WIDTH, undefined, { withoutEnlargement: true, fit: 'inside' })
       .jpeg({ quality: JPEG_QUALITY, mozjpeg: true })
       .toFile(outputPath);
