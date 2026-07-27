@@ -762,8 +762,8 @@ app.put('/api/orders/:id', async (req, res) => {
         if (data.items && data.items.length > 0) {
           for (const item of data.items) {
             await conn.query(
-              `INSERT INTO order_items (order_id, product_no, color_no, product_name, composition, weight, width, meters, unit_price, amount, remark, piece_meters)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              `INSERT INTO order_items (order_id, product_no, color_no, product_name, composition, weight, width, meters, unit_price, amount, remark, piece_meters, deduction_meters)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
               [
                 orderId,
                 item.product_no || '',
