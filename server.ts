@@ -215,6 +215,7 @@ async function getMySQLPool(): Promise<mysql.Pool> {
         template_type VARCHAR(20) DEFAULT 'sample',
         deposit DECIMAL(12,2) DEFAULT 0,
         deduction_meters DECIMAL(12,2) DEFAULT 0,
+        settled TINYINT(1) DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -290,6 +291,7 @@ async function getMySQLPool(): Promise<mysql.Pool> {
     await addColumnIfNotExists('orders', 'receiver_address', 'VARCHAR(500) DEFAULT \'\'');
     await addColumnIfNotExists('orders', 'deduction_meters', 'DECIMAL(12,2) DEFAULT 0');
     await addColumnIfNotExists('order_items', 'deduction_meters', 'DECIMAL(12,2) DEFAULT 0');
+    await addColumnIfNotExists('orders', 'settled', 'TINYINT(1) DEFAULT 0');
 
     // Repair: recalculate order totals from order_items (fixes any zero-total records)
     try {
@@ -454,6 +456,7 @@ const CreateOrderSchema = z.object({
   template_type: z.enum(['sample', 'bulk', 'deposit']).optional().default('sample'),
   deposit: z.number().min(0).optional().default(0),
   deduction_meters: z.number().min(0).optional().default(0),
+  settled: z.boolean().optional().default(false),
   items: z.array(OrderItemSchema),
 });
 
@@ -649,8 +652,8 @@ app.post('/api/orders', async (req, res) => {
       try {
         await conn.beginTransaction();
         const [result] = await conn.query<ResultSetHeader>(
-          `INSERT INTO orders (order_no, order_date, style_no, receiving_unit, total_meters, total_pieces, total_amount, sign_person, receiver, receiver_phone, receiver_address, template_type, deposit, deduction_meters)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO orders (order_no, order_date, style_no, receiving_unit, total_meters, total_pieces, total_amount, sign_person, receiver, receiver_phone, receiver_address, template_type, deposit, deduction_meters, settled)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           data.order_no,
           data.order_date,
@@ -665,7 +668,8 @@ app.post('/api/orders', async (req, res) => {
           data.receiver_address || '',
           data.template_type || 'sample',
           data.deposit || 0,
-          data.deduction_meters || 0
+          data.deduction_meters || 0,
+          data.settled ? 1 : 0
         ]
       );
       const orderId = result.insertId;
@@ -736,7 +740,7 @@ app.put('/api/orders/:id', async (req, res) => {
           `UPDATE orders SET
             order_no = ?, order_date = ?, style_no = ?, receiving_unit = ?,
             total_meters = ?, total_pieces = ?, total_amount = ?,
-            sign_person = ?, receiver = ?, receiver_phone = ?, receiver_address = ?, template_type = ?, deposit = ?, deduction_meters = ?
+            sign_person = ?, receiver = ?, receiver_phone = ?, receiver_address = ?, template_type = ?, deposit = ?, deduction_meters = ?, settled = ?
           WHERE id = ?`,
           [
             data.order_no,
@@ -753,6 +757,7 @@ app.put('/api/orders/:id', async (req, res) => {
             data.template_type || 'sample',
             data.deposit || 0,
             data.deduction_meters || 0,
+            data.settled ? 1 : 0,
             orderId
           ]
         );

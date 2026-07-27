@@ -90,6 +90,7 @@ export interface DocumentData {
   receivableAmount: number; // 应收金额（元）
   deposit?: number;     // 预收订金（元）
   deductionMeters?: number; // 扣损米数（米），仅销售发货码单使用
+  settled?: boolean;   // 是否结清，样布码单 & 销售发货码单使用
 
   createdAt: string;    // 创建时间戳
   updatedAt: string;    // 修改时间戳

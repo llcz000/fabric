@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { DocType, DocumentData, DocItem, CompanyProfile, SampleItem, SalesItem, DepositItem } from '../types';
-import { Plus, Trash2, Save, FileText, Calendar, User, Hash, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, Save, FileText, Calendar, User, Hash, AlertTriangle, CheckCircle } from 'lucide-react';
 
 interface DocumentEditorProps {
   key?: string;
@@ -90,6 +90,7 @@ export default function DocumentEditor({
   const [receiverAddress, setReceiverAddress] = useState(existingDocument?.receiverAddress || '');
   const [bottomPhone, setBottomPhone] = useState(existingDocument?.bottomPhone || '');
   const [deposit, setDeposit] = useState<number>(existingDocument?.deposit || 0);
+  const [settled, setSettled] = useState<boolean>(existingDocument?.settled || false);
   const [part3Open, setPart3Open] = useState(false);
 
   // Custom number of inputs for piece meters (sales documents)
@@ -312,6 +313,7 @@ export default function DocumentEditor({
       receivableAmount,
       deposit,
       deductionMeters: docType === DocType.SALES ? totalDeduction : 0,
+      settled,
       createdAt: existingDocument?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -450,6 +452,27 @@ export default function DocumentEditor({
               className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm font-mono text-slate-700"
               placeholder="0.00"
             />
+          </div>
+          )}
+
+          {docType !== DocType.DEPOSIT && (
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
+              <CheckCircle className="w-3.5 h-3.5 text-slate-400" />
+              是否结清
+            </label>
+            <button
+              type="button"
+              id="doc-settled-toggle"
+              onClick={() => setSettled(!settled)}
+              className={`w-full px-3 py-2 border rounded-lg text-sm font-semibold cursor-pointer transition-colors ${
+                settled
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                  : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100'
+              }`}
+            >
+              {settled ? '✓ 已结清' : '未结清'}
+            </button>
           </div>
           )}
 

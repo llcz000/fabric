@@ -38,6 +38,7 @@ export default function DocumentList({
   const [typeFilter, setTypeFilter] = useState<'all' | DocType>('all');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [settledFilter, setSettledFilter] = useState<'all' | 'yes' | 'no'>('all');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -52,6 +53,13 @@ export default function DocumentList({
       const matchesEndDate = !endDate || doc.date <= endDate;
 
       if (!matchesType || !matchesStartDate || !matchesEndDate) return false;
+
+      // Settled filter (only applies to SAMPLE and SALES types)
+      if (settledFilter !== 'all') {
+        const docSettled = !!(doc as any).settled;
+        if (settledFilter === 'yes' && !docSettled) return false;
+        if (settledFilter === 'no' && docSettled) return false;
+      }
 
       // If no item-level filters, include all docs matching doc-level filters
       const hasItemFilters = filterCustomer || filterItemNo || filterColorNo || filterProductName;
@@ -70,13 +78,13 @@ export default function DocumentList({
     // Sort by date descending (most recent first)
     filtered.sort((a, b) => b.date.localeCompare(a.date));
     return filtered;
-  }, [documents, filterCustomer, filterItemNo, filterColorNo, filterProductName, typeFilter, startDate, endDate]);
+  }, [documents, filterCustomer, filterItemNo, filterColorNo, filterProductName, typeFilter, startDate, endDate, settledFilter]);
 
   // Expand all matching docs by default when filters change
   React.useEffect(() => {
     const ids = filteredDocs.map(d => d.id).join(',');
     setExpandedDocs(new Set(filteredDocs.map(d => d.id)));
-  }, [documents.length, filterCustomer, filterItemNo, filterColorNo, filterProductName, typeFilter, startDate, endDate]); // eslint-disable-line
+  }, [documents.length, filterCustomer, filterItemNo, filterColorNo, filterProductName, typeFilter, startDate, endDate, settledFilter]); // eslint-disable-line
 
   const toggleExpand = (docId: string) => {
     setExpandedDocs(prev => {
@@ -185,6 +193,7 @@ export default function DocumentList({
     setTypeFilter('all');
     setStartDate('');
     setEndDate('');
+    setSettledFilter('all');
   };
 
   return (
@@ -354,7 +363,7 @@ export default function DocumentList({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-3 border-t border-slate-100">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-3 border-t border-slate-100">
           {/* Doc Type Selection */}
           <div>
             <div className="text-xs font-bold text-slate-500 mb-1.5 ml-1">单据类型</div>
@@ -400,10 +409,25 @@ export default function DocumentList({
               />
             </div>
           </div>
+
+          {/* Settled Filter */}
+          <div>
+            <div className="text-xs font-bold text-slate-500 mb-1.5 ml-1">结清状态</div>
+            <select
+              id="db-settled-filter"
+              value={settledFilter}
+              onChange={(e) => setSettledFilter(e.target.value as 'all' | 'yes' | 'no')}
+              className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm text-slate-600 bg-white cursor-pointer"
+            >
+              <option value="all">全部</option>
+              <option value="yes">已结清</option>
+              <option value="no">未结清</option>
+            </select>
+          </div>
         </div>
 
         {/* Clear filters trigger */}
-        {(filterCustomer || filterItemNo || filterColorNo || filterProductName || typeFilter !== 'all' || startDate || endDate) && (
+        {(filterCustomer || filterItemNo || filterColorNo || filterProductName || typeFilter !== 'all' || startDate || endDate || settledFilter !== 'all') && (
           <div className="flex justify-end pt-1">
             <button
               type="button"
@@ -473,6 +497,7 @@ export default function DocumentList({
                     <th className="py-3.5 px-2" style={{ width: 'calc((100% - 190px) / 7)' }}>开单日期</th>
                     <th className="py-3.5 px-2" style={{ width: 'calc((100% - 190px) / 7)' }}>单据编号</th>
                     <th className="py-3.5 px-1 text-center" style={{ width: 'calc((100% - 190px) / 7)' }}>类型</th>
+                    <th className="py-3.5 px-1 text-center w-[70px]">结清</th>
                     <th className="py-3.5 px-2" style={{ width: 'calc((100% - 190px) / 7)' }}>客户</th>
                     <th className="py-3.5 px-2 text-right" style={{ width: 'calc((100% - 190px) / 7)' }}>扣损米数</th>
                     <th className="py-3.5 px-2 text-right" style={{ width: 'calc((100% - 190px) / 7)' }}>总计米数</th>
@@ -515,6 +540,19 @@ export default function DocumentList({
                           }`}>
                             {isSample ? '样布' : (isDeposit ? '定金' : '发货')}
                           </span>
+                        </td>
+                        <td className="py-3 px-1 text-center">
+                          {doc.type !== DocType.DEPOSIT ? (
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                              (doc as any).settled
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                                : 'bg-slate-100 text-slate-500 border border-slate-200'
+                            }`}>
+                              {(doc as any).settled ? '已结清' : '未结清'}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-slate-300">-</span>
+                          )}
                         </td>
                         <td className="py-3 px-2 font-extrabold text-slate-700 max-w-[100px] truncate text-xs">
                           {doc.customerName}
@@ -645,6 +683,12 @@ export default function DocumentList({
                       <div>
                         <span className="text-slate-400">记录数</span>
                         <div className="font-bold text-slate-700">{matchingItems.length} 条</div>
+                      </div>
+                      <div>
+                        <span className="text-slate-400">结清状态</span>
+                        <div className={`font-bold text-xs ${doc.type !== DocType.DEPOSIT && (doc as any).settled ? 'text-emerald-600' : 'text-slate-400'}`}>
+                          {doc.type !== DocType.DEPOSIT ? ((doc as any).settled ? '已结清' : '未结清') : '-'}
+                        </div>
                       </div>
                       <div>
                         <span className="text-slate-400">扣损米数</span>

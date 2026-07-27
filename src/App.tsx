@@ -233,6 +233,7 @@ function mapBackendOrderToDoc(order: any): DocumentData {
       : parseFloat(order.total_amount || 0) - parseFloat(order.deposit || 0),
     deposit: parseFloat(order.deposit || 0),
     deductionMeters: parseFloat(order.deduction_meters || 0),
+    settled: !!order.settled,
     createdAt: order.created_at || new Date().toISOString(),
     updatedAt: order.updated_at || new Date().toISOString()
   };
@@ -280,6 +281,7 @@ function mapDocToBackendPayload(doc: DocumentData): any {
     template_type: isSample ? 'sample' : (isDeposit ? 'deposit' : 'bulk'),
     deposit: doc.deposit || 0,
     deduction_meters: doc.deductionMeters || 0,
+    settled: doc.settled || false,
     items: itemsPayload
   };
 }
