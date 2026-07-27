@@ -6,7 +6,7 @@
  */
 import fs from 'fs';
 import path from 'path';
-import GeoTIFF from 'geotiff';
+import * as GeoTIFF from 'geotiff';
 
 // Dynamic import so VIPS_MAX_MEM is set before sharp loads
 process.env.VIPS_MAX_MEM = '2048';
