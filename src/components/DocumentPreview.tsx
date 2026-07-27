@@ -564,14 +564,13 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                   const depositAmount = document.totalAmount * depositPercent / 100;
                   return (
                     <>
-                      <div style={{ gridColumn: 'span 3', padding: '6px 12px', backgroundColor: '#f8fafc' }}>
+                      <div style={{ gridColumn: 'span 6', padding: '6px 12px', backgroundColor: '#f8fafc' }}>
                         定金金额：<span style={{ fontWeight: 700 }}>{depositPercent}%</span>
+                        &nbsp;&nbsp;
+                        <span style={{ color: '#2563eb', fontWeight: 700 }}>¥{depositAmount.toFixed(2)}</span>
                         <span style={{ fontSize: '10px', marginLeft: '8px' }}>
                           （大写：{numberToChineseCapital(depositAmount)}）
                         </span>
-                      </div>
-                      <div style={{ gridColumn: 'span 3', padding: '6px 12px', backgroundColor: '#f8fafc' }}>
-                        <span style={{ color: '#2563eb', fontWeight: 700 }}>¥{depositAmount.toFixed(2)}</span>
                       </div>
                     </>
                   );
@@ -688,31 +687,30 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
           </div>
 
           {/* 5. Bottom Signatures and Contact Block */}
-          <div className="signature-section flex flex-col sm:flex-row sm:justify-between items-start sm:gap-2 pt-0" style={{ fontFamily: 'SimSun, serif' }}>
-            {/* Left: Signatures inline on one row */}
+          <div className="signature-section pt-0" style={{ fontFamily: 'SimSun, serif' }}>
+            {/* First line: Issuer */}
+            <div className="text-xs text-slate-800 mb-1">
+              <span>开单人签字：</span>
+              <span className="underline underline-offset-4 pl-1">
+                {document.issuer || '        '}
+              </span>
+            </div>
+            {/* Second line: Receiver, Phone, Address */}
             <div className="flex flex-wrap items-center gap-x-3 sm:gap-x-5 gap-y-2 text-xs text-slate-800">
               <div>
-                <span>开单人签字：</span>
+                <span>收货人签字：</span>
                 <span className="underline underline-offset-4 pl-1">
-                  {document.issuer || '        '}
+                  {document.receiver || '        '}
                 </span>
               </div>
-              <div className="flex items-center gap-x-3 sm:gap-x-5">
-                <div>
-                  <span>收货人签字：</span>
-                  <span className="underline underline-offset-4 pl-1">
-                    {document.receiver || '        '}
-                  </span>
-                </div>
-                <div>
-                  <span>电话：</span>
-                  <span className="underline underline-offset-4">
-                    {document.bottomPhone || '        '}
-                  </span>
-                </div>
+              <div>
+                <span>电话：</span>
+                <span className="underline underline-offset-4">
+                  {document.bottomPhone || '        '}
+                </span>
               </div>
               {isDeposit && (
-              <div className="w-full text-xs text-slate-800 mt-1">
+              <div>
                 <span>收货地址：</span>
                 <span className="underline underline-offset-4">
                   {document.receiverAddress || '        '}
