@@ -147,6 +147,8 @@ function formatDateChinese(dateStr: string): string {
 export default function DocumentPreview({ document, companyProfile, onEdit, onBack }: DocumentPreviewProps) {
   const isSample = document.type === DocType.SAMPLE;
   const isDeposit = document.type === DocType.DEPOSIT;
+  const isSales = document.type === DocType.SALES;
+  const hasDeduction = isSales && document.items.some(item => ((item as SalesItem).deductionMeters || 0) > 0);
   const printRef = useRef(null);
   const [generating, setGenerating] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -577,7 +579,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                 })()}
               </div>
             ) : (
-              <div className="print-grid" style={{ display: 'grid', gap: '1px', background: '#000', gridTemplateColumns: '65px 60px 70px 50px 50px 50px 50px 50px 50px 50px 50px 50px 50px 50px 65px 60px 70px' }}>
+              <div className="print-grid" style={{ display: 'grid', gap: '1px', background: '#000', gridTemplateColumns: hasDeduction ? '65px 60px 70px 50px 50px 50px 50px 50px 50px 50px 50px 50px 50px 50px 65px 60px 50px 60px 70px' : '65px 60px 70px 50px 50px 50px 50px 50px 50px 50px 50px 50px 50px 50px 65px 60px 70px' }}>
                 {/* Header */}
                 <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>货号</div>
                 <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>色号</div>
@@ -594,6 +596,9 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                 <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>10</div>
                 <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>匹数</div>
                 <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>米数(米)</div>
+                {hasDeduction && (
+                <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#fef3c7', whiteSpace: 'nowrap' }}>扣损(米)</div>
+                )}
                 <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>单价(元)</div>
                 <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>金额(元)</div>
 
@@ -626,6 +631,9 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                           })}
                           <div style={{ padding: '6px 4px', background: '#fff', textAlign: 'center', fontWeight: 700, ...rowSpan }}>{rolls.length}</div>
                           <div style={{ padding: '6px 4px', background: '#fff', textAlign: 'center', fontWeight: 700, ...rowSpan }}>{item.meters.toFixed(2)}</div>
+                          {hasDeduction && (
+                          <div style={{ padding: '6px 4px', background: '#fff', textAlign: 'center', fontWeight: 700, color: '#b45309', ...rowSpan }}>{(sales.deductionMeters || 0).toFixed(2)}</div>
+                          )}
                           <div style={{ padding: '6px 4px', background: '#fff', textAlign: 'center', fontWeight: 700, ...rowSpan }}>¥{item.price.toFixed(2)}</div>
                           <div style={{ padding: '6px 4px', background: '#fff', textAlign: 'center', fontWeight: 700, color: '#2563eb', ...rowSpan }}>¥{item.amount.toFixed(2)}</div>
                         </React.Fragment>
@@ -649,13 +657,13 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                 })}
 
                 {/* Summary Row 1: Total Rolls/Meters & Total Amount */}
-                <div style={{ gridColumn: 'span 9', padding: '6px 12px', backgroundColor: '#f8fafc' }}>
+                <div style={{ gridColumn: hasDeduction ? 'span 10' : 'span 9', padding: '6px 12px', backgroundColor: '#f8fafc' }}>
                   总匹数：<span style={{ fontWeight: 700 }}>{document.totalRolls}</span> 匹 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 总计米数：<span style={{ fontWeight: 700 }}>{document.totalMeters.toFixed(2)}</span> 米
                   {(document.deductionMeters || 0) > 0 && (
-                    <span style={{ marginLeft: '16px', color: '#b45309' }}>扣损米数：<span style={{ fontWeight: 700 }}>{document.deductionMeters!.toFixed(2)}</span> 米</span>
+                    <span style={{ marginLeft: '16px', color: '#b45309' }}>扣损合计：<span style={{ fontWeight: 700 }}>{document.deductionMeters!.toFixed(2)}</span> 米</span>
                   )}
                 </div>
-                <div style={{ gridColumn: 'span 8', padding: '6px 12px', backgroundColor: '#f8fafc' }}>
+                <div style={{ gridColumn: hasDeduction ? 'span 8' : 'span 8', padding: '6px 12px', backgroundColor: '#f8fafc' }}>
                   合计金额：<span style={{ color: '#2563eb', fontWeight: 700 }}>¥{document.totalAmount.toFixed(2)}</span>
                   <span style={{ fontSize: '10px', marginLeft: '8px' }}>
                     （大写：{numberToChineseCapital(document.totalAmount)}）
@@ -663,13 +671,13 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                 </div>
 
                 {/* Summary Row 2: Deposit & Receivable Amount */}
-                <div style={{ gridColumn: 'span 9', padding: '6px 12px', backgroundColor: '#f8fafc' }}>
+                <div style={{ gridColumn: hasDeduction ? 'span 10' : 'span 9', padding: '6px 12px', backgroundColor: '#f8fafc' }}>
                   预收订金：<span style={{ fontWeight: 700 }}>¥{(document.deposit || 0).toFixed(2)}</span>
                   <span style={{ fontSize: '10px', marginLeft: '8px' }}>
                     （大写：{numberToChineseCapital(document.deposit || 0)}）
                   </span>
                 </div>
-                <div style={{ gridColumn: 'span 8', padding: '6px 12px', backgroundColor: '#f8fafc' }}>
+                <div style={{ gridColumn: hasDeduction ? 'span 8' : 'span 8', padding: '6px 12px', backgroundColor: '#f8fafc' }}>
                   应付款：<span style={{ color: '#2563eb', fontWeight: 700 }}>¥{document.receivableAmount.toFixed(2)}</span>
                   <span style={{ fontSize: '10px', marginLeft: '8px' }}>
                     （大写：{numberToChineseCapital(document.receivableAmount)}）

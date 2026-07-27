@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { DocType, DocumentData, DocItem, CompanyProfile, SampleItem, SalesItem, DepositItem } from '../types';
 import { Plus, Trash2, Save, FileText, Calendar, User, Hash, AlertTriangle } from 'lucide-react';
 
@@ -50,7 +50,35 @@ export default function DocumentEditor({
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   });
-  const [docNo, setDocNo] = useState(existingDocument?.docNo || '');
+
+  // Generate default docNo: PREFIX-YYYYMMDD-NNN
+  const generateDocNo = (type: DocType, dateStr: string): string => {
+    const datePart = dateStr.replace(/-/g, '');
+    const prefix = type === DocType.SAMPLE ? 'YB' : (type === DocType.DEPOSIT ? 'DJ' : 'XS');
+    let maxSeq = 0;
+    for (const doc of allSavedDocuments) {
+      if (doc.docNo && doc.docNo.startsWith(`${prefix}-${datePart}-`)) {
+        const seq = parseInt(doc.docNo.split('-').pop() || '0', 10);
+        if (!isNaN(seq) && seq > maxSeq) maxSeq = seq;
+      }
+    }
+    return `${prefix}-${datePart}-${String(maxSeq + 1).padStart(3, '0')}`;
+  };
+
+  const [docNo, setDocNo] = useState(() => {
+    if (existingDocument?.docNo) return existingDocument.docNo;
+    const d = new Date();
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    return generateDocNo(existingDocument?.type || DocType.SAMPLE, dateStr);
+  });
+
+  // Auto-update docNo when type/date changes for new documents (unless manually edited)
+  const docNoManualRef = useRef(false);
+  React.useEffect(() => {
+    if (!existingDocument && !docNoManualRef.current) {
+      setDocNo(generateDocNo(docType, date));
+    }
+  }, [docType, date]);
   
   // Company info (stored but preview uses companyProfile directly)
   const [companyName, setCompanyName] = useState(existingDocument?.companyName || '');
@@ -434,7 +462,7 @@ export default function DocumentEditor({
               type="text"
               id="doc-no-input"
               value={docNo}
-              onChange={(e) => setDocNo(e.target.value)}
+              onChange={(e) => { setDocNo(e.target.value); docNoManualRef.current = true; }}
               className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm font-mono text-slate-700"
               placeholder={`如 ${docNoPrefix}-20260708-001`}
             />
