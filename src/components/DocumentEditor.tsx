@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { DocType, DocumentData, DocItem, CompanyProfile, SampleItem, SalesItem, DepositItem } from '../types';
-import { Plus, Trash2, Save, FileText, Calendar, User, Hash, AlertTriangle, Scissors } from 'lucide-react';
+import { Plus, Trash2, Save, FileText, Calendar, User, Hash, AlertTriangle } from 'lucide-react';
 
 interface DocumentEditorProps {
   key?: string;
@@ -62,7 +62,6 @@ export default function DocumentEditor({
   const [receiverAddress, setReceiverAddress] = useState(existingDocument?.receiverAddress || '');
   const [bottomPhone, setBottomPhone] = useState(existingDocument?.bottomPhone || '');
   const [deposit, setDeposit] = useState<number>(existingDocument?.deposit || 0);
-  const [deductionMeters, setDeductionMeters] = useState<number>(existingDocument?.deductionMeters || 0);
   const [part3Open, setPart3Open] = useState(false);
 
   // Custom number of inputs for piece meters (sales documents)
@@ -152,6 +151,7 @@ export default function DocumentEditor({
         meters: 0,
         price: 0,
         amount: 0,
+        deductionMeters: 0,
         remark: '',
       } as SalesItem;
     }
@@ -162,7 +162,7 @@ export default function DocumentEditor({
     const updatedItems = [...items];
     const currentItem = { ...updatedItems[index] } as any;
 
-    if (field === 'meters' || field === 'price') {
+    if (field === 'meters' || field === 'price' || field === 'deductionMeters') {
       const numValue = value === '' ? 0 : parseFloat(value);
       currentItem[field] = isNaN(numValue) ? 0 : numValue;
       
@@ -237,7 +237,8 @@ export default function DocumentEditor({
   const validItems = items.filter(item => item.itemNo.trim() !== '' || item.productName.trim() !== '');
 
   const totalMetersRaw = validItems.reduce((sum, item) => sum + (item.meters || 0), 0);
-  const totalMeters = parseFloat((totalMetersRaw - deductionMeters).toFixed(2));
+  const totalDeduction = validItems.reduce((sum, item) => sum + ((item as any).deductionMeters || 0), 0);
+  const totalMeters = parseFloat((totalMetersRaw - totalDeduction).toFixed(2));
   const totalRolls = (docType === DocType.SAMPLE || docType === DocType.DEPOSIT)
     ? validItems.length
     : validItems.reduce((sum, item) => sum + getRollValuesCount((item as SalesItem).rollNo, item.meters), 0);
@@ -279,7 +280,7 @@ export default function DocumentEditor({
       totalAmount,
       receivableAmount,
       deposit,
-      deductionMeters: docType === DocType.SALES ? deductionMeters : 0,
+      deductionMeters: docType === DocType.SALES ? totalDeduction : 0,
       createdAt: existingDocument?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -472,6 +473,9 @@ export default function DocumentEditor({
                 ) : null}
 
                 <th className="py-1.5 px-2 text-xs font-bold w-[90px]">米数 (米)</th>
+                {docType === DocType.SALES && (
+                <th className="py-1.5 px-2 text-xs font-bold w-[80px]">扣损 (米)</th>
+                )}
                 <th className="py-1.5 px-2 text-xs font-bold w-[90px]">单价 (元)</th>
                 <th className="py-1.5 px-3 text-xs font-bold w-[110px]">金额 (元)</th>
                 {docType !== DocType.DEPOSIT && (
@@ -635,6 +639,22 @@ export default function DocumentEditor({
                         id={`input-meters-${index}`}
                       />
                     </td>
+
+                    {/* Deduction Meters (Sales only) */}
+                    {docType === DocType.SALES && (
+                    <td className="py-1.5 px-1">
+                      <input
+                        type="number"
+                        step="any"
+                        min="0"
+                        value={(item as SalesItem).deductionMeters || ''}
+                        onChange={(e) => handleCellChange(index, 'deductionMeters', e.target.value)}
+                        placeholder="0"
+                        className="w-full px-2 py-1.5 border border-amber-200 rounded-md focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs font-mono text-amber-700 text-right"
+                        id={`input-deduction-${index}`}
+                      />
+                    </td>
+                    )}
 
                     {/* Price (单价) */}
                     <td className="py-1.5 px-1">
@@ -859,6 +879,22 @@ export default function DocumentEditor({
                     />
                   </div>
 
+                  {/* Deduction Meters (Sales mobile) */}
+                  {docType === DocType.SALES && (
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-amber-500 block">扣损 (米)</label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      value={(item as SalesItem).deductionMeters || ''}
+                      onChange={(e) => handleCellChange(index, 'deductionMeters', e.target.value)}
+                      placeholder="0"
+                      className="w-full px-2.5 py-1.5 border border-amber-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 text-xs font-mono text-amber-700 bg-white"
+                    />
+                  </div>
+                  )}
+
                   {/* Price & Amount */}
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-slate-400 block">单价 (元/米)</label>
@@ -922,27 +958,6 @@ export default function DocumentEditor({
             </button>
           </div>
 
-          {/* Deduction Meters (Sales only) */}
-          {docType === DocType.SALES && (
-          <div className="flex items-center gap-3 bg-amber-50/40 border border-amber-100 rounded-xl px-3 py-2">
-            <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5 whitespace-nowrap">
-              <Scissors className="w-3.5 h-3.5 text-amber-500" />
-              扣损米数 (米)：
-            </label>
-            <input
-              type="number"
-              step="any"
-              min="0"
-              id="doc-deduction-input"
-              value={deductionMeters || ''}
-              onChange={(e) => setDeductionMeters(e.target.value === '' ? 0 : parseFloat(e.target.value))}
-              className="w-24 px-3 py-1.5 border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm font-mono font-bold text-slate-700 bg-white"
-              placeholder="0"
-            />
-            <span className="text-xs text-slate-400">米（从总计米数中扣除）</span>
-          </div>
-          )}
-
           {/* Quick-Sum Visual Panel */}
           <div className="bg-slate-50/50 border border-slate-100 rounded-xl p-2 flex flex-wrap items-center gap-4 text-sm text-slate-600 font-medium">
             <div className="flex items-center gap-1">
@@ -953,10 +968,10 @@ export default function DocumentEditor({
               <span>总计米数：</span>
               <strong className="text-sky-700 font-extrabold">{totalMeters.toFixed(2)} 米</strong>
             </div>
-            {docType === DocType.SALES && deductionMeters > 0 && (
+            {docType === DocType.SALES && totalDeduction > 0 && (
             <div className="flex items-center gap-1 bg-amber-50/60 px-2 py-0.5 rounded-md">
-              <span className="text-amber-600 text-xs">扣损：</span>
-              <strong className="text-amber-700 font-bold text-xs">-{deductionMeters.toFixed(2)} 米</strong>
+              <span className="text-amber-600 text-xs">扣损合计：</span>
+              <strong className="text-amber-700 font-bold text-xs">-{totalDeduction.toFixed(2)} 米</strong>
             </div>
             )}
             <div className="flex items-center gap-1">

@@ -33,6 +33,7 @@ export interface SalesItem {
   meters: number;       // 米数（米）
   price: number;        // 单价（元）
   amount: number;       // 金额（元），金额 = 米数 * 单价
+  deductionMeters?: number; // 扣损米数（米）
   remark: string;       // 备注
 }
 
