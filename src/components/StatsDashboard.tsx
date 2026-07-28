@@ -34,10 +34,7 @@ export default function StatsDashboard({ documents, onViewDoc }: StatsDashboardP
   documents.forEach(doc => {
     doc.items.forEach(item => {
       const name = item.productName.trim() || '未命名的面料';
-      const netMeters = doc.type === DocType.SALES
-        ? Math.max(0, item.meters - (((item as any).deductionMeters || 0) as number))
-        : item.meters;
-      productMetersMap[name] = (productMetersMap[name] || 0) + netMeters;
+      productMetersMap[name] = (productMetersMap[name] || 0) + item.meters;
     });
   });
 

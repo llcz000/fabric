@@ -110,11 +110,7 @@ export default function DocumentList({
       // Exclude deposit orders from stats
       if (doc.type === DocType.DEPOSIT) return;
       getDocMatchingItems(doc).forEach(item => {
-        // Use net meters (meters - deductionMeters) for sales items
-        const netMeters = doc.type === DocType.SALES
-          ? Math.max(0, item.meters - (((item as any).deductionMeters || 0) as number))
-          : item.meters;
-        items.push({ meters: netMeters, amount: item.amount, type: doc.type, rollNo: (item as any).rollNo });
+        items.push({ meters: item.meters, amount: item.amount, type: doc.type, rollNo: (item as any).rollNo });
       });
     });
     return items;

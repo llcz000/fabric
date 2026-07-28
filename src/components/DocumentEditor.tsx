@@ -269,8 +269,8 @@ export default function DocumentEditor({
   const validItems = items.filter(item => item.itemNo.trim() !== '' || item.productName.trim() !== '');
 
   const totalMetersRaw = validItems.reduce((sum, item) => sum + (item.meters || 0), 0);
+  const totalMeters = parseFloat(totalMetersRaw.toFixed(2));
   const totalDeduction = validItems.reduce((sum, item) => sum + ((item as any).deductionMeters || 0), 0);
-  const totalMeters = parseFloat((totalMetersRaw - totalDeduction).toFixed(2));
   const totalRolls = (docType === DocType.SAMPLE || docType === DocType.DEPOSIT)
     ? validItems.length
     : validItems.reduce((sum, item) => sum + getRollValuesCount((item as SalesItem).rollNo, item.meters), 0);
@@ -1025,8 +1025,8 @@ export default function DocumentEditor({
             </div>
             {docType === DocType.SALES && totalDeduction > 0 && (
             <div className="flex items-center gap-1 bg-amber-50/60 px-2 py-0.5 rounded-md">
-              <span className="text-amber-600 text-xs">扣损合计：</span>
-              <strong className="text-amber-700 font-bold text-xs">-{totalDeduction.toFixed(2)} 米</strong>
+              <span className="text-amber-600 text-xs">含扣损：</span>
+              <strong className="text-amber-700 font-bold text-xs">{totalDeduction.toFixed(2)} 米</strong>
             </div>
             )}
             <div className="flex items-center gap-1">

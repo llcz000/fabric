@@ -311,9 +311,10 @@ async function getMySQLPool(): Promise<mysql.Pool> {
       const [repairResult] = await conn.query<ResultSetHeader>(`
         UPDATE orders o
         SET
-          total_meters = (SELECT COALESCE(SUM(meters) - SUM(COALESCE(deduction_meters, 0)), 0) FROM order_items WHERE order_id = o.id),
+          total_meters = (SELECT COALESCE(SUM(meters), 0) FROM order_items WHERE order_id = o.id),
           total_pieces = (SELECT COUNT(*) FROM order_items WHERE order_id = o.id),
-          total_amount = (SELECT COALESCE(SUM(amount), 0) FROM order_items WHERE order_id = o.id)
+          total_amount = (SELECT COALESCE(SUM(amount), 0) FROM order_items WHERE order_id = o.id),
+          deduction_meters = (SELECT COALESCE(SUM(COALESCE(deduction_meters, 0)), 0) FROM order_items WHERE order_id = o.id)
       `);
       if (repairResult.affectedRows > 0) {
         console.log(`[Database] Repaired totals for ${repairResult.affectedRows} orders from order_items`);
