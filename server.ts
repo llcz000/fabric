@@ -280,6 +280,7 @@ async function getMySQLPool(): Promise<mysql.Pool> {
         product_name VARCHAR(255) DEFAULT '',
         rolls INT DEFAULT 0,
         meters DECIMAL(12,2) DEFAULT 0,
+        remark VARCHAR(500) DEFAULT '',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         INDEX idx_product_name (product_name)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -305,6 +306,7 @@ async function getMySQLPool(): Promise<mysql.Pool> {
     await addColumnIfNotExists('orders', 'deduction_meters', 'DECIMAL(12,2) DEFAULT 0');
     await addColumnIfNotExists('order_items', 'deduction_meters', 'DECIMAL(12,2) DEFAULT 0');
     await addColumnIfNotExists('orders', 'settled', 'TINYINT(1) DEFAULT 0');
+    await addColumnIfNotExists('inventory_entries', 'remark', 'VARCHAR(500) DEFAULT \'\'');
 
     // Repair: recalculate order totals from order_items (fixes any zero-total records)
     try {
@@ -1265,6 +1267,7 @@ const InventoryEntrySchema = z.object({
   product_name: z.string().max(255).optional().default(''),
   rolls: z.number().int().min(0).optional().default(0),
   meters: z.number().min(0).optional().default(0),
+  remark: z.string().max(500).optional().default(''),
 });
 
 // GET /api/inventory/entries
@@ -1296,9 +1299,9 @@ app.post('/api/inventory/entries', async (req, res) => {
         await conn.beginTransaction();
         for (const entry of entries) {
           await conn.query(
-            `INSERT INTO inventory_entries (entry_date, product_name, rolls, meters)
-             VALUES (?, ?, ?, ?)`,
-            [entry.entry_date, entry.product_name, entry.rolls, entry.meters]
+            `INSERT INTO inventory_entries (entry_date, product_name, rolls, meters, remark)
+             VALUES (?, ?, ?, ?, ?)`,
+            [entry.entry_date, entry.product_name, entry.rolls, entry.meters, entry.remark || '']
           );
         }
         await conn.commit();
@@ -1321,6 +1324,7 @@ app.post('/api/inventory/entries', async (req, res) => {
         product_name: entry.product_name,
         rolls: entry.rolls,
         meters: entry.meters,
+        remark: entry.remark || '',
         created_at: new Date().toISOString()
       });
     }

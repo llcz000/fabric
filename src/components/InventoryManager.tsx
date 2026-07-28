@@ -11,7 +11,7 @@ interface InventoryManagerProps {
   entries: InventoryEntry[];
   ledger: InventoryRecord[];
   ledgerLoading: boolean;
-  onSaveEntries: (rows: { entryDate: string; productName: string; rolls: number; meters: number }[]) => Promise<void>;
+  onSaveEntries: (rows: { entryDate: string; productName: string; rolls: number; meters: number; remark: string }[]) => Promise<void>;
   onDeleteEntry: (id: string) => Promise<void>;
   onRefreshLedger: () => void;
 }
@@ -29,12 +29,12 @@ export default function InventoryManager({
   const [saving, setSaving] = useState(false);
 
   const today = new Date().toISOString().substring(0, 10);
-  const [formRows, setFormRows] = useState<{ entryDate: string; productName: string; rolls: number; meters: number }[]>([
-    { entryDate: today, productName: '', rolls: 0, meters: 0 }
+  const [formRows, setFormRows] = useState<{ entryDate: string; productName: string; rolls: number; meters: number; remark: string }[]>([
+    { entryDate: today, productName: '', rolls: 0, meters: 0, remark: '' }
   ]);
 
   const addFormRow = () => {
-    setFormRows([...formRows, { entryDate: today, productName: '', rolls: 0, meters: 0 }]);
+    setFormRows([...formRows, { entryDate: today, productName: '', rolls: 0, meters: 0, remark: '' }]);
   };
 
   const removeFormRow = (index: number) => {
@@ -49,7 +49,7 @@ export default function InventoryManager({
   };
 
   const clearForm = () => {
-    setFormRows([{ entryDate: today, productName: '', rolls: 0, meters: 0 }]);
+    setFormRows([{ entryDate: today, productName: '', rolls: 0, meters: 0, remark: '' }]);
   };
 
   const handleSave = async () => {
@@ -134,6 +134,7 @@ export default function InventoryManager({
                   <th className="py-2 px-2 text-xs font-bold w-[200px]">品名 <span className="text-rose-400">*</span></th>
                   <th className="py-2 px-2 text-xs font-bold w-[100px]">匹数</th>
                   <th className="py-2 px-2 text-xs font-bold w-[120px]">米数</th>
+                  <th className="py-2 px-2 text-xs font-bold min-w-[160px]">备注</th>
                   <th className="py-2 px-3 text-xs font-bold text-center w-12">操作</th>
                 </tr>
               </thead>
@@ -178,6 +179,15 @@ export default function InventoryManager({
                         onChange={(e) => updateFormRow(index, 'meters', e.target.value)}
                         placeholder="0.0"
                         className="w-full px-2 py-1.5 border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-sky-500 text-xs font-mono text-slate-700 text-right"
+                      />
+                    </td>
+                    <td className="py-2 px-1">
+                      <input
+                        type="text"
+                        value={row.remark || ''}
+                        onChange={(e) => updateFormRow(index, 'remark', e.target.value)}
+                        placeholder="备注..."
+                        className="w-full px-2 py-1.5 border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-sky-500 text-xs text-slate-500"
                       />
                     </td>
                     <td className="py-2 px-3 text-center">
@@ -234,6 +244,13 @@ export default function InventoryManager({
                       placeholder="0.0"
                       className="w-full px-2 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-500 text-xs font-mono text-slate-700 bg-white" />
                   </div>
+                  <div className="col-span-2">
+                    <label className="text-[10px] font-bold text-slate-400 block">备注</label>
+                    <input type="text" value={row.remark || ''}
+                      onChange={(e) => updateFormRow(index, 'remark', e.target.value)}
+                      placeholder="备注..."
+                      className="w-full px-2 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-500 text-xs text-slate-500 bg-white" />
+                  </div>
                 </div>
               </div>
             ))}
@@ -272,6 +289,7 @@ export default function InventoryManager({
                       <th className="py-1.5 px-2">品名</th>
                       <th className="py-1.5 px-2 text-right">匹数</th>
                       <th className="py-1.5 px-2 text-right">米数</th>
+                      <th className="py-1.5 px-2">备注</th>
                       <th className="py-1.5 px-2 text-center w-12"></th>
                     </tr>
                   </thead>
@@ -282,6 +300,7 @@ export default function InventoryManager({
                         <td className="py-1.5 px-2 font-medium text-slate-700">{e.productName}</td>
                         <td className="py-1.5 px-2 text-right font-bold text-slate-600">{e.rolls}</td>
                         <td className="py-1.5 px-2 text-right font-bold text-sky-700">{e.meters.toFixed(2)}</td>
+                        <td className="py-1.5 px-2 text-slate-400 text-[11px] max-w-[150px] truncate">{e.remark || '-'}</td>
                         <td className="py-1.5 px-2 text-center">
                           <button type="button" onClick={() => handleDelete(e.id)}
                             className="p-0.5 hover:bg-rose-50 text-slate-300 hover:text-rose-600 rounded">

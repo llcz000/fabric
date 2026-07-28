@@ -126,6 +126,7 @@ export interface InventoryEntry {
   productName: string;
   rolls: number;
   meters: number;
+  remark: string;
   createdAt: string;
 }
 

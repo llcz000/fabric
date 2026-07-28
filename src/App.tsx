@@ -543,6 +543,7 @@ export default function App() {
           productName: e.product_name || '',
           rolls: e.rolls || 0,
           meters: parseFloat(e.meters || 0),
+          remark: e.remark || '',
           createdAt: e.created_at || '',
         })));
       }
@@ -570,12 +571,13 @@ export default function App() {
     }
   };
 
-  const handleSaveInventoryEntries = async (rows: { entryDate: string; productName: string; rolls: number; meters: number }[]) => {
+  const handleSaveInventoryEntries = async (rows: { entryDate: string; productName: string; rolls: number; meters: number; remark: string }[]) => {
     const payload = rows.map(r => ({
       entry_date: r.entryDate,
       product_name: r.productName.trim(),
       rolls: r.rolls || 0,
       meters: r.meters || 0,
+      remark: r.remark || '',
     }));
     const res = await authFetch('/api/inventory/entries', {
       method: 'POST',
