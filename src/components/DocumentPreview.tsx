@@ -701,17 +701,19 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
           </div>
 
           {/* 5. Bottom Signatures and Contact Block */}
-          <div className="signature-section pt-0" style={{ fontFamily: 'SimSun, serif' }}>
-            {/* First line: Issuer */}
-            <div className="text-xs text-slate-800 mb-1">
-              <span>开单人签字：</span>
-              <span className="underline underline-offset-4 pl-1">
-                {document.issuer || '        '}
-              </span>
-            </div>
-            {/* Second line: Receiver, Phone, Address */}
-            <div className="flex flex-wrap items-center gap-x-3 sm:gap-x-5 gap-y-2 text-xs text-slate-800">
-              <div>
+          <div className="signature-section pt-0" style={{ fontFamily: 'SimSun, serif', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            {/* Left: Signature info */}
+            <div>
+              {/* First line: Issuer */}
+              <div className="text-xs text-slate-800 mb-1">
+                <span>开单人签字：</span>
+                <span className="underline underline-offset-4 pl-1">
+                  {document.issuer || '        '}
+                </span>
+              </div>
+              {/* Second line: Receiver, Phone, Address */}
+              <div className="flex flex-wrap items-center gap-x-3 sm:gap-x-5 gap-y-2 text-xs text-slate-800">
+                <div>
                 <span>收货人签字：</span>
                 <span className="underline underline-offset-4 pl-1">
                   {document.receiver || '        '}
@@ -732,10 +734,11 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
               </div>
               )}
             </div>
+            </div>
 
             {/* Right: Payment QRCodes (WeChat & Alipay) - Only shown for Sample Slip */}
             {isSample && (
-              <div className="flex items-center ml-auto order-first sm:order-none">
+              <div className="flex items-center">
                   {companyProfile.weChatPayUrl && (
                     <div className="flex flex-col items-center" style={{ marginRight: 32 }}>
                       <img src={companyProfile.weChatPayUrl} style={{ width: 80, height: 80, minWidth: 80, minHeight: 80, border: '1px solid #e2e8f0', borderRadius: 4, padding: 2, background: '#fff' }} alt="微信收款" referrerPolicy="no-referrer" />
