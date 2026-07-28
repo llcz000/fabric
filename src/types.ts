@@ -117,3 +117,24 @@ export interface ProductImage {
   url: string;           // COS or local URL
   thumbnailUrl: string;
 }
+
+// ==================== Inventory ====================
+
+export interface InventoryEntry {
+  id: string;
+  entryDate: string;
+  productName: string;
+  rolls: number;
+  meters: number;
+  createdAt: string;
+}
+
+export interface InventoryRecord {
+  productName: string;
+  totalInRolls: number;
+  totalInMeters: number;
+  totalOutRolls: number;
+  totalOutMeters: number;
+  remainingRolls: number;
+  remainingMeters: number;
+}

@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { DocType, DocumentData, CompanyProfile, DocItem } from './types';
+import { DocType, DocumentData, CompanyProfile, DocItem, InventoryEntry, InventoryRecord } from './types';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import {
   Database, PlusCircle, Settings, LayoutDashboard,
@@ -18,6 +18,7 @@ const DocumentPreview = lazy(() => import('./components/DocumentPreview'));
 const CompanyProfileEditor = lazy(() => import('./components/CompanyProfileEditor'));
 const StatsDashboard = lazy(() => import('./components/StatsDashboard'));
 const ProductLibrary = lazy(() => import('./components/ProductLibrary'));
+const InventoryManager = lazy(() => import('./components/InventoryManager'));
 
 const LoadingFallback = () => (
   <div className="min-h-[60vh] flex items-center justify-center">
@@ -148,7 +149,7 @@ const INITIAL_DOCUMENTS_DB: DocumentData[] = [
   }
 ];
 
-type AppView = 'dashboard' | 'list' | 'create' | 'settings' | 'preview' | 'products';
+type AppView = 'dashboard' | 'list' | 'create' | 'settings' | 'preview' | 'products' | 'inventory';
 
 // Helper: Map from Backend order model to Frontend DocumentData
 function mapBackendOrderToDoc(order: any): DocumentData {
@@ -296,6 +297,9 @@ export default function App() {
 
   // Data State
   const [documents, setDocuments] = useState<DocumentData[]>([]);
+  const [inventoryEntries, setInventoryEntries] = useState<InventoryEntry[]>([]);
+  const [inventoryLedger, setInventoryLedger] = useState<InventoryRecord[]>([]);
+  const [inventoryLedgerLoading, setInventoryLedgerLoading] = useState(false);
   const [companyProfile, setCompanyProfile] = useState<CompanyProfile>(DEFAULT_COMPANY_PROFILE);
 
   // Current Active Doc operations state
@@ -395,7 +399,7 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (authToken) loadData();
+    if (authToken) { loadData(); loadInventoryEntries(); loadInventoryLedger(); }
   }, [authToken]);
 
   // Update localStorage when documents list modifications occur
@@ -527,6 +531,69 @@ export default function App() {
     saveDocumentsToStorage(backupDocs);
   };
 
+  // Inventory functions
+  const loadInventoryEntries = async () => {
+    try {
+      const res = await authFetch('/api/inventory/entries');
+      if (res.ok) {
+        const data = await res.json();
+        setInventoryEntries((data || []).map((e: any) => ({
+          id: String(e.id),
+          entryDate: (e.entry_date || '').substring(0, 10),
+          productName: e.product_name || '',
+          rolls: e.rolls || 0,
+          meters: parseFloat(e.meters || 0),
+          createdAt: e.created_at || '',
+        })));
+      }
+    } catch (_) {}
+  };
+
+  const loadInventoryLedger = async () => {
+    setInventoryLedgerLoading(true);
+    try {
+      const res = await authFetch('/api/inventory/ledger');
+      if (res.ok) {
+        const data = await res.json();
+        setInventoryLedger((data || []).map((r: any) => ({
+          productName: r.product_name || '',
+          totalInRolls: r.total_in_rolls || 0,
+          totalInMeters: parseFloat(r.total_in_meters || 0),
+          totalOutRolls: r.total_out_rolls || 0,
+          totalOutMeters: parseFloat(r.total_out_meters || 0),
+          remainingRolls: r.remaining_rolls || 0,
+          remainingMeters: parseFloat(r.remaining_meters || 0),
+        })));
+      }
+    } catch (_) {} finally {
+      setInventoryLedgerLoading(false);
+    }
+  };
+
+  const handleSaveInventoryEntries = async (rows: { entryDate: string; productName: string; rolls: number; meters: number }[]) => {
+    const payload = rows.map(r => ({
+      entry_date: r.entryDate,
+      product_name: r.productName.trim(),
+      rolls: r.rolls || 0,
+      meters: r.meters || 0,
+    }));
+    const res = await authFetch('/api/inventory/entries', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error('Save failed');
+    await loadInventoryEntries();
+    await loadInventoryLedger();
+  };
+
+  const handleDeleteInventoryEntry = async (id: string) => {
+    const res = await authFetch(`/api/inventory/entries/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Delete failed');
+    await loadInventoryEntries();
+    await loadInventoryLedger();
+  };
+
   // Login screen
   if (!authToken) {
     return (
@@ -648,6 +715,20 @@ export default function App() {
 
               <button
                 type="button"
+                id="nav-btn-inventory"
+                onClick={() => { setCurrentView('inventory'); setDocToEdit(null); }}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+                  currentView === 'inventory'
+                    ? 'bg-sky-50 text-sky-700'
+                    : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
+                }`}
+              >
+                <Database className="w-4 h-4" />
+                库存管理
+              </button>
+
+              <button
+                type="button"
                 id="nav-btn-settings"
                 onClick={() => { setCurrentView('settings'); setDocToEdit(null); }}
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
@@ -744,6 +825,18 @@ export default function App() {
             <ProductLibrary />
           )}
 
+          {/* Inventory Manager */}
+          {currentView === 'inventory' && (
+            <InventoryManager
+              entries={inventoryEntries}
+              ledger={inventoryLedger}
+              ledgerLoading={inventoryLedgerLoading}
+              onSaveEntries={handleSaveInventoryEntries}
+              onDeleteEntry={handleDeleteInventoryEntry}
+              onRefreshLedger={loadInventoryLedger}
+            />
+          )}
+
           {/* Invoice Preview Section */}
           {currentView === 'preview' && selectedDoc && (
             <DocumentPreview 
@@ -804,6 +897,17 @@ export default function App() {
         >
           <Package className="w-5 h-5" />
           <span className="text-[10px] tracking-tight">产品库</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => { setCurrentView('inventory'); setDocToEdit(null); }}
+          className={`flex flex-col items-center justify-center gap-1 text-center py-1 px-3 rounded-xl transition-all ${
+            currentView === 'inventory' ? 'text-sky-600 font-bold bg-sky-50/50' : 'text-slate-400 hover:text-slate-600'
+          }`}
+        >
+          <Database className="w-5 h-5" />
+          <span className="text-[10px] tracking-tight">库存</span>
         </button>
 
         <button

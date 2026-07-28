@@ -272,6 +272,19 @@ async function getMySQLPool(): Promise<mysql.Pool> {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
+    // Inventory entries table
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS inventory_entries (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        entry_date VARCHAR(50) NOT NULL,
+        product_name VARCHAR(255) DEFAULT '',
+        rolls INT DEFAULT 0,
+        meters DECIMAL(12,2) DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_product_name (product_name)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
     // Add missing columns for existing databases (safe to run even if column exists)
     const addColumnIfNotExists = async (table: string, column: string, definition: string) => {
       try {
@@ -335,6 +348,7 @@ interface LocalDB {
   order_items: any[];
   products: any[];
   product_images: any[];
+  inventory_entries: any[];
 }
 
 function loadLocalDB(): LocalDB {
@@ -363,7 +377,8 @@ function loadLocalDB(): LocalDB {
     orders: [],
     order_items: [],
     products: [],
-    product_images: []
+    product_images: [],
+    inventory_entries: []
   };
   saveLocalDB(defaultDB);
   return defaultDB;
@@ -1239,6 +1254,195 @@ app.get('/api/export_template/:id', async (req, res) => {
   } catch (e: any) {
     console.error('[GET /api/export_template/:id]', e.message, e.stack);
     res.status(500).json({ error: e.message || '导出失败' });
+  }
+});
+
+// ==================== Inventory API ====================
+
+const InventoryEntrySchema = z.object({
+  entry_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  product_name: z.string().max(255).optional().default(''),
+  rolls: z.number().int().min(0).optional().default(0),
+  meters: z.number().min(0).optional().default(0),
+});
+
+// GET /api/inventory/entries
+app.get('/api/inventory/entries', async (req, res) => {
+  try {
+    if (!useMySQLFallback) {
+      const pool = await getMySQLPool();
+      const [rows] = await pool.query<RowDataPacket[]>(
+        'SELECT * FROM inventory_entries ORDER BY entry_date DESC, created_at DESC'
+      );
+      return res.json(rows);
+    }
+    const local = loadLocalDB();
+    res.json(local.inventory_entries || []);
+  } catch (error: any) {
+    const local = loadLocalDB();
+    res.json(local.inventory_entries || []);
+  }
+});
+
+// POST /api/inventory/entries (batch insert)
+app.post('/api/inventory/entries', async (req, res) => {
+  try {
+    const entries = z.array(InventoryEntrySchema).parse(req.body);
+    if (!useMySQLFallback) {
+      const pool = await getMySQLPool();
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+        for (const entry of entries) {
+          await conn.query(
+            `INSERT INTO inventory_entries (entry_date, product_name, rolls, meters)
+             VALUES (?, ?, ?, ?)`,
+            [entry.entry_date, entry.product_name, entry.rolls, entry.meters]
+          );
+        }
+        await conn.commit();
+        return res.json({ success: true, count: entries.length });
+      } catch (txErr: any) {
+        await conn.rollback();
+        throw txErr;
+      } finally {
+        conn.release();
+      }
+    }
+    const local = loadLocalDB();
+    if (!local.inventory_entries) local.inventory_entries = [];
+    let maxId = local.inventory_entries.length > 0
+      ? Math.max(...local.inventory_entries.map((e: any) => e.id)) : 0;
+    for (const entry of entries) {
+      local.inventory_entries.push({
+        id: ++maxId,
+        entry_date: entry.entry_date,
+        product_name: entry.product_name,
+        rolls: entry.rolls,
+        meters: entry.meters,
+        created_at: new Date().toISOString()
+      });
+    }
+    saveLocalDB(local);
+    res.json({ success: true, count: entries.length });
+  } catch (error: any) {
+    console.error('[POST /api/inventory/entries]', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/inventory/entries/:id
+app.delete('/api/inventory/entries/:id', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!useMySQLFallback) {
+      const pool = await getMySQLPool();
+      await pool.query('DELETE FROM inventory_entries WHERE id = ?', [id]);
+      return res.json({ success: true });
+    }
+    const local = loadLocalDB();
+    if (local.inventory_entries) {
+      local.inventory_entries = local.inventory_entries.filter((e: any) => e.id !== id);
+    }
+    saveLocalDB(local);
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('[DELETE /api/inventory/entries/:id]', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/inventory/ledger — aggregated inventory report
+app.get('/api/inventory/ledger', async (req, res) => {
+  try {
+    if (!useMySQLFallback) {
+      const pool = await getMySQLPool();
+      // Stock in: aggregate all inventory entries
+      const [inRows] = await pool.query<RowDataPacket[]>(
+        `SELECT product_name, SUM(rolls) as in_rolls, SUM(meters) as in_meters
+         FROM inventory_entries GROUP BY product_name`
+      );
+      // Stock out: aggregate sample + sales (gross meters for sales)
+      const [outRows] = await pool.query<RowDataPacket[]>(
+        `SELECT oi.product_name,
+                SUM(CASE WHEN o.template_type = 'sample' THEN 1 ELSE 0 END) as out_rolls_sample,
+                SUM(CASE WHEN o.template_type = 'bulk' THEN 1 ELSE 0 END) as out_rolls_sales,
+                SUM(CASE WHEN o.template_type = 'sample' THEN oi.meters ELSE 0 END) as out_meters_sample,
+                SUM(CASE WHEN o.template_type = 'bulk' THEN oi.meters ELSE 0 END) as out_meters_sales
+         FROM order_items oi
+         JOIN orders o ON o.id = oi.order_id
+         WHERE o.template_type IN ('sample', 'bulk')
+         GROUP BY oi.product_name`
+      );
+      // Merge in + out
+      const inMap = new Map<string, { in_rolls: number; in_meters: number }>();
+      for (const r of inRows) {
+        inMap.set(r.product_name, { in_rolls: Number(r.in_rolls), in_meters: Number(r.in_meters) });
+      }
+      const outMap = new Map<string, { out_rolls: number; out_meters: number }>();
+      for (const r of outRows) {
+        outMap.set(r.product_name, {
+          out_rolls: Number(r.out_rolls_sample) + Number(r.out_rolls_sales),
+          out_meters: Number(r.out_meters_sample) + Number(r.out_meters_sales),
+        });
+      }
+      const allNames = new Set([...inMap.keys(), ...outMap.keys()]);
+      const result: any[] = [];
+      for (const name of allNames) {
+        const inv = inMap.get(name) || { in_rolls: 0, in_meters: 0 };
+        const outv = outMap.get(name) || { out_rolls: 0, out_meters: 0 };
+        result.push({
+          product_name: name,
+          total_in_rolls: inv.in_rolls,
+          total_in_meters: inv.in_meters,
+          total_out_rolls: outv.out_rolls,
+          total_out_meters: outv.out_meters,
+          remaining_rolls: inv.in_rolls - outv.out_rolls,
+          remaining_meters: inv.in_meters - outv.out_meters,
+        });
+      }
+      result.sort((a, b) => b.total_in_meters - a.total_in_meters);
+      return res.json(result);
+    }
+    // Fallback: compute from local JSON
+    const local = loadLocalDB();
+    const inMap = new Map<string, { rolls: number; meters: number }>();
+    for (const e of (local.inventory_entries || [])) {
+      const cur = inMap.get(e.product_name) || { rolls: 0, meters: 0 };
+      cur.rolls += e.rolls || 0;
+      cur.meters += Number(e.meters || 0);
+      inMap.set(e.product_name, cur);
+    }
+    const outMap = new Map<string, { rolls: number; meters: number }>();
+    for (const o of (local.orders || [])) {
+      if (o.template_type !== 'sample' && o.template_type !== 'bulk') continue;
+      for (const item of (local.order_items || []).filter((i: any) => i.order_id === o.id)) {
+        const cur = outMap.get(item.product_name) || { rolls: 0, meters: 0 };
+        cur.rolls += 1;
+        cur.meters += Number(item.meters || 0);
+        outMap.set(item.product_name, cur);
+      }
+    }
+    const allNames = new Set([...inMap.keys(), ...outMap.keys()]);
+    const result: any[] = [];
+    for (const name of allNames) {
+      const inv = inMap.get(name) || { rolls: 0, meters: 0 };
+      const outv = outMap.get(name) || { rolls: 0, meters: 0 };
+      result.push({
+        product_name: name,
+        total_in_rolls: inv.rolls,
+        total_in_meters: inv.meters,
+        total_out_rolls: outv.rolls,
+        total_out_meters: outv.meters,
+        remaining_rolls: inv.rolls - outv.rolls,
+        remaining_meters: inv.meters - outv.meters,
+      });
+    }
+    result.sort((a, b) => b.total_in_meters - a.total_in_meters);
+    res.json(result);
+  } catch (error: any) {
+    console.error('[GET /api/inventory/ledger]', error.message);
+    res.status(500).json({ error: error.message });
   }
 });
 
