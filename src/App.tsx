@@ -564,6 +564,7 @@ export default function App() {
           totalOutMeters: parseFloat(r.total_out_meters || 0),
           remainingRolls: r.remaining_rolls || 0,
           remainingMeters: parseFloat(r.remaining_meters || 0),
+          remark: r.remark || '',
         })));
       }
     } catch (_) {} finally {

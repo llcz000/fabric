@@ -1364,8 +1364,11 @@ app.get('/api/inventory/ledger', async (req, res) => {
       const pool = await getMySQLPool();
       // Stock in: aggregate all inventory entries
       const [inRows] = await pool.query<RowDataPacket[]>(
-        `SELECT product_name, SUM(rolls) as in_rolls, SUM(meters) as in_meters
-         FROM inventory_entries GROUP BY product_name`
+        `SELECT ie.product_name, SUM(ie.rolls) as in_rolls, SUM(ie.meters) as in_meters,
+                (SELECT ie2.remark FROM inventory_entries ie2
+                 WHERE ie2.product_name = ie.product_name
+                 ORDER BY ie2.created_at DESC LIMIT 1) as remark
+         FROM inventory_entries ie GROUP BY ie.product_name`
       );
       // Stock out: aggregate sample + sales (gross meters for sales)
       const [outRows] = await pool.query<RowDataPacket[]>(
@@ -1380,9 +1383,9 @@ app.get('/api/inventory/ledger', async (req, res) => {
          GROUP BY oi.product_name`
       );
       // Merge in + out
-      const inMap = new Map<string, { in_rolls: number; in_meters: number }>();
+      const inMap = new Map<string, { in_rolls: number; in_meters: number; remark: string }>();
       for (const r of inRows) {
-        inMap.set(r.product_name, { in_rolls: Number(r.in_rolls), in_meters: Number(r.in_meters) });
+        inMap.set(r.product_name, { in_rolls: Number(r.in_rolls), in_meters: Number(r.in_meters), remark: r.remark || '' });
       }
       const outMap = new Map<string, { out_rolls: number; out_meters: number }>();
       for (const r of outRows) {
@@ -1394,7 +1397,7 @@ app.get('/api/inventory/ledger', async (req, res) => {
       const allNames = new Set([...inMap.keys(), ...outMap.keys()]);
       const result: any[] = [];
       for (const name of allNames) {
-        const inv = inMap.get(name) || { in_rolls: 0, in_meters: 0 };
+        const inv = inMap.get(name) || { in_rolls: 0, in_meters: 0, remark: '' };
         const outv = outMap.get(name) || { out_rolls: 0, out_meters: 0 };
         result.push({
           product_name: name,
@@ -1404,6 +1407,7 @@ app.get('/api/inventory/ledger', async (req, res) => {
           total_out_meters: outv.out_meters,
           remaining_rolls: inv.in_rolls - outv.out_rolls,
           remaining_meters: inv.in_meters - outv.out_meters,
+          remark: inv.remark || '',
         });
       }
       result.sort((a, b) => b.total_in_meters - a.total_in_meters);
@@ -1411,11 +1415,12 @@ app.get('/api/inventory/ledger', async (req, res) => {
     }
     // Fallback: compute from local JSON
     const local = loadLocalDB();
-    const inMap = new Map<string, { rolls: number; meters: number }>();
+    const inMap = new Map<string, { rolls: number; meters: number; remark: string }>();
     for (const e of (local.inventory_entries || [])) {
-      const cur = inMap.get(e.product_name) || { rolls: 0, meters: 0 };
+      const cur = inMap.get(e.product_name) || { rolls: 0, meters: 0, remark: '' };
       cur.rolls += e.rolls || 0;
       cur.meters += Number(e.meters || 0);
+      if (e.remark) cur.remark = e.remark; // latest remark wins
       inMap.set(e.product_name, cur);
     }
     const outMap = new Map<string, { rolls: number; meters: number }>();
@@ -1431,7 +1436,7 @@ app.get('/api/inventory/ledger', async (req, res) => {
     const allNames = new Set([...inMap.keys(), ...outMap.keys()]);
     const result: any[] = [];
     for (const name of allNames) {
-      const inv = inMap.get(name) || { rolls: 0, meters: 0 };
+      const inv = inMap.get(name) || { rolls: 0, meters: 0, remark: '' };
       const outv = outMap.get(name) || { rolls: 0, meters: 0 };
       result.push({
         product_name: name,

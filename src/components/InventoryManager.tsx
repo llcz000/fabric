@@ -374,6 +374,7 @@ export default function InventoryManager({
                       <th className="py-2 px-2 text-right font-bold">出库米数</th>
                       <th className="py-2 px-2 text-right font-bold">剩余匹数</th>
                       <th className="py-2 px-2 text-right font-bold">剩余米数</th>
+                      <th className="py-2 px-2 font-bold">备注</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
@@ -386,6 +387,7 @@ export default function InventoryManager({
                         <td className="py-2 px-2 text-right font-bold text-amber-700">{r.totalOutMeters.toFixed(2)}</td>
                         <td className="py-2 px-2 text-right font-extrabold text-slate-800">{r.remainingRolls}</td>
                         <td className="py-2 px-2 text-right font-extrabold text-emerald-700">{r.remainingMeters.toFixed(2)}</td>
+                        <td className="py-2 px-2 text-slate-400 text-[11px] max-w-[180px] truncate">{r.remark || '-'}</td>
                       </tr>
                     ))}
                   </tbody>

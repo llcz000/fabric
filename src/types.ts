@@ -138,4 +138,5 @@ export interface InventoryRecord {
   totalOutMeters: number;
   remainingRolls: number;
   remainingMeters: number;
+  remark: string;
 }
