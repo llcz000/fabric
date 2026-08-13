@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import ExcelJS from 'exceljs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
@@ -131,8 +132,12 @@ try {
   });
   assert.equal(svgUpload.status, 415, 'SVG upload must be rejected');
 
+  const validPng = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+    'base64'
+  );
   const pngForm = new FormData();
-  pngForm.append('file', new Blob(['not-a-real-image'], { type: 'image/png' }), 'test.png');
+  pngForm.append('file', new Blob([validPng], { type: 'image/png' }), 'test.png');
   const pngUpload = await fetch(`${baseUrl}/api/upload`, {
     method: 'POST',
     headers: authHeaders,
@@ -144,6 +149,66 @@ try {
   assert.equal((await fetch(`${baseUrl}${localAssetUrl}`, {
     headers: { Cookie: login.cookie },
   })).status, 200, 'authenticated asset cookie must allow local images');
+
+  const uploadsDir = path.join(tempDir, 'uploads');
+  const uploadsBeforeInvalidImage = fs.readdirSync(uploadsDir).sort();
+  const fakePngForm = new FormData();
+  fakePngForm.append('file', new Blob(['not-a-real-image'], { type: 'image/png' }), 'fake.png');
+  const fakePngUpload = await fetch(`${baseUrl}/api/upload`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: fakePngForm,
+  });
+  assert.equal(fakePngUpload.status, 415, 'image content must be decoded and validated');
+  assert.deepEqual(fs.readdirSync(uploadsDir).sort(), uploadsBeforeInvalidImage,
+    'rejected image must not leave a temporary file');
+
+  const templateDir = path.join(tempDir, 'template');
+  const fakeWorkbookForm = new FormData();
+  fakeWorkbookForm.append('file', new Blob(['not-a-real-workbook'], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  }), 'fake.xlsx');
+  const fakeWorkbookUpload = await fetch(`${baseUrl}/api/products/import`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: fakeWorkbookForm,
+  });
+  assert.equal(fakeWorkbookUpload.status, 415, 'Excel content must be parsed and validated');
+  assert.deepEqual(fs.readdirSync(templateDir), [], 'rejected workbook must not leave a temporary file');
+
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Products');
+  worksheet.addRow(['货号', '品名', '成分', '克重', '门幅']);
+  worksheet.addRow(['TEST-001', '测试面料', '100%棉', '200g/㎡', '150']);
+  const workbookBuffer = Buffer.from(await workbook.xlsx.writeBuffer());
+
+  const validWorkbookForm = new FormData();
+  validWorkbookForm.append('file', new Blob([workbookBuffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  }), 'products.xlsx');
+  const validWorkbookUpload = await fetch(`${baseUrl}/api/products/import`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: validWorkbookForm,
+  });
+  assert.equal(validWorkbookUpload.status, 200, 'valid workbook import must succeed');
+  assert.deepEqual(fs.readdirSync(templateDir), [], 'successful import must remove its temporary workbook');
+
+  const templateWorkbookForm = new FormData();
+  templateWorkbookForm.append('template_file', new Blob([workbookBuffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  }), 'user-controlled.xlsx');
+  const templateWorkbookUpload = await fetch(`${baseUrl}/api/template/upload`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: templateWorkbookForm,
+  });
+  assert.equal(templateWorkbookUpload.status, 200, 'valid template workbook must succeed');
+  const templateUploadBody = await templateWorkbookUpload.json();
+  assert.match(templateUploadBody.filename, /^template-\d+-[0-9a-f]{12}\.xlsx$/,
+    'template must use a server-generated file name');
+  assert.deepEqual(fs.readdirSync(templateDir), [templateUploadBody.filename],
+    'validated template must be retained for later exports');
 
   const productImageDir = path.join(tempDir, 'uploads', 'products');
   fs.mkdirSync(productImageDir, { recursive: true });

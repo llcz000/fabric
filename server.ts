@@ -261,9 +261,9 @@ const storage = multer.diskStorage({
     }
   },
   filename: (req, file, cb) => {
-    // Preserve original name for templates, or use timestamp for uploads
+    // Always generate server-side names; never persist user-controlled file names.
     if (file.fieldname === 'template_file' || file.originalname.endsWith('.xlsx')) {
-      cb(null, file.originalname);
+      cb(null, `template-${Date.now()}-${crypto.randomBytes(6).toString('hex')}.xlsx`);
     } else {
       const ext = path.extname(file.originalname);
       const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -290,6 +290,81 @@ const upload = multer({
     cb(new Error('Only JPEG, PNG, WebP, and GIF images are allowed'));
   },
 });
+
+class UploadValidationError extends Error {}
+
+function getRequestFiles(req: express.Request): Express.Multer.File[] {
+  if (req.file) return [req.file];
+  if (Array.isArray(req.files)) return req.files;
+  if (req.files) return Object.values(req.files).flat();
+  return [];
+}
+
+async function cleanupUploadedFiles(files: Express.Multer.File[], retainedPaths = new Set<string>()) {
+  await Promise.allSettled(files.map(async (file) => {
+    if (!file?.path || retainedPaths.has(file.path)) return;
+    await fs.promises.rm(file.path, { force: true });
+  }));
+}
+
+async function validateRasterFiles(files: Express.Multer.File[]) {
+  const allowedFormats = new Set(['jpeg', 'png', 'webp', 'gif']);
+  const expectedMimeByFormat: Record<string, string> = {
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    webp: 'image/webp',
+    gif: 'image/gif',
+  };
+  const expectedExtensionsByFormat: Record<string, Set<string>> = {
+    jpeg: new Set(['.jpg', '.jpeg']),
+    png: new Set(['.png']),
+    webp: new Set(['.webp']),
+    gif: new Set(['.gif']),
+  };
+  const maxPixels = 40_000_000;
+
+  for (const file of files) {
+    try {
+      const image = sharp(file.path, { limitInputPixels: maxPixels });
+      const metadata = await image.metadata();
+      if (!metadata.format || !allowedFormats.has(metadata.format)) {
+        throw new Error('Unsupported image format');
+      }
+      if (file.mimetype !== expectedMimeByFormat[metadata.format]
+        || !expectedExtensionsByFormat[metadata.format].has(path.extname(file.originalname).toLowerCase())) {
+        throw new Error('Image format does not match its declared type');
+      }
+      if (!metadata.width || !metadata.height || metadata.width * metadata.height > maxPixels) {
+        throw new Error('Image dimensions are too large');
+      }
+      await image.clone().resize(1, 1, { fit: 'inside' }).toBuffer();
+    } catch {
+      throw new UploadValidationError('Uploaded file is not a valid JPEG, PNG, WebP, or GIF image');
+    }
+  }
+}
+
+async function readUploadedWorkbook(file: Express.Multer.File): Promise<ExcelJS.Workbook> {
+  const workbook = new ExcelJS.Workbook();
+  try {
+    await workbook.xlsx.readFile(file.path);
+    if (workbook.worksheets.length === 0) throw new Error('Workbook has no worksheets');
+    return workbook;
+  } catch {
+    throw new UploadValidationError('Uploaded file is not a valid .xlsx workbook');
+  }
+}
+
+async function validateRasterUploads(req: express.Request, _res: express.Response, next: express.NextFunction) {
+  const files = getRequestFiles(req);
+  try {
+    await validateRasterFiles(files);
+    next();
+  } catch (error) {
+    await cleanupUploadedFiles(files);
+    next(error);
+  }
+}
 
 // ==================== MySQL Database Config & Lazy Pool Initialization ====================
 let mysqlPool: mysql.Pool | null = null;
@@ -1050,7 +1125,9 @@ app.delete('/api/orders/:id', async (req, res) => {
 });
 
 // ==================== API Route: COS Upload ====================
-app.post('/api/upload', upload.single('file'), async (req, res) => {
+app.post('/api/upload', upload.single('file'), validateRasterUploads, async (req, res) => {
+  const files = getRequestFiles(req);
+  const retainedPaths = new Set<string>();
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
@@ -1059,6 +1136,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
 
     if (!cos || !cosConfig) {
       // Fallback: return local file path
+      retainedPaths.add(req.file.path);
       const localUrl = `/uploads/${req.file.filename}`;
       return res.json({ url: localUrl, source: 'local' });
     }
@@ -1078,16 +1156,18 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
   } catch (error: any) {
     console.error('[API /api/upload] Error:', error.message);
     res.status(500).json({ error: error.message });
+  } finally {
+    await cleanupUploadedFiles(files, retainedPaths);
   }
 });
 
 // ==================== API Route: Template Upload & Parse ====================
-app.post('/api/template/upload', upload.single('template_file'), async (req, res) => {
+app.post('/api/template/upload', upload.single('template_file'), async (req, res, next) => {
+  const files = getRequestFiles(req);
   try {
     if (!req.file) return res.status(400).json({ error: 'No template file uploaded' });
 
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.readFile(req.file.path);
+    const workbook = await readUploadedWorkbook(req.file);
 
     const worksheet = workbook.worksheets[0];
     const rows: any[] = [];
@@ -1113,7 +1193,8 @@ app.post('/api/template/upload', upload.single('template_file'), async (req, res
     res.json({ success: true, filename: req.file.filename, rows: rows.slice(0, 10) });
   } catch (error: any) {
     console.error('[API /api/template/upload] Error:', error.message);
-    res.status(500).json({ error: error.message });
+    await cleanupUploadedFiles(files);
+    next(error);
   }
 });
 
@@ -1765,15 +1846,15 @@ app.get('/api/products/:productId/images/:imageId', async (req, res) => {
 });
 
 // ── Create Product ─────────────────────────────────────
-app.post('/api/products', upload.any(), async (req, res) => {
+app.post('/api/products', upload.any(), validateRasterUploads, async (req, res) => {
+  const files = getRequestFiles(req);
+  const retainedPaths = new Set<string>();
   try {
     const { itemNo, productName, composition, weight, width } = req.body;
     console.log('[POST /api/products] itemNo:', itemNo, 'productName:', productName);
     if (!itemNo || !productName) return res.status(400).json({ error: 'itemNo and productName are required' });
 
     const now = toMySQLDateTime(new Date().toISOString());
-    const files = req.files as Express.Multer.File[] || [];
-
     if (!useMySQLFallback) {
       const pool = await getMySQLPool();
       const [result] = await pool.query<ResultSetHeader>(
@@ -1829,19 +1910,26 @@ app.post('/api/products', upload.any(), async (req, res) => {
       });
     }
     saveLocalDB(local);
+    for (const file of files) {
+      const image = local.product_images.find((item: any) => item.product_id == newId && item.local_path === file.path);
+      if (image) retainedPaths.add(file.path);
+    }
     res.json({ id: newId, success: true });
   } catch (e: any) {
     console.error('[POST /api/products]', e.message);
     res.status(500).json({ error: e.message });
+  } finally {
+    await cleanupUploadedFiles(files, retainedPaths);
   }
 });
 
 // ── Update Product ─────────────────────────────────────
-app.put('/api/products/:id', upload.any(), async (req, res) => {
+app.put('/api/products/:id', upload.any(), validateRasterUploads, async (req, res) => {
   const productId = parseInt(req.params.id);
+  const files = getRequestFiles(req);
+  const retainedPaths = new Set<string>();
   try {
     const { itemNo, productName, composition, weight, width } = req.body;
-    const files = req.files as Express.Multer.File[] || [];
 
     if (!useMySQLFallback) {
       const pool = await getMySQLPool();
@@ -1861,6 +1949,7 @@ app.put('/api/products/:id', upload.any(), async (req, res) => {
           'INSERT INTO product_images (product_id, sort_order, cos_key, local_path) VALUES (?, ?, ?, ?)',
           [productId, order++, cosKey || '', cosKey ? '' : file.path]
         );
+        if (!cosKey) retainedPaths.add(file.path);
       }
 
       // Update image_count
@@ -1893,10 +1982,16 @@ app.put('/api/products/:id', upload.any(), async (req, res) => {
     }
     local.products[idx].image_count = local.product_images.filter((i: any) => i.product_id == productId).length;
     saveLocalDB(local);
+    for (const file of files) {
+      const image = local.product_images.find((item: any) => item.product_id == productId && item.local_path === file.path);
+      if (image) retainedPaths.add(file.path);
+    }
     res.json({ success: true });
   } catch (e: any) {
     console.error('[PUT /api/products]', e.message);
     res.status(500).json({ error: e.message });
+  } finally {
+    await cleanupUploadedFiles(files, retainedPaths);
   }
 });
 
@@ -2206,12 +2301,12 @@ app.post('/api/products/export', async (req, res) => {
 });
 
 // ── Excel Import (with images) ─────────────────────────
-app.post('/api/products/import', upload.single('file'), async (req, res) => {
+app.post('/api/products/import', upload.single('file'), async (req, res, next) => {
+  const files = getRequestFiles(req);
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.readFile(req.file.path);
+    const workbook = await readUploadedWorkbook(req.file);
     const worksheet = workbook.worksheets[0];
 
     // Extract images from worksheet
@@ -2344,10 +2439,12 @@ app.post('/api/products/import', upload.single('file'), async (req, res) => {
       saveLocalDB(local);
     }
 
+    await cleanupUploadedFiles(files);
     res.json({ success: true, count: importedCount, warnings });
   } catch (e: any) {
     console.error('[POST /api/products/import]', e.message);
-    res.status(500).json({ error: e.message });
+    await cleanupUploadedFiles(files);
+    next(e);
   }
 });
 
@@ -2406,14 +2503,18 @@ async function deleteFromCOS(key: string): Promise<void> {
   }
 }
 
-app.use((error: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use(async (error: unknown, req: express.Request, res: express.Response, next: express.NextFunction) => {
   if (res.headersSent) return next(error);
+  await cleanupUploadedFiles(getRequestFiles(req));
   if (error instanceof multer.MulterError) {
     const status = error.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
     return res.status(status).json({ error: error.message });
   }
   if (error instanceof z.ZodError) {
     return res.status(400).json({ error: 'Invalid request data', details: error.issues });
+  }
+  if (error instanceof UploadValidationError) {
+    return res.status(415).json({ error: error.message });
   }
   if (error instanceof Error && /Only .* allowed/.test(error.message)) {
     return res.status(415).json({ error: error.message });
