@@ -3,12 +3,13 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import dns from 'dns';
-import { isIP } from 'net';
+import { BlockList, isIP } from 'net';
 import dotenv from 'dotenv';
 import mysql, { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 import COS from 'cos-nodejs-sdk-v5';
 import ExcelJS from 'exceljs';
 import multer from 'multer';
+import rateLimit from 'express-rate-limit';
 import sharp from 'sharp';
 import { z } from 'zod';
 import { createServer as createViteServer } from 'vite';
@@ -17,7 +18,8 @@ import { createServer as createViteServer } from 'vite';
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
+const HOST = process.env.HOST || '127.0.0.1';
 
 // Ensure local storage directories exist
 const TEMPLATE_DIR = path.join(process.cwd(), 'template');
@@ -32,77 +34,198 @@ fs.mkdirSync(path.join(UPLOADS_DIR, 'products'), { recursive: true });
 // Setup middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use('/uploads', express.static(UPLOADS_DIR));
+app.use('/uploads', assetAuthMiddleware, express.static(UPLOADS_DIR, {
+  setHeaders: (res) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self'; sandbox");
+  },
+}));
 
 // ==================== Simple Token Authentication ====================
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
-const authTokens = new Set<string>();
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD?.trim();
+if (!ADMIN_PASSWORD) {
+  throw new Error('ADMIN_PASSWORD is required. Refusing to start with an insecure default password.');
+}
+
+const TOKEN_TTL_MS = 12 * 60 * 60 * 1000;
+const authTokens = new Map<string, number>();
+
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 500,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { error: '请求过于频繁，请稍后再试。' },
+});
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  message: { error: '登录尝试过于频繁，请稍后再试。' },
+});
 
 function generateToken(): string {
   return crypto.randomBytes(32).toString('hex');
 }
 
-function authMiddleware(req: express.Request, res: express.Response, next: express.NextFunction) {
-  // Whitelist: login and proxy-image don't require auth
-  if (req.path === '/login' || req.path === '/proxy-image') return next();
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  if (!token || !authTokens.has(token)) {
-    return res.status(401).json({ error: 'Unauthorized' });
+function passwordsMatch(candidate: unknown): boolean {
+  const candidateHash = crypto.createHash('sha256').update(String(candidate ?? '')).digest();
+  const expectedHash = crypto.createHash('sha256').update(ADMIN_PASSWORD).digest();
+  return crypto.timingSafeEqual(candidateHash, expectedHash);
+}
+
+function getValidToken(token: string | undefined): string | null {
+  const expiresAt = token ? authTokens.get(token) : undefined;
+  if (!token || !expiresAt || expiresAt <= Date.now()) {
+    if (token) authTokens.delete(token);
+    return null;
   }
+  return token;
+}
+
+function assetAuthMiddleware(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const cookieHeader = req.headers.cookie || '';
+  const assetToken = cookieHeader
+    .split(';')
+    .map(part => part.trim().split('='))
+    .find(([name]) => name === 'fabric_asset_token')?.[1];
+  if (!getValidToken(assetToken)) return res.status(401).send('Unauthorized');
   next();
 }
 
-app.use('/api', authMiddleware);
+function authMiddleware(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!getValidToken(token)) return res.status(401).json({ error: 'Unauthorized' });
+  next();
+}
 
-app.post('/api/login', (req, res) => {
+app.use('/api', apiLimiter);
+
+app.post('/api/login', loginLimiter, (req, res) => {
   const { password } = req.body;
-  if (password !== ADMIN_PASSWORD) {
+  if (!passwordsMatch(password)) {
     return res.status(401).json({ error: 'Invalid password' });
   }
   const token = generateToken();
-  authTokens.add(token);
-  res.json({ token });
+  authTokens.set(token, Date.now() + TOKEN_TTL_MS);
+  res.cookie('fabric_asset_token', token, {
+    httpOnly: true,
+    sameSite: 'strict',
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: TOKEN_TTL_MS,
+    path: '/uploads',
+  });
+  res.json({ token, expiresIn: TOKEN_TTL_MS / 1000 });
 });
+
+app.use('/api', authMiddleware);
 
 app.post('/api/logout', (req, res) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (token) authTokens.delete(token);
+  res.clearCookie('fabric_asset_token', { path: '/uploads' });
   res.json({ success: true });
 });
 
-// Image proxy endpoint to solve CORS issues for html-to-image on COS/remote images
+const blockedAddresses = new BlockList();
+blockedAddresses.addSubnet('0.0.0.0', 8, 'ipv4');
+blockedAddresses.addSubnet('10.0.0.0', 8, 'ipv4');
+blockedAddresses.addSubnet('100.64.0.0', 10, 'ipv4');
+blockedAddresses.addSubnet('127.0.0.0', 8, 'ipv4');
+blockedAddresses.addSubnet('169.254.0.0', 16, 'ipv4');
+blockedAddresses.addSubnet('172.16.0.0', 12, 'ipv4');
+blockedAddresses.addSubnet('192.168.0.0', 16, 'ipv4');
+blockedAddresses.addSubnet('224.0.0.0', 4, 'ipv4');
+blockedAddresses.addSubnet('240.0.0.0', 4, 'ipv4');
+blockedAddresses.addAddress('::', 'ipv6');
+blockedAddresses.addAddress('::1', 'ipv6');
+blockedAddresses.addSubnet('fc00::', 7, 'ipv6');
+blockedAddresses.addSubnet('fe80::', 10, 'ipv6');
+blockedAddresses.addSubnet('ff00::', 8, 'ipv6');
+
+function isBlockedAddress(address: string): boolean {
+  const mappedIPv4 = address.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i)?.[1];
+  if (mappedIPv4) return blockedAddresses.check(mappedIPv4, 'ipv4');
+  const family = isIP(address);
+  return family === 4
+    ? blockedAddresses.check(address, 'ipv4')
+    : family === 6
+      ? blockedAddresses.check(address, 'ipv6')
+      : true;
+}
+
+async function validateExternalImageUrl(rawUrl: string): Promise<URL> {
+  const url = new URL(rawUrl);
+  if (url.protocol !== 'https:') throw new Error('Only HTTPS image URLs are allowed');
+  if (url.username || url.password) throw new Error('URL credentials are not allowed');
+
+  const hostname = url.hostname.replace(/^\[|\]$/g, '');
+  const addresses = isIP(hostname)
+    ? [{ address: hostname }]
+    : await dns.promises.lookup(hostname, { all: true, verbatim: true });
+  if (addresses.length === 0 || addresses.some(({ address }) => isBlockedAddress(address))) {
+    throw new Error('Internal or reserved IPs are not allowed');
+  }
+  return url;
+}
+
+async function fetchExternalImage(rawUrl: string): Promise<Response> {
+  let currentUrl = rawUrl;
+  for (let redirectCount = 0; redirectCount <= 3; redirectCount++) {
+    const validatedUrl = await validateExternalImageUrl(currentUrl);
+    const response = await fetch(validatedUrl, {
+      redirect: 'manual',
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (response.status < 300 || response.status >= 400) return response;
+
+    const location = response.headers.get('location');
+    if (!location || redirectCount === 3) throw new Error('Too many or invalid redirects');
+    currentUrl = new URL(location, validatedUrl).toString();
+  }
+  throw new Error('Unable to fetch image');
+}
+
+async function readBodyWithLimit(response: Response, maxBytes: number): Promise<Buffer> {
+  const declaredLength = Number(response.headers.get('content-length') || 0);
+  if (declaredLength > maxBytes) throw new Error('Image is too large');
+  if (!response.body) throw new Error('Image response has no body');
+
+  const chunks: Uint8Array[] = [];
+  let received = 0;
+  for await (const chunk of response.body as any) {
+    const bytes = chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk);
+    received += bytes.byteLength;
+    if (received > maxBytes) throw new Error('Image is too large');
+    chunks.push(bytes);
+  }
+  return Buffer.concat(chunks);
+}
+
+// Authenticated image proxy for raster images used by document export.
 app.get('/api/proxy-image', async (req, res) => {
   try {
     const url = req.query.url as string;
     if (!url) return res.status(400).send('Missing url parameter');
-    if (!/^https?:\/\//i.test(url)) return res.status(400).send('Invalid url');
-
-    // SSRF protection: reject internal/private IPs
-    try {
-      const urlObj = new URL(url);
-      const addresses = await dns.promises.resolve4(urlObj.hostname);
-      for (const addr of addresses) {
-        if (addr.startsWith('127.') || addr.startsWith('10.')
-            || addr.startsWith('172.16.') || addr.startsWith('192.168.')
-            || addr === '169.254.169.254' || addr === '0.0.0.0') {
-          return res.status(403).send('Internal IPs not allowed');
-        }
-      }
-    } catch {
-      // DNS resolution failed, allow the external fetch to handle the error
-    }
-
-    const imageRes = await fetch(url);
+    const imageRes = await fetchExternalImage(url);
     if (!imageRes.ok) return res.status(404).send('Image not found');
 
-    const contentType = imageRes.headers.get('content-type') || 'image/png';
-    res.set('Content-Type', contentType);
-    res.set('Cache-Control', 'public, max-age=3600');
+    const contentType = (imageRes.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+    const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+    if (!allowedTypes.has(contentType)) return res.status(415).send('Unsupported image type');
 
-    const buffer = await imageRes.arrayBuffer();
-    res.send(Buffer.from(buffer));
-  } catch (e) {
-    res.status(500).send('Proxy error');
+    const buffer = await readBodyWithLimit(imageRes, 10 * 1024 * 1024);
+    res.set('Content-Type', contentType);
+    res.set('X-Content-Type-Options', 'nosniff');
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.send(buffer);
+  } catch (e: any) {
+    const message = e?.message || 'Proxy error';
+    const isRejectedUrl = /HTTPS|credentials|Internal|reserved|redirect/i.test(message);
+    res.status(isRejectedUrl ? 403 : 502).send('Proxy error');
   }
 });
 
@@ -130,20 +253,19 @@ const upload = multer({
   storage,
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max
   fileFilter: (req, file, cb) => {
-    const allowedMimes = [
-      'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // xlsx
-      'application/json',
-    ];
-    // Always allow template files
-    if (file.fieldname === 'template_file' || file.originalname.endsWith('.xlsx')) {
-      return cb(null, true);
+    const extension = path.extname(file.originalname).toLowerCase();
+    const requestPath = req.originalUrl.split('?')[0];
+    const isExcelRoute = requestPath === '/api/template/upload' || requestPath === '/api/products/import';
+    const isXlsx = extension === '.xlsx'
+      && file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    const rasterMimes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+    const rasterExtensions = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif']);
+
+    if (isExcelRoute) {
+      return isXlsx ? cb(null, true) : cb(new Error('Only .xlsx files are allowed'));
     }
-    if (allowedMimes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('File type not allowed'));
-    }
+    if (rasterMimes.has(file.mimetype) && rasterExtensions.has(extension)) return cb(null, true);
+    cb(new Error('Only JPEG, PNG, WebP, and GIF images are allowed'));
   },
 });
 
@@ -478,6 +600,18 @@ const CreateOrderSchema = z.object({
   items: z.array(OrderItemSchema),
 });
 
+const CompanyConfigSchema = z.object({
+  company_name: z.string().max(255).optional().default(''),
+  brand_name: z.string().max(255).optional().default(''),
+  brand_logo: z.string().max(3_000_000).optional().default(''),
+  address: z.string().max(500).optional().default(''),
+  phone: z.string().max(100).optional().default(''),
+  wechat_qr: z.string().max(3_000_000).optional().default(''),
+  alipay_qr: z.string().max(3_000_000).optional().default(''),
+  default_terms: z.string().max(10_000).optional().default(''),
+  deposit_terms: z.string().max(10_000).optional().default(''),
+});
+
 // ==================== API Route: Company Config ====================
 app.get('/api/company', async (req, res) => {
   try {
@@ -499,8 +633,12 @@ app.get('/api/company', async (req, res) => {
 });
 
 app.post('/api/company', async (req, res) => {
-  const data = req.body;
   try {
+    const parsed = CompanyConfigSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid company configuration', details: parsed.error.issues });
+    }
+    const data = parsed.data;
     if (!useMySQLFallback) {
       const pool = await getMySQLPool();
       // Ensure row with id=1 exists, update if yes, insert if no
@@ -662,8 +800,12 @@ app.get('/api/orders/:id', async (req, res) => {
 });
 
 app.post('/api/orders', async (req, res) => {
-  const data = CreateOrderSchema.parse(req.body);
   try {
+    const parsed = CreateOrderSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid order data', details: parsed.error.issues });
+    }
+    const data = parsed.data;
     if (!useMySQLFallback) {
       const pool = await getMySQLPool();
       const conn = await pool.getConnection();
@@ -747,8 +889,12 @@ app.post('/api/orders', async (req, res) => {
 
 app.put('/api/orders/:id', async (req, res) => {
   const orderId = req.params.id;
-  const data = CreateOrderSchema.parse(req.body);
   try {
+    const parsed = CreateOrderSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid order data', details: parsed.error.issues });
+    }
+    const data = parsed.data;
     if (!useMySQLFallback) {
       const pool = await getMySQLPool();
       const conn = await pool.getConnection();
@@ -1231,7 +1377,9 @@ app.get('/api/export_template/:id', async (req, res) => {
       }
 
       // -- Terms
-      const termsContent = isDeposit ? (company.default_terms || '') : (company.default_terms || '');
+      const termsContent = isDeposit
+        ? (company.deposit_terms || company.default_terms || '')
+        : (company.default_terms || '');
       if (termsContent) {
         const termsRow = footerStart + 1 + termsRowOffset;
         worksheet.mergeCells(termsRow, 1, termsRow, cols.length);
@@ -1291,7 +1439,11 @@ app.get('/api/inventory/entries', async (req, res) => {
 // POST /api/inventory/entries (batch insert)
 app.post('/api/inventory/entries', async (req, res) => {
   try {
-    const entries = z.array(InventoryEntrySchema).parse(req.body);
+    const parsed = z.array(InventoryEntrySchema).safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid inventory entries', details: parsed.error.issues });
+    }
+    const entries = parsed.data;
     if (!useMySQLFallback) {
       const pool = await getMySQLPool();
       const conn = await pool.getConnection();
@@ -1764,7 +1916,24 @@ app.post('/api/products/batch-delete', async (req, res) => {
   try {
     if (!useMySQLFallback) {
       const pool = await getMySQLPool();
-      if (itemNos && itemNos.length > 0) {
+      if (ids && ids.length > 0) {
+        const numIds = ids.map((id: string) => parseInt(id)).filter((n: number) => !isNaN(n));
+        if (numIds.length > 0) {
+          const placeholders = numIds.map(() => '?').join(',');
+          const [imgs] = await pool.query<RowDataPacket[]>(
+            `SELECT cos_key, thumbnail_cos_key, local_path, thumbnail_local_path FROM product_images WHERE product_id IN (${placeholders})`, numIds);
+          for (const img of imgs) {
+            try { if (img.cos_key) await deleteFromCOS(img.cos_key); } catch { }
+            try { if (img.thumbnail_cos_key) await deleteFromCOS(img.thumbnail_cos_key); } catch { }
+            try { if (img.local_path && fs.existsSync(img.local_path)) fs.unlinkSync(img.local_path); } catch { }
+            try { if (img.thumbnail_local_path && fs.existsSync(img.thumbnail_local_path)) fs.unlinkSync(img.thumbnail_local_path); } catch { }
+          }
+          await pool.query(`DELETE FROM product_images WHERE product_id IN (${placeholders})`, numIds);
+          const [result] = await pool.query<ResultSetHeader>(
+            `DELETE FROM products WHERE id IN (${placeholders})`, numIds);
+          deleted = result.affectedRows;
+        }
+      } else if (itemNos && itemNos.length > 0) {
         const placeholders = itemNos.map(() => '?').join(',');
         // Clean up COS/local image files
         const [imgs] = await pool.query<RowDataPacket[]>(
@@ -1781,33 +1950,17 @@ app.post('/api/products/batch-delete', async (req, res) => {
         const [result] = await pool.query<ResultSetHeader>(
           `DELETE FROM products WHERE item_no IN (${placeholders})`, itemNos);
         deleted = result.affectedRows;
-      } else if (ids && ids.length > 0) {
-        const numIds = ids.map((id: string) => parseInt(id)).filter((n: number) => !isNaN(n));
-        if (numIds.length > 0) {
-          const placeholders = numIds.map(() => '?').join(',');
-          const [imgs] = await pool.query<RowDataPacket[]>(
-            `SELECT cos_key, thumbnail_cos_key, local_path, thumbnail_local_path FROM product_images WHERE product_id IN (${placeholders})`, numIds);
-          for (const img of imgs) {
-            try { if (img.cos_key) await deleteFromCOS(img.cos_key); } catch { }
-            try { if (img.local_path && fs.existsSync(img.local_path)) fs.unlinkSync(img.local_path); } catch { }
-          }
-          // Explicitly delete images first (in case CASCADE was skipped at table creation)
-          await pool.query(`DELETE FROM product_images WHERE product_id IN (${placeholders})`, numIds);
-          const [result] = await pool.query<ResultSetHeader>(
-            `DELETE FROM products WHERE id IN (${placeholders})`, numIds);
-          deleted = result.affectedRows;
-        }
       }
       return res.json({ success: true, deleted });
     }
     const local = loadLocalDB();
     const toDelete = new Set<string>();
-    if (itemNos && itemNos.length > 0) {
+    if (ids && ids.length > 0) {
+      for (const id of ids) toDelete.add(String(id));
+    } else if (itemNos && itemNos.length > 0) {
       for (const p of local.products) {
         if (itemNos.includes(p.item_no)) toDelete.add(String(p.id));
       }
-    } else if (ids && ids.length > 0) {
-      for (const id of ids) toDelete.add(String(id));
     }
     for (const pid of toDelete) {
       const imgs = local.product_images.filter((i: any) => i.product_id == pid);
@@ -2208,6 +2361,22 @@ async function deleteFromCOS(key: string): Promise<void> {
   }
 }
 
+app.use((error: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (res.headersSent) return next(error);
+  if (error instanceof multer.MulterError) {
+    const status = error.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+    return res.status(status).json({ error: error.message });
+  }
+  if (error instanceof z.ZodError) {
+    return res.status(400).json({ error: 'Invalid request data', details: error.issues });
+  }
+  if (error instanceof Error && /Only .* allowed/.test(error.message)) {
+    return res.status(415).json({ error: error.message });
+  }
+  console.error('[Unhandled API Error]', error);
+  res.status(500).json({ error: 'Internal server error' });
+});
+
 // ==================== Vite Dev Server (for development) ====================
 async function startServer() {
   // Initialize MySQL before accepting connections (avoid race condition)
@@ -2237,8 +2406,8 @@ async function startServer() {
     }));
   }
 
-  app.listen(PORT, () => {
-    console.log(`[Server] Running on http://localhost:${PORT}`);
+  app.listen(PORT, HOST, () => {
+    console.log(`[Server] Running on http://${HOST}:${PORT}`);
     console.log(`[Mode] ${isDev ? 'Development' : 'Production'}`);
     console.log(`[Database] ${useMySQLFallback ? 'JSON Fallback' : 'MySQL'}`);
     console.log(`[COS] ${getCOSConfig() ? 'Enabled' : 'Disabled (local storage)'}`);

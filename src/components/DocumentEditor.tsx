@@ -899,7 +899,8 @@ export default function DocumentEditor({
                                       const currentItem = { ...updatedItems[index] } as any;
                                       currentItem.rollNo = rollNoStr;
                                       currentItem.meters = parseFloat(totalM.toFixed(2));
-                                      currentItem.amount = parseFloat((currentItem.meters * currentItem.price).toFixed(2));
+                                      const netMeters = Math.max(0, currentItem.meters - (currentItem.deductionMeters || 0));
+                                      currentItem.amount = parseFloat((netMeters * currentItem.price).toFixed(2));
                                       updatedItems[index] = currentItem;
                                       setItems(updatedItems);
                                     }

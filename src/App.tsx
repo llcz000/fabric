@@ -410,28 +410,27 @@ export default function App() {
 
   // Sync profile changes with backend
   const handleSaveProfile = async (updatedProfile: CompanyProfile) => {
+    const res = await authFetch('/api/company', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        company_name: updatedProfile.name,
+        brand_name: updatedProfile.logoText,
+        brand_logo: updatedProfile.logoUrl || '',
+        address: updatedProfile.address,
+        phone: updatedProfile.phone,
+        wechat_qr: updatedProfile.weChatPayUrl || '',
+        alipay_qr: updatedProfile.aliPayUrl || '',
+        default_terms: updatedProfile.defaultTerms || '',
+        deposit_terms: updatedProfile.depositTerms || ''
+      })
+    });
+    if (!res.ok) {
+      const message = await res.text().catch(() => '');
+      throw new Error(message || '公司配置保存失败');
+    }
     setCompanyProfile(updatedProfile);
     localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(updatedProfile));
-
-    try {
-      await authFetch('/api/company', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          company_name: updatedProfile.name,
-          brand_name: updatedProfile.logoText,
-          brand_logo: updatedProfile.logoUrl || '',
-          address: updatedProfile.address,
-          phone: updatedProfile.phone,
-          wechat_qr: updatedProfile.weChatPayUrl || '',
-          alipay_qr: updatedProfile.aliPayUrl || '',
-          default_terms: updatedProfile.defaultTerms || '',
-          deposit_terms: updatedProfile.depositTerms || ''
-        })
-      });
-    } catch (e) {
-      console.warn('Backend profile sync failed:', e);
-    }
   };
 
   // Create or Update Document on backend
@@ -515,10 +514,15 @@ export default function App() {
     if (confirm('警告：确定要从数据库永久删除此单据吗？操作不可撤销。')) {
       try {
         if (!id.startsWith('init-') && !id.startsWith('new-')) {
-          await authFetch(`/api/orders/${id}`, { method: 'DELETE' });
+          const res = await authFetch(`/api/orders/${id}`, { method: 'DELETE' });
+          if (!res.ok) {
+            const message = await res.text().catch(() => '');
+            throw new Error(message || `删除失败 (${res.status})`);
+          }
         }
       } catch (e) {
-        console.warn('Backend order delete failed, fallback local only:', e);
+        alert(e instanceof Error ? e.message : '删除失败，请重试');
+        return;
       }
 
       const remaining = documents.filter(doc => doc.id !== id);
@@ -863,7 +867,7 @@ export default function App() {
       <footer className="no-print border-t border-slate-100 bg-white py-6 mt-12 text-center text-xs text-slate-400 font-medium pb-24 md:pb-6">
         <div className="max-w-7xl mx-auto px-4 space-y-2">
           <div>面料行业单据数据库管理系统（样布码单 / 销售发货码单 / 定金单）</div>
-          <div>本软件数据完全存储于您的浏览器本地沙箱，支持一键备份和恢复。</div>
+          <div>业务数据以服务器存储为准，浏览器仅保留本地缓存与导出快照。</div>
         </div>
       </footer>
 

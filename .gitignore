@@ -1,14 +1,40 @@
+# Dependencies and build output
 node_modules/
 build/
 dist/
 coverage/
-.DS_Store
 *.log
+
+# Environment variables (keep the documented template)
 .env*
 !.env.example
-.agents/
+
+# Runtime data and generated files
 database_fallback.json
+template_config.json
+uploads/
+template/
 backup_converted.json
 面料单据数据库备份*.json
-*.png
 YB-*.json
+
+# Local experiments and caches
+.transformers_cache/
+tmp/
+request.json
+.planning/
+
+# Local agent and IDE state
+.agents/
+.claude/settings.local.json
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Sensitive file found during the 2026-08-13 audit; rotate its credentials.
+docs/yxm
+
+# OS metadata
+.DS_Store
+Thumbs.db

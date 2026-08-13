@@ -27,10 +27,10 @@ let mysqlPool = null;
 let useMySQLFallback = false;
 
 async function initDB() {
-  const host = process.env.MYSQL_HOST;
-  const user = process.env.MYSQL_USER;
-  const password = process.env.MYSQL_PASSWORD;
-  const database = process.env.MYSQL_DATABASE;
+  const host = process.env.DB_HOST;
+  const user = process.env.DB_USER;
+  const password = process.env.DB_PASSWORD;
+  const database = process.env.DB_DATABASE;
 
   if (host && user && password && database) {
     mysqlPool = mysql.createPool({ host, user, password, database, dateStrings: true, connectionLimit: 5 });

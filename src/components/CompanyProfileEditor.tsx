@@ -9,7 +9,7 @@ import { Save, RefreshCw, Landmark, Phone, MapPin, ClipboardList, PenTool, Uploa
 
 interface CompanyProfileEditorProps {
   profile: CompanyProfile;
-  onSave: (updatedProfile: CompanyProfile) => void;
+  onSave: (updatedProfile: CompanyProfile) => Promise<void>;
 }
 
 export default function CompanyProfileEditor({ profile, onSave }: CompanyProfileEditorProps) {
@@ -61,24 +61,28 @@ export default function CompanyProfileEditor({ profile, onSave }: CompanyProfile
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSave({
-      name,
-      logoText,
-      logoType: logoUrl ? 'image' : 'text',
-      logoUrl,
-      address,
-      phone,
-      defaultTerms,
-      depositTerms,
-      issuerLabel,
-      receiverLabel,
-      weChatPayUrl,
-      aliPayUrl,
-    });
-    setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 2000);
+    try {
+      await onSave({
+        name,
+        logoText,
+        logoType: logoUrl ? 'image' : 'text',
+        logoUrl,
+        address,
+        phone,
+        defaultTerms,
+        depositTerms,
+        issuerLabel,
+        receiverLabel,
+        weChatPayUrl,
+        aliPayUrl,
+      });
+      setIsSaved(true);
+      setTimeout(() => setIsSaved(false), 2000);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '保存失败，请重试');
+    }
   };
 
   const resetToDefault = () => {

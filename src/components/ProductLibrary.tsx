@@ -3,13 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * Product Library — browse, search, CRUD, import/export fabric product records
- * with multi-image pattern support and similar-image search via dHash.
+ * with multi-image pattern support.
  */
 
 import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { ProductItem } from '../types';
 import {
-  Search, Plus, Upload, Download, Trash2, Edit3, X, ChevronLeft,
+  Plus, Upload, Download, Trash2, Edit3, X, ChevronLeft,
   ChevronRight, Image, Package, CheckSquare, Square, Filter,
 } from 'lucide-react';
 import {
@@ -144,8 +144,6 @@ export default function ProductLibrary() {
   const [lightboxProductId, setLightboxProductId] = useState<string | null>(null);
   const [lightboxImages, setLightboxImages] = useState<string[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState(0);
-  const [similarSearching, setSimilarSearching] = useState(false);
-  const similarInputRef = useRef<HTMLInputElement>(null);
   const [toast, setToast] = useState<string | null>(null);
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -313,8 +311,14 @@ export default function ProductLibrary() {
   const handleDelete = async () => {
     if (!deleteTarget) return;
     try {
+      if (/^\d+$/.test(deleteTarget.id)) {
+        const res = await authFetch(`/api/products/${deleteTarget.id}`, { method: 'DELETE' });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || `服务器删除失败 (${res.status})`);
+        }
+      }
       await deleteProduct(deleteTarget.id);
-      try { await authFetch(`/api/products/${deleteTarget.id}`, { method: 'DELETE' }); } catch { }
       setSelectedIds(prev => { const n = new Set(prev); n.delete(deleteTarget.id); return n; });
       showToast('已删除');
       setDeleteTarget(null);
@@ -323,40 +327,45 @@ export default function ProductLibrary() {
   };
 
   // Batch delete state
-  const [batchDeleteTargets, setBatchDeleteTargets] = useState<{ ids: string[]; itemNos: string[]; count: number } | null>(null);
+  const [batchDeleteTargets, setBatchDeleteTargets] = useState<{ ids: string[]; count: number } | null>(null);
 
   const handleBatchDelete = () => {
     if (selectedIds.size === 0) return;
     const ids = Array.from(selectedIds);
-    const itemNos = filteredProducts.filter(p => selectedIds.has(p.id)).map(p => p.itemNo).filter(Boolean);
-    setBatchDeleteTargets({ ids, itemNos, count: ids.length });
+    setBatchDeleteTargets({ ids, count: ids.length });
   };
 
   const confirmBatchDelete = async () => {
     if (!batchDeleteTargets) return;
-    const { ids, itemNos } = batchDeleteTargets;
+    const { ids } = batchDeleteTargets;
     setBatchDeleteTargets(null);
 
-    let deleted = 0;
-    for (const id of ids) {
-      try { await deleteProduct(id); deleted++; } catch { }
-    }
     try {
-      await authFetch('/api/products/batch-delete', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ itemNos }),
-      });
-    } catch { }
-    setSelectedIds(new Set());
-    showToast(`已删除 ${deleted} 条记录`);
-    await loadProducts();
+      const serverIds = ids.filter(id => /^\d+$/.test(id));
+      let serverDeleted = 0;
+      if (serverIds.length > 0) {
+        const res = await authFetch('/api/products/batch-delete', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: serverIds }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || `服务器批量删除失败 (${res.status})`);
+        serverDeleted = Number(data.deleted || 0);
+      }
+
+      for (const id of ids) {
+        try { await deleteProduct(id); } catch { }
+      }
+      setSelectedIds(new Set());
+      showToast(`已删除 ${serverIds.length > 0 ? serverDeleted : ids.length} 条记录`);
+      await loadProducts();
+    } catch (error: any) {
+      showToast('批量删除失败: ' + (error.message || '未知错误'));
+    }
   };
 
   const handleDeleteImage = async (imageId: string, index: number) => {
-    // If both the product id and image id are numeric, the image lives on the
-    // server — call the backend DELETE so COS file + DB row are actually
-    // removed. IndexedDB-only deletion silently loses the delete on reload,
-    // which corrupts feature vectors (CLIP keeps scoring the deleted image).
+    // Call the backend DELETE so COS file + DB row are actually removed.
     const isServerImage = /^\d+$/.test(imageId);
     const isServerProduct = editingProduct && /^\d+$/.test(editingProduct.id);
     if (isServerImage && isServerProduct) {
@@ -409,7 +418,7 @@ export default function ProductLibrary() {
       : filteredProducts;
     if (selected.length === 0) { showToast('没有可导出的产品'); return; }
 
-    // Try server export first (has image embedding support)
+    // Try server export first (has image support)
     const itemNos = selected.map(p => p.itemNo);
     try {
       const res = await authFetch('/api/products/export', {
@@ -512,30 +521,6 @@ export default function ProductLibrary() {
     setTimeout(() => { e.target.value = ''; }, 200);
   };
 
-  // ── Similar Search ─────────────────────────────────
-
-  const handleSimilarSearch = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]; if (!file) return;
-    setSimilarSearching(true);
-    try {
-      const form = new FormData(); form.append('file', file);
-      const res = await authFetch('/api/products/search/similar', { method: 'POST', body: form });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Search failed');
-      const results: any[] = Array.isArray(data.results) ? data.results : [];
-      const matchIds = new Set<string>(results.map((r: any) => String(r.productId)));
-      const matchedProducts = products.filter(p => matchIds.has(p.id));
-      if (matchedProducts.length > 0) {
-        setItemNoTags(matchedProducts.map(p => p.itemNo));
-        const top = results[0];
-        const topPct = top && typeof top.score === 'number' ? Math.round((1 - top.score) * 100) : null;
-        showToast(`找到 ${matchedProducts.length} 个相似产品${topPct !== null ? `（最高相似度 ${topPct}%）` : ''}`);
-      } else { showToast('未找到相似产品'); }
-    } catch (err: any) { showToast('搜索失败: ' + (err.message || '')); }
-    finally { setSimilarSearching(false); }
-    setTimeout(() => { e.target.value = ''; }, 200);
-  };
-
   // ── Render ─────────────────────────────────────────
 
   const hasFilters = itemNoTags.length > 0 || productNameTags.length > 0;
@@ -552,11 +537,6 @@ export default function ProductLibrary() {
           <span className="text-xs text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full">{products.length} 条</span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <input type="file" accept="image/*" className="sr-only" ref={similarInputRef} onChange={handleSimilarSearch} />
-          <button type="button" onClick={() => similarInputRef.current?.click()} disabled={similarSearching}
-            className="flex items-center gap-1 px-3 py-2 border border-purple-200 hover:border-purple-300 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-xl text-xs font-semibold cursor-pointer transition-colors">
-            <Search className="w-3.5 h-3.5" />{similarSearching ? '搜索中...' : '以图搜图'}
-          </button>
           <button type="button" onClick={() => importInputRef.current?.click()}
             className="flex items-center gap-1 px-3 py-2 border border-emerald-200 hover:border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-semibold cursor-pointer transition-colors">
             <Upload className="w-3.5 h-3.5" />导入Excel

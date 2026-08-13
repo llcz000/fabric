@@ -174,7 +174,9 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       await Promise.all(images.map(async (img, idx) => {
         if (img.src && /^https?:\/\//.test(img.src) && !img.src.includes('/api/proxy-image')) {
           try {
-            const res = await fetch('/api/proxy-image?url=' + encodeURIComponent(img.src));
+            const token = sessionStorage.getItem('fabric_auth_token');
+            const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+            const res = await fetch('/api/proxy-image?url=' + encodeURIComponent(img.src), { headers });
             if (res.ok) {
               const blob = await res.blob();
               const dataUrl: string = await new Promise<string>((resolve, reject) => {
