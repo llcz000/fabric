@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import dns from 'dns';
+import type { Server } from 'http';
 import { BlockList, isIP } from 'net';
 import dotenv from 'dotenv';
 import mysql, { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
@@ -20,6 +21,9 @@ dotenv.config();
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '127.0.0.1';
+
+// Trust forwarded client IPs only when the immediate proxy is on this host.
+app.set('trust proxy', 'loopback');
 
 // Ensure local storage directories exist
 const TEMPLATE_DIR = path.join(process.cwd(), 'template');
@@ -50,17 +54,26 @@ if (!ADMIN_PASSWORD) {
 const TOKEN_TTL_MS = 12 * 60 * 60 * 1000;
 const authTokens = new Map<string, number>();
 
+function positiveIntegerFromEnv(name: string, fallback: number): number {
+  const value = Number(process.env[name]);
+  return Number.isSafeInteger(value) && value > 0 ? value : fallback;
+}
+
+const RATE_LIMIT_WINDOW_MS = positiveIntegerFromEnv('RATE_LIMIT_WINDOW_MS', 15 * 60 * 1000);
+const API_RATE_LIMIT_MAX = positiveIntegerFromEnv('API_RATE_LIMIT_MAX', 1000);
+const LOGIN_RATE_LIMIT_MAX = positiveIntegerFromEnv('LOGIN_RATE_LIMIT_MAX', 10);
+
 const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 500,
+  windowMs: RATE_LIMIT_WINDOW_MS,
+  limit: API_RATE_LIMIT_MAX,
   standardHeaders: 'draft-8',
   legacyHeaders: false,
   message: { error: '请求过于频繁，请稍后再试。' },
 });
 
 const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 10,
+  windowMs: RATE_LIMIT_WINDOW_MS,
+  limit: LOGIN_RATE_LIMIT_MAX,
   standardHeaders: 'draft-8',
   legacyHeaders: false,
   skipSuccessfulRequests: true,
@@ -101,6 +114,15 @@ function authMiddleware(req: express.Request, res: express.Response, next: expre
   if (!getValidToken(token)) return res.status(401).json({ error: 'Unauthorized' });
   next();
 }
+
+app.get('/api/health', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({
+    status: 'ok',
+    storage: useMySQLFallback ? 'json' : 'mysql',
+    uptimeSeconds: Math.floor(process.uptime()),
+  });
+});
 
 app.use('/api', apiLimiter);
 
@@ -511,6 +533,20 @@ function loadLocalDB(): LocalDB {
 
 function saveLocalDB(data: LocalDB) {
   fs.writeFileSync(DATABASE_FALLBACK_FILE, JSON.stringify(data, null, 2), 'utf8');
+}
+
+function resolveUploadFile(localPath: unknown): string | null {
+  if (typeof localPath !== 'string' || !localPath.trim()) return null;
+  try {
+    const resolvedPath = path.resolve(localPath);
+    const uploadsRoot = fs.realpathSync(UPLOADS_DIR);
+    const realPath = fs.realpathSync(resolvedPath);
+    const relativePath = path.relative(uploadsRoot, realPath);
+    if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) return null;
+    return realPath;
+  } catch {
+    return null;
+  }
 }
 
 // MySQL initialization moved into startServer() to avoid race condition
@@ -1685,11 +1721,18 @@ app.get('/api/products/:id', async (req, res) => {
 
 // ── Get Product Image ──────────────────────────────────
 app.get('/api/products/:productId/images/:imageId', async (req, res) => {
+  const productId = parseInt(req.params.productId);
   const imageId = parseInt(req.params.imageId);
+  if (!Number.isInteger(productId) || productId <= 0 || !Number.isInteger(imageId) || imageId <= 0) {
+    return res.status(400).json({ error: 'Invalid product or image id' });
+  }
   try {
     if (!useMySQLFallback) {
       const pool = await getMySQLPool();
-      const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM product_images WHERE id = ?', [imageId]);
+      const [rows] = await pool.query<RowDataPacket[]>(
+        'SELECT * FROM product_images WHERE id = ? AND product_id = ?',
+        [imageId, productId]
+      );
       if (rows.length === 0) return res.status(404).json({ error: 'Not found' });
       const img = rows[0];
       // Read image file from cos_key or local_path
@@ -1702,16 +1745,18 @@ app.get('/api/products/:productId/images/:imageId', async (req, res) => {
           return res.send(data.Body);
         }
       }
-      if (img.local_path && fs.existsSync(img.local_path)) {
-        return res.sendFile(path.resolve(img.local_path));
+      const localImagePath = resolveUploadFile(img.local_path);
+      if (localImagePath) {
+        return res.sendFile(localImagePath);
       }
       return res.status(404).json({ error: 'Image file not found' });
     }
     const local = loadLocalDB();
-    const img = local.product_images.find((i: any) => i.id == imageId);
+    const img = local.product_images.find((i: any) => i.id == imageId && i.product_id == productId);
     if (!img) return res.status(404).json({ error: 'Not found' });
-    if (img.local_path && fs.existsSync(img.local_path)) {
-      return res.sendFile(path.resolve(img.local_path));
+    const localImagePath = resolveUploadFile(img.local_path);
+    if (localImagePath) {
+      return res.sendFile(localImagePath);
     }
     res.status(404).json({ error: 'Image file not found' });
   } catch (e: any) {
@@ -2406,12 +2451,45 @@ async function startServer() {
     }));
   }
 
-  app.listen(PORT, HOST, () => {
+  const server = app.listen(PORT, HOST, () => {
     console.log(`[Server] Running on http://${HOST}:${PORT}`);
     console.log(`[Mode] ${isDev ? 'Development' : 'Production'}`);
     console.log(`[Database] ${useMySQLFallback ? 'JSON Fallback' : 'MySQL'}`);
     console.log(`[COS] ${getCOSConfig() ? 'Enabled' : 'Disabled (local storage)'}`);
   });
+
+  registerShutdownHandlers(server);
 }
 
-startServer().catch(console.error);
+function registerShutdownHandlers(server: Server) {
+  let shuttingDown = false;
+  const shutdown = (signal: NodeJS.Signals) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`[Server] ${signal} received, shutting down gracefully...`);
+
+    const forceExitTimer = setTimeout(() => {
+      console.error('[Server] Graceful shutdown timed out.');
+      process.exit(1);
+    }, 10_000);
+    forceExitTimer.unref();
+
+    server.close(async (error) => {
+      try {
+        if (mysqlPool) await mysqlPool.end();
+      } catch (dbError) {
+        console.error('[Database] Failed to close MySQL pool:', dbError);
+      }
+      clearTimeout(forceExitTimer);
+      process.exit(error ? 1 : 0);
+    });
+  };
+
+  process.once('SIGTERM', () => shutdown('SIGTERM'));
+  process.once('SIGINT', () => shutdown('SIGINT'));
+}
+
+startServer().catch((error) => {
+  console.error('[Server] Startup failed:', error);
+  process.exitCode = 1;
+});

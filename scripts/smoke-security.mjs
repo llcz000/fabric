@@ -32,6 +32,9 @@ function serverEnv(port, password) {
     HOST: '127.0.0.1',
     PORT: String(port),
     NODE_ENV: 'production',
+    RATE_LIMIT_WINDOW_MS: '900000',
+    API_RATE_LIMIT_MAX: '1000',
+    LOGIN_RATE_LIMIT_MAX: '3',
     DB_HOST: '',
     DB_USER: '',
     DB_PASSWORD: '',
@@ -92,6 +95,14 @@ try {
 
   const baseUrl = `http://127.0.0.1:${port}`;
   const login = await waitForLogin(baseUrl, password);
+  const health = await fetch(`${baseUrl}/api/health`);
+  assert.equal(health.status, 200, 'health check must be available without authentication');
+  const healthBody = await health.json();
+  assert.deepEqual(Object.keys(healthBody).sort(), ['status', 'storage', 'uptimeSeconds'],
+    'health check must expose only operational status');
+  assert.equal(healthBody.status, 'ok');
+  assert.equal(healthBody.storage, 'json');
+  assert.equal(Number.isInteger(healthBody.uptimeSeconds), true);
   assert.equal(typeof login.body.token, 'string');
   assert.match(login.cookie, /^fabric_asset_token=/);
   const authHeaders = { Authorization: `Bearer ${login.body.token}` };
@@ -134,16 +145,56 @@ try {
     headers: { Cookie: login.cookie },
   })).status, 200, 'authenticated asset cookie must allow local images');
 
+  const productImageDir = path.join(tempDir, 'uploads', 'products');
+  fs.mkdirSync(productImageDir, { recursive: true });
+  const productImagePath = path.join(productImageDir, 'owned.png');
+  const outsideImagePath = path.join(tempDir, 'outside.png');
+  fs.writeFileSync(productImagePath, 'owned-image');
+  fs.writeFileSync(outsideImagePath, 'outside-image');
+  fs.writeFileSync(path.join(tempDir, 'database_fallback.json'), JSON.stringify({
+    company_config: {},
+    orders: [],
+    order_items: [],
+    products: [{ id: 7 }],
+    product_images: [
+      { id: 1, product_id: 7, local_path: productImagePath, sort_order: 0 },
+      { id: 2, product_id: 7, local_path: outsideImagePath, sort_order: 1 },
+    ],
+    inventory_entries: [],
+  }));
+
+  assert.equal((await fetch(`${baseUrl}/api/products/8/images/1`, { headers: authHeaders })).status, 404,
+    'product image must belong to the product in the route');
+  assert.equal((await fetch(`${baseUrl}/api/products/7/images/2`, { headers: authHeaders })).status, 404,
+    'product image path must stay inside uploads');
+  assert.equal((await fetch(`${baseUrl}/api/products/7/images/1`, { headers: authHeaders })).status, 200,
+    'owned product image inside uploads must be readable');
+
   let rateLimited = false;
-  for (let attempt = 0; attempt < 12; attempt++) {
+  for (let attempt = 0; attempt < 4; attempt++) {
     const response = await fetch(`${baseUrl}/api/login`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': '198.51.100.10' },
       body: JSON.stringify({ password: 'wrong-password' }),
     });
     if (response.status === 429) rateLimited = true;
   }
   assert.equal(rateLimited, true, 'repeated failed logins must be rate limited');
+
+  const separateClient = await fetch(`${baseUrl}/api/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': '198.51.100.11' },
+    body: JSON.stringify({ password: 'wrong-password' }),
+  });
+  assert.equal(separateClient.status, 401,
+    'trusted loopback proxy must keep separate client IP rate-limit buckets');
+
+  child.kill('SIGTERM');
+  const shutdownCode = await waitForExit(child, 5_000);
+  if (process.platform !== 'win32') {
+    assert.equal(shutdownCode, 0, 'SIGTERM must exit cleanly');
+  }
+  child = undefined;
 
   console.log('Security smoke tests passed.');
 } finally {

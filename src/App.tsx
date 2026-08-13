@@ -49,106 +49,6 @@ const DEFAULT_COMPANY_PROFILE: CompanyProfile = {
   depositTerms: ''
 };
 
-// Initial realistic default documents database
-const INITIAL_DOCUMENTS_DB: DocumentData[] = [
-  {
-    id: 'init-doc-1',
-    docNo: 'YB-20260706-001',
-    type: DocType.SAMPLE,
-    date: '2026-07-06',
-    customerName: '江南针织时装有限公司',
-    companyName: '织梦盛世面料品贸易有限公司',
-    companyAddress: '浙江省绍兴市柯桥区中国轻纺城创意路88号3层',
-    companyPhone: '0575-81234567',
-    bottomPhone: '0575-81234567',
-    receiverAddress: '',
-    terms: `1. 质量异议提出期限：买方在收到货物之日起3日内核对数量与质量。如对品质有任何异议，请在剪样、开裁或深加工前提出，否则视为合格，深加工后恕不退换。\n2. 结算方式：本单据为结算及法律权利主张之重要凭证，请买方妥善留存并按约定账期付清货款。`,
-    issuer: '张晓芬',
-    receiver: '',
-    items: [
-      {
-        id: 'init-it-1',
-        itemNo: 'DF-8012',
-        colorNo: '32# 藏青',
-        productName: '双面奥黛尔罗马布',
-        composition: '85%棉 15%聚酯纤维',
-        weight: '320g/㎡',
-        width: '185',
-        meters: 15,
-        price: 26.5,
-        amount: 397.5,
-        remark: '做样衣'
-      },
-      {
-        id: 'init-it-2',
-        itemNo: 'TR-503',
-        colorNo: '08# 燕麦',
-        productName: 'TR人棉空气层',
-        composition: '65%涤 30%粘胶 5%氨纶',
-        weight: '280g/㎡',
-        width: '160',
-        meters: 8.5,
-        price: 18,
-        amount: 153,
-        remark: '水洗打样'
-      }
-    ],
-    totalMeters: 23.5,
-    totalRolls: 2,
-    totalAmount: 550.5,
-    receivableAmount: 550.5,
-    createdAt: '2026-07-06T09:30:00.000Z',
-    updatedAt: '2026-07-06T09:30:00.000Z'
-  },
-  {
-    id: 'init-doc-2',
-    docNo: 'XS-20260706-001',
-    type: DocType.SALES,
-    date: '2026-07-06',
-    customerName: '盛虹时装出口贸易集团',
-    companyName: '织梦盛世面料品贸易有限公司',
-    companyAddress: '浙江省绍兴市柯桥区中国轻纺城创意路88号3层',
-    companyPhone: '0575-81234567',
-    bottomPhone: '0575-81234567',
-    receiverAddress: '',
-    terms: `1. 质量异议提出期限：买方在收到货物之日起3日内核对数量与质量。如对品质有任何异议，请在剪样、开裁或深加工前提出，否则视为合格，深加工后恕不退换。\n2. 结算方式：本单据为结算及法律权利主张之重要凭证，请买方妥善留存并按约定账期付清货款。`,
-    issuer: '李建华',
-    receiver: '王振华',
-    items: [
-      {
-        id: 'init-it-3',
-        itemNo: 'LN-108',
-        colorNo: '12# 橄榄绿',
-        productName: '水洗纯亚麻细布',
-        rollNo: '26-C01-12',
-        width: '145',
-        meters: 42.5,
-        price: 32,
-        amount: 1360,
-        remark: '大货一等品'
-      },
-      {
-        id: 'init-it-4',
-        itemNo: 'LN-108',
-        colorNo: '12# 橄榄绿',
-        productName: '水洗纯亚麻细布',
-        rollNo: '26-C02-12',
-        width: '145',
-        meters: 41.2,
-        price: 32,
-        amount: 1318.4,
-        remark: '出口订单'
-      }
-    ],
-    totalMeters: 83.7,
-    totalRolls: 2,
-    totalAmount: 2678.4,
-    receivableAmount: 2678.4,
-    createdAt: '2026-07-06T14:15:00.000Z',
-    updatedAt: '2026-07-06T14:15:00.000Z'
-  }
-];
-
 type AppView = 'dashboard' | 'list' | 'create' | 'settings' | 'preview' | 'products' | 'inventory';
 
 // Helper: Map from Backend order model to Frontend DocumentData
@@ -301,6 +201,7 @@ export default function App() {
   const [inventoryLedger, setInventoryLedger] = useState<InventoryRecord[]>([]);
   const [inventoryLedgerLoading, setInventoryLedgerLoading] = useState(false);
   const [companyProfile, setCompanyProfile] = useState<CompanyProfile>(DEFAULT_COMPANY_PROFILE);
+  const [dataLoadNotice, setDataLoadNotice] = useState('');
 
   // Current Active Doc operations state
   const [selectedDoc, setSelectedDoc] = useState<DocumentData | null>(null);
@@ -372,6 +273,7 @@ export default function App() {
         if (Array.isArray(docsArray)) {
           const mapped = docsArray.map(mapBackendOrderToDoc);
           setDocuments(mapped);
+          setDataLoadNotice('');
           return;
         }
       }
@@ -383,18 +285,20 @@ export default function App() {
     const savedDocs = localStorage.getItem(STORAGE_KEYS.DOCUMENTS);
     const savedProfile = localStorage.getItem(STORAGE_KEYS.PROFILE);
 
-    if (savedDocs) {
-      setDocuments(JSON.parse(savedDocs));
-    } else {
-      setDocuments(INITIAL_DOCUMENTS_DB);
-      localStorage.setItem(STORAGE_KEYS.DOCUMENTS, JSON.stringify(INITIAL_DOCUMENTS_DB));
+    try {
+      const localDocuments = savedDocs ? JSON.parse(savedDocs) : [];
+      setDocuments(Array.isArray(localDocuments) ? localDocuments : []);
+    } catch {
+      setDocuments([]);
     }
+    setDataLoadNotice('服务器数据加载失败，当前仅显示浏览器中的本地快照，请勿将其视为服务器完整数据。');
 
     if (savedProfile) {
-      setCompanyProfile(JSON.parse(savedProfile));
-    } else {
-      setCompanyProfile(DEFAULT_COMPANY_PROFILE);
-      localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(DEFAULT_COMPANY_PROFILE));
+      try {
+        setCompanyProfile(JSON.parse(savedProfile));
+      } catch {
+        setCompanyProfile(DEFAULT_COMPANY_PROFILE);
+      }
     }
   };
 
@@ -767,6 +671,11 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8 pb-28 md:pb-12">
+        {dataLoadNotice && (
+          <div className="no-print mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            {dataLoadNotice}
+          </div>
+        )}
         
         {/* Dynamic Route Rendering */}
         <div className="animate-fade-in duration-200">

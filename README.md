@@ -35,6 +35,10 @@ npm.cmd run start
 
 生产部署前必须完成凭证轮换、HTTPS、数据库备份、登录限流验证、上传验证和 SSRF 测试。不要提交 `.env`、上传文件、JSON fallback 数据库或客户数据。
 
+部署后可用 `GET /api/health` 做负载均衡或进程存活检查。该端点无需登录，仅返回服务状态、当前存储模式和运行时长。进程收到 `SIGTERM`/`SIGINT` 时会停止接收新连接并关闭数据库连接池。
+
+默认限流窗口为 15 分钟：普通 API 每个客户端 IP 1000 次，登录失败每个客户端 IP 10 次，成功登录不消耗登录失败额度。可通过 `RATE_LIMIT_WINDOW_MS`、`API_RATE_LIMIT_MAX`、`LOGIN_RATE_LIMIT_MAX` 调整。应用只信任本机反向代理提供的客户端 IP；如果 Nginx/负载均衡不在同一主机，需要按实际网络边界修改可信代理配置。
+
 ## 项目知识库
 
 使用 Obsidian 打开 `Fabric-DMS-Knowledge-Base/`。入口是 `00-首页.md`，其中包含架构、API、数据模型、清理审计、安全基线和优化路线图。
