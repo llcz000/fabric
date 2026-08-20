@@ -14,6 +14,7 @@ import rateLimit from 'express-rate-limit';
 import sharp from 'sharp';
 import { z } from 'zod';
 import { createServer as createViteServer } from 'vite';
+import { parseExternalImageUrl } from './src/lib/externalImageUrl';
 
 // Load environment variables
 dotenv.config();
@@ -180,9 +181,7 @@ function isBlockedAddress(address: string): boolean {
 }
 
 async function validateExternalImageUrl(rawUrl: string): Promise<URL> {
-  const url = new URL(rawUrl);
-  if (url.protocol !== 'https:') throw new Error('Only HTTPS image URLs are allowed');
-  if (url.username || url.password) throw new Error('URL credentials are not allowed');
+  const url = parseExternalImageUrl(rawUrl);
 
   const hostname = url.hostname.replace(/^\[|\]$/g, '');
   const addresses = isIP(hostname)

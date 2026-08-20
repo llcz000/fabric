@@ -7,6 +7,7 @@ import React, { useRef, useState } from 'react';
 import { DocumentData, DocType, SampleItem, SalesItem, CompanyProfile } from '../types';
 import { Printer, ArrowLeft, Edit3, Scissors, Download, Landmark, PhoneCall, Image } from 'lucide-react';
 import html2canvas from 'html2canvas-pro';
+import { shouldProxyImageForCapture, waitForCaptureImages } from '../lib/imageCapture';
 
 interface DocumentPreviewProps {
   document: DocumentData;
@@ -171,37 +172,34 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       const images = Array.from(node.getElementsByTagName('img') as HTMLCollectionOf<HTMLImageElement>);
       const swaps: { img: HTMLImageElement; orig: string }[] = [];
 
-      await Promise.all(images.map(async (img, idx) => {
-        if (img.src && /^https?:\/\//.test(img.src) && !img.src.includes('/api/proxy-image')) {
+      await Promise.all(images.map(async (img) => {
+        if (img.src && shouldProxyImageForCapture(img.src, window.location.origin) && !img.src.includes('/api/proxy-image')) {
           try {
             const token = sessionStorage.getItem('fabric_auth_token');
             const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
             const res = await fetch('/api/proxy-image?url=' + encodeURIComponent(img.src), { headers });
-            if (res.ok) {
-              const blob = await res.blob();
-              const dataUrl: string = await new Promise<string>((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onloadend = () => resolve(reader.result as string);
-                reader.onerror = () => reject(new Error('FileReader failed'));
-                reader.readAsDataURL(blob);
-              });
-              swaps.push({ img, orig: img.src });
-              await new Promise<void>((resolve) => {
-                const pre = window.document.createElement('img');
-                pre.onload = () => {
-                  img.onload = () => resolve();
-                  img.onerror = () => resolve();
-                  img.src = dataUrl;
-                };
-                pre.onerror = () => resolve();
-                pre.src = dataUrl;
-              });
+            if (!res.ok) {
+              throw new Error(`Image proxy returned ${res.status}`);
             }
-          } catch (_) {}
+
+            const blob = await res.blob();
+            const dataUrl: string = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result as string);
+              reader.onerror = () => reject(new Error('FileReader failed'));
+              reader.readAsDataURL(blob);
+            });
+            swaps.push({ img, orig: img.src });
+            img.src = dataUrl;
+          } catch (error) {
+            throw new Error('Unable to prepare a remote image for export', { cause: error });
+          }
         }
       }));
 
-      await new Promise(r => setTimeout(r, 200));
+      // Base64 logo/payment images are not handled by the remote-image proxy.
+      // Wait for every image to be decoded before html2canvas clones the DOM.
+      await waitForCaptureImages(images);
 
       // Temporarily force full-width desktop layout for image capture on mobile
       const wrapper = node.closest('.preview-wrapper') as HTMLElement;

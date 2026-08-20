@@ -9,6 +9,7 @@
     "start": "node dist/server.cjs",
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
     "lint": "tsc --noEmit",
+    "test:image-export": "node node_modules/esbuild/bin/esbuild src/lib/imageCapture.test.ts --bundle --platform=node --format=cjs --outfile=tmp/imageCapture.test.cjs && node tmp/imageCapture.test.cjs",
     "test:security": "node scripts/smoke-security.mjs"
   },
   "dependencies": {
