@@ -7,7 +7,7 @@ import React, { useRef, useState } from 'react';
 import { DocumentData, DocType, SampleItem, SalesItem, CompanyProfile } from '../types';
 import { Printer, ArrowLeft, Edit3, Scissors, Download, Landmark, PhoneCall, Image } from 'lucide-react';
 import html2canvas from 'html2canvas-pro';
-import { shouldProxyImageForCapture, waitForCaptureImages } from '../lib/imageCapture';
+import { loadCaptureImageBlob, shouldProxyImageForCapture, waitForCaptureImages } from '../lib/imageCapture';
 
 interface DocumentPreviewProps {
   document: DocumentData;
@@ -177,12 +177,8 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
           try {
             const token = sessionStorage.getItem('fabric_auth_token');
             const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-            const res = await fetch('/api/proxy-image?url=' + encodeURIComponent(img.src), { headers });
-            if (!res.ok) {
-              throw new Error(`Image proxy returned ${res.status}`);
-            }
-
-            const blob = await res.blob();
+            const proxyUrl = '/api/proxy-image?url=' + encodeURIComponent(img.src);
+            const blob = await loadCaptureImageBlob(img.src, proxyUrl, headers);
             const dataUrl: string = await new Promise<string>((resolve, reject) => {
               const reader = new FileReader();
               reader.onloadend = () => resolve(reader.result as string);
@@ -192,7 +188,8 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
             swaps.push({ img, orig: img.src });
             img.src = dataUrl;
           } catch (error) {
-            throw new Error('Unable to prepare a remote image for export', { cause: error });
+            const reason = error instanceof Error ? error.message : 'unknown error';
+            throw new Error(`Unable to prepare a remote image for export: ${reason}`, { cause: error });
           }
         }
       }));

@@ -2,7 +2,56 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { parseExternalImageUrl } from './externalImageUrl';
+import * as imageCaptureModule from './imageCapture';
 import { shouldProxyImageForCapture, waitForCaptureImages } from './imageCapture';
+
+test('uses a browser-readable remote image without requiring the server proxy', async () => {
+  assert.equal(typeof imageCaptureModule.loadCaptureImageBlob, 'function');
+  const requests: string[] = [];
+  const fetchImage = async (input: RequestInfo | URL) => {
+    requests.push(String(input));
+    return new Response(new Blob(['direct-image'], { type: 'image/png' }), {
+      status: 200,
+      headers: { 'Content-Type': 'image/png' },
+    });
+  };
+
+  const blob = await imageCaptureModule.loadCaptureImageBlob(
+    'https://images.example.com/logo.png',
+    '/api/proxy-image?url=encoded',
+    {},
+    fetchImage,
+  );
+
+  assert.equal(await blob.text(), 'direct-image');
+  assert.deepEqual(requests, ['https://images.example.com/logo.png']);
+});
+
+test('falls back to the server proxy when direct browser access is blocked', async () => {
+  assert.equal(typeof imageCaptureModule.loadCaptureImageBlob, 'function');
+  const requests: string[] = [];
+  const fetchImage = async (input: RequestInfo | URL) => {
+    requests.push(String(input));
+    if (requests.length === 1) throw new TypeError('Failed to fetch');
+    return new Response(new Blob(['proxied-image'], { type: 'image/png' }), {
+      status: 200,
+      headers: { 'Content-Type': 'image/png' },
+    });
+  };
+
+  const blob = await imageCaptureModule.loadCaptureImageBlob(
+    'https://images.example.com/logo.png',
+    '/api/proxy-image?url=encoded',
+    { Authorization: 'Bearer test-token' },
+    fetchImage,
+  );
+
+  assert.equal(await blob.text(), 'proxied-image');
+  assert.deepEqual(requests, [
+    'https://images.example.com/logo.png',
+    '/api/proxy-image?url=encoded',
+  ]);
+});
 
 test('accepts legacy HTTP and current HTTPS external image URLs', () => {
   assert.equal(parseExternalImageUrl('http://images.example.com/logo.png').protocol, 'http:');
