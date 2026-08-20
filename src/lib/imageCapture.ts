@@ -1,6 +1,20 @@
 type CaptureImage = Pick<HTMLImageElement, 'complete' | 'decode' | 'naturalWidth' | 'src'>;
 type FetchImage = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
+export function normalizeCaptureImageUrl(src: string): string {
+  try {
+    const url = new URL(src);
+    const hostname = url.hostname.toLowerCase();
+    if (url.protocol === 'http:' && hostname.includes('.cos.') && hostname.endsWith('.myqcloud.com')) {
+      url.protocol = 'https:';
+      return url.toString();
+    }
+  } catch {
+    // Keep non-URL sources such as data URLs unchanged.
+  }
+  return src;
+}
+
 export async function loadCaptureImageBlob(
   src: string,
   proxyUrl: string,
@@ -24,13 +38,14 @@ export async function loadCaptureImageBlob(
 
   const proxyResponse = await fetchImage(proxyUrl, { headers: proxyHeaders });
   if (!proxyResponse.ok) {
-    let hostname = 'remote image';
+    let sourceLabel = 'remote image';
     try {
-      hostname = new URL(src).hostname || hostname;
+      const sourceUrl = new URL(src);
+      sourceLabel = `${sourceUrl.protocol}//${sourceUrl.hostname}`;
     } catch {
       // Keep the generic label for malformed URLs.
     }
-    throw new Error(`${hostname} proxy returned HTTP ${proxyResponse.status}`);
+    throw new Error(`${sourceLabel} proxy returned HTTP ${proxyResponse.status}`);
   }
   return proxyResponse.blob();
 }

@@ -7,7 +7,7 @@ import React, { useRef, useState } from 'react';
 import { DocumentData, DocType, SampleItem, SalesItem, CompanyProfile } from '../types';
 import { Printer, ArrowLeft, Edit3, Scissors, Download, Landmark, PhoneCall, Image } from 'lucide-react';
 import html2canvas from 'html2canvas-pro';
-import { loadCaptureImageBlob, shouldProxyImageForCapture, waitForCaptureImages } from '../lib/imageCapture';
+import { loadCaptureImageBlob, normalizeCaptureImageUrl, shouldProxyImageForCapture, waitForCaptureImages } from '../lib/imageCapture';
 
 interface DocumentPreviewProps {
   document: DocumentData;
@@ -173,12 +173,13 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       const swaps: { img: HTMLImageElement; orig: string }[] = [];
 
       await Promise.all(images.map(async (img) => {
-        if (img.src && shouldProxyImageForCapture(img.src, window.location.origin) && !img.src.includes('/api/proxy-image')) {
+        const captureSrc = normalizeCaptureImageUrl(img.src);
+        if (captureSrc && shouldProxyImageForCapture(captureSrc, window.location.origin) && !captureSrc.includes('/api/proxy-image')) {
           try {
             const token = sessionStorage.getItem('fabric_auth_token');
             const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-            const proxyUrl = '/api/proxy-image?url=' + encodeURIComponent(img.src);
-            const blob = await loadCaptureImageBlob(img.src, proxyUrl, headers);
+            const proxyUrl = '/api/proxy-image?url=' + encodeURIComponent(captureSrc);
+            const blob = await loadCaptureImageBlob(captureSrc, proxyUrl, headers);
             const dataUrl: string = await new Promise<string>((resolve, reject) => {
               const reader = new FileReader();
               reader.onloadend = () => resolve(reader.result as string);

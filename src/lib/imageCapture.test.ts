@@ -5,6 +5,24 @@ import { parseExternalImageUrl } from './externalImageUrl';
 import * as imageCaptureModule from './imageCapture';
 import { shouldProxyImageForCapture, waitForCaptureImages } from './imageCapture';
 
+test('upgrades legacy Tencent COS image URLs to HTTPS for export', () => {
+  assert.equal(typeof imageCaptureModule.normalizeCaptureImageUrl, 'function');
+  assert.equal(
+    imageCaptureModule.normalizeCaptureImageUrl(
+      'http://fabric-images-1448065940.cos.ap-shanghai.myqcloud.com/logo.png?sign=test',
+    ),
+    'https://fabric-images-1448065940.cos.ap-shanghai.myqcloud.com/logo.png?sign=test',
+  );
+});
+
+test('does not rewrite HTTP image URLs from unrelated hosts', () => {
+  assert.equal(typeof imageCaptureModule.normalizeCaptureImageUrl, 'function');
+  assert.equal(
+    imageCaptureModule.normalizeCaptureImageUrl('http://images.example.com/logo.png'),
+    'http://images.example.com/logo.png',
+  );
+});
+
 test('uses a browser-readable remote image without requiring the server proxy', async () => {
   assert.equal(typeof imageCaptureModule.loadCaptureImageBlob, 'function');
   const requests: string[] = [];
@@ -51,6 +69,26 @@ test('falls back to the server proxy when direct browser access is blocked', asy
     'https://images.example.com/logo.png',
     '/api/proxy-image?url=encoded',
   ]);
+});
+
+test('reports the image protocol, host, and proxy status when both paths fail', async () => {
+  const fetchImage = async () => {
+    if (!('attemptedDirect' in fetchImage)) {
+      Object.assign(fetchImage, { attemptedDirect: true });
+      throw new TypeError('Failed to fetch');
+    }
+    return new Response(null, { status: 403 });
+  };
+
+  await assert.rejects(
+    () => imageCaptureModule.loadCaptureImageBlob(
+      'https://images.example.com/logo.png',
+      '/api/proxy-image?url=encoded',
+      {},
+      fetchImage,
+    ),
+    /https:\/\/images\.example\.com proxy returned HTTP 403/,
+  );
 });
 
 test('accepts legacy HTTP and current HTTPS external image URLs', () => {
