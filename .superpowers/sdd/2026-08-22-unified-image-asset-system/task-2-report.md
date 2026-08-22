@@ -126,3 +126,38 @@ All exited 0. The focused suite reported 18 passing tests, lint reported `tsc --
 ### Scope and review note
 
 Changed only `server/image-assets/repository.ts`, `server/image-assets/mysqlRepository.ts`, `server/image-assets/mysqlRepository.test.ts`, and this Task 2 report. The review's `failJob` expected-state predicate remains intentionally unchanged, as directed. Live MySQL verification remains deferred to Task 12.
+
+## Fix Round 2
+
+### Implementation
+
+- Replaced `ON DUPLICATE KEY UPDATE id = id` session creation with read-by-ID, plain insert, and duplicate-key recovery.
+- A pre-existing same ID is read and compatibility-checked before any insert, so a different `createdBy` principal is rejected without touching the stored row.
+- On a duplicate insert race, the repository re-reads the input ID; if absent, it reads `quarantine_key`. A row belonging to another ID now deterministically raises `IMAGE_CONTENT_INVALID` instead of returning a fictional open session.
+- A successful insert returns only the inserted input record; every retry result is read from the database and validated.
+
+### Covering tests and TDD evidence
+
+Added recording-connection tests for:
+
+- same ID with a different creator principal: rejects before any insert;
+- duplicate `quarantine_key` owned by another session ID: performs the key lookup and rejects without `ON DUPLICATE KEY UPDATE`;
+- compatible same-ID retry and immutable-field conflict remain covered under the new read-first flow.
+
+RED command:
+
+```powershell
+npm.cmd run test:image-assets
+```
+
+RED result: exit 1 with the expected failures: the principal-conflict path still emitted an insert, and the quarantine-key collision surfaced raw `Error: Duplicate entry` rather than the structured rejection.
+
+GREEN commands:
+
+```powershell
+npm.cmd run test:image-assets
+npm.cmd run lint
+git diff --check
+```
+
+GREEN results: all commands exited 0; `test:image-assets` reported 20 passing tests and lint reported `tsc --noEmit`.

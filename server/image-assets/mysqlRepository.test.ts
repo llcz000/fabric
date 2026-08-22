@@ -24,6 +24,8 @@ class RecordingConnection {
     asset_id: null,
   };
   uploadSessionReadRows: Row[] = [];
+  quarantineSessionReadRows: Row[] = [];
+  insertUploadError: (Error & { code?: string }) | null = null;
   shaAssetRows: Row[] = [];
   variantRows: Row[] = [];
   purgeAssetRows: Row[] = [];
@@ -35,6 +37,7 @@ class RecordingConnection {
 
   async query(sql: string, params: unknown[] = []): Promise<QueryResult> {
     this.statements.push({ sql, params });
+    if (sql.includes('INSERT INTO image_upload_sessions') && this.insertUploadError) throw this.insertUploadError;
     if (sql.includes('FROM image_upload_sessions WHERE id = ? FOR UPDATE')) {
       return [this.uploadSessionRow ? [this.uploadSessionRow] : [], []];
     }
@@ -47,6 +50,7 @@ class RecordingConnection {
       return [this.lockedAssets, []];
     }
     if (sql.includes('FROM image_upload_sessions WHERE id = ?')) return [this.uploadSessionReadRows, []];
+    if (sql.includes('FROM image_upload_sessions WHERE quarantine_key = ?')) return [this.quarantineSessionReadRows, []];
     if (sql.includes('FROM image_assets WHERE id = ?')) return [this.purgeAssetRows, []];
     if (sql.includes("UPDATE image_assets SET status = 'purged'")) return [this.purgeUpdateResult, []];
     if (sql.includes('FROM image_asset_variants WHERE asset_id = ?')) return [this.variantRows, []];
@@ -118,9 +122,10 @@ test('upload session record and repository creator inputs use the same string id
   };
   const typedRecord: UploadSessionRecord = await repository.createUploadSession(input);
   const creatorId: string = typedRecord.createdBy;
+  const insert = connection.statements.find((statement) => statement.sql.includes('INSERT INTO image_upload_sessions'));
 
   assert.equal(creatorId, input.createdBy);
-  assert.deepEqual(connection.statements[0].params?.slice(0, 6), [
+  assert.deepEqual(insert?.params.slice(0, 6), [
     input.id,
     input.purpose,
     input.quarantineKey,
@@ -159,8 +164,8 @@ test('create upload session returns the stored record for a compatible ID retry'
 
   assert.equal(session.id, input.id);
   assert.equal(session.createdBy, input.createdBy);
-  assert.match(sql(connection), /INSERT INTO image_upload_sessions[\s\S]*ON DUPLICATE KEY UPDATE id = id/);
   assert.match(sql(connection), /SELECT \* FROM image_upload_sessions WHERE id = \?/);
+  assert.doesNotMatch(sql(connection), /INSERT INTO image_upload_sessions/);
 });
 
 test('create upload session rejects a conflicting ID retry without overwriting the stored session', async () => {
@@ -192,8 +197,75 @@ test('create upload session rejects a conflicting ID retry without overwriting t
     (error: unknown) => error instanceof ImageAssetError && error.code === 'IMAGE_CONTENT_INVALID',
   );
 
-  assert.match(sql(connection), /ON DUPLICATE KEY UPDATE id = id/);
+  assert.doesNotMatch(sql(connection), /INSERT INTO image_upload_sessions/);
   assert.doesNotMatch(sql(connection), /UPDATE image_upload_sessions SET/);
+});
+
+test('create upload session rejects a same-ID retry from a different principal before inserting', async () => {
+  const connection = new RecordingConnection();
+  const expiresAt = new Date('2026-08-23T00:00:00Z');
+  connection.uploadSessionReadRows = [{
+    id: 'session-retry',
+    purpose: 'company_logo',
+    quarantine_key: 'quarantine/session-retry/logo.png',
+    declared_byte_size: 42,
+    declared_mime: 'image/png',
+    created_by: 'principal-owner',
+    expires_at: expiresAt,
+    status: 'open',
+    asset_id: null,
+  }];
+  const repository = new MySqlAssetRepository(connection);
+
+  await assert.rejects(
+    repository.createUploadSession({
+      id: 'session-retry',
+      purpose: 'company_logo',
+      quarantineKey: 'quarantine/session-retry/logo.png',
+      declaredByteSize: 42,
+      declaredMime: 'image/png',
+      createdBy: 'principal-other',
+      expiresAt,
+    }),
+    (error: unknown) => error instanceof ImageAssetError && error.code === 'IMAGE_CONTENT_INVALID',
+  );
+
+  assert.match(sql(connection), /SELECT \* FROM image_upload_sessions WHERE id = \?/);
+  assert.doesNotMatch(sql(connection), /INSERT INTO image_upload_sessions/);
+});
+
+test('create upload session rejects a duplicate quarantine key owned by another session ID', async () => {
+  const connection = new RecordingConnection();
+  const expiresAt = new Date('2026-08-23T00:00:00Z');
+  connection.insertUploadError = Object.assign(new Error('Duplicate entry'), { code: 'ER_DUP_ENTRY' });
+  connection.quarantineSessionReadRows = [{
+    id: 'session-owner',
+    purpose: 'company_logo',
+    quarantine_key: 'quarantine/shared/logo.png',
+    declared_byte_size: 42,
+    declared_mime: 'image/png',
+    created_by: 'principal-owner',
+    expires_at: expiresAt,
+    status: 'open',
+    asset_id: null,
+  }];
+  const repository = new MySqlAssetRepository(connection);
+
+  await assert.rejects(
+    repository.createUploadSession({
+      id: 'session-request',
+      purpose: 'company_logo',
+      quarantineKey: 'quarantine/shared/logo.png',
+      declaredByteSize: 42,
+      declaredMime: 'image/png',
+      createdBy: 'principal-request',
+      expiresAt,
+    }),
+    (error: unknown) => error instanceof ImageAssetError && error.code === 'IMAGE_CONTENT_INVALID',
+  );
+
+  assert.match(sql(connection), /SELECT \* FROM image_upload_sessions WHERE quarantine_key = \?/);
+  assert.doesNotMatch(sql(connection), /ON DUPLICATE KEY UPDATE/);
 });
 
 test('finalize upload locks the session and content hash while creating one asset job transactionally', async () => {

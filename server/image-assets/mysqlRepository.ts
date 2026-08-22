@@ -18,6 +18,14 @@ interface AssetPool {
 type Row = Record<string, unknown>;
 type Result = { affectedRows?: number };
 
+function isDuplicateKeyError(error: unknown): boolean {
+  return Boolean(
+    error
+    && typeof error === 'object'
+    && ((error as { code?: unknown }).code === 'ER_DUP_ENTRY' || String((error as { message?: unknown }).message).includes('Duplicate entry')),
+  );
+}
+
 function date(value: unknown): Date {
   return value instanceof Date ? value : new Date(String(value));
 }
@@ -107,16 +115,34 @@ export class MySqlAssetRepository implements AssetRepository {
   constructor(private readonly pool: AssetPool) {}
 
   async createUploadSession(input: NewUploadSession): Promise<UploadSessionRecord> {
-    await this.pool.query(
-      `INSERT INTO image_upload_sessions
-        (id, purpose, quarantine_key, declared_byte_size, declared_mime, created_by, expires_at, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'open')
-       ON DUPLICATE KEY UPDATE id = id`,
-      [input.id, input.purpose, input.quarantineKey, input.declaredByteSize, input.declaredMime, input.createdBy, input.expiresAt],
-    );
     const storedRows = rows(await this.pool.query('SELECT * FROM image_upload_sessions WHERE id = ?', [input.id]));
-    if (!storedRows[0]) return { ...input, status: 'open' };
-    const stored = mapUploadSession(storedRows[0]);
+    if (storedRows[0]) return this.assertCompatibleUploadSession(mapUploadSession(storedRows[0]), input);
+    try {
+      await this.pool.query(
+        `INSERT INTO image_upload_sessions
+          (id, purpose, quarantine_key, declared_byte_size, declared_mime, created_by, expires_at, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'open')`,
+        [input.id, input.purpose, input.quarantineKey, input.declaredByteSize, input.declaredMime, input.createdBy, input.expiresAt],
+      );
+      return { ...input, status: 'open' };
+    } catch (error) {
+      if (!isDuplicateKeyError(error)) throw error;
+      const retriedRows = rows(await this.pool.query('SELECT * FROM image_upload_sessions WHERE id = ?', [input.id]));
+      if (retriedRows[0]) return this.assertCompatibleUploadSession(mapUploadSession(retriedRows[0]), input);
+      const quarantineRows = rows(await this.pool.query(
+        'SELECT * FROM image_upload_sessions WHERE quarantine_key = ?',
+        [input.quarantineKey],
+      ));
+      if (quarantineRows[0]) {
+        const collision = mapUploadSession(quarantineRows[0]);
+        if (collision.id === input.id) return this.assertCompatibleUploadSession(collision, input);
+        throw new ImageAssetError('IMAGE_CONTENT_INVALID', 409, false, 'Upload quarantine key belongs to another session');
+      }
+      throw error;
+    }
+  }
+
+  private assertCompatibleUploadSession(stored: UploadSessionRecord, input: NewUploadSession): UploadSessionRecord {
     if (
       stored.purpose !== input.purpose
       || stored.quarantineKey !== input.quarantineKey
