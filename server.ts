@@ -41,8 +41,10 @@ fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 fs.mkdirSync(path.join(UPLOADS_DIR, 'products'), { recursive: true });
 
 // Setup middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+const globalJsonParser = express.json();
+const globalUrlencodedParser = express.urlencoded({ extended: true });
+app.use(exceptImageAssetApi(globalJsonParser));
+app.use(exceptImageAssetApi(globalUrlencodedParser));
 app.use('/uploads', assetAuthMiddleware, express.static(UPLOADS_DIR, {
   setHeaders: (res) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -62,6 +64,14 @@ const authTokens = new Map<string, number>();
 function positiveIntegerFromEnv(name: string, fallback: number): number {
   const value = Number(process.env[name]);
   return Number.isSafeInteger(value) && value > 0 ? value : fallback;
+}
+
+function exceptImageAssetApi(middleware: express.RequestHandler): express.RequestHandler {
+  return (req, res, next) => {
+    const requestPath = req.path.toLowerCase();
+    if (requestPath === '/api/image-assets' || requestPath.startsWith('/api/image-assets/')) return next();
+    middleware(req, res, next);
+  };
 }
 
 const RATE_LIMIT_WINDOW_MS = positiveIntegerFromEnv('RATE_LIMIT_WINDOW_MS', 15 * 60 * 1000);

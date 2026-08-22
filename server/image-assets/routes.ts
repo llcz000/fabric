@@ -74,6 +74,8 @@ export function createImageAssetRouter(runtime: ImageAssetRouteRuntime): express
     next();
   });
 
+  router.use(express.json({ limit: MAX_RAW_BODY_BYTES, strict: false }));
+  router.use(express.urlencoded({ extended: true, limit: MAX_RAW_BODY_BYTES }));
   router.use(express.raw({ type: () => true, limit: MAX_RAW_BODY_BYTES }));
   router.use((req, _res, next) => {
     if (Buffer.isBuffer(req.body) && req.body.length > MAX_PRODUCT_UPLOAD_BYTES) {
@@ -198,7 +200,7 @@ function parseEmptyBody(body: unknown): void {
     if (body.length === 0) return;
     throw invalidRequest();
   }
-  parse(strictEmptyObjectSchema, body ?? {});
+  parse(strictEmptyObjectSchema, body === undefined ? {} : body);
 }
 
 function invalidRequest(): ImageAssetError {
@@ -212,14 +214,24 @@ function requireService(runtime: ImageAssetRouteRuntime): ImageAssetRouteService
 
 function normalizeError(error: unknown): ImageAssetError {
   if (error instanceof ImageAssetError) return error;
-  if (isBodyTooLarge(error)) {
+  if (isBodyLimitError(error)) {
     return new ImageAssetError('IMAGE_LIMIT_EXCEEDED', 413, false, 'Uploaded image exceeds the byte limit');
   }
+  if (isBodyParserClientError(error)) return invalidRequest();
   return new ImageAssetError('ASSET_PROCESSING_FAILED', 500, true, 'Image asset request failed');
 }
 
-function isBodyTooLarge(error: unknown): boolean {
-  return Boolean(error && typeof error === 'object' && (error as { type?: unknown }).type === 'entity.too.large');
+function isBodyLimitError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const type = (error as { type?: unknown }).type;
+  return type === 'entity.too.large' || type === 'parameters.too.many';
+}
+
+function isBodyParserClientError(error: unknown): boolean {
+  if (!error || typeof error !== 'object' || typeof (error as { type?: unknown }).type !== 'string') return false;
+  const status = Number((error as { status?: unknown; statusCode?: unknown }).status
+    ?? (error as { statusCode?: unknown }).statusCode);
+  return Number.isInteger(status) && status >= 400 && status < 500;
 }
 
 const SAFE_ERROR_MESSAGES: Record<ImageAssetErrorCode, string> = {

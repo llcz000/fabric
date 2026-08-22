@@ -116,6 +116,14 @@ try {
   assert.match(login.cookie, /^fabric_asset_token=/);
   const authHeaders = { Authorization: `Bearer ${login.body.token}` };
 
+  const formLogin = await fetch(`${baseUrl}/api/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ password }),
+  });
+  assert.equal(formLogin.status, 200, 'non-asset login must retain global urlencoded parsing');
+  assert.equal(typeof (await formLogin.json()).token, 'string');
+
   const unauthenticated = await fetch(`${baseUrl}/api/company`);
   assert.equal(unauthenticated.status, 401, 'protected API must require authentication');
 
@@ -156,6 +164,48 @@ try {
   assert.match(arbitraryAssetUrlText, /STORAGE_UNAVAILABLE/);
   assert.doesNotMatch(arbitraryAssetUrlText, /attacker\.example|Authorization|SecretKey|fabric_asset_token/,
     'asset errors must not reflect URL or credential material');
+
+  const disabledParserCases = [
+    {
+      name: 'malformed JSON',
+      contentType: 'application/json',
+      body: '{"secret":"must-not-leak"',
+    },
+    {
+      name: 'oversized JSON',
+      contentType: 'application/json',
+      body: JSON.stringify({ padding: 'a'.repeat(128 * 1024) }),
+    },
+    {
+      name: 'malformed urlencoded',
+      contentType: 'application/x-www-form-urlencoded',
+      body: `root${'[child]'.repeat(40)}=must-not-leak`,
+    },
+    {
+      name: 'oversized urlencoded',
+      contentType: 'application/x-www-form-urlencoded',
+      body: `padding=${'a'.repeat(128 * 1024)}`,
+    },
+  ];
+  for (const [index, fixture] of disabledParserCases.entries()) {
+    const requestId = `security-disabled-parser-${index}`;
+    const response = await fetch(`${baseUrl}/api/image-assets/upload-sessions`, {
+      method: 'POST',
+      headers: {
+        ...authHeaders,
+        'Content-Type': fixture.contentType,
+        'X-Request-Id': requestId,
+      },
+      body: fixture.body,
+    });
+    const text = await response.text();
+    const body = JSON.parse(text);
+    assert.equal(response.status, 503, `${fixture.name} must reach the disabled asset guard`);
+    assert.equal(body.error.code, 'STORAGE_UNAVAILABLE', fixture.name);
+    assert.equal(body.error.requestId, requestId, fixture.name);
+    assert.doesNotMatch(text, /SyntaxError|RangeError|must-not-leak|aaaaa|secret/i,
+      `${fixture.name} must not leak parser input or exception details`);
+  }
 
   const invalidOrder = await fetch(`${baseUrl}/api/orders`, {
     method: 'POST',

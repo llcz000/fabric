@@ -71,8 +71,6 @@ function routeRuntime(overrides: Partial<ImageAssetRouteRuntime> = {}): ImageAss
 
 async function withHttpServer<T>(runtime: ImageAssetRouteRuntime, work: (baseUrl: string) => Promise<T>): Promise<T> {
   const app = express();
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
   app.use('/api', (req, res, next) => {
     if (req.headers.authorization !== 'Bearer accepted-admin-token') {
       return res.status(401).json({ error: 'Unauthorized' });
@@ -439,7 +437,7 @@ test('declared JSON endpoints reject fixed-length and chunked JSON-shaped text b
   });
 });
 
-test('declared JSON endpoints reject non-JSON bodies parsed by earlier middleware', async () => {
+test('declared JSON endpoints reject urlencoded bodies with schema-compatible fields', async () => {
   const form = Buffer.from('requests%5B0%5D%5BassetId%5D=asset-1&requests%5B0%5D%5Bvariant%5D=display');
 
   await withHttpServer(routeRuntime(), async (baseUrl) => {
@@ -451,6 +449,75 @@ test('declared JSON endpoints reject non-JSON bodies parsed by earlier middlewar
 
     assert.equal(response.status, 422);
     assert.equal(JSON.parse(response.text).error.code, 'IMAGE_CONTENT_INVALID');
+  });
+});
+
+test('enabled asset parser maps malformed and oversized JSON to safe 4xx errors', async () => {
+  const oversized = Buffer.alloc(10 * 1024 * 1024 + 2, 0x61);
+
+  await withHttpServer(routeRuntime(), async (baseUrl) => {
+    const malformed = await requestWithBody(`${baseUrl}/api/image-assets/upload-sessions`, {
+      method: 'POST',
+      contentType: 'application/json',
+      chunks: [Buffer.from('{"secret":"must-not-leak"')],
+    });
+    const tooLarge = await requestWithBody(`${baseUrl}/api/image-assets/upload-sessions`, {
+      method: 'POST',
+      contentType: 'application/json',
+      chunks: [oversized],
+    });
+
+    assert.equal(malformed.status, 422);
+    assert.equal(JSON.parse(malformed.text).error.code, 'IMAGE_CONTENT_INVALID');
+    assert.doesNotMatch(malformed.text, /SyntaxError|must-not-leak|secret/i);
+    assert.equal(tooLarge.status, 413);
+    assert.equal(JSON.parse(tooLarge.text).error.code, 'IMAGE_LIMIT_EXCEEDED');
+    assert.doesNotMatch(tooLarge.text, /aaaaa/);
+  });
+});
+
+test('enabled asset parser maps malformed and oversized urlencoded bodies to safe 4xx errors', async () => {
+  const tooDeep = Buffer.from(`root${'[child]'.repeat(40)}=value`);
+  const oversized = Buffer.from(`padding=${'a'.repeat(10 * 1024 * 1024 + 2)}`);
+
+  await withHttpServer(routeRuntime(), async (baseUrl) => {
+    const malformed = await requestWithBody(`${baseUrl}/api/image-assets/access-urls`, {
+      method: 'POST',
+      contentType: 'application/x-www-form-urlencoded',
+      chunks: [tooDeep],
+    });
+    const tooLarge = await requestWithBody(`${baseUrl}/api/image-assets/access-urls`, {
+      method: 'POST',
+      contentType: 'application/x-www-form-urlencoded',
+      chunks: [oversized],
+    });
+
+    assert.equal(malformed.status, 422);
+    assert.equal(JSON.parse(malformed.text).error.code, 'IMAGE_CONTENT_INVALID');
+    assert.doesNotMatch(malformed.text, /RangeError|root|child/i);
+    assert.equal(tooLarge.status, 413);
+    assert.equal(JSON.parse(tooLarge.text).error.code, 'IMAGE_LIMIT_EXCEEDED');
+    assert.doesNotMatch(tooLarge.text, /aaaaa/);
+  });
+});
+
+test('JSON null is rejected on finalize and descriptor empty-body channels', async () => {
+  await withHttpServer(routeRuntime(), async (baseUrl) => {
+    const finalize = await requestWithBody(
+      `${baseUrl}/api/image-assets/upload-sessions/session-1/finalize`,
+      { method: 'POST', contentType: 'application/json', chunks: [Buffer.from('null')] },
+    );
+    const descriptor = await requestWithBody(`${baseUrl}/api/image-assets/asset-1`, {
+      method: 'GET',
+      contentType: 'application/json',
+      chunks: [Buffer.from('nu'), Buffer.from('ll')],
+      chunked: true,
+    });
+
+    assert.equal(finalize.status, 422);
+    assert.equal(JSON.parse(finalize.text).error.code, 'IMAGE_CONTENT_INVALID');
+    assert.equal(descriptor.status, 422);
+    assert.equal(JSON.parse(descriptor.text).error.code, 'IMAGE_CONTENT_INVALID');
   });
 });
 
