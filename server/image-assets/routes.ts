@@ -1,0 +1,205 @@
+import { randomUUID } from 'node:crypto';
+
+import express from 'express';
+import { z } from 'zod';
+
+import { ImageAssetError, type ImageAssetErrorCode } from './errors';
+import type {
+  AccessUrlRequest,
+  AccessUrlResult,
+  AssetContent,
+  CreateUploadSessionInput,
+  UploadGrantResponse,
+} from './service';
+import type { AssetDescriptor, AssetVariantName } from './types';
+import type { LocalUploadInput } from './runtime';
+
+const PRINCIPAL_ID = 'admin';
+const MAX_LOCAL_UPLOAD_BYTES = 10 * 1024 * 1024;
+const SAFE_REQUEST_ID = /^[a-zA-Z0-9_-]{1,128}$/;
+
+const uploadSessionSchema = z.object({
+  purpose: z.enum(['company_logo', 'company_qr', 'product_image']),
+  originalFilename: z.string().min(1).max(1_024),
+  declaredMime: z.enum(['image/jpeg', 'image/png', 'image/webp', 'image/gif']),
+  declaredByteSize: z.number().int().positive(),
+}).strict();
+
+const emptyBodySchema = z.object({}).strict();
+const assetIdSchema = z.string().min(1).max(128).regex(/^[a-zA-Z0-9_-]+$/);
+const variantSchema = z.enum(['original', 'display', 'thumbnail']);
+const accessUrlsSchema = z.object({
+  requests: z.array(z.object({
+    assetId: assetIdSchema,
+    variant: variantSchema,
+  }).strict()).max(100),
+}).strict();
+const contentQuerySchema = z.object({ variant: variantSchema }).strict();
+const emptyQuerySchema = z.object({}).strict();
+
+export interface ImageAssetRouteService {
+  createUploadSession(input: CreateUploadSessionInput): Promise<UploadGrantResponse>;
+  finalizeUploadSession(sessionId: string, principalId: string): Promise<AssetDescriptor>;
+  getDescriptor(assetId: string, principalId: string): Promise<AssetDescriptor>;
+  getAccessUrls(requests: AccessUrlRequest[], principalId: string): Promise<AccessUrlResult[]>;
+  readContent(assetId: string, variant: AssetVariantName, principalId: string): Promise<AssetContent>;
+}
+
+export interface ImageAssetRouteRuntime {
+  readonly enabled: boolean;
+  readonly storageProvider: 'cos' | 'local';
+  readonly service: ImageAssetRouteService | null;
+  uploadLocalContent?(sessionId: string, input: LocalUploadInput): Promise<void>;
+}
+
+type AssetRequest = express.Request & { imageAssetRequestId?: string };
+
+export function createImageAssetRouter(runtime: ImageAssetRouteRuntime): express.Router {
+  const router = express.Router();
+
+  router.use((req: AssetRequest, res, next) => {
+    const supplied = req.get('X-Request-Id');
+    req.imageAssetRequestId = supplied && SAFE_REQUEST_ID.test(supplied)
+      ? supplied
+      : `req_${randomUUID().replace(/-/g, '')}`;
+    res.set('X-Request-Id', req.imageAssetRequestId);
+    next();
+  });
+
+  router.use((_req, _res, next) => {
+    if (!runtime.enabled || !runtime.service) {
+      return next(new ImageAssetError('STORAGE_UNAVAILABLE', 503, true, 'Image asset storage is unavailable'));
+    }
+    next();
+  });
+
+  router.post('/upload-sessions', asyncRoute(async (req, res) => {
+    const input = parse(uploadSessionSchema, req.body);
+    const grant = await requireService(runtime).createUploadSession({ ...input, principalId: PRINCIPAL_ID });
+    res.status(201).json({
+      sessionId: grant.sessionId,
+      uploadUrl: grant.uploadUrl,
+      method: grant.method,
+      headers: grant.headers,
+      expiresAt: grant.expiresAt,
+    });
+  }));
+
+  router.post('/upload-sessions/:id/finalize', asyncRoute(async (req, res) => {
+    parse(emptyBodySchema, req.body ?? {});
+    parse(emptyQuerySchema, req.query);
+    const sessionId = parse(assetIdSchema, req.params.id);
+    const descriptor = await requireService(runtime).finalizeUploadSession(sessionId, PRINCIPAL_ID);
+    res.json({ assetId: descriptor.id, ...descriptor });
+  }));
+
+  router.post('/access-urls', asyncRoute(async (req, res) => {
+    const input = parse(accessUrlsSchema, req.body);
+    const results = await requireService(runtime).getAccessUrls(input.requests, PRINCIPAL_ID);
+    res.json({ results });
+  }));
+
+  router.get('/:id/content', asyncRoute(async (req, res) => {
+    const assetId = parse(assetIdSchema, req.params.id);
+    const query = parse(contentQuerySchema, req.query);
+    const content = await requireService(runtime).readContent(assetId, query.variant, PRINCIPAL_ID);
+    res.set('Content-Type', content.mime);
+    res.set('Content-Length', String(content.byteSize));
+    res.set('X-Content-Type-Options', 'nosniff');
+    res.set('Cache-Control', 'private, no-store');
+    res.set('ETag', content.etag);
+    res.send(content.body);
+  }));
+
+  router.get('/:id', asyncRoute(async (req, res) => {
+    parse(emptyQuerySchema, req.query);
+    const assetId = parse(assetIdSchema, req.params.id);
+    const descriptor = await requireService(runtime).getDescriptor(assetId, PRINCIPAL_ID);
+    if (descriptor.status === 'processing' || descriptor.status === 'quarantine') {
+      throw new ImageAssetError('ASSET_NOT_READY', 409, true, 'Asset is not ready');
+    }
+    res.json(descriptor);
+  }));
+
+  if (runtime.storageProvider === 'local' && runtime.uploadLocalContent) {
+    router.put(
+      '/upload-sessions/:id/content',
+      express.raw({ type: '*/*', limit: MAX_LOCAL_UPLOAD_BYTES }),
+      asyncRoute(async (req, res) => {
+        parse(emptyQuerySchema, req.query);
+        const sessionId = parse(assetIdSchema, req.params.id);
+        const contentLength = Number(req.get('Content-Length'));
+        const body = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+        await runtime.uploadLocalContent!(sessionId, {
+          body,
+          contentLength,
+          contentType: req.get('Content-Type')?.split(';')[0].trim() ?? '',
+          principalId: PRINCIPAL_ID,
+        });
+        res.status(204).end();
+      }),
+    );
+  }
+
+  router.use((error: unknown, req: AssetRequest, res: express.Response, next: express.NextFunction) => {
+    if (res.headersSent) return next(error);
+    const normalized = normalizeError(error);
+    const requestId = req.imageAssetRequestId ?? `req_${randomUUID().replace(/-/g, '')}`;
+    res.set('X-Request-Id', requestId);
+    res.status(normalized.statusCode).json({
+      error: {
+        code: normalized.code,
+        message: SAFE_ERROR_MESSAGES[normalized.code],
+        requestId,
+        retryable: normalized.retryable,
+      },
+    });
+  });
+
+  return router;
+}
+
+function asyncRoute(
+  handler: (req: express.Request, res: express.Response) => Promise<void>,
+): express.RequestHandler {
+  return (req, res, next) => void handler(req, res).catch(next);
+}
+
+function parse<T>(schema: z.ZodType<T>, value: unknown): T {
+  const parsed = schema.safeParse(value);
+  if (!parsed.success) {
+    if (parsed.error.issues.some((issue) => issue.code === 'too_big')) {
+      throw new ImageAssetError('IMAGE_LIMIT_EXCEEDED', 413, false, 'Image asset request exceeds the limit');
+    }
+    throw new ImageAssetError('IMAGE_CONTENT_INVALID', 422, false, 'Image asset request is invalid');
+  }
+  return parsed.data;
+}
+
+function requireService(runtime: ImageAssetRouteRuntime): ImageAssetRouteService {
+  if (!runtime.service) throw new ImageAssetError('STORAGE_UNAVAILABLE', 503, true, 'Image asset storage is unavailable');
+  return runtime.service;
+}
+
+function normalizeError(error: unknown): ImageAssetError {
+  if (error instanceof ImageAssetError) return error;
+  if (isBodyTooLarge(error)) {
+    return new ImageAssetError('IMAGE_LIMIT_EXCEEDED', 413, false, 'Uploaded image exceeds the byte limit');
+  }
+  return new ImageAssetError('ASSET_PROCESSING_FAILED', 500, true, 'Image asset request failed');
+}
+
+function isBodyTooLarge(error: unknown): boolean {
+  return Boolean(error && typeof error === 'object' && (error as { type?: unknown }).type === 'entity.too.large');
+}
+
+const SAFE_ERROR_MESSAGES: Record<ImageAssetErrorCode, string> = {
+  UPLOAD_SESSION_EXPIRED: 'Upload session has expired',
+  IMAGE_CONTENT_INVALID: 'Image content or request is invalid',
+  IMAGE_LIMIT_EXCEEDED: 'Image asset limit exceeded',
+  ASSET_NOT_READY: 'Asset is not ready',
+  ASSET_ACCESS_DENIED: 'Asset access is denied',
+  ASSET_NOT_FOUND: 'Asset was not found',
+  ASSET_PROCESSING_FAILED: 'Image asset processing failed',
+  STORAGE_UNAVAILABLE: 'Image asset storage is unavailable',
+};

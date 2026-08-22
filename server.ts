@@ -15,6 +15,9 @@ import sharp from 'sharp';
 import { z } from 'zod';
 import { createServer as createViteServer } from 'vite';
 import { parseExternalImageUrl } from './src/lib/externalImageUrl';
+import type { AssetTransaction } from './server/image-assets/repository';
+import { createImageAssetRouter } from './server/image-assets/routes';
+import { createImageAssetRuntime } from './server/image-assets/runtime';
 import { initializeImageAssetSchema } from './server/image-assets/schema';
 
 // Load environment variables
@@ -146,6 +149,18 @@ app.post('/api/login', loginLimiter, (req, res) => {
 });
 
 app.use('/api', authMiddleware);
+
+const imageAssetRuntime = createImageAssetRuntime({
+  mysqlPool: {
+    async query(sql: string, params?: unknown[]) {
+      return await (await getMySQLPool()).query(sql, params) as unknown as [unknown, unknown];
+    },
+    async getConnection() {
+      return await (await getMySQLPool()).getConnection() as unknown as AssetTransaction;
+    },
+  },
+});
+app.use('/api/image-assets', createImageAssetRouter(imageAssetRuntime));
 
 app.post('/api/logout', (req, res) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
@@ -2531,7 +2546,10 @@ async function startServer() {
   try {
     await getMySQLPool();
     console.log('[Database] MySQL initialized successfully.');
-  } catch {
+  } catch (error) {
+    if (imageAssetRuntime.enabled) {
+      throw new Error('Image assets require an available MySQL database at startup', { cause: error });
+    }
     console.log('[Database] Running in JSON local file fallback mode.');
   }
 
@@ -2559,6 +2577,7 @@ async function startServer() {
     console.log(`[Mode] ${isDev ? 'Development' : 'Production'}`);
     console.log(`[Database] ${useMySQLFallback ? 'JSON Fallback' : 'MySQL'}`);
     console.log(`[COS] ${getCOSConfig() ? 'Enabled' : 'Disabled (local storage)'}`);
+    console.log(`[Image Assets] ${imageAssetRuntime.enabled ? `Enabled (${imageAssetRuntime.storageProvider})` : 'Disabled'}`);
   });
 
   registerShutdownHandlers(server);

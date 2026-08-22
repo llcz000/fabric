@@ -44,6 +44,14 @@ function serverEnv(port, password) {
     COS_SECRET_KEY: '',
     COS_REGION: '',
     COS_BUCKET: '',
+    IMAGE_ASSETS_ENABLED: 'false',
+    COMPANY_IMAGE_ASSETS_ENABLED: 'false',
+    PRODUCT_IMAGE_ASSETS_ENABLED: 'false',
+    ASSET_STORAGE_PROVIDER: 'cos',
+    ASSET_SIGNED_URL_TTL_SECONDS: '300',
+    ASSET_UPLOAD_GRANT_TTL_SECONDS: '900',
+    ASSET_UPLOAD_SESSION_TTL_SECONDS: '86400',
+    ASSET_RECYCLE_DAYS: '30',
   };
 }
 
@@ -110,6 +118,44 @@ try {
 
   const unauthenticated = await fetch(`${baseUrl}/api/company`);
   assert.equal(unauthenticated.status, 401, 'protected API must require authentication');
+
+  const unauthenticatedAsset = await fetch(`${baseUrl}/api/image-assets/upload-sessions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      purpose: 'company_logo',
+      originalFilename: 'logo.png',
+      declaredMime: 'image/png',
+      declaredByteSize: 4,
+    }),
+  });
+  assert.equal(unauthenticatedAsset.status, 401, 'image asset API must be mounted behind authentication');
+
+  const disabledAsset = await fetch(`${baseUrl}/api/image-assets/upload-sessions`, {
+    method: 'POST',
+    headers: { ...authHeaders, 'Content-Type': 'application/json', 'X-Request-Id': 'security-disabled-assets' },
+    body: JSON.stringify({
+      purpose: 'company_logo',
+      originalFilename: 'logo.png',
+      declaredMime: 'image/png',
+      declaredByteSize: 4,
+    }),
+  });
+  assert.equal(disabledAsset.status, 503, 'disabled image assets on JSON fallback must return 503');
+  const disabledAssetBody = await disabledAsset.json();
+  assert.equal(disabledAssetBody.error.code, 'STORAGE_UNAVAILABLE');
+  assert.equal(disabledAssetBody.error.requestId, 'security-disabled-assets');
+
+  const arbitraryAssetUrl = await fetch(`${baseUrl}/api/image-assets/upload-sessions`, {
+    method: 'POST',
+    headers: { ...authHeaders, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url: 'https://attacker.example/private.png' }),
+  });
+  assert.equal(arbitraryAssetUrl.status, 503, 'disabled image asset routes must not accept arbitrary URLs');
+  const arbitraryAssetUrlText = await arbitraryAssetUrl.text();
+  assert.match(arbitraryAssetUrlText, /STORAGE_UNAVAILABLE/);
+  assert.doesNotMatch(arbitraryAssetUrlText, /attacker\.example|Authorization|SecretKey|fabric_asset_token/,
+    'asset errors must not reflect URL or credential material');
 
   const invalidOrder = await fetch(`${baseUrl}/api/orders`, {
     method: 'POST',

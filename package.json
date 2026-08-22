@@ -12,6 +12,7 @@
     "test:unit": "node scripts/run-ts-tests.mjs",
     "test:image-export": "node scripts/run-ts-tests.mjs src/lib/imageCapture.test.ts",
     "test:image-assets": "node scripts/run-ts-tests.mjs server/image-assets",
+    "test:image-assets:smoke": "node scripts/smoke-image-assets.mjs",
     "test:security": "node scripts/smoke-security.mjs"
   },
   "dependencies": {
