@@ -15,6 +15,10 @@ import sharp from 'sharp';
 import { z } from 'zod';
 import { createServer as createViteServer } from 'vite';
 import { parseExternalImageUrl } from './src/lib/externalImageUrl';
+import { createCompanyImageRouter, describeCompanyImages, omitCompanyLegacyImageValues, type CompanyImageRuntime } from './server/image-assets/companyImages';
+import { CosStorageAdapter, type CosSdkBoundary } from './server/image-assets/cosStorage';
+import { readLegacyImage } from './server/image-assets/legacySource';
+import { getAssetPolicy } from './server/image-assets/policy';
 import type { AssetTransaction } from './server/image-assets/repository';
 import { createImageAssetRouter } from './server/image-assets/routes';
 import { createImageAssetRuntime } from './server/image-assets/runtime';
@@ -171,6 +175,35 @@ const imageAssetRuntime = createImageAssetRuntime({
   },
 });
 app.use('/api/image-assets', createImageAssetRouter(imageAssetRuntime));
+
+const companyImageRuntime: CompanyImageRuntime = {
+  enabled: imageAssetRuntime.config.companyImageAssetsEnabled,
+  service: imageAssetRuntime.service,
+  async findAssociation(role) {
+    if (useMySQLFallback) return null;
+    const pool = await getMySQLPool();
+    const [rows] = await pool.query<RowDataPacket[]>(
+      'SELECT asset_id FROM company_image_assets WHERE company_id = 1 AND role = ?',
+      [role],
+    );
+    return rows[0]?.asset_id == null ? null : String(rows[0].asset_id);
+  },
+  async getCompany() {
+    return loadCompanyConfig();
+  },
+  async readLegacy(source) {
+    const config = getCOSConfig();
+    const client = getCOSClient();
+    return readLegacyImage(source, {
+      ...(config && client
+        ? { cos: { config: { bucket: config.bucket, region: config.region }, storage: new CosStorageAdapter({ bucket: config.bucket, region: config.region }, client as unknown as CosSdkBoundary) } }
+        : {}),
+      localRoot: UPLOADS_DIR,
+      maxBytes: getAssetPolicy('company_logo').maxBytes,
+    });
+  },
+};
+app.use('/api/company/images', createCompanyImageRouter(companyImageRuntime));
 
 app.post('/api/logout', (req, res) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
@@ -753,20 +786,18 @@ const CompanyConfigSchema = z.object({
 // ==================== API Route: Company Config ====================
 app.get('/api/company', async (req, res) => {
   try {
-    if (!useMySQLFallback) {
-      const pool = await getMySQLPool();
-      const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM company_config WHERE id = 1');
-      if (rows.length > 0) {
-        return res.json(rows[0]);
-      }
+    const company = await loadCompanyConfig();
+    if (!companyImageRuntime.enabled) return res.json(company);
+    let images = {};
+    try {
+      images = await describeCompanyImages(company, companyImageRuntime);
+    } catch (error: any) {
+      console.warn('[API /api/company GET] Image descriptors unavailable:', error.message);
     }
-    // Fallback
-    const local = loadLocalDB();
-    res.json(local.company_config);
+    res.json({ ...company, images });
   } catch (error: any) {
     // Graceful error fallback
-    const local = loadLocalDB();
-    res.json(local.company_config);
+    res.json(loadLocalDB().company_config);
   }
 });
 
@@ -776,45 +807,48 @@ app.post('/api/company', async (req, res) => {
     if (!parsed.success) {
       return res.status(400).json({ error: 'Invalid company configuration', details: parsed.error.issues });
     }
-    const data = parsed.data;
+    const data = omitCompanyLegacyImageValues(parsed.data, companyImageRuntime.enabled);
     if (!useMySQLFallback) {
       const pool = await getMySQLPool();
       // Ensure row with id=1 exists, update if yes, insert if no
       const [rows] = await pool.query<RowDataPacket[]>('SELECT id FROM company_config WHERE id = 1');
       if (rows.length > 0) {
-        await pool.query(
-          `UPDATE company_config SET
-            company_name = ?, brand_name = ?, brand_logo = ?, address = ?, phone = ?,
-            wechat_qr = ?, alipay_qr = ?, default_terms = ?, deposit_terms = ?
-          WHERE id = 1`,
-          [
-            data.company_name || '',
-            data.brand_name || '',
-            data.brand_logo || '',
-            data.address || '',
-            data.phone || '',
-            data.wechat_qr || '',
-            data.alipay_qr || '',
-            data.default_terms || '',
-            data.deposit_terms || ''
-          ]
-        );
+        if (companyImageRuntime.enabled) {
+          await pool.query(
+            `UPDATE company_config SET
+              company_name = ?, brand_name = ?, address = ?, phone = ?, default_terms = ?, deposit_terms = ?
+            WHERE id = 1`,
+            [data.company_name || '', data.brand_name || '', data.address || '', data.phone || '', data.default_terms || '', data.deposit_terms || ''],
+          );
+        } else {
+          await pool.query(
+            `UPDATE company_config SET
+              company_name = ?, brand_name = ?, brand_logo = ?, address = ?, phone = ?,
+              wechat_qr = ?, alipay_qr = ?, default_terms = ?, deposit_terms = ?
+            WHERE id = 1`,
+            [
+              data.company_name || '', data.brand_name || '', data.brand_logo || '', data.address || '', data.phone || '',
+              data.wechat_qr || '', data.alipay_qr || '', data.default_terms || '', data.deposit_terms || '',
+            ],
+          );
+        }
       } else {
-        await pool.query(
-          `INSERT INTO company_config (id, company_name, brand_name, brand_logo, address, phone, wechat_qr, alipay_qr, default_terms, deposit_terms)
-           VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            data.company_name || '',
-            data.brand_name || '',
-            data.brand_logo || '',
-            data.address || '',
-            data.phone || '',
-            data.wechat_qr || '',
-            data.alipay_qr || '',
-            data.default_terms || '',
-            data.deposit_terms || ''
-          ]
-        );
+        if (companyImageRuntime.enabled) {
+          await pool.query(
+            `INSERT INTO company_config (id, company_name, brand_name, address, phone, default_terms, deposit_terms)
+             VALUES (1, ?, ?, ?, ?, ?, ?)`,
+            [data.company_name || '', data.brand_name || '', data.address || '', data.phone || '', data.default_terms || '', data.deposit_terms || ''],
+          );
+        } else {
+          await pool.query(
+            `INSERT INTO company_config (id, company_name, brand_name, brand_logo, address, phone, wechat_qr, alipay_qr, default_terms, deposit_terms)
+             VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              data.company_name || '', data.brand_name || '', data.brand_logo || '', data.address || '', data.phone || '',
+              data.wechat_qr || '', data.alipay_qr || '', data.default_terms || '', data.deposit_terms || '',
+            ],
+          );
+        }
       }
       return res.json({ success: true });
     }
@@ -828,6 +862,15 @@ app.post('/api/company', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+async function loadCompanyConfig(): Promise<Record<string, unknown>> {
+  if (!useMySQLFallback) {
+    const pool = await getMySQLPool();
+    const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM company_config WHERE id = 1');
+    if (rows.length > 0) return rows[0];
+  }
+  return loadLocalDB().company_config;
+}
 
 // ==================== API Route: Orders ====================
 app.get('/api/orders', async (req, res) => {
