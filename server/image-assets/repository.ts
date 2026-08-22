@@ -79,6 +79,7 @@ export interface AssetRepository {
   detachProductImage(productId: number, assetId: string): Promise<void>;
   recycleExpiredUnlinkedAssets(now: Date, limit: number): Promise<number>;
   listPurgeCandidates(now: Date, limit: number): Promise<ImageAssetRecord[]>;
+  /** Service/worker precondition: call only after every object from getVariants(assetId) was deleted successfully. */
   markPurged(assetId: string, at: Date): Promise<void>;
   reconcileReferenceCounts(): Promise<number>;
 }

@@ -30,6 +30,7 @@ class RecordingConnection {
   variantRows: Row[] = [];
   purgeAssetRows: Row[] = [];
   purgeUpdateResult: Row = { affectedRows: 1 };
+  deleteVariantError: Error | null = null;
   lockedAssets: Row[] = [
     { id: 'new-asset', status: 'ready', ref_count: 0 },
     { id: 'old-asset', status: 'ready', ref_count: 1 },
@@ -52,6 +53,7 @@ class RecordingConnection {
     if (sql.includes('FROM image_upload_sessions WHERE id = ?')) return [this.uploadSessionReadRows, []];
     if (sql.includes('FROM image_upload_sessions WHERE quarantine_key = ?')) return [this.quarantineSessionReadRows, []];
     if (sql.includes('FROM image_assets WHERE id = ?')) return [this.purgeAssetRows, []];
+    if (sql.includes('DELETE FROM image_asset_variants') && this.deleteVariantError) throw this.deleteVariantError;
     if (sql.includes("UPDATE image_assets SET status = 'purged'")) return [this.purgeUpdateResult, []];
     if (sql.includes('FROM image_asset_variants WHERE asset_id = ?')) return [this.variantRows, []];
     if (sql.includes('FROM image_processing_jobs')) return [[], []];
@@ -428,7 +430,7 @@ test('expired unlinked ready assets recycle only with an atomic status and refer
   assert.deepEqual(connection.statements[0].params, [now, now, now, 25]);
 });
 
-test('mark purged requires recycled zero-reference eligibility and a successful guarded update', async () => {
+test('mark purged checks eligibility before deleting metadata and updates status last', async () => {
   const connection = new RecordingConnection();
   connection.purgeAssetRows = [{ id: 'purge-asset', status: 'recycled', ref_count: 0, purge_after: new Date('2026-08-21T00:00:00Z') }];
   const repository = new MySqlAssetRepository(connection);
@@ -436,35 +438,83 @@ test('mark purged requires recycled zero-reference eligibility and a successful 
 
   await repository.markPurged('purge-asset', at);
 
-  assert.match(sql(connection), /SELECT status, ref_count, purge_after FROM image_assets WHERE id = \? FOR UPDATE/);
-  assert.match(sql(connection), /WHERE id = \? AND status = 'recycled' AND ref_count = 0 AND purge_after <= \?/);
-  assert.match(sql(connection), /NOT EXISTS \(SELECT 1 FROM image_asset_variants WHERE asset_id = \?\)/);
-  assert.ok(connection.statements.some((statement) => statement.params.length === 4
-    && statement.params[0] === at
-    && statement.params[1] === 'purge-asset'
-    && statement.params[2] === at
-    && statement.params[3] === 'purge-asset'));
+  const eligibilityIndex = connection.statements.findIndex((statement) => statement.sql.includes('FOR UPDATE'));
+  const metadataDeleteIndex = connection.statements.findIndex((statement) => statement.sql.includes('DELETE FROM image_asset_variants'));
+  const statusUpdateIndex = connection.statements.findIndex((statement) => statement.sql.includes("SET status = 'purged'"));
+  assert.ok(eligibilityIndex >= 0 && eligibilityIndex < metadataDeleteIndex);
+  assert.ok(metadataDeleteIndex < statusUpdateIndex);
+  assert.deepEqual(connection.statements[metadataDeleteIndex].params, ['purge-asset']);
+  assert.deepEqual(connection.statements[statusUpdateIndex].params, [at, 'purge-asset', at]);
+  assert.match(connection.statements[statusUpdateIndex].sql, /WHERE id = \? AND status = 'recycled' AND ref_count = 0 AND purge_after <= \?/);
+  assert.deepEqual(connection.transactions, ['BEGIN', 'COMMIT', 'RELEASE']);
 });
 
-test('mark purged accepts an already-purged retry but rejects an unsuccessful eligible update', async () => {
+test('mark purged rejects an ineligible asset before deleting variant metadata', async () => {
+  const connection = new RecordingConnection();
+  connection.purgeAssetRows = [{ id: 'purge-asset', status: 'ready', ref_count: 1, purge_after: null }];
+  const repository = new MySqlAssetRepository(connection);
+
+  await assert.rejects(
+    repository.markPurged('purge-asset', new Date('2026-08-22T00:00:00Z')),
+    (error: unknown) => error instanceof ImageAssetError && error.code === 'ASSET_NOT_READY',
+  );
+
+  assert.doesNotMatch(sql(connection), /DELETE FROM image_asset_variants/);
+  assert.doesNotMatch(sql(connection), /UPDATE image_assets SET status = 'purged'/);
+  assert.deepEqual(connection.transactions, ['BEGIN', 'ROLLBACK', 'RELEASE']);
+});
+
+test('mark purged rolls back metadata deletion when its guarded status update fails', async () => {
+  const connection = new RecordingConnection();
+  connection.purgeAssetRows = [{ id: 'purge-asset', status: 'recycled', ref_count: 0, purge_after: new Date('2026-08-21T00:00:00Z') }];
+  connection.purgeUpdateResult = { affectedRows: 0 };
+  const repository = new MySqlAssetRepository(connection);
+
+  await assert.rejects(
+    repository.markPurged('purge-asset', new Date('2026-08-22T00:00:00Z')),
+    (error: unknown) => error instanceof ImageAssetError && error.code === 'ASSET_NOT_READY',
+  );
+
+  assert.match(sql(connection), /DELETE FROM image_asset_variants/);
+  assert.deepEqual(connection.transactions, ['BEGIN', 'ROLLBACK', 'RELEASE']);
+});
+
+test('mark purged rolls back when variant metadata deletion fails', async () => {
+  const connection = new RecordingConnection();
+  connection.purgeAssetRows = [{ id: 'purge-asset', status: 'recycled', ref_count: 0, purge_after: new Date('2026-08-21T00:00:00Z') }];
+  connection.deleteVariantError = new Error('metadata delete failed');
+  const repository = new MySqlAssetRepository(connection);
+
+  await assert.rejects(repository.markPurged('purge-asset', new Date('2026-08-22T00:00:00Z')), /metadata delete failed/);
+
+  assert.doesNotMatch(sql(connection), /UPDATE image_assets SET status = 'purged'/);
+  assert.deepEqual(connection.transactions, ['BEGIN', 'ROLLBACK', 'RELEASE']);
+});
+
+test('mark purged treats an already-purged retry as an idempotent no-op', async () => {
   const connection = new RecordingConnection();
   const repository = new MySqlAssetRepository(connection);
   const at = new Date('2026-08-22T00:00:00Z');
   connection.purgeAssetRows = [{ id: 'purge-asset', status: 'purged', ref_count: 0, purge_after: null }];
 
   await repository.markPurged('purge-asset', at);
+
+  assert.doesNotMatch(sql(connection), /DELETE FROM image_asset_variants/);
   assert.doesNotMatch(sql(connection), /UPDATE image_assets SET status = 'purged'/);
+  assert.deepEqual(connection.transactions, ['BEGIN', 'COMMIT', 'RELEASE']);
+});
 
-  connection.statements.length = 0;
-  connection.transactions.length = 0;
-  connection.purgeAssetRows = [{ id: 'purge-asset', status: 'recycled', ref_count: 0, purge_after: new Date('2026-08-21T00:00:00Z') }];
-  connection.purgeUpdateResult = { affectedRows: 0 };
+test('fail job cannot overwrite a completed job', async () => {
+  const connection = new RecordingConnection();
+  const repository = new MySqlAssetRepository(connection);
+  const retryAt = new Date('2026-08-22T00:00:05Z');
 
-  await assert.rejects(
-    repository.markPurged('purge-asset', at),
-    (error: unknown) => error instanceof ImageAssetError && error.code === 'ASSET_NOT_READY',
-  );
-  assert.deepEqual(connection.transactions, ['BEGIN', 'ROLLBACK', 'RELEASE']);
+  await repository.failJob(42, 'STORAGE_UNAVAILABLE', retryAt);
+
+  const update = connection.statements.find((statement) => statement.sql.includes('UPDATE image_processing_jobs'));
+  assert.ok(update);
+  assert.match(update.sql, /WHERE id = \? AND status = 'processing'/);
+  assert.deepEqual(update.params, ['queued', retryAt, 'STORAGE_UNAVAILABLE', 42]);
 });
 
 test('complete processing rejects empty or original-less variants before any database write', async () => {

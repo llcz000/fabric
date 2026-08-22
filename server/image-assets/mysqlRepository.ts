@@ -283,7 +283,7 @@ export class MySqlAssetRepository implements AssetRepository {
     await this.pool.query(
       `UPDATE image_processing_jobs
        SET status = ?, available_at = COALESCE(?, available_at), locked_at = NULL, last_error_code = ?
-       WHERE id = ?`,
+       WHERE id = ? AND status = 'processing'`,
       [retryAt ? 'queued' : 'failed', retryAt, code, jobId],
     );
   }
@@ -395,11 +395,11 @@ export class MySqlAssetRepository implements AssetRepository {
       ) {
         throw new ImageAssetError('ASSET_NOT_READY', 409, false, 'Asset is not eligible for purge');
       }
+      await connection.query('DELETE FROM image_asset_variants WHERE asset_id = ?', [assetId]);
       const updated = result(await connection.query(
         `UPDATE image_assets SET status = 'purged', purged_at = ?, error_code = NULL
-         WHERE id = ? AND status = 'recycled' AND ref_count = 0 AND purge_after <= ?
-           AND NOT EXISTS (SELECT 1 FROM image_asset_variants WHERE asset_id = ?)`,
-        [at, assetId, at, assetId],
+         WHERE id = ? AND status = 'recycled' AND ref_count = 0 AND purge_after <= ?`,
+        [at, assetId, at],
       ));
       if ((updated.affectedRows ?? 0) !== 1) {
         throw new ImageAssetError('ASSET_NOT_READY', 409, false, 'Asset is not eligible for purge');
