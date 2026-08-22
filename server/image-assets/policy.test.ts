@@ -15,6 +15,16 @@ test('product policy includes a thumbnail and rejects SVG', () => {
   assert.equal(policy.allowedMimes.has('image/svg+xml'), false);
 });
 
+test('asset policy mutations do not affect later callers', () => {
+  const first = getAssetPolicy('product_image');
+  first.variants.pop();
+  first.allowedMimes.delete('image/png');
+
+  const second = getAssetPolicy('product_image');
+  assert.deepEqual(second.variants, ['original', 'display', 'thumbnail']);
+  assert.equal(second.allowedMimes.has('image/png'), true);
+});
+
 test('asset errors expose stable safe fields', () => {
   const body = new ImageAssetError('ASSET_NOT_READY', 409, false, 'processing').toResponse('req-1');
   assert.deepEqual(body, {

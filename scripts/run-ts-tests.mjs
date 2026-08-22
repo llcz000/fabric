@@ -13,6 +13,14 @@ await mkdir(outputRoot, { recursive: true });
 
 async function findTestFiles(entry) {
   const absoluteEntry = path.resolve(projectRoot, entry);
+  const relativeEntry = path.relative(projectRoot, absoluteEntry);
+  if (
+    relativeEntry === '..' ||
+    relativeEntry.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relativeEntry)
+  ) {
+    throw new Error(`Test path is outside the project root: ${entry}`);
+  }
   if (!existsSync(absoluteEntry)) {
     throw new Error(`Test path does not exist: ${entry}`);
   }

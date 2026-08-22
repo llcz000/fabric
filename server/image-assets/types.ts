@@ -11,17 +11,20 @@ export interface ImageAssetRecord {
   originalFilename: string;
   detectedMime: string;
   detectedExtension: string;
+  purpose: AssetPurpose;
+  storageProvider: 'cos' | 'local';
   byteSize: number;
   width: number;
   height: number;
   status: AssetStatus;
   refCount: number;
-  createdBy: number;
+  createdBy: string;
   createdAt: Date;
   updatedAt: Date;
   recycledAt?: Date;
   purgeAfter?: Date;
   purgedAt?: Date;
+  errorCode?: ImageAssetErrorCode;
   metadata?: Record<string, unknown>;
 }
 

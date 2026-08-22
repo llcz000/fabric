@@ -27,5 +27,10 @@ const POLICIES: Record<AssetPurpose, AssetPolicy> = {
 };
 
 export function getAssetPolicy(purpose: AssetPurpose): AssetPolicy {
-  return POLICIES[purpose];
+  const policy = POLICIES[purpose];
+  return {
+    ...policy,
+    allowedMimes: new Set(policy.allowedMimes),
+    variants: [...policy.variants],
+  };
 }
