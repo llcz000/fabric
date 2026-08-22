@@ -4,6 +4,7 @@ import express from 'express';
 import { z } from 'zod';
 
 import { ImageAssetError, type ImageAssetErrorCode } from './errors';
+import { getAssetPolicy } from './policy';
 import type {
   AccessUrlRequest,
   AccessUrlResult,
@@ -15,7 +16,8 @@ import type { AssetDescriptor, AssetVariantName } from './types';
 import type { LocalUploadInput } from './runtime';
 
 const PRINCIPAL_ID = 'admin';
-const MAX_LOCAL_UPLOAD_BYTES = 10 * 1024 * 1024;
+const MAX_PRODUCT_UPLOAD_BYTES = getAssetPolicy('product_image').maxBytes;
+const MAX_RAW_BODY_BYTES = MAX_PRODUCT_UPLOAD_BYTES + 1;
 const SAFE_REQUEST_ID = /^[a-zA-Z0-9_-]{1,128}$/;
 
 const uploadSessionSchema = z.object({
@@ -72,9 +74,17 @@ export function createImageAssetRouter(runtime: ImageAssetRouteRuntime): express
     next();
   });
 
+  router.use(express.raw({ type: () => true, limit: MAX_RAW_BODY_BYTES }));
+  router.use((req, _res, next) => {
+    if (Buffer.isBuffer(req.body) && req.body.length > MAX_PRODUCT_UPLOAD_BYTES) {
+      return next(new ImageAssetError('IMAGE_LIMIT_EXCEEDED', 413, false, 'Image asset request exceeds the limit'));
+    }
+    next();
+  });
+
   router.post('/upload-sessions', asyncRoute(async (req, res) => {
     parse(strictEmptyObjectSchema, req.query);
-    const input = parse(uploadSessionSchema, req.body);
+    const input = parseDeclaredJsonBody(uploadSessionSchema, req);
     const grant = await requireService(runtime).createUploadSession({ ...input, principalId: PRINCIPAL_ID });
     res.status(201).json({
       sessionId: grant.sessionId,
@@ -86,7 +96,7 @@ export function createImageAssetRouter(runtime: ImageAssetRouteRuntime): express
   }));
 
   router.post('/upload-sessions/:id/finalize', asyncRoute(async (req, res) => {
-    parse(strictEmptyObjectSchema, req.body ?? {});
+    parseEmptyBody(req.body);
     parse(strictEmptyObjectSchema, req.query);
     const sessionId = parse(assetIdSchema, req.params.id);
     const descriptor = await requireService(runtime).finalizeUploadSession(sessionId, PRINCIPAL_ID);
@@ -95,13 +105,13 @@ export function createImageAssetRouter(runtime: ImageAssetRouteRuntime): express
 
   router.post('/access-urls', asyncRoute(async (req, res) => {
     parse(strictEmptyObjectSchema, req.query);
-    const input = parse(accessUrlsSchema, req.body);
+    const input = parseDeclaredJsonBody(accessUrlsSchema, req);
     const results = await requireService(runtime).getAccessUrls(input.requests, PRINCIPAL_ID);
     res.json({ results });
   }));
 
   router.get('/:id/content', asyncRoute(async (req, res) => {
-    parse(strictEmptyObjectSchema, req.body ?? {});
+    parseEmptyBody(req.body);
     const assetId = parse(assetIdSchema, req.params.id);
     const query = parse(contentQuerySchema, req.query);
     const content = await requireService(runtime).readContent(assetId, query.variant, PRINCIPAL_ID);
@@ -115,7 +125,7 @@ export function createImageAssetRouter(runtime: ImageAssetRouteRuntime): express
 
   router.get('/:id', asyncRoute(async (req, res) => {
     parse(strictEmptyObjectSchema, req.query);
-    parse(strictEmptyObjectSchema, req.body ?? {});
+    parseEmptyBody(req.body);
     const assetId = parse(assetIdSchema, req.params.id);
     const descriptor = await requireService(runtime).getDescriptor(assetId, PRINCIPAL_ID);
     if (descriptor.status === 'processing' || descriptor.status === 'quarantine') {
@@ -127,7 +137,6 @@ export function createImageAssetRouter(runtime: ImageAssetRouteRuntime): express
   if (runtime.storageProvider === 'local' && runtime.uploadLocalContent) {
     router.put(
       '/upload-sessions/:id/content',
-      express.raw({ type: '*/*', limit: MAX_LOCAL_UPLOAD_BYTES }),
       asyncRoute(async (req, res) => {
         parse(strictEmptyObjectSchema, req.query);
         const sessionId = parse(assetIdSchema, req.params.id);
@@ -177,6 +186,23 @@ function parse<T>(schema: z.ZodType<T>, value: unknown): T {
     throw new ImageAssetError('IMAGE_CONTENT_INVALID', 422, false, 'Image asset request is invalid');
   }
   return parsed.data;
+}
+
+function parseDeclaredJsonBody<T>(schema: z.ZodType<T>, req: express.Request): T {
+  if (!req.is('application/json') || Buffer.isBuffer(req.body)) throw invalidRequest();
+  return parse(schema, req.body);
+}
+
+function parseEmptyBody(body: unknown): void {
+  if (Buffer.isBuffer(body)) {
+    if (body.length === 0) return;
+    throw invalidRequest();
+  }
+  parse(strictEmptyObjectSchema, body ?? {});
+}
+
+function invalidRequest(): ImageAssetError {
+  return new ImageAssetError('IMAGE_CONTENT_INVALID', 422, false, 'Image asset request is invalid');
 }
 
 function requireService(runtime: ImageAssetRouteRuntime): ImageAssetRouteService {

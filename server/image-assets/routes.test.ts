@@ -72,6 +72,7 @@ function routeRuntime(overrides: Partial<ImageAssetRouteRuntime> = {}): ImageAss
 async function withHttpServer<T>(runtime: ImageAssetRouteRuntime, work: (baseUrl: string) => Promise<T>): Promise<T> {
   const app = express();
   app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
   app.use('/api', (req, res, next) => {
     if (req.headers.authorization !== 'Bearer accepted-admin-token') {
       return res.status(401).json({ error: 'Unauthorized' });
@@ -105,19 +106,28 @@ function authenticatedJson(method: string, body?: unknown, requestId?: string): 
   };
 }
 
-async function requestWithJsonBody(url: string, method: string, body: unknown) {
-  const payload = Buffer.from(JSON.stringify(body));
+interface RawHttpRequestOptions {
+  method: string;
+  contentType: string;
+  chunks: Buffer[];
+  chunked?: boolean;
+}
+
+async function requestWithBody(url: string, options: RawHttpRequestOptions) {
   const target = new URL(url);
   return await new Promise<{ status: number; text: string }>((resolve, reject) => {
+    const contentLength = options.chunks.reduce((total, chunk) => total + chunk.length, 0);
     const request = http.request({
       hostname: target.hostname,
       port: target.port,
       path: `${target.pathname}${target.search}`,
-      method,
+      method: options.method,
       headers: {
         Authorization: 'Bearer accepted-admin-token',
-        'Content-Type': 'application/json',
-        'Content-Length': String(payload.length),
+        'Content-Type': options.contentType,
+        ...(options.chunked
+          ? { 'Transfer-Encoding': 'chunked' }
+          : { 'Content-Length': String(contentLength) }),
       },
     }, (response) => {
       const chunks: Buffer[] = [];
@@ -128,7 +138,16 @@ async function requestWithJsonBody(url: string, method: string, body: unknown) {
       }));
     });
     request.once('error', reject);
-    request.end(payload);
+    for (const chunk of options.chunks) request.write(chunk);
+    request.end();
+  });
+}
+
+function requestWithJsonBody(url: string, method: string, body: unknown) {
+  return requestWithBody(url, {
+    method,
+    contentType: 'application/json',
+    chunks: [Buffer.from(JSON.stringify(body))],
   });
 }
 
@@ -338,6 +357,126 @@ test('enabled descriptor, content, and finalize routes reject arbitrary URL JSON
     assert.equal(JSON.parse(content.text).error.code, 'IMAGE_CONTENT_INVALID');
     assert.equal(finalize.status, 422);
     assert.equal((await finalize.json()).error.code, 'IMAGE_CONTENT_INVALID');
+  });
+});
+
+test('empty-body endpoints reject fixed-length and chunked non-JSON bodies', async () => {
+  await withHttpServer(routeRuntime(), async (baseUrl) => {
+    const descriptor = await requestWithBody(`${baseUrl}/api/image-assets/asset-1`, {
+      method: 'GET',
+      contentType: 'text/plain',
+      chunks: [Buffer.from('url=https://attacker.example/descriptor.png')],
+    });
+    const content = await requestWithBody(`${baseUrl}/api/image-assets/asset-1/content?variant=original`, {
+      method: 'GET',
+      contentType: 'text/plain',
+      chunks: [Buffer.from('url=https://attacker.example/'), Buffer.from('content.png')],
+      chunked: true,
+    });
+    const finalize = await requestWithBody(
+      `${baseUrl}/api/image-assets/upload-sessions/session-1/finalize`,
+      {
+        method: 'POST',
+        contentType: 'application/octet-stream',
+        chunks: [Buffer.from('not-empty')],
+        chunked: true,
+      },
+    );
+
+    assert.equal(descriptor.status, 422);
+    assert.equal(JSON.parse(descriptor.text).error.code, 'IMAGE_CONTENT_INVALID');
+    assert.equal(content.status, 422);
+    assert.equal(JSON.parse(content.text).error.code, 'IMAGE_CONTENT_INVALID');
+    assert.equal(finalize.status, 422);
+    assert.equal(JSON.parse(finalize.text).error.code, 'IMAGE_CONTENT_INVALID');
+  });
+});
+
+test('empty-body endpoints accept a zero-length chunked raw body', async () => {
+  await withHttpServer(routeRuntime(), async (baseUrl) => {
+    const response = await requestWithBody(
+      `${baseUrl}/api/image-assets/upload-sessions/session-1/finalize`,
+      {
+        method: 'POST',
+        contentType: 'text/plain',
+        chunks: [],
+        chunked: true,
+      },
+    );
+
+    assert.equal(response.status, 200);
+    assert.equal(JSON.parse(response.text).assetId, 'asset-1');
+  });
+});
+
+test('declared JSON endpoints reject fixed-length and chunked JSON-shaped text bodies', async () => {
+  await withHttpServer(routeRuntime(), async (baseUrl) => {
+    const uploadPayload = Buffer.from(JSON.stringify({
+      purpose: 'company_logo',
+      originalFilename: 'logo.png',
+      declaredMime: 'image/png',
+      declaredByteSize: 4,
+    }));
+    const accessPayload = Buffer.from(JSON.stringify({
+      requests: [{ assetId: 'asset-1', variant: 'display' }],
+    }));
+    const upload = await requestWithBody(`${baseUrl}/api/image-assets/upload-sessions`, {
+      method: 'POST',
+      contentType: 'text/plain',
+      chunks: [uploadPayload],
+    });
+    const access = await requestWithBody(`${baseUrl}/api/image-assets/access-urls`, {
+      method: 'POST',
+      contentType: 'text/plain',
+      chunks: [accessPayload.subarray(0, 12), accessPayload.subarray(12)],
+      chunked: true,
+    });
+
+    assert.equal(upload.status, 422);
+    assert.equal(JSON.parse(upload.text).error.code, 'IMAGE_CONTENT_INVALID');
+    assert.equal(access.status, 422);
+    assert.equal(JSON.parse(access.text).error.code, 'IMAGE_CONTENT_INVALID');
+  });
+});
+
+test('declared JSON endpoints reject non-JSON bodies parsed by earlier middleware', async () => {
+  const form = Buffer.from('requests%5B0%5D%5BassetId%5D=asset-1&requests%5B0%5D%5Bvariant%5D=display');
+
+  await withHttpServer(routeRuntime(), async (baseUrl) => {
+    const response = await requestWithBody(`${baseUrl}/api/image-assets/access-urls`, {
+      method: 'POST',
+      contentType: 'application/x-www-form-urlencoded',
+      chunks: [form],
+    });
+
+    assert.equal(response.status, 422);
+    assert.equal(JSON.parse(response.text).error.code, 'IMAGE_CONTENT_INVALID');
+  });
+});
+
+test('one-byte and parser raw-body overflow map to safe asset limit errors', async () => {
+  const oneByteOverflow = Buffer.alloc(10 * 1024 * 1024 + 1, 0x61);
+  const overParserLimit = Buffer.alloc(10 * 1024 * 1024 + 2, 0x62);
+
+  await withHttpServer(routeRuntime(), async (baseUrl) => {
+    const oneByteResponse = await requestWithBody(`${baseUrl}/api/image-assets/asset-1`, {
+      method: 'GET',
+      contentType: 'text/plain',
+      chunks: [oneByteOverflow],
+    });
+    const parserResponse = await requestWithBody(`${baseUrl}/api/image-assets/asset-1`, {
+      method: 'GET',
+      contentType: 'text/plain',
+      chunks: [overParserLimit.subarray(0, 6 * 1024 * 1024), overParserLimit.subarray(6 * 1024 * 1024)],
+      chunked: true,
+    });
+
+    assert.equal(oneByteResponse.status, 413);
+    assert.equal(JSON.parse(oneByteResponse.text).error.code, 'IMAGE_LIMIT_EXCEEDED');
+    assert.doesNotMatch(oneByteResponse.text, /aaaaa/);
+    assert.equal(parserResponse.status, 413);
+    assert.equal(JSON.parse(parserResponse.text).error.code, 'IMAGE_LIMIT_EXCEEDED');
+    assert.doesNotMatch(parserResponse.text, /bbbbb/);
   });
 });
 
