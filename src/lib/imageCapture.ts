@@ -1,72 +1,31 @@
-type CaptureImage = Pick<HTMLImageElement, 'complete' | 'decode' | 'naturalWidth' | 'src'>;
-type FetchImage = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+import { fetchAssetBlob } from './imageAssets';
 
-export function normalizeCaptureImageUrl(src: string): string {
-  try {
-    const url = new URL(src);
-    const hostname = url.hostname.toLowerCase();
-    if (url.protocol === 'http:' && hostname.includes('.cos.') && hostname.endsWith('.myqcloud.com')) {
-      url.protocol = 'https:';
-      return url.toString();
-    }
-  } catch {
-    // Keep non-URL sources such as data URLs unchanged.
-  }
-  return src;
+type CompanyImageRole = 'brand_logo' | 'wechat_qr' | 'alipay_qr';
+type CaptureImage = Pick<HTMLImageElement, 'complete' | 'dataset' | 'decode' | 'naturalWidth' | 'src'>;
+
+export interface CaptureResourceOptions {
+  createObjectUrl?: (blob: Blob) => string;
+  revokeObjectUrl?: (url: string) => void;
 }
 
-export async function loadCaptureImageBlob(
-  src: string,
-  proxyUrl: string,
-  proxyHeaders: Record<string, string>,
-  fetchImage: FetchImage = fetch,
-): Promise<Blob> {
-  try {
-    const directResponse = await fetchImage(src, {
-      mode: 'cors',
-      credentials: 'omit',
-      cache: 'no-store',
-    });
-    if (directResponse.ok) {
-      const directBlob = await directResponse.blob();
-      if (directBlob.type.startsWith('image/')) return directBlob;
-    }
-  } catch {
-    // CORS or client networking can block direct access; the authenticated
-    // same-origin proxy is the fallback for those images.
-  }
-
-  const proxyResponse = await fetchImage(proxyUrl, { headers: proxyHeaders });
-  if (!proxyResponse.ok) {
-    let sourceLabel = 'remote image';
-    try {
-      const sourceUrl = new URL(src);
-      sourceLabel = `${sourceUrl.protocol}//${sourceUrl.hostname}`;
-    } catch {
-      // Keep the generic label for malformed URLs.
-    }
-    throw new Error(`${sourceLabel} proxy returned HTTP ${proxyResponse.status}`);
-  }
-  return proxyResponse.blob();
+export interface PreparedCaptureClone {
+  clone: HTMLElement;
+  objectUrls: string[];
 }
 
-export function shouldProxyImageForCapture(src: string, pageOrigin: string): boolean {
-  try {
-    const url = new URL(src, pageOrigin);
-    return (url.protocol === 'http:' || url.protocol === 'https:') && url.origin !== pageOrigin;
-  } catch {
-    return false;
-  }
+const COMPANY_IMAGE_ROLES = new Set<CompanyImageRole>(['brand_logo', 'wechat_qr', 'alipay_qr']);
+
+function companyImageRole(image: CaptureImage): CompanyImageRole | null {
+  const role = image.dataset.companyImageRole;
+  return role && COMPANY_IMAGE_ROLES.has(role as CompanyImageRole) ? role as CompanyImageRole : null;
+}
+
+function contentUrl(role: CompanyImageRole): string {
+  return `/api/company/images/${role}/content`;
 }
 
 function imageLabel(image: CaptureImage): string {
-  if (image.src.startsWith('data:')) return 'embedded image';
-
-  try {
-    return new URL(image.src).hostname || 'image';
-  } catch {
-    return 'image';
-  }
+  return (image.dataset.companyImageRole ?? image.src) || 'image';
 }
 
 export async function waitForCaptureImages(images: Iterable<CaptureImage>): Promise<void> {
@@ -76,8 +35,7 @@ export async function waitForCaptureImages(images: Iterable<CaptureImage>): Prom
         try {
           await image.decode();
         } catch {
-          // Some browsers reject decode() for an already-rendered image.
-          // naturalWidth still proves that the image is available to capture.
+          // Already decoded images can reject decode() in some browsers.
         }
       }
       return;
@@ -94,4 +52,40 @@ export async function waitForCaptureImages(images: Iterable<CaptureImage>): Prom
       throw new Error(`Unable to load ${imageLabel(image)} for image export`);
     }
   }));
+}
+
+export async function prepareCaptureClone(
+  source: HTMLElement,
+  apiFetch: typeof fetch,
+  resources: CaptureResourceOptions = {},
+): Promise<PreparedCaptureClone> {
+  const clone = source.cloneNode(true) as HTMLElement;
+  const sourceImages = Array.from(source.querySelectorAll('img'));
+  const cloneImages = Array.from(clone.querySelectorAll('img'));
+  const createObjectUrl = resources.createObjectUrl ?? ((blob: Blob) => URL.createObjectURL(blob));
+  const objectUrls: string[] = [];
+
+  try {
+    const replacements = await Promise.allSettled(sourceImages.map(async (sourceImage, index) => {
+      const role = companyImageRole(sourceImage);
+      const cloneImage = cloneImages[index];
+      if (!role || !cloneImage) return;
+      const blob = await fetchAssetBlob(contentUrl(role), { apiFetch });
+      const objectUrl = createObjectUrl(blob);
+      objectUrls.push(objectUrl);
+      cloneImage.src = objectUrl;
+    }));
+    const failedReplacement = replacements.find((result) => result.status === 'rejected');
+    if (failedReplacement?.status === 'rejected') throw failedReplacement.reason;
+    await waitForCaptureImages(cloneImages);
+    return { clone, objectUrls };
+  } catch (error) {
+    releaseCaptureResources(objectUrls, resources);
+    throw error;
+  }
+}
+
+export function releaseCaptureResources(objectUrls: Iterable<string>, resources: CaptureResourceOptions = {}): void {
+  const revokeObjectUrl = resources.revokeObjectUrl ?? ((url: string) => URL.revokeObjectURL(url));
+  for (const objectUrl of objectUrls) revokeObjectUrl(objectUrl);
 }

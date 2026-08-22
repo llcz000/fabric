@@ -1,143 +1,182 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { parseExternalImageUrl } from './externalImageUrl';
-import * as imageCaptureModule from './imageCapture';
-import { shouldProxyImageForCapture, waitForCaptureImages } from './imageCapture';
+import * as imageCapture from './imageCapture';
 
-test('upgrades legacy Tencent COS image URLs to HTTPS for export', () => {
-  assert.equal(typeof imageCaptureModule.normalizeCaptureImageUrl, 'function');
-  assert.equal(
-    imageCaptureModule.normalizeCaptureImageUrl(
-      'http://fabric-images-1448065940.cos.ap-shanghai.myqcloud.com/logo.png?sign=test',
-    ),
-    'https://fabric-images-1448065940.cos.ap-shanghai.myqcloud.com/logo.png?sign=test',
-  );
+type Role = 'brand_logo' | 'wechat_qr' | 'alipay_qr';
+
+class FakeImage {
+  complete = true;
+  naturalWidth = 8;
+  decoded = 0;
+
+  constructor(
+    public src: string,
+    public readonly dataset: Record<string, string> = {},
+  ) {}
+
+  cloneNode(): FakeImage {
+    return new FakeImage(this.src, { ...this.dataset });
+  }
+
+  async decode(): Promise<void> {
+    this.decoded += 1;
+  }
+}
+
+class FakeRoot {
+  constructor(public readonly images: FakeImage[]) {}
+
+  cloneNode(): FakeRoot {
+    return new FakeRoot(this.images.map((image) => image.cloneNode()));
+  }
+
+  querySelectorAll(selector: string): FakeImage[] {
+    assert.equal(selector, 'img');
+    return this.images;
+  }
+}
+
+function protectedImage(role: Role, remoteSrc = `https://fabric-images-1448065940.cos.ap-shanghai.myqcloud.com/${role}.png`): FakeImage {
+  return new FakeImage(remoteSrc, { companyImageRole: role });
+}
+
+test('prepares protected company images through authenticated same-origin content endpoints instead of COS or proxy URLs', async () => {
+  assert.equal(typeof imageCapture.prepareCaptureClone, 'function');
+  const source = new FakeRoot([
+    protectedImage('brand_logo'),
+    protectedImage('wechat_qr'),
+    protectedImage('alipay_qr'),
+  ]);
+  const fetches: string[] = [];
+  const created: string[] = [];
+
+  const prepared = await imageCapture.prepareCaptureClone(source as unknown as HTMLElement, async (input) => {
+    fetches.push(String(input));
+    return new Response(new Blob([String(input)], { type: 'image/png' }));
+  }, {
+    createObjectUrl: () => {
+      const url = `blob:prepared-${created.length}`;
+      created.push(url);
+      return url;
+    },
+  });
+
+  assert.deepEqual(fetches, [
+    '/api/company/images/brand_logo/content',
+    '/api/company/images/wechat_qr/content',
+    '/api/company/images/alipay_qr/content',
+  ]);
+  assert.deepEqual(source.images.map((image) => image.src), [
+    'https://fabric-images-1448065940.cos.ap-shanghai.myqcloud.com/brand_logo.png',
+    'https://fabric-images-1448065940.cos.ap-shanghai.myqcloud.com/wechat_qr.png',
+    'https://fabric-images-1448065940.cos.ap-shanghai.myqcloud.com/alipay_qr.png',
+  ]);
+  assert.deepEqual((prepared.clone as unknown as FakeRoot).images.map((image) => image.src), created);
 });
 
-test('does not rewrite HTTP image URLs from unrelated hosts', () => {
-  assert.equal(typeof imageCaptureModule.normalizeCaptureImageUrl, 'function');
-  assert.equal(
-    imageCaptureModule.normalizeCaptureImageUrl('http://images.example.com/logo.png'),
-    'http://images.example.com/logo.png',
+test('waits for Blob-backed logo and both QR inputs to decode before capture and preserves recognizable non-empty image bytes', async () => {
+  assert.equal(typeof imageCapture.prepareCaptureClone, 'function');
+  const source = new FakeRoot([
+    protectedImage('brand_logo'),
+    protectedImage('wechat_qr'),
+    protectedImage('alipay_qr'),
+  ]);
+  const blobs = new Map<string, Blob>();
+  let nextUrl = 0;
+
+  const prepared = await imageCapture.prepareCaptureClone(source as unknown as HTMLElement, async (input) => {
+    const role = String(input).split('/')[4];
+    return new Response(new Blob([`fixture-${role}-pixels`], { type: 'image/png' }));
+  }, {
+    createObjectUrl: (blob) => {
+      const url = `blob:fixture-${nextUrl++}`;
+      blobs.set(url, blob);
+      return url;
+    },
+  });
+  const captureImages = (prepared.clone as unknown as FakeRoot).images;
+
+  assert.deepEqual(captureImages.map((image) => image.decoded), [1, 1, 1]);
+  assert.deepEqual(
+    await Promise.all(captureImages.map((image) => blobs.get(image.src)?.text())),
+    ['fixture-brand_logo-pixels', 'fixture-wechat_qr-pixels', 'fixture-alipay_qr-pixels'],
   );
+  assert.ok(captureImages.every((image) => image.src.startsWith('blob:')));
 });
 
-test('uses a browser-readable remote image without requiring the server proxy', async () => {
-  assert.equal(typeof imageCaptureModule.loadCaptureImageBlob, 'function');
-  const requests: string[] = [];
-  const fetchImage = async (input: RequestInfo | URL) => {
-    requests.push(String(input));
-    return new Response(new Blob(['direct-image'], { type: 'image/png' }), {
-      status: 200,
-      headers: { 'Content-Type': 'image/png' },
-    });
-  };
+test('handles missing or partial company images without fetching absent roles', async () => {
+  assert.equal(typeof imageCapture.prepareCaptureClone, 'function');
+  const source = new FakeRoot([
+    protectedImage('brand_logo'),
+    new FakeImage('data:image/png;base64,legacy'),
+    new FakeImage('/uploads/static-stamp.png'),
+  ]);
+  const fetches: string[] = [];
 
-  const blob = await imageCaptureModule.loadCaptureImageBlob(
-    'https://images.example.com/logo.png',
-    '/api/proxy-image?url=encoded',
-    {},
-    fetchImage,
-  );
+  const prepared = await imageCapture.prepareCaptureClone(source as unknown as HTMLElement, async (input) => {
+    fetches.push(String(input));
+    return new Response(new Blob(['logo'], { type: 'image/png' }));
+  }, { createObjectUrl: () => 'blob:logo' });
 
-  assert.equal(await blob.text(), 'direct-image');
-  assert.deepEqual(requests, ['https://images.example.com/logo.png']);
-});
-
-test('falls back to the server proxy when direct browser access is blocked', async () => {
-  assert.equal(typeof imageCaptureModule.loadCaptureImageBlob, 'function');
-  const requests: string[] = [];
-  const fetchImage = async (input: RequestInfo | URL) => {
-    requests.push(String(input));
-    if (requests.length === 1) throw new TypeError('Failed to fetch');
-    return new Response(new Blob(['proxied-image'], { type: 'image/png' }), {
-      status: 200,
-      headers: { 'Content-Type': 'image/png' },
-    });
-  };
-
-  const blob = await imageCaptureModule.loadCaptureImageBlob(
-    'https://images.example.com/logo.png',
-    '/api/proxy-image?url=encoded',
-    { Authorization: 'Bearer test-token' },
-    fetchImage,
-  );
-
-  assert.equal(await blob.text(), 'proxied-image');
-  assert.deepEqual(requests, [
-    'https://images.example.com/logo.png',
-    '/api/proxy-image?url=encoded',
+  assert.deepEqual(fetches, ['/api/company/images/brand_logo/content']);
+  assert.deepEqual((prepared.clone as unknown as FakeRoot).images.map((image) => image.src), [
+    'blob:logo',
+    'data:image/png;base64,legacy',
+    '/uploads/static-stamp.png',
   ]);
 });
 
-test('reports the image protocol, host, and proxy status when both paths fail', async () => {
-  const fetchImage = async () => {
-    if (!('attemptedDirect' in fetchImage)) {
-      Object.assign(fetchImage, { attemptedDirect: true });
-      throw new TypeError('Failed to fetch');
-    }
-    return new Response(null, { status: 403 });
-  };
+test('leaves feature-off legacy and same-origin images unchanged without any arbitrary remote proxy request', async () => {
+  assert.equal(typeof imageCapture.prepareCaptureClone, 'function');
+  const source = new FakeRoot([
+    new FakeImage('https://fabric-images-1448065940.cos.ap-shanghai.myqcloud.com/legacy-logo.png'),
+    new FakeImage('/uploads/legacy-qr.png'),
+    new FakeImage('data:image/png;base64,legacy'),
+  ]);
+  let requests = 0;
 
-  await assert.rejects(
-    () => imageCaptureModule.loadCaptureImageBlob(
-      'https://images.example.com/logo.png',
-      '/api/proxy-image?url=encoded',
-      {},
-      fetchImage,
-    ),
-    /https:\/\/images\.example\.com proxy returned HTTP 403/,
-  );
-});
-
-test('accepts legacy HTTP and current HTTPS external image URLs', () => {
-  assert.equal(parseExternalImageUrl('http://images.example.com/logo.png').protocol, 'http:');
-  assert.equal(parseExternalImageUrl('https://images.example.com/logo.png').protocol, 'https:');
-});
-
-test('rejects non-web image URLs and embedded credentials', () => {
-  assert.throws(() => parseExternalImageUrl('file:///tmp/logo.png'), /HTTP or HTTPS/);
-  assert.throws(() => parseExternalImageUrl('https://user:pass@example.com/logo.png'), /credentials/);
-});
-
-test('proxies only cross-origin web images during capture', () => {
-  assert.equal(shouldProxyImageForCapture('http://127.0.0.1:3000/uploads/logo.png', 'http://127.0.0.1:3000'), false);
-  assert.equal(shouldProxyImageForCapture('https://images.example.com/logo.png', 'http://127.0.0.1:3000'), true);
-  assert.equal(shouldProxyImageForCapture('data:image/png;base64,test', 'http://127.0.0.1:3000'), false);
-});
-
-test('waits for pending logo and QR images to decode before capture', async () => {
-  let finishDecode!: () => void;
-  let complete = false;
-  let naturalWidth = 0;
-
-  const image = {
-    get complete() {
-      return complete;
-    },
-    get naturalWidth() {
-      return naturalWidth;
-    },
-    src: 'data:image/png;base64,test-image',
-    decode: () => new Promise<void>((resolve) => {
-      finishDecode = () => {
-        complete = true;
-        naturalWidth = 120;
-        resolve();
-      };
-    }),
-  } as unknown as HTMLImageElement;
-
-  let captureCanStart = false;
-  const waiting = waitForCaptureImages([image]).then(() => {
-    captureCanStart = true;
+  const prepared = await imageCapture.prepareCaptureClone(source as unknown as HTMLElement, async () => {
+    requests += 1;
+    return new Response();
   });
 
-  await Promise.resolve();
-  assert.equal(captureCanStart, false);
+  assert.equal(requests, 0);
+  assert.deepEqual((prepared.clone as unknown as FakeRoot).images.map((image) => image.src), source.images.map((image) => image.src));
+});
 
-  finishDecode();
-  await waiting;
-  assert.equal(captureCanStart, true);
+test('revokes every Blob URL after successful export cleanup', async () => {
+  assert.equal(typeof imageCapture.releaseCaptureResources, 'function');
+  const revoked: string[] = [];
+  imageCapture.releaseCaptureResources(['blob:one', 'blob:two'], {
+    revokeObjectUrl: (url) => revoked.push(url),
+  });
+  assert.deepEqual(revoked, ['blob:one', 'blob:two']);
+
+});
+
+test('revokes a Blob URL created by a pending image when a sibling protected image fails', async () => {
+  const source = new FakeRoot([protectedImage('brand_logo'), protectedImage('wechat_qr')]);
+  let resolveLogo!: (response: Response) => void;
+  const created: string[] = [];
+  const revoked: string[] = [];
+
+  const failed = imageCapture.prepareCaptureClone(source as unknown as HTMLElement, async (input) => {
+    if (String(input).includes('brand_logo')) {
+      return new Promise<Response>((resolve) => { resolveLogo = resolve; });
+    }
+    return new Response(null, { status: 403 });
+  }, {
+    createObjectUrl: () => {
+      const url = 'blob:logo';
+      created.push(url);
+      return url;
+    },
+    revokeObjectUrl: (url) => revoked.push(url),
+  });
+
+  resolveLogo(new Response(new Blob(['logo'], { type: 'image/png' })));
+  await assert.rejects(failed, /图片请求失败/);
+  assert.deepEqual(created, ['blob:logo']);
+  assert.deepEqual(revoked, ['blob:logo']);
 });

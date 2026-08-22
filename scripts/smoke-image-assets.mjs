@@ -6,6 +6,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { verifyCompanyImageContentFixtureEndpoints } from './companyImageContentFixture.mjs';
+
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const serverEntry = path.join(projectRoot, 'dist', 'server.cjs');
 
@@ -111,6 +113,8 @@ try {
       retryable: true,
     },
   });
+
+  await verifyCompanyImageContentFixtureEndpoints();
 
   child.kill('SIGTERM');
   await waitForExit(child, 5_000);

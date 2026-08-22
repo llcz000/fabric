@@ -7,7 +7,8 @@ import React, { useRef, useState } from 'react';
 import { DocumentData, DocType, SampleItem, SalesItem, CompanyProfile } from '../types';
 import { Printer, ArrowLeft, Edit3, Scissors, Download, Landmark, PhoneCall, Image } from 'lucide-react';
 import html2canvas from 'html2canvas-pro';
-import { loadCaptureImageBlob, normalizeCaptureImageUrl, shouldProxyImageForCapture, waitForCaptureImages } from '../lib/imageCapture';
+import { ImageAssetClientError } from '../lib/imageAssets';
+import { prepareCaptureClone, releaseCaptureResources } from '../lib/imageCapture';
 
 interface DocumentPreviewProps {
   document: DocumentData;
@@ -153,7 +154,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
     (document.deductionMeters || 0) > 0 ||
     document.items.some(item => ((item as SalesItem).deductionMeters || 0) > 0)
   );
-  const printRef = useRef(null);
+  const printRef = useRef<HTMLDivElement | null>(null);
   const [generating, setGenerating] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
@@ -167,90 +168,47 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
     const node = printRef.current;
     if (!node) return;
     setGenerating(true);
+    let captureContainer: HTMLDivElement | null = null;
+    let captureObjectUrls: string[] = [];
     try {
-      // Convert external images to data URLs via proxy, then html2canvas
-      const images = Array.from(node.getElementsByTagName('img') as HTMLCollectionOf<HTMLImageElement>);
-      const swaps: { img: HTMLImageElement; orig: string }[] = [];
-
-      await Promise.all(images.map(async (img) => {
-        const captureSrc = normalizeCaptureImageUrl(img.src);
-        if (captureSrc && shouldProxyImageForCapture(captureSrc, window.location.origin) && !captureSrc.includes('/api/proxy-image')) {
-          try {
-            const token = sessionStorage.getItem('fabric_auth_token');
-            const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-            const proxyUrl = '/api/proxy-image?url=' + encodeURIComponent(captureSrc);
-            const blob = await loadCaptureImageBlob(captureSrc, proxyUrl, headers);
-            const dataUrl: string = await new Promise<string>((resolve, reject) => {
-              const reader = new FileReader();
-              reader.onloadend = () => resolve(reader.result as string);
-              reader.onerror = () => reject(new Error('FileReader failed'));
-              reader.readAsDataURL(blob);
-            });
-            swaps.push({ img, orig: img.src });
-            img.src = dataUrl;
-          } catch (error) {
-            const reason = error instanceof Error ? error.message : 'unknown error';
-            throw new Error(`Unable to prepare a remote image for export: ${reason}`, { cause: error });
-          }
-        }
-      }));
-
-      // Base64 logo/payment images are not handled by the remote-image proxy.
-      // Wait for every image to be decoded before html2canvas clones the DOM.
-      await waitForCaptureImages(images);
-
-      // Temporarily force full-width desktop layout for image capture on mobile
-      const wrapper = node.closest('.preview-wrapper') as HTMLElement;
-      const origWrapWidth = wrapper?.style.width || '';
-      const origWrapMaxW = wrapper?.style.maxWidth || '';
-      const origWrapOverflow = wrapper?.style.overflowX || '';
-      if (wrapper) {
-        wrapper.style.width = '900px';
-        wrapper.style.maxWidth = 'none';
-        wrapper.style.overflowX = 'visible';
+      const token = sessionStorage.getItem('fabric_auth_token');
+      const apiFetch: typeof fetch = (input, init: RequestInit = {}) => {
+        const headers = new Headers(init.headers);
+        if (token) headers.set('Authorization', `Bearer ${token}`);
+        return fetch(input, { ...init, headers });
+      };
+      const prepared = await prepareCaptureClone(node, apiFetch);
+      captureObjectUrls = prepared.objectUrls;
+      captureContainer = window.document.createElement('div');
+      captureContainer.style.position = 'fixed';
+      captureContainer.style.left = '-100000px';
+      captureContainer.style.top = '0';
+      captureContainer.style.width = '900px';
+      captureContainer.style.background = '#fff';
+      captureContainer.style.pointerEvents = 'none';
+      prepared.clone.style.width = '900px';
+      prepared.clone.style.maxWidth = 'none';
+      const signature = prepared.clone.querySelector('.signature-section') as HTMLElement | null;
+      if (signature) {
+        signature.style.display = 'flex';
+        signature.style.flexDirection = 'row';
+        signature.style.justifyContent = 'space-between';
+        signature.style.alignItems = 'flex-start';
+        const qrContainer = signature.querySelector('[class*="order-first"]') as HTMLElement | null;
+        if (qrContainer) qrContainer.style.order = '0';
       }
+      captureContainer.appendChild(prepared.clone);
+      window.document.body.appendChild(captureContainer);
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
-      // Force desktop layout on signature section (flex-row, QR codes on right)
-      const sigSection = node.querySelector('.signature-section') as HTMLElement;
-      const origSigDisplay = sigSection?.style.display || '';
-      const origSigFlexDir = sigSection?.style.flexDirection || '';
-      const origSigJustify = sigSection?.style.justifyContent || '';
-      const origQrOrder = sigSection?.querySelector('[class*="order-first"]')?.getAttribute('style') || '';
-      if (sigSection) {
-        sigSection.style.display = 'flex';
-        sigSection.style.flexDirection = 'row';
-        sigSection.style.justifyContent = 'space-between';
-        sigSection.style.alignItems = 'flex-start';
-      }
-      const qrDiv = sigSection?.querySelector('[class*="order-first"]') as HTMLElement;
-      if (qrDiv) qrDiv.style.order = '0';
-
-      // Force reflow before capture
-      await new Promise(r => requestAnimationFrame(r));
-
-      const canvas = await html2canvas(node, {
+      const canvas = await html2canvas(prepared.clone, {
         scale: 2,
         backgroundColor: '#ffffff',
-        useCORS: true,
+        useCORS: false,
         allowTaint: false,
         logging: false,
       });
       const dataUrl = canvas.toDataURL('image/png');
-
-      // Restore
-      if (wrapper) {
-        wrapper.style.width = origWrapWidth;
-        wrapper.style.maxWidth = origWrapMaxW;
-        wrapper.style.overflowX = origWrapOverflow;
-      }
-      if (sigSection) {
-        sigSection.style.display = origSigDisplay;
-        sigSection.style.flexDirection = origSigFlexDir;
-        sigSection.style.justifyContent = origSigJustify;
-      }
-      if (qrDiv) qrDiv.style.order = '';
-
-      swaps.forEach(({ img, orig }) => { img.src = orig; });
 
       const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
       if (isMobile) {
@@ -264,11 +222,14 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
         link.click();
         window.document.body.removeChild(link);
       }
-      } catch (err: any) {
+    } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err);
+      const requestId = err instanceof ImageAssetClientError && err.requestId ? `（请求ID: ${err.requestId}）` : '';
       console.error('Image export failed:', err);
-      alert('生成图片失败: ' + errMsg);
+      alert('生成图片失败: ' + errMsg + requestId);
     } finally {
+      if (captureContainer) captureContainer.remove();
+      releaseCaptureResources(captureObjectUrls);
       setGenerating(false);
     }
   };
@@ -430,7 +391,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                 {/* Left: Company Logo Image */}
                 <div className="w-[120px] flex justify-start items-start h-12">
                   {companyProfile.logoUrl && (
-                    <img src={companyProfile.logoUrl} className="max-h-12 max-w-full object-contain" alt="Logo" referrerPolicy="no-referrer" />
+                    <img src={companyProfile.logoUrl} className="max-h-12 max-w-full object-contain" alt="Logo" data-company-image-role={companyProfile.companyImages?.brand_logo ? 'brand_logo' : undefined} referrerPolicy="no-referrer" />
                   )}
                 </div>
 
@@ -739,13 +700,13 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
               <div className="flex items-center">
                   {companyProfile.weChatPayUrl && (
                     <div className="flex flex-col items-center" style={{ marginRight: 32 }}>
-                      <img src={companyProfile.weChatPayUrl} style={{ width: 80, height: 80, minWidth: 80, minHeight: 80, border: '1px solid #e2e8f0', borderRadius: 4, padding: 2, background: '#fff' }} alt="微信收款" referrerPolicy="no-referrer" />
+                      <img src={companyProfile.weChatPayUrl} style={{ width: 80, height: 80, minWidth: 80, minHeight: 80, border: '1px solid #e2e8f0', borderRadius: 4, padding: 2, background: '#fff' }} alt="微信收款" data-company-image-role={companyProfile.companyImages?.wechat_qr ? 'wechat_qr' : undefined} referrerPolicy="no-referrer" />
                       <span className="text-[9px] text-slate-500 font-bold mt-1">微信收款</span>
                     </div>
                   )}
                   {companyProfile.aliPayUrl && (
                     <div className="flex flex-col items-center">
-                      <img src={companyProfile.aliPayUrl} style={{ width: 80, height: 80, minWidth: 80, minHeight: 80, border: '1px solid #e2e8f0', borderRadius: 4, padding: 2, background: '#fff' }} alt="支付宝收款" referrerPolicy="no-referrer" />
+                      <img src={companyProfile.aliPayUrl} style={{ width: 80, height: 80, minWidth: 80, minHeight: 80, border: '1px solid #e2e8f0', borderRadius: 4, padding: 2, background: '#fff' }} alt="支付宝收款" data-company-image-role={companyProfile.companyImages?.alipay_qr ? 'alipay_qr' : undefined} referrerPolicy="no-referrer" />
                       <span className="text-[9px] text-slate-500 font-bold mt-1">支付宝收款</span>
                     </div>
                   )}
