@@ -6,6 +6,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { withSmokeProcessLifecycle } from './smokeLifecycle.mjs';
+
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const serverEntry = path.join(projectRoot, 'dist', 'server.cjs');
 
@@ -41,10 +43,34 @@ async function waitForLogin(baseUrl, password) {
 }
 
 async function waitForExit(child, timeoutMs) {
-  return await Promise.race([
-    new Promise((resolve) => child.once('exit', (code) => resolve(code))),
-    new Promise((_, reject) => setTimeout(() => reject(new Error('Process did not exit in time')), timeoutMs)),
-  ]);
+  if (child.exitCode !== null || child.signalCode !== null) return child.exitCode;
+  return await new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (callback, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      child.off('exit', onExit);
+      child.off('error', onError);
+      callback(value);
+    };
+    const onExit = (code) => finish(resolve, code);
+    const onError = (error) => finish(reject, error);
+    const timer = setTimeout(() => finish(reject, new Error('Process did not exit in time')), timeoutMs);
+    child.once('exit', onExit);
+    child.once('error', onError);
+  });
+}
+
+async function stopChild(child) {
+  if (child.exitCode !== null || child.signalCode !== null || !child.pid) return;
+  child.kill('SIGTERM');
+  try {
+    await waitForExit(child, 5_000);
+  } catch {
+    if (child.exitCode === null && child.signalCode === null && child.pid) child.kill();
+    await waitForExit(child, 5_000).catch(() => {});
+  }
 }
 
 function assertPng8x8(body) {
@@ -109,96 +135,99 @@ async function seedBuiltServerLegacyCompanyImages(baseUrl, token, sources) {
   assert.equal(company.alipay_qr, sources.alipay_qr);
 }
 
-const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fabric-image-assets-smoke-'));
-const uploadsDir = path.join(tempDir, 'uploads');
-fs.mkdirSync(uploadsDir, { recursive: true });
-const fixtureSources = {
-  brand_logo: path.join(uploadsDir, 'brand-logo.png'),
-  wechat_qr: path.join(uploadsDir, 'wechat-qr.png'),
-  alipay_qr: path.join(uploadsDir, 'alipay-qr.png'),
-};
-const fixtureBodies = {
-  brand_logo: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEklEQVQYlWMQbbD9jw8zjAwFAKYddEEY9FwlAAAAAElFTkSuQmCC', 'base64'),
-  wechat_qr: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEklEQVQYlWNgzlz4Hx9mGBkKACt1gwFdjghsAAAAAElFTkSuQmCC', 'base64'),
-  alipay_qr: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEklEQVQYlWO4Wc72Hx9mGBkKAPpclUGMJRtgAAAAAElFTkSuQmCC', 'base64'),
-};
-for (const role of Object.keys(fixtureSources)) {
-  fs.writeFileSync(fixtureSources[role], fixtureBodies[role]);
-}
-const port = await getFreePort();
 const password = 'test-only-image-assets-password';
-const child = spawn(process.execPath, [serverEntry], {
-  cwd: tempDir,
-  env: {
-    ...process.env,
-    ADMIN_PASSWORD: password,
-    HOST: '127.0.0.1',
-    PORT: String(port),
-    NODE_ENV: 'production',
-    DB_HOST: '',
-    DB_USER: '',
-    DB_PASSWORD: '',
-    DB_DATABASE: '',
-    COS_SECRET_ID: '',
-    COS_SECRET_KEY: '',
-    COS_REGION: '',
-    COS_BUCKET: '',
-    IMAGE_ASSETS_ENABLED: 'false',
-    COMPANY_IMAGE_ASSETS_ENABLED: 'false',
-    PRODUCT_IMAGE_ASSETS_ENABLED: 'false',
-    ASSET_STORAGE_PROVIDER: 'local',
-    ASSET_SIGNED_URL_TTL_SECONDS: '300',
-    ASSET_UPLOAD_GRANT_TTL_SECONDS: '900',
-    ASSET_UPLOAD_SESSION_TTL_SECONDS: '86400',
-    ASSET_RECYCLE_DAYS: '30',
+await withSmokeProcessLifecycle({
+  createTempDir() {
+    return fs.mkdtempSync(path.join(os.tmpdir(), 'fabric-image-assets-smoke-'));
   },
-  stdio: 'ignore',
+  async setup(tempDir) {
+    const uploadsDir = path.join(tempDir, 'uploads');
+    fs.mkdirSync(uploadsDir, { recursive: true });
+    const fixtureSources = {
+      brand_logo: path.join(uploadsDir, 'brand-logo.png'),
+      wechat_qr: path.join(uploadsDir, 'wechat-qr.png'),
+      alipay_qr: path.join(uploadsDir, 'alipay-qr.png'),
+    };
+    const fixtureBodies = {
+      brand_logo: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEklEQVQYlWMQbbD9jw8zjAwFAKYddEEY9FwlAAAAAElFTkSuQmCC', 'base64'),
+      wechat_qr: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEklEQVQYlWNgzlz4Hx9mGBkKACt1gwFdjghsAAAAAElFTkSuQmCC', 'base64'),
+      alipay_qr: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEklEQVQYlWO4Wc72Hx9mGBkKAPpclUGMJRtgAAAAAElFTkSuQmCC', 'base64'),
+    };
+    for (const role of Object.keys(fixtureSources)) {
+      fs.writeFileSync(fixtureSources[role], fixtureBodies[role]);
+    }
+    return { port: await getFreePort(), fixtureSources };
+  },
+  spawnChild({ tempDir, setup }) {
+    return spawn(process.execPath, [serverEntry], {
+      cwd: tempDir,
+      env: {
+        ...process.env,
+        ADMIN_PASSWORD: password,
+        HOST: '127.0.0.1',
+        PORT: String(setup.port),
+        NODE_ENV: 'production',
+        DB_HOST: '',
+        DB_USER: '',
+        DB_PASSWORD: '',
+        DB_DATABASE: '',
+        COS_SECRET_ID: '',
+        COS_SECRET_KEY: '',
+        COS_REGION: '',
+        COS_BUCKET: '',
+        IMAGE_ASSETS_ENABLED: 'false',
+        COMPANY_IMAGE_ASSETS_ENABLED: 'false',
+        PRODUCT_IMAGE_ASSETS_ENABLED: 'false',
+        ASSET_STORAGE_PROVIDER: 'local',
+        ASSET_SIGNED_URL_TTL_SECONDS: '300',
+        ASSET_UPLOAD_GRANT_TTL_SECONDS: '900',
+        ASSET_UPLOAD_SESSION_TTL_SECONDS: '86400',
+        ASSET_RECYCLE_DAYS: '30',
+      },
+      stdio: 'ignore',
+    });
+  },
+  async run({ setup }) {
+    const baseUrl = `http://127.0.0.1:${setup.port}`;
+    const login = await waitForLogin(baseUrl, password);
+    const unauthenticated = await fetch(`${baseUrl}/api/image-assets/upload-sessions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    assert.equal(unauthenticated.status, 401, 'image asset API must require authentication');
+
+    const disabled = await fetch(`${baseUrl}/api/image-assets/upload-sessions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${login.token}`,
+        'Content-Type': 'application/json',
+        'X-Request-Id': 'image-assets-smoke-disabled',
+      },
+      body: JSON.stringify({
+        purpose: 'company_logo',
+        originalFilename: 'logo.png',
+        declaredMime: 'image/png',
+        declaredByteSize: 4,
+      }),
+    });
+    assert.equal(disabled.status, 503, 'disabled image assets must return 503');
+    assert.deepEqual(await disabled.json(), {
+      error: {
+        code: 'STORAGE_UNAVAILABLE',
+        message: 'Image asset storage is unavailable',
+        requestId: 'image-assets-smoke-disabled',
+        retryable: true,
+      },
+    });
+
+    await seedBuiltServerLegacyCompanyImages(baseUrl, login.token, setup.fixtureSources);
+    await assertBuiltServerCompanyImageRoutes(baseUrl, login.token);
+  },
+  stopChild,
+  async removeTempDir(tempDir) {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  },
 });
 
-try {
-  const baseUrl = `http://127.0.0.1:${port}`;
-  const login = await waitForLogin(baseUrl, password);
-  const unauthenticated = await fetch(`${baseUrl}/api/image-assets/upload-sessions`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: '{}',
-  });
-  assert.equal(unauthenticated.status, 401, 'image asset API must require authentication');
-
-  const disabled = await fetch(`${baseUrl}/api/image-assets/upload-sessions`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${login.token}`,
-      'Content-Type': 'application/json',
-      'X-Request-Id': 'image-assets-smoke-disabled',
-    },
-    body: JSON.stringify({
-      purpose: 'company_logo',
-      originalFilename: 'logo.png',
-      declaredMime: 'image/png',
-      declaredByteSize: 4,
-    }),
-  });
-  assert.equal(disabled.status, 503, 'disabled image assets must return 503');
-  assert.deepEqual(await disabled.json(), {
-    error: {
-      code: 'STORAGE_UNAVAILABLE',
-      message: 'Image asset storage is unavailable',
-      requestId: 'image-assets-smoke-disabled',
-      retryable: true,
-    },
-  });
-
-  await seedBuiltServerLegacyCompanyImages(baseUrl, login.token, fixtureSources);
-  await assertBuiltServerCompanyImageRoutes(baseUrl, login.token);
-
-  child.kill('SIGTERM');
-  await waitForExit(child, 5_000);
-  console.log('Image asset smoke tests passed.');
-} finally {
-  if (child.exitCode === null) {
-    child.kill();
-    await waitForExit(child, 5_000).catch(() => {});
-  }
-  fs.rmSync(tempDir, { recursive: true, force: true });
-}
+console.log('Image asset smoke tests passed.');
