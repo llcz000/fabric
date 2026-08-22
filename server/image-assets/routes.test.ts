@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import test from 'node:test';
 
@@ -102,6 +103,33 @@ function authenticatedJson(method: string, body?: unknown, requestId?: string): 
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   };
+}
+
+async function requestWithJsonBody(url: string, method: string, body: unknown) {
+  const payload = Buffer.from(JSON.stringify(body));
+  const target = new URL(url);
+  return await new Promise<{ status: number; text: string }>((resolve, reject) => {
+    const request = http.request({
+      hostname: target.hostname,
+      port: target.port,
+      path: `${target.pathname}${target.search}`,
+      method,
+      headers: {
+        Authorization: 'Bearer accepted-admin-token',
+        'Content-Type': 'application/json',
+        'Content-Length': String(payload.length),
+      },
+    }, (response) => {
+      const chunks: Buffer[] = [];
+      response.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+      response.on('end', () => resolve({
+        status: response.statusCode ?? 0,
+        text: Buffer.concat(chunks).toString('utf8'),
+      }));
+    });
+    request.once('error', reject);
+    request.end(payload);
+  });
 }
 
 test('upload session crosses real HTTP auth and returns only the public grant contract', async () => {
@@ -264,6 +292,70 @@ test('strict route inputs reject arbitrary URL fields', async () => {
   });
 });
 
+test('enabled POST routes reject arbitrary URL query parameters', async () => {
+  await withHttpServer(routeRuntime(), async (baseUrl) => {
+    const upload = await fetch(
+      `${baseUrl}/api/image-assets/upload-sessions?url=${encodeURIComponent('https://attacker.example/upload.png')}`,
+      authenticatedJson('POST', {
+        purpose: 'company_logo',
+        originalFilename: 'logo.png',
+        declaredMime: 'image/png',
+        declaredByteSize: 4,
+      }),
+    );
+    const access = await fetch(
+      `${baseUrl}/api/image-assets/access-urls?url=${encodeURIComponent('https://attacker.example/read.png')}`,
+      authenticatedJson('POST', { requests: [{ assetId: 'asset-1', variant: 'display' }] }),
+    );
+
+    assert.equal(upload.status, 422);
+    assert.equal((await upload.json()).error.code, 'IMAGE_CONTENT_INVALID');
+    assert.equal(access.status, 422);
+    assert.equal((await access.json()).error.code, 'IMAGE_CONTENT_INVALID');
+  });
+});
+
+test('enabled descriptor, content, and finalize routes reject arbitrary URL JSON bodies', async () => {
+  await withHttpServer(routeRuntime(), async (baseUrl) => {
+    const descriptor = await requestWithJsonBody(
+      `${baseUrl}/api/image-assets/asset-1`,
+      'GET',
+      { url: 'https://attacker.example/descriptor.png' },
+    );
+    const content = await requestWithJsonBody(
+      `${baseUrl}/api/image-assets/asset-1/content?variant=original`,
+      'GET',
+      { url: 'https://attacker.example/content.png' },
+    );
+    const finalize = await fetch(
+      `${baseUrl}/api/image-assets/upload-sessions/session-1/finalize`,
+      authenticatedJson('POST', { url: 'https://attacker.example/finalize.png' }),
+    );
+
+    assert.equal(descriptor.status, 422);
+    assert.equal(JSON.parse(descriptor.text).error.code, 'IMAGE_CONTENT_INVALID');
+    assert.equal(content.status, 422);
+    assert.equal(JSON.parse(content.text).error.code, 'IMAGE_CONTENT_INVALID');
+    assert.equal(finalize.status, 422);
+    assert.equal((await finalize.json()).error.code, 'IMAGE_CONTENT_INVALID');
+  });
+});
+
+test('access URL request objects reject extra fields', async () => {
+  await withHttpServer(routeRuntime(), async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/image-assets/access-urls`, authenticatedJson('POST', {
+      requests: [{
+        assetId: 'asset-1',
+        variant: 'display',
+        url: 'https://attacker.example/nested.png',
+      }],
+    }));
+
+    assert.equal(response.status, 422);
+    assert.equal((await response.json()).error.code, 'IMAGE_CONTENT_INVALID');
+  });
+});
+
 test('disabled runtime returns JSON-fallback-safe 503 without constructing a service', async () => {
   await withHttpServer({ enabled: false, storageProvider: 'cos', service: null }, async (baseUrl) => {
     const response = await fetch(`${baseUrl}/api/image-assets/upload-sessions`, authenticatedJson('POST', {
@@ -370,6 +462,26 @@ test('local-only PUT writes exactly the matched session quarantine key', async (
       body: Buffer.from('png!'),
       mime: 'image/png',
     }]);
+  });
+});
+
+test('local-only PUT rejects arbitrary URL query parameters before writing', async () => {
+  const writes: Array<{ key: string; body: Buffer; mime: string }> = [];
+  const runtime = localRuntime(uploadSession(), writes);
+
+  await withHttpServer(runtime, async (baseUrl) => {
+    const response = await fetch(
+      `${baseUrl}/api/image-assets/upload-sessions/session-local/content?url=${encodeURIComponent('https://attacker.example/put.png')}`,
+      {
+        method: 'PUT',
+        headers: { Authorization: 'Bearer accepted-admin-token', 'Content-Type': 'image/png' },
+        body: Buffer.from('png!'),
+      },
+    );
+
+    assert.equal(response.status, 422);
+    assert.equal((await response.json()).error.code, 'IMAGE_CONTENT_INVALID');
+    assert.deepEqual(writes, []);
   });
 });
 

@@ -25,7 +25,7 @@ const uploadSessionSchema = z.object({
   declaredByteSize: z.number().int().positive(),
 }).strict();
 
-const emptyBodySchema = z.object({}).strict();
+const strictEmptyObjectSchema = z.object({}).strict();
 const assetIdSchema = z.string().min(1).max(128).regex(/^[a-zA-Z0-9_-]+$/);
 const variantSchema = z.enum(['original', 'display', 'thumbnail']);
 const accessUrlsSchema = z.object({
@@ -35,7 +35,6 @@ const accessUrlsSchema = z.object({
   }).strict()).max(100),
 }).strict();
 const contentQuerySchema = z.object({ variant: variantSchema }).strict();
-const emptyQuerySchema = z.object({}).strict();
 
 export interface ImageAssetRouteService {
   createUploadSession(input: CreateUploadSessionInput): Promise<UploadGrantResponse>;
@@ -74,6 +73,7 @@ export function createImageAssetRouter(runtime: ImageAssetRouteRuntime): express
   });
 
   router.post('/upload-sessions', asyncRoute(async (req, res) => {
+    parse(strictEmptyObjectSchema, req.query);
     const input = parse(uploadSessionSchema, req.body);
     const grant = await requireService(runtime).createUploadSession({ ...input, principalId: PRINCIPAL_ID });
     res.status(201).json({
@@ -86,20 +86,22 @@ export function createImageAssetRouter(runtime: ImageAssetRouteRuntime): express
   }));
 
   router.post('/upload-sessions/:id/finalize', asyncRoute(async (req, res) => {
-    parse(emptyBodySchema, req.body ?? {});
-    parse(emptyQuerySchema, req.query);
+    parse(strictEmptyObjectSchema, req.body ?? {});
+    parse(strictEmptyObjectSchema, req.query);
     const sessionId = parse(assetIdSchema, req.params.id);
     const descriptor = await requireService(runtime).finalizeUploadSession(sessionId, PRINCIPAL_ID);
     res.json({ assetId: descriptor.id, ...descriptor });
   }));
 
   router.post('/access-urls', asyncRoute(async (req, res) => {
+    parse(strictEmptyObjectSchema, req.query);
     const input = parse(accessUrlsSchema, req.body);
     const results = await requireService(runtime).getAccessUrls(input.requests, PRINCIPAL_ID);
     res.json({ results });
   }));
 
   router.get('/:id/content', asyncRoute(async (req, res) => {
+    parse(strictEmptyObjectSchema, req.body ?? {});
     const assetId = parse(assetIdSchema, req.params.id);
     const query = parse(contentQuerySchema, req.query);
     const content = await requireService(runtime).readContent(assetId, query.variant, PRINCIPAL_ID);
@@ -112,7 +114,8 @@ export function createImageAssetRouter(runtime: ImageAssetRouteRuntime): express
   }));
 
   router.get('/:id', asyncRoute(async (req, res) => {
-    parse(emptyQuerySchema, req.query);
+    parse(strictEmptyObjectSchema, req.query);
+    parse(strictEmptyObjectSchema, req.body ?? {});
     const assetId = parse(assetIdSchema, req.params.id);
     const descriptor = await requireService(runtime).getDescriptor(assetId, PRINCIPAL_ID);
     if (descriptor.status === 'processing' || descriptor.status === 'quarantine') {
@@ -126,7 +129,7 @@ export function createImageAssetRouter(runtime: ImageAssetRouteRuntime): express
       '/upload-sessions/:id/content',
       express.raw({ type: '*/*', limit: MAX_LOCAL_UPLOAD_BYTES }),
       asyncRoute(async (req, res) => {
-        parse(emptyQuerySchema, req.query);
+        parse(strictEmptyObjectSchema, req.query);
         const sessionId = parse(assetIdSchema, req.params.id);
         const contentLength = Number(req.get('Content-Length'));
         const body = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
