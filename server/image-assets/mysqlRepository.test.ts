@@ -233,6 +233,7 @@ test('create upload session rejects a same-ID retry from a different principal b
 
   assert.match(sql(connection), /SELECT \* FROM image_upload_sessions WHERE id = \?/);
   assert.doesNotMatch(sql(connection), /INSERT INTO image_upload_sessions/);
+  assert.doesNotMatch(sql(connection), /UPDATE image_upload_sessions/);
 });
 
 test('create upload session rejects a duplicate quarantine key owned by another session ID', async () => {
