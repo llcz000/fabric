@@ -84,7 +84,6 @@ function runtime(state: MemoryState, options: { enabled?: boolean; content?: Ass
 
 async function withHttpServer<T>(value: CompanyImageRuntime, work: (baseUrl: string) => Promise<T>): Promise<T> {
   const app = express();
-  app.use(express.urlencoded({ extended: true }));
   app.use('/api/company/images', createCompanyImageRouter(value));
   const server = app.listen(0, '127.0.0.1');
   await new Promise<void>((resolve, reject) => {
@@ -203,6 +202,34 @@ test('company image role routes reject unknown roles, malformed or extra input, 
   });
 });
 
+test('company image parser maps malformed and oversized JSON or urlencoded bodies to safe request-ID errors', async () => {
+  const state: MemoryState = { company: {}, links: {}, descriptors: {}, legacyReads: [] };
+  const cases = [
+    { name: 'malformed JSON', contentType: 'application/json', body: '{"secret":"must-not-leak"', status: 422 },
+    { name: 'oversized JSON', contentType: 'application/json', body: JSON.stringify({ padding: 'a'.repeat(5_000) }), status: 413 },
+    { name: 'malformed urlencoded', contentType: 'application/x-www-form-urlencoded', body: `root${'[child]'.repeat(40)}=must-not-leak`, status: 422 },
+    { name: 'oversized urlencoded', contentType: 'application/x-www-form-urlencoded', body: `padding=${'a'.repeat(5_000)}`, status: 413 },
+    { name: 'too many urlencoded parameters', contentType: 'application/x-www-form-urlencoded', body: Array.from({ length: 25 }, (_, index) => `key${index}=value`).join('&'), status: 413 },
+  ];
+
+  await withHttpServer(runtime(state), async (baseUrl) => {
+    for (const [index, fixture] of cases.entries()) {
+      const requestId = `company-parser-${index}`;
+      const response = await fetch(`${baseUrl}/api/company/images/brand_logo`, {
+        method: 'PUT',
+        headers: { 'Content-Type': fixture.contentType, 'X-Request-Id': requestId },
+        body: fixture.body,
+      });
+      const text = await response.text();
+      const body = JSON.parse(text);
+      assert.equal(response.status, fixture.status, fixture.name);
+      assert.equal(response.headers.get('x-request-id'), requestId, fixture.name);
+      assert.equal(body.error.requestId, requestId, fixture.name);
+      assert.doesNotMatch(text, /SyntaxError|RangeError|must-not-leak|aaaaa|secret/i, fixture.name);
+    }
+  });
+});
+
 test('legacy content falls back to valid managed COS, local, and data URL values with detected private headers', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'company-image-legacy-'));
   const localFile = path.join(root, 'legacy.png');
@@ -239,6 +266,41 @@ test('legacy content falls back to valid managed COS, local, and data URL values
       }
     });
     assert.deepEqual(cosReads, ['head:legacy/logo.png', 'get:legacy/logo.png']);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('corrupt legacy COS, local, and data URL content returns IMAGE_CONTENT_INVALID instead of a generic error', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'company-image-corrupt-'));
+  const localFile = path.join(root, 'corrupt.png');
+  const corrupt = Buffer.from('not an image');
+  await writeFile(localFile, corrupt);
+  const sdk: CosSdkBoundary = {
+    getObjectUrl() { return ''; },
+    async headObject() { return { headers: { 'content-length': String(corrupt.length) } }; },
+    async getObject() { return { Body: corrupt }; },
+    async putObject() { return undefined; },
+    async deleteObject() { return undefined; },
+  };
+  const cos = new CosStorageAdapter({ bucket: 'assets-1250000000', region: 'ap-beijing' }, sdk);
+  const state: MemoryState = { company: { brand_logo: RAW_COS_URL }, links: {}, descriptors: {}, legacyReads: [] };
+  const appRuntime = runtime(state);
+  appRuntime.readLegacy = async (value) => readLegacyImage(value, {
+    cos: { config: { bucket: 'assets-1250000000', region: 'ap-beijing' }, storage: cos },
+    localRoot: root,
+    maxBytes: 2 * 1024 * 1024,
+  });
+
+  try {
+    await withHttpServer(appRuntime, async (baseUrl) => {
+      for (const source of [RAW_COS_URL, localFile, `data:image/png;base64,${corrupt.toString('base64')}`]) {
+        state.company.brand_logo = source;
+        const response = await fetch(`${baseUrl}/api/company/images/brand_logo/content`);
+        assert.equal(response.status, 422);
+        assert.equal((await response.json()).error.code, 'IMAGE_CONTENT_INVALID');
+      }
+    });
   } finally {
     await rm(root, { recursive: true, force: true });
   }

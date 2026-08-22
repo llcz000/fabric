@@ -62,6 +62,28 @@ async function waitForExit(child, timeoutMs) {
   ]);
 }
 
+async function assertStartupFails(overrides, expectedMessage) {
+  const port = await getFreePort();
+  const child = spawn(process.execPath, [serverEntry], {
+    cwd: tempDir,
+    env: { ...serverEnv(port, 'test-only-long-random-password'), ...overrides },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let output = '';
+  child.stdout.on('data', (chunk) => { output += String(chunk); });
+  child.stderr.on('data', (chunk) => { output += String(chunk); });
+  try {
+    const code = await waitForExit(child, 5_000);
+    assert.notEqual(code, 0, 'invalid image feature combination must fail startup');
+    assert.match(output, expectedMessage, 'startup error must explain only the generic invalid configuration');
+  } finally {
+    if (child.exitCode === null) {
+      child.kill();
+      await waitForExit(child, 5_000).catch(() => {});
+    }
+  }
+}
+
 async function waitForLogin(baseUrl, password) {
   for (let attempt = 0; attempt < 50; attempt++) {
     try {
@@ -94,6 +116,16 @@ try {
   });
   assert.notEqual(await waitForExit(missingPassword, 5_000), 0, 'missing ADMIN_PASSWORD must fail startup');
 
+  await assertStartupFails({
+    IMAGE_ASSETS_ENABLED: 'false',
+    COMPANY_IMAGE_ASSETS_ENABLED: 'true',
+  }, /Invalid image asset feature configuration/);
+  await assertStartupFails({
+    IMAGE_ASSETS_ENABLED: 'true',
+    COMPANY_IMAGE_ASSETS_ENABLED: 'true',
+    ASSET_STORAGE_PROVIDER: 'local',
+  }, /Company image assets require an active MySQL runtime/);
+
   const port = await getFreePort();
   const password = 'test-only-long-random-password';
   child = spawn(process.execPath, [serverEntry], {
@@ -115,6 +147,45 @@ try {
   assert.equal(typeof login.body.token, 'string');
   assert.match(login.cookie, /^fabric_asset_token=/);
   const authHeaders = { Authorization: `Bearer ${login.body.token}` };
+
+  const featureOffCompanyBefore = await fetch(`${baseUrl}/api/company`, { headers: authHeaders });
+  assert.equal(featureOffCompanyBefore.status, 200, 'feature-off company config must remain readable');
+  assert.equal(Object.hasOwn(await featureOffCompanyBefore.json(), 'images'), false,
+    'feature-off company GET must retain its legacy response shape');
+  const legacyCompany = {
+    company_name: 'Feature Off Company',
+    brand_logo: 'legacy-brand-logo',
+    wechat_qr: 'legacy-wechat-qr',
+    alipay_qr: 'legacy-alipay-qr',
+  };
+  const featureOffCompanyUpdate = await fetch(`${baseUrl}/api/company`, {
+    method: 'POST',
+    headers: { ...authHeaders, 'Content-Type': 'application/json' },
+    body: JSON.stringify(legacyCompany),
+  });
+  assert.equal(featureOffCompanyUpdate.status, 200, 'feature-off company POST must retain legacy image writes');
+  const featureOffCompanyAfter = await fetch(`${baseUrl}/api/company`, { headers: authHeaders });
+  const featureOffBody = await featureOffCompanyAfter.json();
+  assert.equal(featureOffBody.brand_logo, legacyCompany.brand_logo);
+  assert.equal(featureOffBody.wechat_qr, legacyCompany.wechat_qr);
+  assert.equal(featureOffBody.alipay_qr, legacyCompany.alipay_qr);
+
+  const disabledCompanyImageParser = await fetch(`${baseUrl}/api/company/images/brand_logo`, {
+    method: 'PUT',
+    headers: { ...authHeaders, 'Content-Type': 'application/json' },
+    body: '{"secret":"must-not-leak"',
+  });
+  assert.equal(disabledCompanyImageParser.status, 404,
+    'the exact disabled company-image path must bypass app-global parsing');
+  const companyPathLookalike = await fetch(`${baseUrl}/api/company/images-preview`, {
+    method: 'POST',
+    headers: { ...authHeaders, 'Content-Type': 'application/json' },
+    body: '{"secret":"must-not-leak"',
+  });
+  assert.equal(companyPathLookalike.status, 500,
+    'company-image lookalikes must still be handled by the app-global parser');
+  assert.doesNotMatch(await companyPathLookalike.text(), /SyntaxError|must-not-leak|secret/i,
+    'lookalike parser failures must remain safe');
 
   const formLogin = await fetch(`${baseUrl}/api/login`, {
     method: 'POST',

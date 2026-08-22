@@ -73,7 +73,12 @@ function positiveIntegerFromEnv(name: string, fallback: number): number {
 function exceptImageAssetApi(middleware: express.RequestHandler): express.RequestHandler {
   return (req, res, next) => {
     const requestPath = req.path.toLowerCase();
-    if (requestPath === '/api/image-assets' || requestPath.startsWith('/api/image-assets/')) return next();
+    if (
+      requestPath === '/api/image-assets'
+      || requestPath.startsWith('/api/image-assets/')
+      || requestPath === '/api/company/images'
+      || requestPath.startsWith('/api/company/images/')
+    ) return next();
     middleware(req, res, next);
   };
 }
@@ -2600,8 +2605,11 @@ async function startServer() {
     await getMySQLPool();
     console.log('[Database] MySQL initialized successfully.');
   } catch (error) {
+    if (companyImageRuntime.enabled) {
+      throw new Error('Company image assets require an active MySQL runtime');
+    }
     if (imageAssetRuntime.enabled) {
-      throw new Error('Image assets require an available MySQL database at startup', { cause: error });
+      throw new Error('Image assets require an available MySQL database at startup');
     }
     console.log('[Database] Running in JSON local file fallback mode.');
   }

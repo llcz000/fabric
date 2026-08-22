@@ -15,7 +15,11 @@ const assetIdSchema = z.string().min(1).max(128).regex(/^[a-zA-Z0-9_-]+$/);
 const replaceSchema = z.object({ assetId: assetIdSchema }).strict();
 const emptyObjectSchema = z.object({}).strict();
 const SHARP_MODULE: string = 'sharp';
+const MAX_RAW_BODY_BYTES = 4 * 1024;
+const MAX_URLENCODED_PARAMETERS = 20;
+const SAFE_REQUEST_ID = /^[a-zA-Z0-9_-]{1,128}$/;
 type SharpFactory = typeof import('sharp')['default'];
+type CompanyImageRequest = express.Request & { companyImageRequestId?: string };
 
 export interface CompanyImageDescriptor {
   role: CompanyImageRole;
@@ -110,12 +114,22 @@ export function omitCompanyLegacyImageValues<T extends Record<string, unknown>>(
 
 export function createCompanyImageRouter(runtime: CompanyImageRuntime): express.Router {
   const router = express.Router();
-  router.use(express.json({ limit: '4kb', strict: true }));
+  router.use((req: CompanyImageRequest, res, next) => {
+    const supplied = req.get('X-Request-Id');
+    req.companyImageRequestId = supplied && SAFE_REQUEST_ID.test(supplied)
+      ? supplied
+      : generatedRequestId();
+    res.set('X-Request-Id', req.companyImageRequestId);
+    next();
+  });
 
   router.use((req, res, next) => {
     if (!runtime.enabled || !runtime.service) return res.status(404).json({ error: 'Not found' });
     next();
   });
+  router.use(express.json({ limit: MAX_RAW_BODY_BYTES, strict: true }));
+  router.use(express.urlencoded({ extended: true, limit: MAX_RAW_BODY_BYTES, parameterLimit: MAX_URLENCODED_PARAMETERS }));
+  router.use(express.raw({ type: () => true, limit: MAX_RAW_BODY_BYTES }));
 
   router.get('/:role/content', asyncRoute(async (req, res) => {
     parse(emptyObjectSchema, req.query);
@@ -155,12 +169,19 @@ export function createCompanyImageRouter(runtime: CompanyImageRuntime): express.
     res.json({ success: true });
   }));
 
-  router.use((error: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+  router.use((error: unknown, req: CompanyImageRequest, res: express.Response, next: express.NextFunction) => {
     if (res.headersSent) return next(error);
-    if (error instanceof ImageAssetError) {
-      return res.status(error.statusCode).json({ error: { code: error.code, message: error.message, retryable: error.retryable } });
-    }
-    res.status(500).json({ error: { code: 'ASSET_PROCESSING_FAILED', message: 'Company image request failed', retryable: true } });
+    const normalized = normalizeError(error);
+    const requestId = req.companyImageRequestId ?? generatedRequestId();
+    res.set('X-Request-Id', requestId);
+    res.status(normalized.statusCode).json({
+      error: {
+        code: normalized.code,
+        message: safeErrorMessage(normalized.code),
+        requestId,
+        retryable: normalized.retryable,
+      },
+    });
   });
 
   return router;
@@ -180,17 +201,63 @@ function sendContent(res: express.Response, content: AssetContent): void {
 }
 
 async function detectedMime(body: Buffer): Promise<string> {
-  const sharp = await loadSharp();
-  const format = (await sharp(body, { animated: true }).metadata()).format;
-  switch (format) {
-    case 'jpeg': return 'image/jpeg';
-    case 'png': return 'image/png';
-    case 'webp': return 'image/webp';
-    case 'gif': return 'image/gif';
-    default: throw new ImageAssetError('IMAGE_CONTENT_INVALID', 422, false, 'Legacy image content is invalid');
+  try {
+    const sharp = await loadSharp();
+    const format = (await sharp(body, { animated: true }).metadata()).format;
+    switch (format) {
+      case 'jpeg': return 'image/jpeg';
+      case 'png': return 'image/png';
+      case 'webp': return 'image/webp';
+      case 'gif': return 'image/gif';
+      default: throw new ImageAssetError('IMAGE_CONTENT_INVALID', 422, false, 'Legacy image content is invalid');
+    }
+  } catch (error) {
+    if (error instanceof ImageAssetError) throw error;
+    throw new ImageAssetError('IMAGE_CONTENT_INVALID', 422, false, 'Legacy image content is invalid');
   }
 }
 
 async function loadSharp(): Promise<SharpFactory> {
   return (await import(SHARP_MODULE)).default;
+}
+
+function normalizeError(error: unknown): ImageAssetError {
+  if (error instanceof ImageAssetError) return error;
+  if (isBodyLimitError(error)) {
+    return new ImageAssetError('IMAGE_LIMIT_EXCEEDED', 413, false, 'Company image request exceeds the limit');
+  }
+  if (isBodyParserClientError(error)) {
+    return new ImageAssetError('IMAGE_CONTENT_INVALID', 422, false, 'Company image request is invalid');
+  }
+  return new ImageAssetError('ASSET_PROCESSING_FAILED', 500, true, 'Company image request failed');
+}
+
+function isBodyLimitError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const type = (error as { type?: unknown }).type;
+  return type === 'entity.too.large' || type === 'parameters.too.many';
+}
+
+function isBodyParserClientError(error: unknown): boolean {
+  if (!error || typeof error !== 'object' || typeof (error as { type?: unknown }).type !== 'string') return false;
+  const status = Number((error as { status?: unknown; statusCode?: unknown }).status
+    ?? (error as { statusCode?: unknown }).statusCode);
+  return Number.isInteger(status) && status >= 400 && status < 500;
+}
+
+function generatedRequestId(): string {
+  return `req_${createHash('sha256').update(`${Date.now()}:${Math.random()}`).digest('hex').slice(0, 32)}`;
+}
+
+function safeErrorMessage(code: ImageAssetError['code']): string {
+  switch (code) {
+    case 'IMAGE_CONTENT_INVALID': return 'Image content or request is invalid';
+    case 'IMAGE_LIMIT_EXCEEDED': return 'Image asset limit exceeded';
+    case 'ASSET_NOT_READY': return 'Asset is not ready';
+    case 'ASSET_ACCESS_DENIED': return 'Asset access is denied';
+    case 'ASSET_NOT_FOUND': return 'Asset was not found';
+    case 'STORAGE_UNAVAILABLE': return 'Image asset storage is unavailable';
+    case 'UPLOAD_SESSION_EXPIRED': return 'Upload session has expired';
+    case 'ASSET_PROCESSING_FAILED': return 'Company image request failed';
+  }
 }
