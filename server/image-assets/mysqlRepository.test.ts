@@ -24,11 +24,18 @@ class RecordingConnection {
     asset_id: null,
   };
   uploadSessionReadRows: Row[] = [];
+  expiredSessionRows: Row[] = [];
+  assetSessionRows: Row[] = [];
+  cleanupUploadResult: Row = { affectedRows: 1 };
+  failJobResult: Row = { affectedRows: 1 };
+  markDegradedResult: Row = { affectedRows: 1 };
   quarantineSessionReadRows: Row[] = [];
   insertUploadError: (Error & { code?: string }) | null = null;
   shaAssetRows: Row[] = [];
   variantRows: Row[] = [];
   purgeAssetRows: Row[] = [];
+  purgeClaimRows: Row[] = [];
+  purgeClaimUpdateResult: Row = { affectedRows: 1 };
   purgeUpdateResult: Row = { affectedRows: 1 };
   deleteVariantError: Error | null = null;
   lockedAssets: Row[] = [
@@ -43,6 +50,8 @@ class RecordingConnection {
       return [this.uploadSessionRow ? [this.uploadSessionRow] : [], []];
     }
     if (sql.includes('FROM image_assets WHERE sha256 = ? FOR UPDATE')) return [this.shaAssetRows, []];
+    if (sql.includes("WHERE status = 'recycled'") && sql.includes('FOR UPDATE SKIP LOCKED')) return [this.purgeClaimRows, []];
+    if (sql.includes("UPDATE image_assets SET status = 'purging'")) return [this.purgeClaimUpdateResult, []];
     if (sql.includes('FROM product_image_assets')) return [[], []];
     if (sql.includes('FROM company_image_assets WHERE company_id = ? AND role = ? FOR UPDATE')) {
       return [[{ asset_id: 'old-asset' }], []];
@@ -52,6 +61,11 @@ class RecordingConnection {
     }
     if (sql.includes('FROM image_upload_sessions WHERE id = ?')) return [this.uploadSessionReadRows, []];
     if (sql.includes('FROM image_upload_sessions WHERE quarantine_key = ?')) return [this.quarantineSessionReadRows, []];
+    if (sql.includes('FROM image_upload_sessions') && sql.includes('asset_id = ?')) return [this.assetSessionRows, []];
+    if (sql.includes('FROM image_upload_sessions') && sql.includes('expires_at <= ?')) return [this.expiredSessionRows, []];
+    if (sql.includes('quarantine_cleaned_at = ?')) return [this.cleanupUploadResult, []];
+    if (sql.includes('UPDATE image_processing_jobs') && sql.includes("status = 'processing'")) return [this.failJobResult, []];
+    if (sql.includes("SET status = 'degraded'")) return [this.markDegradedResult, []];
     if (sql.includes('FROM image_assets WHERE id = ?')) return [this.purgeAssetRows, []];
     if (sql.includes('DELETE FROM image_asset_variants') && this.deleteVariantError) throw this.deleteVariantError;
     if (sql.includes("UPDATE image_assets SET status = 'purged'")) return [this.purgeUpdateResult, []];
@@ -83,6 +97,15 @@ class RecordingConnection {
 
 type Row = Record<string, unknown>;
 
+type PurgeRepository = MySqlAssetRepository & {
+  claimNextPurgeCandidate(now: Date): Promise<{ assetId: string; variants: Array<{ variant: string; objectKey: string }> } | null>;
+  releasePurgeClaim(assetId: string): Promise<boolean>;
+};
+
+type CleanupRepository = MySqlAssetRepository & {
+  completeExpiredUploadCleanup(sessionId: string, cleanedAt: Date): Promise<boolean>;
+};
+
 function sql(connection: RecordingConnection): string {
   return connection.statements.map((statement) => statement.sql).join('\n');
 }
@@ -105,6 +128,7 @@ test('schema initialization creates only the six additive image asset tables wit
   assert.match(recordedSql, /UNIQUE KEY uq_image_assets_sha256 \(sha256\)/);
   assert.match(recordedSql, /UNIQUE KEY uq_asset_variant \(asset_id, variant\)/);
   assert.match(recordedSql, /UNIQUE KEY uq_upload_quarantine_key \(quarantine_key\)/);
+  assert.match(recordedSql, /quarantine_cleaned_at DATETIME NULL/);
   assert.match(recordedSql, /UNIQUE KEY uq_company_role \(company_id, role\)/);
   assert.match(recordedSql, /UNIQUE KEY uq_product_asset \(product_id, asset_id\)/);
   assert.match(recordedSql, /UNIQUE KEY uq_legacy_product_image \(legacy_product_image_id\)/);
@@ -289,7 +313,7 @@ test('finalize upload locks the session and content hash while creating one asse
     height: 3,
   });
 
-  assert.deepEqual(result, { assetId: 'session-1', jobCreated: true });
+  assert.deepEqual(result, { assetId: 'session-1', jobCreated: true, processingRequired: true });
   assert.match(sql(connection), /FROM image_assets WHERE sha256 = \? FOR UPDATE/);
   assert.deepEqual(connection.transactions, ['BEGIN', 'COMMIT', 'RELEASE']);
   assert.match(sql(connection), /INSERT(?: IGNORE)? INTO image_processing_jobs/);
@@ -319,6 +343,75 @@ test('finalize upload atomically expires an already-expired open session before 
   assert.deepEqual(connection.transactions, ['BEGIN', 'COMMIT', 'RELEASE']);
   assert.match(sql(connection), /UPDATE image_upload_sessions SET status = 'expired' WHERE id = \? AND status = 'open'/);
   assert.doesNotMatch(sql(connection), /FROM image_assets WHERE sha256/);
+});
+
+test('expired upload discovery includes open and expired sessions until quarantine cleanup is recorded', async () => {
+  const connection = new RecordingConnection();
+  connection.expiredSessionRows = [{
+    id: 'expired-session',
+    purpose: 'company_logo',
+    quarantine_key: 'quarantine/expired/file.png',
+    declared_byte_size: 12,
+    declared_mime: 'image/png',
+    created_by: 'principal-1',
+    expires_at: new Date('2026-08-21T00:00:00Z'),
+    status: 'expired',
+    asset_id: null,
+    quarantine_cleaned_at: null,
+  }];
+  const repository = new MySqlAssetRepository(connection);
+
+  const sessions = await repository.listExpiredUploadSessions(new Date('2026-08-22T00:00:00Z'), 10);
+
+  assert.equal(sessions[0]?.id, 'expired-session');
+  const query = connection.statements.find((statement) => statement.sql.includes('expires_at <= ?'));
+  assert.ok(query);
+  assert.match(query.sql, /status IN \('open', 'expired'\)/);
+  assert.match(query.sql, /quarantine_cleaned_at IS NULL/);
+});
+
+test('completed expired upload cleanup atomically expires and marks the quarantine key cleaned', async () => {
+  const connection = new RecordingConnection();
+  const repository = new MySqlAssetRepository(connection) as CleanupRepository;
+  const cleanedAt = new Date('2026-08-22T00:00:00Z');
+
+  assert.equal(await repository.completeExpiredUploadCleanup('expired-session', cleanedAt), true);
+
+  const update = connection.statements.find((statement) => statement.sql.includes('quarantine_cleaned_at = ?'));
+  assert.ok(update);
+  assert.match(update.sql, /SET status = 'expired', quarantine_cleaned_at = \?/);
+  assert.match(update.sql, /WHERE id = \? AND status IN \('open', 'expired'\) AND quarantine_cleaned_at IS NULL/);
+  assert.deepEqual(update.params, [cleanedAt, 'expired-session']);
+});
+
+test('finalized asset cleanup lists only uncleaned quarantines and marks one cleaned', async () => {
+  const connection = new RecordingConnection();
+  connection.assetSessionRows = [{
+    id: 'finalized-session',
+    purpose: 'product_image',
+    quarantine_key: 'quarantine/finalized/file.png',
+    declared_byte_size: 12,
+    declared_mime: 'image/png',
+    created_by: 'principal-1',
+    expires_at: new Date('2026-08-23T00:00:00Z'),
+    status: 'finalized',
+    asset_id: 'asset-1',
+    quarantine_cleaned_at: null,
+  }];
+  const repository = new MySqlAssetRepository(connection);
+  const cleanedAt = new Date('2026-08-22T00:00:00Z');
+
+  const sessions = await repository.listPendingAssetUploadSessions('asset-1');
+  assert.equal(sessions[0]?.id, 'finalized-session');
+  assert.equal(await repository.markUploadSessionQuarantineCleaned('finalized-session', cleanedAt), true);
+
+  const query = connection.statements.find((statement) => statement.sql.includes('asset_id = ?'));
+  assert.ok(query);
+  assert.match(query.sql, /status = 'finalized' AND quarantine_cleaned_at IS NULL/);
+  const update = connection.statements.find((statement) => statement.sql.includes('quarantine_cleaned_at = ?')
+    && statement.sql.includes("status = 'finalized'"));
+  assert.ok(update);
+  assert.deepEqual(update.params, [cleanedAt, 'finalized-session']);
 });
 
 test('verified re-upload restores a recycled asset with its new creator and attachment window when original exists', async () => {
@@ -362,9 +455,9 @@ test('verified re-upload restores a recycled asset with its new creator and atta
     height: 3,
   });
 
-  assert.deepEqual(result, { assetId: 'recycled-asset', jobCreated: false });
+  assert.deepEqual(result, { assetId: 'recycled-asset', jobCreated: false, processingRequired: false });
   assert.match(sql(connection), /SELECT variant FROM image_asset_variants WHERE asset_id = \?/);
-  assert.match(sql(connection), /created_by = \?, created_at = NOW\(\), status = \?, recycled_at = NULL, purge_after = NULL, purged_at = NULL/);
+  assert.match(sql(connection), /UPDATE image_assets SET purpose = \?, created_by = \?, created_at = NOW\(\), status = \?,\s+recycled_at = NULL, purge_after = NULL, purged_at = NULL/s);
   assert.ok(connection.statements.some((statement) => statement.params.includes('principal-reupload') && statement.params.includes('ready')));
   assert.doesNotMatch(sql(connection), /INSERT(?: IGNORE)? INTO image_processing_jobs/);
 });
@@ -410,10 +503,106 @@ test('verified re-upload returns a recycled asset missing required variants to p
     height: 3,
   });
 
-  assert.deepEqual(result, { assetId: 'recycled-without-original', jobCreated: true });
-  assert.match(sql(connection), /created_by = \?, created_at = NOW\(\), status = \?, recycled_at = NULL, purge_after = NULL, purged_at = NULL/);
+  assert.deepEqual(result, { assetId: 'recycled-without-original', jobCreated: true, processingRequired: true });
+  assert.match(sql(connection), /UPDATE image_assets SET purpose = \?, created_by = \?, created_at = NOW\(\), status = \?,\s+recycled_at = NULL, purge_after = NULL, purged_at = NULL/s);
   assert.ok(connection.statements.some((statement) => statement.params.includes('principal-reupload') && statement.params.includes('processing')));
   assert.match(sql(connection), /INSERT(?: IGNORE)? INTO image_processing_jobs/);
+});
+
+test('verified company duplicate escalates stored purpose and queues missing product variants', async () => {
+  const connection = new RecordingConnection();
+  connection.uploadSessionRow = { ...connection.uploadSessionRow!, purpose: 'product_image', created_by: 'product-principal' };
+  connection.shaAssetRows = [{
+    id: 'company-asset',
+    sha256: 'f'.repeat(64),
+    original_filename: 'company.png',
+    detected_mime: 'image/png',
+    detected_extension: 'png',
+    purpose: 'company_logo',
+    storage_provider: 'local',
+    byte_size: 12,
+    width: 2,
+    height: 3,
+    status: 'ready',
+    ref_count: 0,
+    created_by: 'company-principal',
+    created_at: new Date('2026-08-20T00:00:00Z'),
+    updated_at: new Date('2026-08-20T00:00:00Z'),
+    recycled_at: null,
+    purge_after: null,
+    purged_at: null,
+    error_code: null,
+    metadata_json: null,
+  }];
+  connection.variantRows = [{ variant: 'original' }, { variant: 'display' }];
+  const repository = new MySqlAssetRepository(connection);
+
+  const finalized = await repository.finalizeUploadSession({
+    sessionId: 'session-1',
+    principalId: 'product-principal',
+    sha256: 'f'.repeat(64),
+    originalFilename: 'product.png',
+    detectedMime: 'image/png',
+    detectedExtension: 'png',
+    storageProvider: 'local',
+    byteSize: 12,
+    width: 2,
+    height: 3,
+  });
+
+  assert.deepEqual(finalized, { assetId: 'company-asset', jobCreated: true, processingRequired: true });
+  const assetUpdate = connection.statements.find((statement) => statement.sql.includes('UPDATE image_assets SET purpose = ?'));
+  assert.ok(assetUpdate);
+  assert.deepEqual(assetUpdate.params.slice(0, 3), ['product_image', 'product-principal', 'processing']);
+  assert.match(sql(connection), /ON DUPLICATE KEY UPDATE/);
+});
+
+test('verified company reuse of a complete product keeps product purpose and refreshes creator window', async () => {
+  const connection = new RecordingConnection();
+  connection.uploadSessionRow = { ...connection.uploadSessionRow!, purpose: 'company_logo', created_by: 'company-principal' };
+  connection.shaAssetRows = [{
+    id: 'product-asset',
+    sha256: '1'.repeat(64),
+    original_filename: 'product.png',
+    detected_mime: 'image/png',
+    detected_extension: 'png',
+    purpose: 'product_image',
+    storage_provider: 'local',
+    byte_size: 12,
+    width: 2,
+    height: 3,
+    status: 'ready',
+    ref_count: 0,
+    created_by: 'product-principal',
+    created_at: new Date('2026-08-20T00:00:00Z'),
+    updated_at: new Date('2026-08-20T00:00:00Z'),
+    recycled_at: null,
+    purge_after: null,
+    purged_at: null,
+    error_code: null,
+    metadata_json: null,
+  }];
+  connection.variantRows = [{ variant: 'original' }, { variant: 'display' }, { variant: 'thumbnail' }];
+  const repository = new MySqlAssetRepository(connection);
+
+  const finalized = await repository.finalizeUploadSession({
+    sessionId: 'session-1',
+    principalId: 'company-principal',
+    sha256: '1'.repeat(64),
+    originalFilename: 'company.png',
+    detectedMime: 'image/png',
+    detectedExtension: 'png',
+    storageProvider: 'local',
+    byteSize: 12,
+    width: 2,
+    height: 3,
+  });
+
+  assert.deepEqual(finalized, { assetId: 'product-asset', jobCreated: false, processingRequired: false });
+  const assetUpdate = connection.statements.find((statement) => statement.sql.includes('UPDATE image_assets SET purpose = ?'));
+  assert.ok(assetUpdate);
+  assert.deepEqual(assetUpdate.params.slice(0, 3), ['product_image', 'company-principal', 'ready']);
+  assert.doesNotMatch(sql(connection), /INSERT INTO image_processing_jobs/);
 });
 
 test('expired unlinked ready assets recycle only with an atomic status and reference-count guard', async () => {
@@ -430,9 +619,119 @@ test('expired unlinked ready assets recycle only with an atomic status and refer
   assert.deepEqual(connection.statements[0].params, [now, now, now, 25]);
 });
 
+test('claim purge candidate locks eligibility, changes status, then returns retained variants', async () => {
+  const connection = new RecordingConnection();
+  const now = new Date('2026-08-22T00:00:00Z');
+  connection.purgeClaimRows = [{ id: 'purge-asset' }];
+  connection.variantRows = [{
+    asset_id: 'purge-asset',
+    variant: 'original',
+    object_key: 'assets/purge/original.png',
+    mime: 'image/png',
+    byte_size: 12,
+    width: 2,
+    height: 3,
+    created_at: new Date('2026-08-01T00:00:00Z'),
+  }];
+  const repository = new MySqlAssetRepository(connection) as PurgeRepository;
+
+  const claim = await repository.claimNextPurgeCandidate(now);
+
+  assert.equal(claim?.assetId, 'purge-asset');
+  assert.deepEqual(claim?.variants.map((variant) => ({ variant: variant.variant, objectKey: variant.objectKey })), [
+    { variant: 'original', objectKey: 'assets/purge/original.png' },
+  ]);
+  const lockIndex = connection.statements.findIndex((statement) => statement.sql.includes('FOR UPDATE SKIP LOCKED'));
+  const claimIndex = connection.statements.findIndex((statement) => statement.sql.includes("SET status = 'purging'"));
+  const variantsIndex = connection.statements.findIndex((statement) => statement.sql.includes('FROM image_asset_variants'));
+  assert.ok(lockIndex >= 0 && lockIndex < claimIndex && claimIndex < variantsIndex);
+  assert.match(connection.statements[lockIndex].sql, /status = 'recycled'.*ref_count = 0.*purge_after <= \?/s);
+  assert.match(connection.statements[claimIndex].sql, /WHERE id = \? AND status = 'recycled' AND ref_count = 0 AND purge_after <= \?/);
+  assert.deepEqual(connection.transactions, ['BEGIN', 'COMMIT', 'RELEASE']);
+});
+
+test('failed purge claim returns before reading variants', async () => {
+  const connection = new RecordingConnection();
+  connection.purgeClaimRows = [{ id: 'purge-asset' }];
+  connection.purgeClaimUpdateResult = { affectedRows: 0 };
+  const repository = new MySqlAssetRepository(connection) as PurgeRepository;
+
+  assert.equal(await repository.claimNextPurgeCandidate(new Date('2026-08-22T00:00:00Z')), null);
+
+  assert.doesNotMatch(sql(connection), /FROM image_asset_variants/);
+  assert.deepEqual(connection.transactions, ['BEGIN', 'COMMIT', 'RELEASE']);
+});
+
+test('purge claim blocks both relink and verified duplicate recovery', async () => {
+  const connection = new RecordingConnection();
+  connection.purgeClaimRows = [{ id: 'purging-asset' }];
+  connection.lockedAssets = [{ id: 'purging-asset', status: 'purging', ref_count: 0 }];
+  const claimedAsset = {
+    id: 'purging-asset',
+    sha256: 'e'.repeat(64),
+    original_filename: 'old.png',
+    detected_mime: 'image/png',
+    detected_extension: 'png',
+    purpose: 'company_logo',
+    storage_provider: 'local',
+    byte_size: 12,
+    width: 2,
+    height: 3,
+    status: 'purging',
+    ref_count: 0,
+    created_by: 'old-principal',
+    created_at: new Date('2000-01-01T00:00:00Z'),
+    updated_at: new Date('2000-01-01T00:00:00Z'),
+    recycled_at: new Date('2000-01-02T00:00:00Z'),
+    purge_after: new Date('2000-02-01T00:00:00Z'),
+    purged_at: null,
+    error_code: null,
+    metadata_json: null,
+  };
+  const repository = new MySqlAssetRepository(connection) as PurgeRepository;
+
+  assert.ok(await repository.claimNextPurgeCandidate(new Date('2026-08-22T00:00:00Z')));
+  await assert.rejects(
+    repository.attachProductImages(9, ['purging-asset']),
+    (error: unknown) => error instanceof ImageAssetError && error.code === 'ASSET_NOT_READY',
+  );
+
+  connection.shaAssetRows = [claimedAsset];
+  await assert.rejects(
+    repository.finalizeUploadSession({
+      sessionId: 'session-1',
+      principalId: 'principal-1',
+      sha256: 'e'.repeat(64),
+      originalFilename: 'verified.png',
+      detectedMime: 'image/png',
+      detectedExtension: 'png',
+      storageProvider: 'local',
+      byteSize: 12,
+      width: 2,
+      height: 3,
+    }),
+    (error: unknown) => error instanceof ImageAssetError && error.code === 'ASSET_NOT_READY',
+  );
+
+  assert.doesNotMatch(sql(connection), /INSERT INTO product_image_assets/);
+  assert.doesNotMatch(sql(connection), /SET status = 'finalized', asset_id/);
+});
+
+test('release purge claim returns only purging zero-reference assets to recycled', async () => {
+  const connection = new RecordingConnection();
+  const repository = new MySqlAssetRepository(connection) as PurgeRepository;
+
+  assert.equal(await repository.releasePurgeClaim('purge-asset'), true);
+
+  const release = connection.statements.find((statement) => statement.sql.includes("SET status = 'recycled'"));
+  assert.ok(release);
+  assert.match(release.sql, /WHERE id = \? AND status = 'purging' AND ref_count = 0/);
+  assert.doesNotMatch(release.sql, /purge_after\s*=/);
+});
+
 test('mark purged checks eligibility before deleting metadata and updates status last', async () => {
   const connection = new RecordingConnection();
-  connection.purgeAssetRows = [{ id: 'purge-asset', status: 'recycled', ref_count: 0, purge_after: new Date('2026-08-21T00:00:00Z') }];
+  connection.purgeAssetRows = [{ id: 'purge-asset', status: 'purging', ref_count: 0, purge_after: new Date('2026-08-21T00:00:00Z') }];
   const repository = new MySqlAssetRepository(connection);
   const at = new Date('2026-08-22T00:00:00Z');
 
@@ -445,13 +744,13 @@ test('mark purged checks eligibility before deleting metadata and updates status
   assert.ok(metadataDeleteIndex < statusUpdateIndex);
   assert.deepEqual(connection.statements[metadataDeleteIndex].params, ['purge-asset']);
   assert.deepEqual(connection.statements[statusUpdateIndex].params, [at, 'purge-asset', at]);
-  assert.match(connection.statements[statusUpdateIndex].sql, /WHERE id = \? AND status = 'recycled' AND ref_count = 0 AND purge_after <= \?/);
+  assert.match(connection.statements[statusUpdateIndex].sql, /WHERE id = \? AND status = 'purging' AND ref_count = 0 AND purge_after <= \?/);
   assert.deepEqual(connection.transactions, ['BEGIN', 'COMMIT', 'RELEASE']);
 });
 
-test('mark purged rejects an ineligible asset before deleting variant metadata', async () => {
+test('mark purged rejects an unclaimed recycled asset before deleting variant metadata', async () => {
   const connection = new RecordingConnection();
-  connection.purgeAssetRows = [{ id: 'purge-asset', status: 'ready', ref_count: 1, purge_after: null }];
+  connection.purgeAssetRows = [{ id: 'purge-asset', status: 'recycled', ref_count: 0, purge_after: new Date('2026-08-21T00:00:00Z') }];
   const repository = new MySqlAssetRepository(connection);
 
   await assert.rejects(
@@ -466,7 +765,7 @@ test('mark purged rejects an ineligible asset before deleting variant metadata',
 
 test('mark purged rolls back metadata deletion when its guarded status update fails', async () => {
   const connection = new RecordingConnection();
-  connection.purgeAssetRows = [{ id: 'purge-asset', status: 'recycled', ref_count: 0, purge_after: new Date('2026-08-21T00:00:00Z') }];
+  connection.purgeAssetRows = [{ id: 'purge-asset', status: 'purging', ref_count: 0, purge_after: new Date('2026-08-21T00:00:00Z') }];
   connection.purgeUpdateResult = { affectedRows: 0 };
   const repository = new MySqlAssetRepository(connection);
 
@@ -481,7 +780,7 @@ test('mark purged rolls back metadata deletion when its guarded status update fa
 
 test('mark purged rolls back when variant metadata deletion fails', async () => {
   const connection = new RecordingConnection();
-  connection.purgeAssetRows = [{ id: 'purge-asset', status: 'recycled', ref_count: 0, purge_after: new Date('2026-08-21T00:00:00Z') }];
+  connection.purgeAssetRows = [{ id: 'purge-asset', status: 'purging', ref_count: 0, purge_after: new Date('2026-08-21T00:00:00Z') }];
   connection.deleteVariantError = new Error('metadata delete failed');
   const repository = new MySqlAssetRepository(connection);
 
@@ -509,12 +808,26 @@ test('fail job cannot overwrite a completed job', async () => {
   const repository = new MySqlAssetRepository(connection);
   const retryAt = new Date('2026-08-22T00:00:05Z');
 
-  await repository.failJob(42, 'STORAGE_UNAVAILABLE', retryAt);
+  assert.equal(await repository.failJob(42, 'STORAGE_UNAVAILABLE', retryAt), true);
 
   const update = connection.statements.find((statement) => statement.sql.includes('UPDATE image_processing_jobs'));
   assert.ok(update);
   assert.match(update.sql, /WHERE id = \? AND status = 'processing'/);
   assert.deepEqual(update.params, ['queued', retryAt, 'STORAGE_UNAVAILABLE', 42]);
+});
+
+test('completed job race reports no failure transition and ready asset cannot be degraded', async () => {
+  const connection = new RecordingConnection();
+  connection.failJobResult = { affectedRows: 0 };
+  connection.markDegradedResult = { affectedRows: 0 };
+  const repository = new MySqlAssetRepository(connection);
+
+  assert.equal(await repository.failJob(42, 'STORAGE_UNAVAILABLE', null), false);
+  assert.equal(await repository.markAssetDegraded('ready-asset', 'STORAGE_UNAVAILABLE'), false);
+
+  const degrade = connection.statements.find((statement) => statement.sql.includes("SET status = 'degraded'"));
+  assert.ok(degrade);
+  assert.match(degrade.sql, /WHERE id = \? AND status IN \('processing', 'degraded'\)/);
 });
 
 test('complete processing rejects empty or original-less variants before any database write', async () => {

@@ -129,7 +129,11 @@ export class ImageAssetService {
     if (session.createdBy !== principalId) {
       throw new ImageAssetError('ASSET_ACCESS_DENIED', 403, false, 'Upload session belongs to another principal');
     }
-    if (session.status === 'finalized' && session.assetId) return this.getDescriptor(session.assetId, principalId);
+    if (session.status === 'finalized' && session.assetId) {
+      const asset = await this.repository.getAsset(session.assetId);
+      if (asset?.status === 'ready' && !session.quarantineCleanedAt) await this.cleanupFinalizedSession(session);
+      return this.getDescriptor(session.assetId, principalId);
+    }
     if (session.status !== 'open' || session.expiresAt <= this.now()) {
       await this.repository.expireUploadSession(session.id);
       throw new ImageAssetError('UPLOAD_SESSION_EXPIRED', 409, false, 'Upload session has expired');
@@ -163,12 +167,12 @@ export class ImageAssetService {
         width: validated.width,
         height: validated.height,
       });
-      if (!finalized.jobCreated) await this.storage.delete(session.quarantineKey);
+      if (!finalized.processingRequired) await this.cleanupFinalizedSession(session);
       return this.getDescriptor(finalized.assetId, principalId);
     } catch (error) {
       if (isInvalidUploadError(error)) {
         await this.storage.delete(session.quarantineKey);
-        await this.repository.expireUploadSession(session.id);
+        await this.repository.completeExpiredUploadCleanup(session.id, this.now());
       }
       throw error;
     }
@@ -241,6 +245,14 @@ export class ImageAssetService {
     const variant = (await this.repository.getVariants(assetId)).find((candidate) => candidate.variant === variantName);
     if (!variant) throw new ImageAssetError('ASSET_NOT_READY', 409, true, 'Asset variant is not ready');
     return variant;
+  }
+
+  private async cleanupFinalizedSession(session: { id: string; quarantineKey: string }): Promise<void> {
+    if (await this.storage.exists(session.quarantineKey)) await this.storage.delete(session.quarantineKey);
+    if (await this.storage.exists(session.quarantineKey)) {
+      throw new ImageAssetError('STORAGE_UNAVAILABLE', 503, true, 'Finalized quarantine image still exists');
+    }
+    await this.repository.markUploadSessionQuarantineCleaned(session.id, this.now());
   }
 }
 

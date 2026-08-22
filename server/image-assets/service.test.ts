@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import test from 'node:test';
 
 import { ImageAssetError } from './errors';
+import { getAssetPolicy } from './policy';
 import type {
   AssetRepository,
   AssetVariantRecord,
@@ -18,6 +19,7 @@ import type {
   UploadSessionRecord,
 } from './types';
 import { ImageAssetWorker } from './worker';
+import { validateImageBuffer } from './validator';
 
 const START = new Date('2026-08-22T00:00:00.000Z');
 const SHARP_MODULE: string = 'sharp';
@@ -41,8 +43,12 @@ class MemoryAssetRepository implements AssetRepository {
   readonly linkEvents: string[] = [];
   readonly recycleCalls: Array<{ now: Date; limit: number }> = [];
   purgeCandidateIds: string[] = [];
+  purgeClaimAllowed = true;
+  releasePurgeCalls = 0;
   markPurgedCalls = 0;
   completeProcessingFailures = 0;
+  completeOnFailJob = false;
+  markDegradedCalls = 0;
   private nextJobId = 1;
 
   constructor(private readonly clock: MutableClock, events: string[] = []) {
@@ -61,16 +67,24 @@ class MemoryAssetRepository implements AssetRepository {
     return this.sessions.get(id) ?? null;
   }
 
-  async finalizeUploadSession(input: FinalizedUpload): Promise<{ assetId: string; jobCreated: boolean }> {
+  async finalizeUploadSession(input: FinalizedUpload): Promise<{ assetId: string; jobCreated: boolean; processingRequired: boolean }> {
     const session = this.sessions.get(input.sessionId);
     if (!session) throw new ImageAssetError('ASSET_NOT_FOUND', 404, false, 'Upload session not found');
     if (session.createdBy !== input.principalId) {
       throw new ImageAssetError('ASSET_ACCESS_DENIED', 403, false, 'Upload session belongs to another principal');
     }
-    if (session.status === 'finalized' && session.assetId) return { assetId: session.assetId, jobCreated: false };
+    if (session.status === 'finalized' && session.assetId) {
+      const asset = this.requireAsset(session.assetId);
+      return {
+        assetId: session.assetId,
+        jobCreated: false,
+        processingRequired: asset.status === 'processing' || asset.status === 'degraded',
+      };
+    }
 
     let asset = [...this.assets.values()].find((candidate) => candidate.sha256 === input.sha256);
     let jobCreated = false;
+    let processingRequired = false;
     if (!asset) {
       const now = this.clock.now();
       asset = {
@@ -102,11 +116,52 @@ class MemoryAssetRepository implements AssetRepository {
       };
       this.jobs.set(job.id, job);
       jobCreated = true;
+      processingRequired = true;
+    } else {
+      if (asset.status === 'purging' || asset.status === 'purged') {
+        throw new ImageAssetError('ASSET_NOT_READY', 409, true, 'Matching asset is being purged');
+      }
+      const purpose = asset.purpose === 'product_image' || session.purpose === 'product_image'
+        ? 'product_image'
+        : asset.purpose;
+      const available = new Set((this.variants.get(asset.id) ?? []).map((variant) => variant.variant));
+      const hasRequiredVariants = getAssetPolicy(purpose).variants.every((variant) => available.has(variant));
+      processingRequired = asset.status === 'processing' || asset.status === 'degraded' || !hasRequiredVariants;
+      asset.purpose = purpose;
+      asset.createdBy = input.principalId;
+      asset.createdAt = this.clock.now();
+      asset.status = processingRequired ? 'processing' : 'ready';
+      asset.recycledAt = undefined;
+      asset.purgeAfter = undefined;
+      asset.purgedAt = undefined;
+      asset.errorCode = undefined;
+      if (processingRequired) {
+        let job = [...this.jobs.values()].find((candidate) => candidate.assetId === asset.id);
+        if (!job) {
+          job = {
+            id: this.nextJobId++,
+            assetId: asset.id,
+            jobType: 'process_asset',
+            status: 'queued',
+            attempts: 0,
+            availableAt: this.clock.now(),
+          };
+          this.jobs.set(job.id, job);
+          jobCreated = true;
+        } else if (job.status === 'completed' || job.status === 'failed') {
+          job.status = 'queued';
+          job.attempts = 0;
+          job.availableAt = this.clock.now();
+          job.lockedAt = undefined;
+          job.lastErrorCode = undefined;
+          jobCreated = true;
+        }
+      }
     }
 
     session.status = 'finalized';
     session.assetId = asset.id;
-    return { assetId: asset.id, jobCreated };
+    return { assetId: asset.id, jobCreated, processingRequired };
   }
 
   async getAsset(id: string): Promise<ImageAssetRecord | null> {
@@ -147,30 +202,68 @@ class MemoryAssetRepository implements AssetRepository {
     }
   }
 
-  async failJob(jobId: number, code: string, retryAt: Date | null): Promise<void> {
+  async failJob(jobId: number, code: string, retryAt: Date | null): Promise<boolean> {
     const job = this.jobs.get(jobId);
-    if (!job || job.status !== 'processing') return;
+    if (!job || job.status !== 'processing') return false;
+    if (this.completeOnFailJob) {
+      job.status = 'completed';
+      job.lockedAt = undefined;
+      const asset = this.requireAsset(job.assetId);
+      asset.status = 'ready';
+      asset.errorCode = undefined;
+      return false;
+    }
     job.status = retryAt ? 'queued' : 'failed';
     if (retryAt) job.availableAt = retryAt;
     job.lockedAt = undefined;
     job.lastErrorCode = code;
+    return true;
   }
 
-  async markAssetDegraded(assetId: string, code: string): Promise<void> {
+  async markAssetDegraded(assetId: string, code: string): Promise<boolean> {
     const asset = this.requireAsset(assetId);
+    if (asset.status !== 'processing' && asset.status !== 'degraded') return false;
+    this.markDegradedCalls += 1;
     asset.status = 'degraded';
     asset.errorCode = code as ImageAssetRecord['errorCode'];
+    return true;
   }
 
   async listExpiredUploadSessions(now: Date, limit: number): Promise<UploadSessionRecord[]> {
     return [...this.sessions.values()]
-      .filter((session) => session.status === 'open' && session.expiresAt <= now)
+      .filter((session) => (session.status === 'open' || session.status === 'expired')
+        && session.expiresAt <= now
+        && !(session as UploadSessionRecord & { quarantineCleanedAt?: Date }).quarantineCleanedAt)
       .slice(0, limit);
   }
 
   async expireUploadSession(sessionId: string): Promise<void> {
     const session = this.sessions.get(sessionId);
     if (session?.status === 'open') session.status = 'expired';
+  }
+
+  async completeExpiredUploadCleanup(sessionId: string, cleanedAt: Date): Promise<boolean> {
+    const session = this.sessions.get(sessionId) as (UploadSessionRecord & { quarantineCleanedAt?: Date }) | undefined;
+    if (!session || (session.status !== 'open' && session.status !== 'expired') || session.quarantineCleanedAt) return false;
+    session.status = 'expired';
+    session.quarantineCleanedAt = cleanedAt;
+    this.events.push(`expired-cleaned:${sessionId}`);
+    return true;
+  }
+
+  async listPendingAssetUploadSessions(assetId: string): Promise<UploadSessionRecord[]> {
+    return [...this.sessions.values()]
+      .filter((session) => session.assetId === assetId
+        && session.status === 'finalized'
+        && !session.quarantineCleanedAt);
+  }
+
+  async markUploadSessionQuarantineCleaned(sessionId: string, cleanedAt: Date): Promise<boolean> {
+    const session = this.sessions.get(sessionId);
+    if (!session || session.status !== 'finalized' || session.quarantineCleanedAt) return false;
+    session.quarantineCleanedAt = cleanedAt;
+    this.events.push(`finalized-cleaned:${sessionId}`);
+    return true;
   }
 
   async replaceCompanyImage(companyId: number, role: CompanyImageRole, assetId: string | null): Promise<void> {
@@ -198,11 +291,34 @@ class MemoryAssetRepository implements AssetRepository {
       .map((asset) => ({ ...asset }));
   }
 
+  async claimNextPurgeCandidate(now: Date): Promise<{ assetId: string; variants: AssetVariantRecord[] } | null> {
+    if (!this.purgeClaimAllowed) return null;
+    const asset = this.purgeCandidateIds
+      .map((id) => this.assets.get(id))
+      .find((candidate) => candidate?.status === 'recycled'
+        && candidate.refCount === 0
+        && candidate.purgeAfter
+        && candidate.purgeAfter <= now);
+    if (!asset) return null;
+    asset.status = 'purging' as ImageAssetRecord['status'];
+    this.events.push(`claimed:${asset.id}`);
+    return { assetId: asset.id, variants: [...(this.variants.get(asset.id) ?? [])] };
+  }
+
+  async releasePurgeClaim(assetId: string): Promise<boolean> {
+    const asset = this.assets.get(assetId);
+    if (!asset || asset.status !== ('purging' as ImageAssetRecord['status']) || asset.refCount !== 0) return false;
+    asset.status = 'recycled';
+    this.releasePurgeCalls += 1;
+    this.events.push(`released:${assetId}`);
+    return true;
+  }
+
   async markPurged(assetId: string, at: Date): Promise<void> {
     this.events.push(`purged:${assetId}`);
     const asset = this.requireAsset(assetId);
     if (
-      asset.status !== 'recycled'
+      asset.status !== ('purging' as ImageAssetRecord['status'])
       || asset.refCount !== 0
       || !asset.purgeAfter
       || asset.purgeAfter > at
@@ -454,6 +570,196 @@ test('invalid raster deletes its quarantine object before returning IMAGE_CONTEN
   assert.equal(repository.sessions.get(sessionId)?.status, 'expired');
 });
 
+test('validator rejects MIME and extension mismatches from real image bytes', async () => {
+  const bytes = await png(10, 10);
+  const policy = getAssetPolicy('company_logo');
+
+  await assert.rejects(
+    validateImageBuffer(bytes, { mime: 'image/jpeg', extension: 'png', byteSize: bytes.length }, policy),
+    (error: unknown) => error instanceof ImageAssetError && error.code === 'IMAGE_CONTENT_INVALID',
+  );
+  await assert.rejects(
+    validateImageBuffer(bytes, { mime: 'image/png', extension: 'jpg', byteSize: bytes.length }, policy),
+    (error: unknown) => error instanceof ImageAssetError && error.code === 'IMAGE_CONTENT_INVALID',
+  );
+});
+
+test('validator enforces byte and decoded pixel limits from real image bytes', async () => {
+  const bytes = await png(10, 10);
+  const policy = getAssetPolicy('company_logo');
+
+  await assert.rejects(
+    validateImageBuffer(bytes, { mime: 'image/png', extension: 'png', byteSize: bytes.length }, {
+      ...policy,
+      maxBytes: bytes.length - 1,
+    }),
+    (error: unknown) => error instanceof ImageAssetError && error.code === 'IMAGE_LIMIT_EXCEEDED',
+  );
+  await assert.rejects(
+    validateImageBuffer(bytes, { mime: 'image/png', extension: 'png', byteSize: bytes.length }, {
+      ...policy,
+      maxPixels: 99,
+    }),
+    (error: unknown) => error instanceof ImageAssetError && error.code === 'IMAGE_LIMIT_EXCEEDED',
+  );
+});
+
+test('verified company asset reuse for product escalates purpose and retains quarantine until thumbnail processing', async () => {
+  const clock = new MutableClock();
+  const repository = new MemoryAssetRepository(clock);
+  const storage = new MemoryStorage();
+  const service = new ImageAssetService(repository, storage, {
+    now: clock.now,
+    randomId: idSequence('company-session', 'company-object', 'product-session', 'product-object'),
+  });
+  const worker = new ImageAssetWorker(repository, storage, { now: clock.now });
+  const bytes = await png();
+  const companySession = await createUploadedSession(service, repository, storage, bytes, 'company-principal', 'company_logo');
+  const company = await service.finalizeUploadSession(companySession, 'company-principal');
+  await worker.runOnce();
+  const productSession = await createUploadedSession(service, repository, storage, bytes, 'product-principal', 'product_image');
+  const productQuarantine = repository.sessions.get(productSession)?.quarantineKey ?? '';
+
+  const product = await service.finalizeUploadSession(productSession, 'product-principal');
+  const repeated = await service.finalizeUploadSession(productSession, 'product-principal');
+
+  assert.equal(product.id, company.id);
+  assert.equal(repeated.id, company.id);
+  assert.equal(product.purpose, 'product_image');
+  assert.equal(product.status, 'processing');
+  assert.equal(repository.requireAsset(company.id).createdBy, 'product-principal');
+  assert.equal(storage.objects.has(productQuarantine), true);
+  assert.equal([...repository.jobs.values()].filter((job) => job.assetId === company.id).length, 1);
+  assert.equal([...repository.jobs.values()].find((job) => job.assetId === company.id)?.status, 'queued');
+
+  await worker.runOnce();
+
+  assert.equal(repository.requireAsset(company.id).status, 'ready');
+  assert.deepEqual(repository.variants.get(company.id)?.map((variant) => variant.variant), ['original', 'display', 'thumbnail']);
+  assert.equal(storage.objects.has(productQuarantine), false);
+  assert.equal(repository.sessions.get(productSession)?.quarantineCleanedAt?.getTime(), START.getTime());
+});
+
+test('verified product asset reuse for company keeps thumbnail and transfers creator window', async () => {
+  const clock = new MutableClock();
+  const repository = new MemoryAssetRepository(clock);
+  const storage = new MemoryStorage();
+  const service = new ImageAssetService(repository, storage, {
+    now: clock.now,
+    randomId: idSequence('product-session', 'product-object', 'company-session', 'company-object'),
+  });
+  const worker = new ImageAssetWorker(repository, storage, { now: clock.now });
+  const bytes = await png();
+  const productSession = await createUploadedSession(service, repository, storage, bytes, 'product-principal', 'product_image');
+  const product = await service.finalizeUploadSession(productSession, 'product-principal');
+  await worker.runOnce();
+  const companySession = await createUploadedSession(service, repository, storage, bytes, 'company-principal', 'company_logo');
+  const companyQuarantine = repository.sessions.get(companySession)?.quarantineKey ?? '';
+
+  const company = await service.finalizeUploadSession(companySession, 'company-principal');
+
+  assert.equal(company.id, product.id);
+  assert.equal(company.purpose, 'product_image');
+  assert.equal(company.status, 'ready');
+  assert.equal(repository.requireAsset(product.id).createdBy, 'company-principal');
+  assert.equal(repository.variants.get(product.id)?.some((variant) => variant.variant === 'thumbnail'), true);
+  assert.equal(storage.objects.has(companyQuarantine), false);
+  assert.equal(repository.sessions.get(companySession)?.quarantineCleanedAt?.getTime(), START.getTime());
+  await assert.rejects(
+    service.getDescriptor(product.id, 'product-principal'),
+    (error: unknown) => error instanceof ImageAssetError && error.code === 'ASSET_ACCESS_DENIED',
+  );
+});
+
+test('verified same-purpose duplicate transfers the unlinked creator window to the new principal', async () => {
+  const clock = new MutableClock();
+  const repository = new MemoryAssetRepository(clock);
+  const storage = new MemoryStorage();
+  const service = new ImageAssetService(repository, storage, {
+    now: clock.now,
+    randomId: idSequence('first-session', 'first-object', 'second-session', 'second-object'),
+  });
+  const worker = new ImageAssetWorker(repository, storage, { now: clock.now });
+  const bytes = await png();
+  const firstSession = await createUploadedSession(service, repository, storage, bytes, 'first-principal');
+  const first = await service.finalizeUploadSession(firstSession, 'first-principal');
+  await worker.runOnce();
+  const secondSession = await createUploadedSession(service, repository, storage, bytes, 'second-principal');
+
+  const second = await service.finalizeUploadSession(secondSession, 'second-principal');
+
+  assert.equal(second.id, first.id);
+  assert.equal(repository.requireAsset(first.id).createdBy, 'second-principal');
+  assert.equal((await service.getDescriptor(first.id, 'second-principal')).id, first.id);
+  await assert.rejects(
+    service.getDescriptor(first.id, 'first-principal'),
+    (error: unknown) => error instanceof ImageAssetError && error.code === 'ASSET_ACCESS_DENIED',
+  );
+});
+
+test('verified recycled duplicate restores ready state and a new creator window', async () => {
+  const clock = new MutableClock();
+  const repository = new MemoryAssetRepository(clock);
+  const storage = new MemoryStorage();
+  const service = new ImageAssetService(repository, storage, {
+    now: clock.now,
+    randomId: idSequence('first-session', 'first-object', 'restore-session', 'restore-object'),
+  });
+  const worker = new ImageAssetWorker(repository, storage, { now: clock.now });
+  const bytes = await png();
+  const firstSession = await createUploadedSession(service, repository, storage, bytes, 'first-principal');
+  const first = await service.finalizeUploadSession(firstSession, 'first-principal');
+  await worker.runOnce();
+  const asset = repository.requireAsset(first.id);
+  asset.status = 'recycled';
+  asset.recycledAt = new Date('2026-08-01T00:00:00Z');
+  asset.purgeAfter = new Date('2026-09-01T00:00:00Z');
+  const restoreSession = await createUploadedSession(service, repository, storage, bytes, 'restore-principal');
+
+  const restored = await service.finalizeUploadSession(restoreSession, 'restore-principal');
+
+  assert.equal(restored.id, first.id);
+  assert.equal(restored.status, 'ready');
+  assert.equal(asset.createdBy, 'restore-principal');
+  assert.equal(asset.recycledAt, undefined);
+  assert.equal(asset.purgeAfter, undefined);
+});
+
+test('client-supplied hash cannot bypass server-byte validation or transfer creator access', async () => {
+  const clock = new MutableClock();
+  const repository = new MemoryAssetRepository(clock);
+  const storage = new MemoryStorage();
+  const service = new ImageAssetService(repository, storage, {
+    now: clock.now,
+    randomId: idSequence('first-session', 'first-object', 'invalid-session', 'invalid-object'),
+  });
+  const worker = new ImageAssetWorker(repository, storage, { now: clock.now });
+  const bytes = await png();
+  const firstSession = await createUploadedSession(service, repository, storage, bytes, 'first-principal');
+  const first = await service.finalizeUploadSession(firstSession, 'first-principal');
+  await worker.runOnce();
+  const invalid = Buffer.from('not the verified image');
+  const grant = await service.createUploadSession({
+    purpose: 'company_logo',
+    originalFilename: 'fixture.png',
+    declaredMime: 'image/png',
+    declaredByteSize: invalid.length,
+    principalId: 'attacker-principal',
+    sha256: repository.requireAsset(first.id).sha256,
+  } as Parameters<ImageAssetService['createUploadSession']>[0] & { sha256: string });
+  const session = repository.sessions.get(grant.sessionId);
+  assert.ok(session);
+  storage.objects.set(session.quarantineKey, { body: invalid, contentType: 'image/png' });
+
+  await assert.rejects(
+    service.finalizeUploadSession(grant.sessionId, 'attacker-principal'),
+    (error: unknown) => error instanceof ImageAssetError && error.code === 'IMAGE_CONTENT_INVALID',
+  );
+
+  assert.equal(repository.assets.size, 1);
+  assert.equal(repository.requireAsset(first.id).createdBy, 'first-principal');
+});
+
 test('partial variant failure leaves processing job retryable and resumes from permanent original bytes', async () => {
   const clock = new MutableClock();
   const repository = new MemoryAssetRepository(clock);
@@ -619,7 +925,47 @@ test('database completion failure retries after quarantine was already deleted',
   assert.equal(repository.variants.get(descriptor.id)?.length, 2);
 });
 
-test('storage retries use 5-second, 30-second, and 5-minute backoffs before preserving degraded state', async () => {
+test('storage failures use 5-second, 30-second, and one 5-minute retry before terminal degradation', async () => {
+  const clock = new MutableClock();
+  const repository = new MemoryAssetRepository(clock);
+  const storage = new MemoryStorage();
+  const service = new ImageAssetService(repository, storage, { now: clock.now, randomId: idSequence('session-1', 'object-1') });
+  const worker = new ImageAssetWorker(repository, storage, { now: clock.now });
+  const bytes = await png();
+  const sessionId = await createUploadedSession(service, repository, storage, bytes);
+  const descriptor = await service.finalizeUploadSession(sessionId, 'principal-1');
+  storage.putFailures.set('display', 4);
+
+  await worker.runOnce();
+  let job = [...repository.jobs.values()][0];
+  assert.equal(job.availableAt.getTime(), START.getTime() + 5_000);
+  assert.equal(repository.requireAsset(descriptor.id).status, 'processing');
+  clock.advance(5_000);
+
+  await worker.runOnce();
+  job = [...repository.jobs.values()][0];
+  assert.equal(job.availableAt.getTime(), START.getTime() + 35_000);
+  assert.equal(repository.requireAsset(descriptor.id).status, 'processing');
+  clock.advance(30_000);
+
+  await worker.runOnce();
+  job = [...repository.jobs.values()][0];
+  assert.equal(job.availableAt.getTime(), START.getTime() + 335_000);
+  assert.equal(job.lastErrorCode, 'STORAGE_UNAVAILABLE');
+  assert.equal(repository.requireAsset(descriptor.id).status, 'degraded');
+  assert.equal(repository.requireAsset(descriptor.id).errorCode, 'STORAGE_UNAVAILABLE');
+  assert.equal(job.status, 'queued');
+  clock.advance(5 * 60_000);
+
+  await worker.runOnce();
+
+  assert.equal(job.attempts, 4);
+  assert.equal(job.status, 'failed');
+  assert.equal(repository.requireAsset(descriptor.id).status, 'degraded');
+  assert.equal(repository.requireAsset(descriptor.id).errorCode, 'STORAGE_UNAVAILABLE');
+});
+
+test('successful final retry restores a degraded asset to ready', async () => {
   const clock = new MutableClock();
   const repository = new MemoryAssetRepository(clock);
   const storage = new MemoryStorage();
@@ -631,21 +977,41 @@ test('storage retries use 5-second, 30-second, and 5-minute backoffs before pres
   storage.putFailures.set('display', 3);
 
   await worker.runOnce();
-  let job = [...repository.jobs.values()][0];
-  assert.equal(job.availableAt.getTime(), START.getTime() + 5_000);
   clock.advance(5_000);
-
   await worker.runOnce();
-  job = [...repository.jobs.values()][0];
-  assert.equal(job.availableAt.getTime(), START.getTime() + 35_000);
   clock.advance(30_000);
+  await worker.runOnce();
+  assert.equal(repository.requireAsset(descriptor.id).status, 'degraded');
+  clock.advance(5 * 60_000);
 
   await worker.runOnce();
-  job = [...repository.jobs.values()][0];
-  assert.equal(job.availableAt.getTime(), START.getTime() + 335_000);
-  assert.equal(job.lastErrorCode, 'STORAGE_UNAVAILABLE');
-  assert.equal(repository.requireAsset(descriptor.id).status, 'degraded');
-  assert.equal(repository.requireAsset(descriptor.id).errorCode, 'STORAGE_UNAVAILABLE');
+
+  const job = [...repository.jobs.values()][0];
+  assert.equal(job.attempts, 4);
+  assert.equal(job.status, 'completed');
+  assert.equal(repository.requireAsset(descriptor.id).status, 'ready');
+  assert.equal(repository.requireAsset(descriptor.id).errorCode, undefined);
+});
+
+test('completed job race prevents degradation from overwriting ready', async () => {
+  const clock = new MutableClock();
+  const repository = new MemoryAssetRepository(clock);
+  const storage = new MemoryStorage();
+  const service = new ImageAssetService(repository, storage, { now: clock.now, randomId: idSequence('session-1', 'object-1') });
+  const worker = new ImageAssetWorker(repository, storage, { now: clock.now });
+  const bytes = await png();
+  const sessionId = await createUploadedSession(service, repository, storage, bytes);
+  const descriptor = await service.finalizeUploadSession(sessionId, 'principal-1');
+  const job = [...repository.jobs.values()][0];
+  job.attempts = 2;
+  storage.putFailures.set('display', 1);
+  repository.completeOnFailJob = true;
+
+  await worker.runOnce();
+
+  assert.equal(job.status, 'completed');
+  assert.equal(repository.requireAsset(descriptor.id).status, 'ready');
+  assert.equal(repository.markDegradedCalls, 0);
 });
 
 test('purge waits for zero references and every variant storage deletion', async () => {
@@ -699,6 +1065,8 @@ test('purge waits for zero references and every variant storage deletion', async
   await assert.rejects(worker.purgeOnce(), (error: unknown) => error instanceof ImageAssetError && error.code === 'STORAGE_UNAVAILABLE');
   assert.equal(repository.markPurgedCalls, 0);
   assert.equal(repository.variants.get(assetId)?.length, 3);
+  assert.equal(repository.requireAsset(assetId).status, 'recycled');
+  assert.equal(repository.releasePurgeCalls, 1);
 
   await worker.purgeOnce();
 
@@ -707,8 +1075,62 @@ test('purge waits for zero references and every variant storage deletion', async
   assert.equal(repository.variants.has(assetId), false);
   assert.equal(storage.objects.size, 0);
   const markIndex = events.lastIndexOf(`purged:${assetId}`);
+  const firstClaimIndex = events.indexOf(`claimed:${assetId}`);
+  const firstDeleteIndex = events.indexOf(`delete:${records[0].objectKey}`);
+  const releaseIndex = events.indexOf(`released:${assetId}`);
+  const retryClaimIndex = events.lastIndexOf(`claimed:${assetId}`);
+  assert.ok(firstClaimIndex >= 0 && firstClaimIndex < firstDeleteIndex);
+  assert.ok(releaseIndex > firstDeleteIndex && releaseIndex < retryClaimIndex && retryClaimIndex < markIndex);
   assert.ok(events.indexOf(`variants:${assetId}`) < markIndex);
   assert.ok(records.every((record) => events.lastIndexOf(`delete:${record.objectKey}`) < markIndex));
+});
+
+test('purge claim failure performs no storage deletion or metadata transition', async () => {
+  const clock = new MutableClock();
+  const repository = new MemoryAssetRepository(clock);
+  const storage = new MemoryStorage();
+  const worker = new ImageAssetWorker(repository, storage, { now: clock.now });
+  const assetId = 'contended-asset';
+  repository.assets.set(assetId, {
+    id: assetId,
+    sha256: 'cc'.repeat(32),
+    originalFilename: 'fixture.png',
+    detectedMime: 'image/png',
+    detectedExtension: 'png',
+    purpose: 'company_logo',
+    storageProvider: 'local',
+    byteSize: 8,
+    width: 2,
+    height: 2,
+    status: 'recycled',
+    refCount: 0,
+    createdBy: 'principal-1',
+    createdAt: new Date('2026-06-01T00:00:00Z'),
+    updatedAt: new Date('2026-06-01T00:00:00Z'),
+    recycledAt: new Date('2026-07-01T00:00:00Z'),
+    purgeAfter: new Date('2026-08-01T00:00:00Z'),
+  });
+  const variant: AssetVariantRecord = {
+    assetId,
+    variant: 'original',
+    objectKey: 'assets/contended/original.png',
+    mime: 'image/png',
+    byteSize: 8,
+    width: 2,
+    height: 2,
+    createdAt: new Date('2026-06-01T00:00:00Z'),
+  };
+  repository.variants.set(assetId, [variant]);
+  repository.purgeCandidateIds = [assetId];
+  repository.purgeClaimAllowed = false;
+  storage.objects.set(variant.objectKey, { body: Buffer.alloc(8), contentType: variant.mime });
+
+  assert.equal(await worker.purgeOnce(), 0);
+
+  assert.equal(storage.deletes.length, 0);
+  assert.equal(repository.markPurgedCalls, 0);
+  assert.equal(repository.variants.get(assetId)?.length, 1);
+  assert.equal(repository.requireAsset(assetId).status, 'recycled');
 });
 
 test('descriptor, signed URL, and content reads enforce creator-window or linked access', async () => {
@@ -791,4 +1213,74 @@ test('recycle pass uses the injected clock for the creator binding-window transi
 
   assert.equal(await worker.recycleOnce(17), 1);
   assert.deepEqual(repository.recycleCalls, [{ now: START, limit: 17 }]);
+});
+
+test('expired upload sweep cleans both open and already-expired quarantine exactly once', async () => {
+  const clock = new MutableClock();
+  const events: string[] = [];
+  const repository = new MemoryAssetRepository(clock, events);
+  const storage = new MemoryStorage(events);
+  const worker = new ImageAssetWorker(repository, storage, { now: clock.now }) as ImageAssetWorker & {
+    cleanupExpiredUploadsOnce(limit?: number): Promise<number>;
+  };
+  const openSession: UploadSessionRecord = {
+    id: 'open-expired',
+    purpose: 'company_logo',
+    quarantineKey: 'quarantine/open-expired/file.png',
+    declaredByteSize: 4,
+    declaredMime: 'image/png',
+    createdBy: 'principal-1',
+    expiresAt: new Date('2026-08-21T00:00:00Z'),
+    status: 'open',
+  };
+  const expiredSession: UploadSessionRecord = {
+    ...openSession,
+    id: 'already-expired',
+    quarantineKey: 'quarantine/already-expired/file.png',
+    status: 'expired',
+  };
+  repository.sessions.set(openSession.id, openSession);
+  repository.sessions.set(expiredSession.id, expiredSession);
+  storage.objects.set(openSession.quarantineKey, { body: Buffer.from('open'), contentType: 'image/png' });
+
+  assert.equal(await worker.cleanupExpiredUploadsOnce(), 2);
+  assert.equal(await worker.cleanupExpiredUploadsOnce(), 0);
+
+  assert.equal(storage.objects.has(openSession.quarantineKey), false);
+  assert.equal(storage.deletes.filter((key) => key === openSession.quarantineKey).length, 1);
+  assert.equal((repository.sessions.get(openSession.id) as UploadSessionRecord & { quarantineCleanedAt?: Date }).quarantineCleanedAt?.getTime(), START.getTime());
+  assert.equal((repository.sessions.get(expiredSession.id) as UploadSessionRecord & { quarantineCleanedAt?: Date }).quarantineCleanedAt?.getTime(), START.getTime());
+  assert.ok(events.indexOf(`delete:${openSession.quarantineKey}`) < events.indexOf(`expired-cleaned:${openSession.id}`));
+});
+
+test('expired upload storage failure leaves the session discoverable for retry', async () => {
+  const clock = new MutableClock();
+  const repository = new MemoryAssetRepository(clock);
+  const storage = new MemoryStorage();
+  const worker = new ImageAssetWorker(repository, storage, { now: clock.now }) as ImageAssetWorker & {
+    cleanupExpiredUploadsOnce(limit?: number): Promise<number>;
+  };
+  const session: UploadSessionRecord = {
+    id: 'retry-expired',
+    purpose: 'company_logo',
+    quarantineKey: 'quarantine/retry-expired/file.png',
+    declaredByteSize: 4,
+    declaredMime: 'image/png',
+    createdBy: 'principal-1',
+    expiresAt: new Date('2026-08-21T00:00:00Z'),
+    status: 'expired',
+  };
+  repository.sessions.set(session.id, session);
+  storage.objects.set(session.quarantineKey, { body: Buffer.from('data'), contentType: 'image/png' });
+  storage.quarantineDeleteFailures = 1;
+
+  await assert.rejects(
+    worker.cleanupExpiredUploadsOnce(),
+    (error: unknown) => error instanceof ImageAssetError && error.code === 'STORAGE_UNAVAILABLE',
+  );
+  assert.deepEqual((await repository.listExpiredUploadSessions(clock.now(), 25)).map((candidate) => candidate.id), [session.id]);
+  assert.equal((session as UploadSessionRecord & { quarantineCleanedAt?: Date }).quarantineCleanedAt, undefined);
+
+  assert.equal(await worker.cleanupExpiredUploadsOnce(), 1);
+  assert.equal((session as UploadSessionRecord & { quarantineCleanedAt?: Date }).quarantineCleanedAt?.getTime(), START.getTime());
 });

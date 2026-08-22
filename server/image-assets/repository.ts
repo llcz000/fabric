@@ -29,6 +29,11 @@ export interface ProcessingJob {
   lastErrorCode?: string;
 }
 
+export interface PurgeClaim {
+  assetId: string;
+  variants: AssetVariantRecord[];
+}
+
 export interface NewUploadSession {
   id: string;
   purpose: AssetPurpose;
@@ -54,6 +59,12 @@ export interface FinalizedUpload {
   metadata?: Record<string, unknown>;
 }
 
+export interface FinalizedUploadResult {
+  assetId: string;
+  jobCreated: boolean;
+  processingRequired: boolean;
+}
+
 export interface AssetTransaction {
   query(sql: string, params?: unknown[]): Promise<[unknown, unknown]>;
   beginTransaction(): Promise<void>;
@@ -65,21 +76,27 @@ export interface AssetTransaction {
 export interface AssetRepository {
   createUploadSession(input: NewUploadSession): Promise<UploadSessionRecord>;
   getUploadSession(id: string): Promise<UploadSessionRecord | null>;
-  finalizeUploadSession(input: FinalizedUpload): Promise<{ assetId: string; jobCreated: boolean }>;
+  finalizeUploadSession(input: FinalizedUpload): Promise<FinalizedUploadResult>;
   getAsset(id: string): Promise<ImageAssetRecord | null>;
   getVariants(assetId: string): Promise<AssetVariantRecord[]>;
   claimNextJob(now: Date): Promise<ProcessingJob | null>;
   completeProcessing(assetId: string, variants: AssetVariantRecord[]): Promise<void>;
-  failJob(jobId: number, code: string, retryAt: Date | null): Promise<void>;
-  markAssetDegraded(assetId: string, code: string): Promise<void>;
+  failJob(jobId: number, code: string, retryAt: Date | null): Promise<boolean>;
+  markAssetDegraded(assetId: string, code: string): Promise<boolean>;
   listExpiredUploadSessions(now: Date, limit: number): Promise<UploadSessionRecord[]>;
   expireUploadSession(sessionId: string): Promise<void>;
+  completeExpiredUploadCleanup(sessionId: string, cleanedAt: Date): Promise<boolean>;
+  listPendingAssetUploadSessions(assetId: string): Promise<UploadSessionRecord[]>;
+  markUploadSessionQuarantineCleaned(sessionId: string, cleanedAt: Date): Promise<boolean>;
   replaceCompanyImage(companyId: number, role: CompanyImageRole, assetId: string | null): Promise<void>;
   attachProductImages(productId: number, assetIds: string[]): Promise<void>;
   detachProductImage(productId: number, assetId: string): Promise<void>;
   recycleExpiredUnlinkedAssets(now: Date, limit: number): Promise<number>;
   listPurgeCandidates(now: Date, limit: number): Promise<ImageAssetRecord[]>;
-  /** Service/worker precondition: call only after every object from getVariants(assetId) was deleted successfully. */
+  claimNextPurgeCandidate(now: Date): Promise<PurgeClaim | null>;
+  /** A failed purge releases its claim; recovery of stale purging claims after crashes is deferred to Task 12. */
+  releasePurgeClaim(assetId: string): Promise<boolean>;
+  /** Worker precondition: call only for a purging claim after every retained variant object is confirmed absent. */
   markPurged(assetId: string, at: Date): Promise<void>;
   reconcileReferenceCounts(): Promise<number>;
 }

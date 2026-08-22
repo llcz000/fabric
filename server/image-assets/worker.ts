@@ -3,7 +3,7 @@ import { getAssetPolicy } from './policy';
 import { generateImageVariants, type ProcessedVariant } from './processor';
 import type { AssetRepository, AssetVariantRecord, ProcessingJob } from './repository';
 import { assetObjectKey, type StorageAdapter } from './storage';
-import type { ImageAssetRecord, UploadSessionRecord } from './types';
+import type { UploadSessionRecord } from './types';
 import type { ValidatedImage } from './validator';
 
 const RETRY_DELAYS_MS = [5_000, 30_000, 5 * 60_000];
@@ -36,7 +36,8 @@ export class ImageAssetWorker {
       const retryAt = normalized.retryable && job.attempts <= RETRY_DELAYS_MS.length
         ? new Date(claimedAt.getTime() + RETRY_DELAYS_MS[job.attempts - 1])
         : null;
-      await this.repository.failJob(job.id, normalized.code, retryAt);
+      const transitioned = await this.repository.failJob(job.id, normalized.code, retryAt);
+      if (!transitioned) return true;
       if (!retryAt || job.attempts >= RETRY_DELAYS_MS.length) {
         await this.repository.markAssetDegraded(job.assetId, normalized.code);
       }
@@ -48,24 +49,38 @@ export class ImageAssetWorker {
     return this.repository.recycleExpiredUnlinkedAssets(this.now(), limit);
   }
 
+  async cleanupExpiredUploadsOnce(limit = 25): Promise<number> {
+    const now = this.now();
+    const sessions = await this.repository.listExpiredUploadSessions(now, limit);
+    let cleaned = 0;
+    for (const session of sessions) {
+      await this.deleteAndConfirm(session.quarantineKey, 'Expired quarantine image still exists');
+      if (await this.repository.completeExpiredUploadCleanup(session.id, now)) cleaned += 1;
+    }
+    return cleaned;
+  }
+
   async purgeOnce(limit = 25): Promise<number> {
     const now = this.now();
-    const candidates = await this.repository.listPurgeCandidates(now, limit);
     let purged = 0;
-    for (const candidate of candidates) {
-      const current = await this.repository.getAsset(candidate.id);
-      if (!isPurgeEligible(current, now)) continue;
-      const variants = await this.repository.getVariants(candidate.id);
-      for (const variant of variants) {
-        if (await storageOperation(() => this.storage.exists(variant.objectKey))) {
-          await storageOperation(() => this.storage.delete(variant.objectKey));
+    for (let index = 0; index < limit; index += 1) {
+      const claim = await this.repository.claimNextPurgeCandidate(now);
+      if (!claim) break;
+      try {
+        for (const variant of claim.variants) {
+          if (await storageOperation(() => this.storage.exists(variant.objectKey))) {
+            await storageOperation(() => this.storage.delete(variant.objectKey));
+          }
+          if (await storageOperation(() => this.storage.exists(variant.objectKey))) {
+            throw new ImageAssetError('STORAGE_UNAVAILABLE', 503, true, 'Purged image variant still exists');
+          }
         }
-        if (await storageOperation(() => this.storage.exists(variant.objectKey))) {
-          throw new ImageAssetError('STORAGE_UNAVAILABLE', 503, true, 'Purged image variant still exists');
-        }
+        await this.repository.markPurged(claim.assetId, now);
+        purged += 1;
+      } catch (error) {
+        await this.repository.releasePurgeClaim(claim.assetId);
+        throw error;
       }
-      await this.repository.markPurged(candidate.id, now);
-      purged += 1;
     }
     return purged;
   }
@@ -75,9 +90,10 @@ export class ImageAssetWorker {
     if (!asset) throw new ImageAssetError('ASSET_NOT_FOUND', 404, false, 'Processing asset not found');
     const policy = getAssetPolicy(asset.purpose);
     const existingVariants = await this.repository.getVariants(asset.id);
+    const pendingSessions = await this.repository.listPendingAssetUploadSessions(asset.id);
     const originalKey = assetObjectKey(asset.sha256, 'original', asset.detectedExtension);
     const originalExists = await storageOperation(() => this.storage.exists(originalKey));
-    const session = originalExists ? null : await this.repository.getUploadSession(asset.id);
+    const session = originalExists ? null : pendingSessions[0] ?? await this.repository.getUploadSession(asset.id);
     const sourceKey = originalExists ? originalKey : requireQuarantineSession(session).quarantineKey;
     const original = await storageOperation(() => this.storage.read(sourceKey, policy.maxBytes + 1));
     const validated: ValidatedImage = {
@@ -122,32 +138,26 @@ export class ImageAssetWorker {
       });
     }
 
-    const quarantine = session ?? await this.repository.getUploadSession(asset.id);
-    if (quarantine) {
-      if (await storageOperation(() => this.storage.exists(quarantine.quarantineKey))) {
-        await storageOperation(() => this.storage.delete(quarantine.quarantineKey));
-      }
-      if (await storageOperation(() => this.storage.exists(quarantine.quarantineKey))) {
-        throw new ImageAssetError('STORAGE_UNAVAILABLE', 503, true, 'Quarantine image still exists');
-      }
+    for (const quarantine of pendingSessions) {
+      await this.deleteAndConfirm(quarantine.quarantineKey, 'Quarantine image still exists');
+      await this.repository.markUploadSessionQuarantineCleaned(quarantine.id, this.now());
     }
     await this.repository.completeProcessing(asset.id, records);
+  }
+
+  private async deleteAndConfirm(objectKey: string, message: string): Promise<void> {
+    if (await storageOperation(() => this.storage.exists(objectKey))) {
+      await storageOperation(() => this.storage.delete(objectKey));
+    }
+    if (await storageOperation(() => this.storage.exists(objectKey))) {
+      throw new ImageAssetError('STORAGE_UNAVAILABLE', 503, true, message);
+    }
   }
 }
 
 function requireQuarantineSession(session: UploadSessionRecord | null): UploadSessionRecord {
   if (!session) throw new ImageAssetError('ASSET_PROCESSING_FAILED', 500, true, 'Processing source is unavailable');
   return session;
-}
-
-function isPurgeEligible(asset: ImageAssetRecord | null, now: Date): asset is ImageAssetRecord {
-  return Boolean(
-    asset
-    && asset.status === 'recycled'
-    && asset.refCount === 0
-    && asset.purgeAfter
-    && asset.purgeAfter <= now,
-  );
 }
 
 async function storageOperation<T>(operation: () => Promise<T>): Promise<T> {

@@ -58,12 +58,18 @@ export async function initializeImageAssetSchema(connection: SqlConnection): Pro
       expires_at DATETIME NOT NULL,
       status VARCHAR(16) NOT NULL DEFAULT 'open',
       asset_id VARCHAR(36) NULL,
+      quarantine_cleaned_at DATETIME NULL,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       UNIQUE KEY uq_upload_quarantine_key (quarantine_key),
       KEY idx_image_upload_sessions_status_expires_at (status, expires_at),
       CONSTRAINT fk_image_upload_sessions_asset FOREIGN KEY (asset_id) REFERENCES image_assets(id) ON DELETE SET NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+
+  await connection.query(`
+    ALTER TABLE image_upload_sessions
+    ADD COLUMN IF NOT EXISTS quarantine_cleaned_at DATETIME NULL;
   `);
 
   await connection.query(`

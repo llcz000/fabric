@@ -5,8 +5,10 @@ import type {
   AssetTransaction,
   AssetVariantRecord,
   FinalizedUpload,
+  FinalizedUploadResult,
   NewUploadSession,
   ProcessingJob,
+  PurgeClaim,
 } from './repository';
 import type { AssetStatus, CompanyImageRole, ImageAssetRecord, UploadSessionRecord } from './types';
 
@@ -53,6 +55,7 @@ function mapUploadSession(row: Row): UploadSessionRecord {
     expiresAt: date(row.expires_at),
     status: row.status as UploadSessionRecord['status'],
     assetId: row.asset_id == null ? undefined : String(row.asset_id),
+    quarantineCleanedAt: optionalDate(row.quarantine_cleaned_at),
   };
 }
 
@@ -161,7 +164,7 @@ export class MySqlAssetRepository implements AssetRepository {
     return found[0] ? mapUploadSession(found[0]) : null;
   }
 
-  async finalizeUploadSession(input: FinalizedUpload): Promise<{ assetId: string; jobCreated: boolean }> {
+  async finalizeUploadSession(input: FinalizedUpload): Promise<FinalizedUploadResult> {
     const finalized = await this.inTransaction(async (connection) => {
       const sessionRows = rows(await connection.query(
         'SELECT * FROM image_upload_sessions WHERE id = ? FOR UPDATE',
@@ -170,7 +173,11 @@ export class MySqlAssetRepository implements AssetRepository {
       const session = sessionRows[0] ? mapUploadSession(sessionRows[0]) : null;
       if (!session) throw new ImageAssetError('ASSET_NOT_FOUND', 404, false, 'Upload session not found');
       if (session.createdBy !== input.principalId) throw new ImageAssetError('ASSET_ACCESS_DENIED', 403, false, 'Upload session belongs to another principal');
-      if (session.status === 'finalized' && session.assetId) return { assetId: session.assetId, jobCreated: false };
+      if (session.status === 'finalized' && session.assetId) {
+        const assetRows = rows(await connection.query('SELECT status FROM image_assets WHERE id = ? FOR UPDATE', [session.assetId]));
+        const processingRequired = assetRows[0]?.status === 'processing' || assetRows[0]?.status === 'degraded';
+        return { assetId: session.assetId, jobCreated: false, processingRequired };
+      }
       if (session.status !== 'open') throw new ImageAssetError('UPLOAD_SESSION_EXPIRED', 409, false, 'Upload session is not open');
       if (session.expiresAt <= new Date()) {
         await connection.query("UPDATE image_upload_sessions SET status = 'expired' WHERE id = ? AND status = 'open'", [input.sessionId]);
@@ -182,9 +189,13 @@ export class MySqlAssetRepository implements AssetRepository {
         [input.sha256],
       ));
       const existing = existingRows[0] ? mapAsset(existingRows[0]) : null;
+      if (existing?.status === 'purging' || existing?.status === 'purged') {
+        throw new ImageAssetError('ASSET_NOT_READY', 409, true, 'Matching asset is being purged');
+      }
       const assetId = existing?.id ?? input.assetId ?? input.sessionId;
       let jobCreated = false;
-      let needsProcessing = !existing || existing.status === 'processing' || existing.status === 'degraded';
+      let needsProcessing = !existing;
+      const purpose = mergePurpose(existing?.purpose, session.purpose);
 
       if (!existing) {
         await connection.query(
@@ -192,27 +203,35 @@ export class MySqlAssetRepository implements AssetRepository {
             (id, sha256, original_filename, detected_mime, detected_extension, purpose, storage_provider,
              byte_size, width, height, status, ref_count, created_by, metadata_json)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'processing', 0, ?, ?)`,
-          [assetId, input.sha256, input.originalFilename, input.detectedMime, input.detectedExtension, session.purpose,
+          [assetId, input.sha256, input.originalFilename, input.detectedMime, input.detectedExtension, purpose,
             input.storageProvider, input.byteSize, input.width, input.height, input.principalId, JSON.stringify(input.metadata ?? {})],
         );
-      } else if (existing.status === 'recycled') {
+      } else {
         const variants = rows(await connection.query(
           'SELECT variant FROM image_asset_variants WHERE asset_id = ?',
           [assetId],
         ));
         const availableVariants = new Set(variants.map((variant) => String(variant.variant)));
-        const hasRequiredVariants = getAssetPolicy(existing.purpose).variants.every((variant) => availableVariants.has(variant));
+        const hasRequiredVariants = getAssetPolicy(purpose).variants.every((variant) => availableVariants.has(variant));
+        needsProcessing = existing.status === 'processing' || existing.status === 'degraded' || !hasRequiredVariants;
         await connection.query(
-          "UPDATE image_assets SET created_by = ?, created_at = NOW(), status = ?, recycled_at = NULL, purge_after = NULL, purged_at = NULL, error_code = NULL WHERE id = ?",
-          [input.principalId, hasRequiredVariants ? 'ready' : 'processing', assetId],
+          `UPDATE image_assets SET purpose = ?, created_by = ?, created_at = NOW(), status = ?,
+             recycled_at = NULL, purge_after = NULL, purged_at = NULL, error_code = NULL
+           WHERE id = ? AND status NOT IN ('purging', 'purged')`,
+          [purpose, input.principalId, needsProcessing ? 'processing' : 'ready', assetId],
         );
-        needsProcessing = !hasRequiredVariants;
       }
 
       if (needsProcessing) {
         const inserted = result(await connection.query(
-          `INSERT IGNORE INTO image_processing_jobs (asset_id, job_type, status, attempts, available_at)
-           VALUES (?, 'process_asset', 'queued', 0, NOW())`,
+          `INSERT INTO image_processing_jobs (asset_id, job_type, status, attempts, available_at)
+           VALUES (?, 'process_asset', 'queued', 0, NOW())
+           ON DUPLICATE KEY UPDATE
+             available_at = IF(status IN ('completed', 'failed'), NOW(), available_at),
+             attempts = IF(status IN ('completed', 'failed'), 0, attempts),
+             locked_at = IF(status IN ('completed', 'failed'), NULL, locked_at),
+             last_error_code = IF(status IN ('completed', 'failed'), NULL, last_error_code),
+             status = IF(status IN ('completed', 'failed'), 'queued', status)`,
           [assetId],
         ));
         jobCreated = (inserted.affectedRows ?? 0) > 0;
@@ -222,7 +241,7 @@ export class MySqlAssetRepository implements AssetRepository {
         "UPDATE image_upload_sessions SET status = 'finalized', asset_id = ? WHERE id = ?",
         [assetId, input.sessionId],
       );
-      return { assetId, jobCreated };
+      return { assetId, jobCreated, processingRequired: needsProcessing };
     });
     if (!finalized) throw new ImageAssetError('UPLOAD_SESSION_EXPIRED', 409, false, 'Upload session has expired');
     return finalized;
@@ -279,28 +298,62 @@ export class MySqlAssetRepository implements AssetRepository {
     });
   }
 
-  async failJob(jobId: number, code: string, retryAt: Date | null): Promise<void> {
-    await this.pool.query(
+  async failJob(jobId: number, code: string, retryAt: Date | null): Promise<boolean> {
+    const failed = result(await this.pool.query(
       `UPDATE image_processing_jobs
        SET status = ?, available_at = COALESCE(?, available_at), locked_at = NULL, last_error_code = ?
        WHERE id = ? AND status = 'processing'`,
       [retryAt ? 'queued' : 'failed', retryAt, code, jobId],
-    );
+    ));
+    return (failed.affectedRows ?? 0) === 1;
   }
 
-  async markAssetDegraded(assetId: string, code: string): Promise<void> {
-    await this.pool.query("UPDATE image_assets SET status = 'degraded', error_code = ? WHERE id = ?", [code, assetId]);
+  async markAssetDegraded(assetId: string, code: string): Promise<boolean> {
+    const degraded = result(await this.pool.query(
+      "UPDATE image_assets SET status = 'degraded', error_code = ? WHERE id = ? AND status IN ('processing', 'degraded')",
+      [code, assetId],
+    ));
+    return (degraded.affectedRows ?? 0) === 1;
   }
 
   async listExpiredUploadSessions(now: Date, limit: number): Promise<UploadSessionRecord[]> {
     return rows(await this.pool.query(
-      "SELECT * FROM image_upload_sessions WHERE status = 'open' AND expires_at <= ? ORDER BY expires_at LIMIT ?",
+      `SELECT * FROM image_upload_sessions
+       WHERE status IN ('open', 'expired') AND expires_at <= ? AND quarantine_cleaned_at IS NULL
+       ORDER BY expires_at LIMIT ?`,
       [now, limit],
     )).map(mapUploadSession);
   }
 
   async expireUploadSession(sessionId: string): Promise<void> {
     await this.pool.query("UPDATE image_upload_sessions SET status = 'expired' WHERE id = ? AND status = 'open'", [sessionId]);
+  }
+
+  async completeExpiredUploadCleanup(sessionId: string, cleanedAt: Date): Promise<boolean> {
+    const cleaned = result(await this.pool.query(
+      `UPDATE image_upload_sessions SET status = 'expired', quarantine_cleaned_at = ?
+       WHERE id = ? AND status IN ('open', 'expired') AND quarantine_cleaned_at IS NULL`,
+      [cleanedAt, sessionId],
+    ));
+    return (cleaned.affectedRows ?? 0) === 1;
+  }
+
+  async listPendingAssetUploadSessions(assetId: string): Promise<UploadSessionRecord[]> {
+    return rows(await this.pool.query(
+      `SELECT * FROM image_upload_sessions
+       WHERE asset_id = ? AND status = 'finalized' AND quarantine_cleaned_at IS NULL
+       ORDER BY updated_at, id`,
+      [assetId],
+    )).map(mapUploadSession);
+  }
+
+  async markUploadSessionQuarantineCleaned(sessionId: string, cleanedAt: Date): Promise<boolean> {
+    const cleaned = result(await this.pool.query(
+      `UPDATE image_upload_sessions SET quarantine_cleaned_at = ?
+       WHERE id = ? AND status = 'finalized' AND quarantine_cleaned_at IS NULL`,
+      [cleanedAt, sessionId],
+    ));
+    return (cleaned.affectedRows ?? 0) === 1;
   }
 
   async replaceCompanyImage(companyId: number, role: CompanyImageRole, assetId: string | null): Promise<void> {
@@ -382,13 +435,45 @@ export class MySqlAssetRepository implements AssetRepository {
     )).map(mapAsset);
   }
 
+  async claimNextPurgeCandidate(now: Date): Promise<PurgeClaim | null> {
+    return this.inTransaction(async (connection) => {
+      const candidates = rows(await connection.query(
+        `SELECT id FROM image_assets
+         WHERE status = 'recycled' AND ref_count = 0 AND purge_after <= ?
+         ORDER BY purge_after, id LIMIT 1 FOR UPDATE SKIP LOCKED`,
+        [now],
+      ));
+      if (!candidates[0]) return null;
+      const assetId = String(candidates[0].id);
+      const claimed = result(await connection.query(
+        `UPDATE image_assets SET status = 'purging'
+         WHERE id = ? AND status = 'recycled' AND ref_count = 0 AND purge_after <= ?`,
+        [assetId, now],
+      ));
+      if ((claimed.affectedRows ?? 0) !== 1) return null;
+      const variants = rows(await connection.query(
+        'SELECT * FROM image_asset_variants WHERE asset_id = ? ORDER BY variant FOR UPDATE',
+        [assetId],
+      )).map(mapVariant);
+      return { assetId, variants };
+    });
+  }
+
+  async releasePurgeClaim(assetId: string): Promise<boolean> {
+    const released = result(await this.pool.query(
+      "UPDATE image_assets SET status = 'recycled' WHERE id = ? AND status = 'purging' AND ref_count = 0",
+      [assetId],
+    ));
+    return (released.affectedRows ?? 0) === 1;
+  }
+
   async markPurged(assetId: string, at: Date): Promise<void> {
     await this.inTransaction(async (connection) => {
       const found = rows(await connection.query('SELECT status, ref_count, purge_after FROM image_assets WHERE id = ? FOR UPDATE', [assetId]));
       if (!found[0]) return;
       if (found[0].status === 'purged') return;
       if (
-        found[0].status !== 'recycled'
+        found[0].status !== 'purging'
         || Number(found[0].ref_count) !== 0
         || found[0].purge_after == null
         || date(found[0].purge_after) > at
@@ -398,7 +483,7 @@ export class MySqlAssetRepository implements AssetRepository {
       await connection.query('DELETE FROM image_asset_variants WHERE asset_id = ?', [assetId]);
       const updated = result(await connection.query(
         `UPDATE image_assets SET status = 'purged', purged_at = ?, error_code = NULL
-         WHERE id = ? AND status = 'recycled' AND ref_count = 0 AND purge_after <= ?`,
+         WHERE id = ? AND status = 'purging' AND ref_count = 0 AND purge_after <= ?`,
         [at, assetId, at],
       ));
       if ((updated.affectedRows ?? 0) !== 1) {
@@ -475,4 +560,9 @@ export class MySqlAssetRepository implements AssetRepository {
       connection.release();
     }
   }
+}
+
+function mergePurpose(existing: ImageAssetRecord['purpose'] | undefined, incoming: ImageAssetRecord['purpose']): ImageAssetRecord['purpose'] {
+  if (existing === 'product_image' || incoming === 'product_image') return 'product_image';
+  return existing ?? incoming;
 }
