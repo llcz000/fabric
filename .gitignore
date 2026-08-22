@@ -23,6 +23,7 @@ YB-*.json
 tmp/
 request.json
 .planning/
+.worktrees/
 
 # Local agent and IDE state
 .agents/
