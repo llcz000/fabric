@@ -15,7 +15,7 @@ import sharp from 'sharp';
 import { z } from 'zod';
 import { createServer as createViteServer } from 'vite';
 import { parseExternalImageUrl } from './src/lib/externalImageUrl';
-import { createCompanyImageRouter, describeCompanyImages, omitCompanyLegacyImageValues, type CompanyImageRuntime } from './server/image-assets/companyImages';
+import { createCompanyImageAuthMiddleware, createCompanyImageRouter, describeCompanyImages, omitCompanyLegacyImageValues, type CompanyImageRuntime } from './server/image-assets/companyImages';
 import { CosStorageAdapter, type CosSdkBoundary } from './server/image-assets/cosStorage';
 import { readLegacyImage } from './server/image-assets/legacySource';
 import { getAssetPolicy } from './server/image-assets/policy';
@@ -167,6 +167,10 @@ app.post('/api/login', loginLimiter, (req, res) => {
   res.json({ token, expiresIn: TOKEN_TTL_MS / 1000 });
 });
 
+app.use('/api/company/images', createCompanyImageAuthMiddleware((req) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  return getValidToken(token) !== null;
+}));
 app.use('/api', authMiddleware);
 
 const imageAssetRuntime = createImageAssetRuntime({

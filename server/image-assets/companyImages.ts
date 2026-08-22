@@ -20,6 +20,7 @@ const MAX_URLENCODED_PARAMETERS = 20;
 const SAFE_REQUEST_ID = /^[a-zA-Z0-9_-]{1,128}$/;
 type SharpFactory = typeof import('sharp')['default'];
 type CompanyImageRequest = express.Request & { companyImageRequestId?: string };
+type CompanyImageAuthorization = (req: express.Request) => boolean | Promise<boolean>;
 
 export interface CompanyImageDescriptor {
   role: CompanyImageRole;
@@ -77,6 +78,7 @@ function parseDeclaredJsonBody<T>(schema: z.ZodType<T>, req: express.Request): T
 }
 
 async function readyAssociation(runtime: CompanyImageRuntime, role: CompanyImageRole): Promise<string | null> {
+  if (!runtime.enabled || !runtime.service) return null;
   const assetId = await runtime.findAssociation(role);
   if (!assetId) return null;
   const asset = await requireService(runtime).getDescriptor(assetId, PRINCIPAL_ID);
@@ -114,17 +116,13 @@ export function omitCompanyLegacyImageValues<T extends Record<string, unknown>>(
 
 export function createCompanyImageRouter(runtime: CompanyImageRuntime): express.Router {
   const router = express.Router();
-  router.use((req: CompanyImageRequest, res, next) => {
-    const supplied = req.get('X-Request-Id');
-    req.companyImageRequestId = supplied && SAFE_REQUEST_ID.test(supplied)
-      ? supplied
-      : generatedRequestId();
-    res.set('X-Request-Id', req.companyImageRequestId);
-    next();
-  });
+  router.use(companyImageRequestContext);
 
   router.use((req, res, next) => {
-    if (!runtime.enabled || !runtime.service) return res.status(404).json({ error: 'Not found' });
+    if (
+      (!runtime.enabled || !runtime.service)
+      && !(req.method === 'GET' && /^\/[^/]+\/content\/?$/.test(req.path))
+    ) return res.status(404).json({ error: 'Not found' });
     next();
   });
   router.use(express.json({ limit: MAX_RAW_BODY_BYTES, strict: true }));
@@ -185,6 +183,48 @@ export function createCompanyImageRouter(runtime: CompanyImageRuntime): express.
   });
 
   return router;
+}
+
+export function companyImageRequestContext(
+  req: CompanyImageRequest,
+  res: express.Response,
+  next: express.NextFunction,
+): void {
+  if (!req.companyImageRequestId) {
+    const supplied = req.get('X-Request-Id');
+    req.companyImageRequestId = supplied && SAFE_REQUEST_ID.test(supplied)
+      ? supplied
+      : generatedRequestId();
+  }
+  res.set('X-Request-Id', req.companyImageRequestId);
+  next();
+}
+
+export function createCompanyImageAuthMiddleware(isAuthorized: CompanyImageAuthorization): express.RequestHandler {
+  return (req: CompanyImageRequest, res, next) => {
+    companyImageRequestContext(req, res, () => {
+      void Promise.resolve(isAuthorized(req)).then((authorized) => {
+        if (authorized) {
+          next();
+          return;
+        }
+        sendUnauthorized(req, res);
+      }).catch(() => sendUnauthorized(req, res));
+    });
+  };
+}
+
+function sendUnauthorized(req: CompanyImageRequest, res: express.Response): void {
+  const requestId = req.companyImageRequestId ?? generatedRequestId();
+  res.set('X-Request-Id', requestId);
+  res.status(401).json({
+    error: {
+      code: 'ASSET_ACCESS_DENIED',
+      message: safeErrorMessage('ASSET_ACCESS_DENIED'),
+      requestId,
+      retryable: false,
+    },
+  });
 }
 
 function asyncRoute(handler: (req: express.Request, res: express.Response) => Promise<void>): express.RequestHandler {

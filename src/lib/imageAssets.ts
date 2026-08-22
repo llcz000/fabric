@@ -49,6 +49,7 @@ export interface WaitForReadyAssetOptions {
 
 export interface FetchAssetBlobOptions {
   apiFetch: typeof fetch;
+  signal?: AbortSignal;
 }
 
 export interface ApplyCompanyImageMutationsOptions {
@@ -148,7 +149,7 @@ export async function fetchAssetBlob(contentUrl: string, options: FetchAssetBlob
       retryable: false,
     });
   }
-  const response = await options.apiFetch(contentUrl);
+  const response = await options.apiFetch(contentUrl, { signal: options.signal });
   if (!response.ok) throw await toClientError(response);
   return response.blob();
 }

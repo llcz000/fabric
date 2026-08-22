@@ -3,12 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { DocumentData, DocType, SampleItem, SalesItem, CompanyProfile } from '../types';
 import { Printer, ArrowLeft, Edit3, Scissors, Download, Landmark, PhoneCall, Image } from 'lucide-react';
 import html2canvas from 'html2canvas-pro';
 import { ImageAssetClientError } from '../lib/imageAssets';
-import { prepareCaptureClone, releaseCaptureResources } from '../lib/imageCapture';
+import { withPreparedCapture } from '../lib/imageCapture';
 
 interface DocumentPreviewProps {
   document: DocumentData;
@@ -155,8 +155,18 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
     document.items.some(item => ((item as SalesItem).deductionMeters || 0) > 0)
   );
   const printRef = useRef<HTMLDivElement | null>(null);
+  const exportAbortRef = useRef<AbortController | null>(null);
+  const mountedRef = useRef(true);
   const [generating, setGenerating] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      exportAbortRef.current?.abort(new DOMException('Document preview unmounted', 'AbortError'));
+    };
+  }, []);
 
   const handlePrint = () => {
     window.print();
@@ -164,12 +174,12 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
 
   // Export current document as PNG image
   const handleExportImage = async () => {
-    if (generating) return;
+    if (generating || exportAbortRef.current) return;
     const node = printRef.current;
     if (!node) return;
+    const exportController = new AbortController();
+    exportAbortRef.current = exportController;
     setGenerating(true);
-    let captureContainer: HTMLDivElement | null = null;
-    let captureObjectUrls: string[] = [];
     try {
       const token = sessionStorage.getItem('fabric_auth_token');
       const apiFetch: typeof fetch = (input, init: RequestInit = {}) => {
@@ -177,38 +187,47 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
         if (token) headers.set('Authorization', `Bearer ${token}`);
         return fetch(input, { ...init, headers });
       };
-      const prepared = await prepareCaptureClone(node, apiFetch);
-      captureObjectUrls = prepared.objectUrls;
-      captureContainer = window.document.createElement('div');
-      captureContainer.style.position = 'fixed';
-      captureContainer.style.left = '-100000px';
-      captureContainer.style.top = '0';
-      captureContainer.style.width = '900px';
-      captureContainer.style.background = '#fff';
-      captureContainer.style.pointerEvents = 'none';
-      prepared.clone.style.width = '900px';
-      prepared.clone.style.maxWidth = 'none';
-      const signature = prepared.clone.querySelector('.signature-section') as HTMLElement | null;
-      if (signature) {
-        signature.style.display = 'flex';
-        signature.style.flexDirection = 'row';
-        signature.style.justifyContent = 'space-between';
-        signature.style.alignItems = 'flex-start';
-        const qrContainer = signature.querySelector('[class*="order-first"]') as HTMLElement | null;
-        if (qrContainer) qrContainer.style.order = '0';
-      }
-      captureContainer.appendChild(prepared.clone);
-      window.document.body.appendChild(captureContainer);
-      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      const dataUrl = await withPreparedCapture(node, apiFetch, async (captureClone) => {
+        const captureContainer = window.document.createElement('div');
+        try {
+          captureContainer.style.position = 'fixed';
+          captureContainer.style.left = '-100000px';
+          captureContainer.style.top = '0';
+          captureContainer.style.width = '900px';
+          captureContainer.style.background = '#fff';
+          captureContainer.style.pointerEvents = 'none';
+          captureClone.style.width = '900px';
+          captureClone.style.maxWidth = 'none';
+          const signature = captureClone.querySelector('.signature-section') as HTMLElement | null;
+          if (signature) {
+            signature.style.display = 'flex';
+            signature.style.flexDirection = 'row';
+            signature.style.justifyContent = 'space-between';
+            signature.style.alignItems = 'flex-start';
+            const qrContainer = signature.querySelector('[class*="order-first"]') as HTMLElement | null;
+            if (qrContainer) qrContainer.style.order = '0';
+          }
+          captureContainer.appendChild(captureClone);
+          window.document.body.appendChild(captureContainer);
+          await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+          const canvas = await html2canvas(captureClone, {
+            scale: 2,
+            backgroundColor: '#ffffff',
+            useCORS: false,
+            allowTaint: false,
+            logging: false,
+          });
+          return canvas.toDataURL('image/png');
+        } finally {
+          captureContainer.remove();
+        }
+      }, { signal: exportController.signal });
 
-      const canvas = await html2canvas(prepared.clone, {
-        scale: 2,
-        backgroundColor: '#ffffff',
-        useCORS: false,
-        allowTaint: false,
-        logging: false,
-      });
-      const dataUrl = canvas.toDataURL('image/png');
+      if (
+        exportController.signal.aborted
+        || !mountedRef.current
+        || exportAbortRef.current !== exportController
+      ) return;
 
       const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
       if (isMobile) {
@@ -223,14 +242,18 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
         window.document.body.removeChild(link);
       }
     } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : String(err);
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      const errMsg = err instanceof ImageAssetClientError
+        ? err.message
+        : err instanceof DOMException && err.name === 'TimeoutError'
+          ? '图片准备超时，请重试。'
+          : '图片生成失败，请重试。';
       const requestId = err instanceof ImageAssetClientError && err.requestId ? `（请求ID: ${err.requestId}）` : '';
       console.error('Image export failed:', err);
       alert('生成图片失败: ' + errMsg + requestId);
     } finally {
-      if (captureContainer) captureContainer.remove();
-      releaseCaptureResources(captureObjectUrls);
-      setGenerating(false);
+      if (exportAbortRef.current === exportController) exportAbortRef.current = null;
+      if (mountedRef.current) setGenerating(false);
     }
   };
 
@@ -391,7 +414,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                 {/* Left: Company Logo Image */}
                 <div className="w-[120px] flex justify-start items-start h-12">
                   {companyProfile.logoUrl && (
-                    <img src={companyProfile.logoUrl} className="max-h-12 max-w-full object-contain" alt="Logo" data-company-image-role={companyProfile.companyImages?.brand_logo ? 'brand_logo' : undefined} referrerPolicy="no-referrer" />
+                    <img src={companyProfile.logoUrl} className="max-h-12 max-w-full object-contain" alt="Logo" data-company-image-role="brand_logo" referrerPolicy="no-referrer" />
                   )}
                 </div>
 
@@ -700,13 +723,13 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
               <div className="flex items-center">
                   {companyProfile.weChatPayUrl && (
                     <div className="flex flex-col items-center" style={{ marginRight: 32 }}>
-                      <img src={companyProfile.weChatPayUrl} style={{ width: 80, height: 80, minWidth: 80, minHeight: 80, border: '1px solid #e2e8f0', borderRadius: 4, padding: 2, background: '#fff' }} alt="微信收款" data-company-image-role={companyProfile.companyImages?.wechat_qr ? 'wechat_qr' : undefined} referrerPolicy="no-referrer" />
+                      <img src={companyProfile.weChatPayUrl} style={{ width: 80, height: 80, minWidth: 80, minHeight: 80, border: '1px solid #e2e8f0', borderRadius: 4, padding: 2, background: '#fff' }} alt="微信收款" data-company-image-role="wechat_qr" referrerPolicy="no-referrer" />
                       <span className="text-[9px] text-slate-500 font-bold mt-1">微信收款</span>
                     </div>
                   )}
                   {companyProfile.aliPayUrl && (
                     <div className="flex flex-col items-center">
-                      <img src={companyProfile.aliPayUrl} style={{ width: 80, height: 80, minWidth: 80, minHeight: 80, border: '1px solid #e2e8f0', borderRadius: 4, padding: 2, background: '#fff' }} alt="支付宝收款" data-company-image-role={companyProfile.companyImages?.alipay_qr ? 'alipay_qr' : undefined} referrerPolicy="no-referrer" />
+                      <img src={companyProfile.aliPayUrl} style={{ width: 80, height: 80, minWidth: 80, minHeight: 80, border: '1px solid #e2e8f0', borderRadius: 4, padding: 2, background: '#fff' }} alt="支付宝收款" data-company-image-role="alipay_qr" referrerPolicy="no-referrer" />
                       <span className="text-[9px] text-slate-500 font-bold mt-1">支付宝收款</span>
                     </div>
                   )}

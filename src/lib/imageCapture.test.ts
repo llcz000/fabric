@@ -127,22 +127,38 @@ test('handles missing or partial company images without fetching absent roles', 
   ]);
 });
 
-test('leaves feature-off legacy and same-origin images unchanged without any arbitrary remote proxy request', async () => {
+test('converts all three feature-off legacy company images through same-origin role endpoints', async () => {
   assert.equal(typeof imageCapture.prepareCaptureClone, 'function');
   const source = new FakeRoot([
-    new FakeImage('https://fabric-images-1448065940.cos.ap-shanghai.myqcloud.com/legacy-logo.png'),
-    new FakeImage('/uploads/legacy-qr.png'),
-    new FakeImage('data:image/png;base64,legacy'),
+    protectedImage('brand_logo', 'https://fabric-images-1448065940.cos.ap-shanghai.myqcloud.com/legacy-logo.png'),
+    protectedImage('wechat_qr', 'http://fabric-images-1448065940.cos.ap-shanghai.myqcloud.com/legacy-wechat.png'),
+    protectedImage('alipay_qr', 'data:image/png;base64,legacy-alipay'),
   ]);
-  let requests = 0;
+  const blobs = new Map<string, Blob>();
+  const requests: string[] = [];
 
-  const prepared = await imageCapture.prepareCaptureClone(source as unknown as HTMLElement, async () => {
-    requests += 1;
-    return new Response();
+  const prepared = await imageCapture.prepareCaptureClone(source as unknown as HTMLElement, async (input) => {
+    requests.push(String(input));
+    return new Response(new Blob([`legacy-${String(input).split('/')[4]}-pixels`], { type: 'image/png' }));
+  }, {
+    createObjectUrl: (blob) => {
+      const url = `blob:legacy-${blobs.size}`;
+      blobs.set(url, blob);
+      return url;
+    },
   });
 
-  assert.equal(requests, 0);
-  assert.deepEqual((prepared.clone as unknown as FakeRoot).images.map((image) => image.src), source.images.map((image) => image.src));
+  const cloneImages = (prepared.clone as unknown as FakeRoot).images;
+  assert.deepEqual(requests, [
+    '/api/company/images/brand_logo/content',
+    '/api/company/images/wechat_qr/content',
+    '/api/company/images/alipay_qr/content',
+  ]);
+  assert.deepEqual(
+    await Promise.all(cloneImages.map((image) => blobs.get(image.src)?.text())),
+    ['legacy-brand_logo-pixels', 'legacy-wechat_qr-pixels', 'legacy-alipay_qr-pixels'],
+  );
+  assert.ok(cloneImages.every((image) => image.decoded === 1 && image.src.startsWith('blob:')));
 });
 
 test('revokes every Blob URL after successful export cleanup', async () => {
@@ -179,4 +195,90 @@ test('revokes a Blob URL created by a pending image when a sibling protected ima
   await assert.rejects(failed, /图片请求失败/);
   assert.deepEqual(created, ['blob:logo']);
   assert.deepEqual(revoked, ['blob:logo']);
+});
+
+test('aborting an export releases a ready Blob URL while a sibling request is hung', async () => {
+  const source = new FakeRoot([protectedImage('brand_logo'), protectedImage('wechat_qr')]);
+  const controller = new AbortController();
+  const created: string[] = [];
+  const revoked: string[] = [];
+
+  const pending = imageCapture.prepareCaptureClone(source as unknown as HTMLElement, async (input, init) => {
+    if (String(input).includes('brand_logo')) {
+      return new Response(new Blob(['logo'], { type: 'image/png' }));
+    }
+    assert.ok(init?.signal, 'protected content fetch must receive the export AbortSignal');
+    return new Promise<Response>(() => {});
+  }, {
+    signal: controller.signal,
+    timeoutMs: 10_000,
+    createObjectUrl: () => {
+      created.push('blob:logo');
+      controller.abort(new DOMException('preview unmounted', 'AbortError'));
+      return 'blob:logo';
+    },
+    revokeObjectUrl: (url) => revoked.push(url),
+  });
+
+  await assert.rejects(pending, (error: unknown) => error instanceof DOMException && error.name === 'AbortError');
+  assert.deepEqual(created, ['blob:logo']);
+  assert.deepEqual(revoked, ['blob:logo']);
+});
+
+test('times out a non-cooperative protected image request and cleans partial resources', async () => {
+  const source = new FakeRoot([protectedImage('brand_logo'), protectedImage('wechat_qr')]);
+  const revoked: string[] = [];
+  const pending = imageCapture.prepareCaptureClone(source as unknown as HTMLElement, async (input) => {
+    if (String(input).includes('brand_logo')) {
+      return new Response(new Blob(['logo'], { type: 'image/png' }));
+    }
+    return new Promise<Response>(() => {});
+  }, {
+    timeoutMs: 10,
+    createObjectUrl: () => 'blob:logo',
+    revokeObjectUrl: (url) => revoked.push(url),
+  });
+
+  await assert.rejects(
+    Promise.race([
+      pending,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('test guard expired')), 250)),
+    ]),
+    (error: unknown) => error instanceof DOMException && error.name === 'TimeoutError',
+  );
+  assert.deepEqual(revoked, ['blob:logo']);
+});
+
+test('repeated captures release each export only after its capture callback settles', async () => {
+  assert.equal(typeof imageCapture.withPreparedCapture, 'function');
+  const revoked: string[] = [];
+  let finishFirst!: () => void;
+  const source = new FakeRoot([protectedImage('brand_logo')]);
+  const resources = {
+    createObjectUrl: (() => {
+      let index = 0;
+      return () => `blob:export-${++index}`;
+    })(),
+    revokeObjectUrl: (url: string) => revoked.push(url),
+  };
+  const apiFetch = async () => new Response(new Blob(['logo'], { type: 'image/png' }));
+
+  const first = imageCapture.withPreparedCapture(source as unknown as HTMLElement, apiFetch, async () => {
+    await new Promise<void>((resolve) => { finishFirst = resolve; });
+    return 'first';
+  }, resources);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(revoked, [], 'capture resources must remain live until rendering finishes');
+  finishFirst();
+  assert.equal(await first, 'first');
+  assert.deepEqual(revoked, ['blob:export-1']);
+
+  const second = await imageCapture.withPreparedCapture(
+    source as unknown as HTMLElement,
+    apiFetch,
+    async () => 'second',
+    resources,
+  );
+  assert.equal(second, 'second');
+  assert.deepEqual(revoked, ['blob:export-1', 'blob:export-2']);
 });

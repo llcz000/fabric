@@ -10,6 +10,7 @@ import type { AddressInfo } from 'node:net';
 import express from 'express';
 
 import {
+  createCompanyImageAuthMiddleware,
   createCompanyImageRouter,
   describeCompanyImages,
   omitCompanyLegacyImageValues,
@@ -84,6 +85,23 @@ function runtime(state: MemoryState, options: { enabled?: boolean; content?: Ass
 
 async function withHttpServer<T>(value: CompanyImageRuntime, work: (baseUrl: string) => Promise<T>): Promise<T> {
   const app = express();
+  app.use('/api/company/images', createCompanyImageRouter(value));
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise<void>((resolve, reject) => {
+    server.once('listening', resolve);
+    server.once('error', reject);
+  });
+  const { port } = server.address() as AddressInfo;
+  try {
+    return await work(`http://127.0.0.1:${port}`);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+}
+
+async function withAuthenticatedHttpServer<T>(value: CompanyImageRuntime, work: (baseUrl: string) => Promise<T>): Promise<T> {
+  const app = express();
+  app.use('/api/company/images', createCompanyImageAuthMiddleware((req) => req.get('Authorization') === 'Bearer company-test-token'));
   app.use('/api/company/images', createCompanyImageRouter(value));
   const server = app.listen(0, '127.0.0.1');
   await new Promise<void>((resolve, reject) => {
@@ -333,4 +351,67 @@ test('feature-off compatibility keeps legacy GET/POST image fields untouched', (
 
   assert.deepEqual(omitCompanyLegacyImageValues(original, false), original);
   assert.deepEqual(omitCompanyLegacyImageValues(original, true), { company_name: 'Dream Weave' });
+});
+
+test('feature-off content route reads all legacy company roles without exposing or fetching raw URLs in the browser', async () => {
+  const fixtures = {
+    brand_logo: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEklEQVQYlWMQbbD9jw8zjAwFAKYddEEY9FwlAAAAAElFTkSuQmCC', 'base64'),
+    wechat_qr: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEklEQVQYlWNgzlz4Hx9mGBkKACt1gwFdjghsAAAAAElFTkSuQmCC', 'base64'),
+    alipay_qr: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEklEQVQYlWO4Wc72Hx9mGBkKAPpclUGMJRtgAAAAAElFTkSuQmCC', 'base64'),
+  };
+  const state: MemoryState = {
+    company: {
+      brand_logo: RAW_COS_URL,
+      wechat_qr: 'http://assets-1250000000.cos.ap-beijing.myqcloud.com/legacy/wechat.png',
+      alipay_qr: `data:image/png;base64,${fixtures.alipay_qr.toString('base64')}`,
+    },
+    links: {},
+    descriptors: {},
+    legacyReads: [],
+  };
+  const featureOffRuntime: CompanyImageRuntime = {
+    ...runtime(state, { enabled: false }),
+    service: null,
+    async readLegacy(source) {
+      if (source === state.company.brand_logo) return fixtures.brand_logo;
+      if (source === state.company.wechat_qr) return fixtures.wechat_qr;
+      if (source === state.company.alipay_qr) return fixtures.alipay_qr;
+      return null;
+    },
+  };
+
+  await withHttpServer(featureOffRuntime, async (baseUrl) => {
+    for (const role of ['brand_logo', 'wechat_qr', 'alipay_qr'] as const) {
+      const response = await fetch(`${baseUrl}/api/company/images/${role}/content`);
+      assert.equal(response.status, 200, role);
+      assert.equal(response.headers.get('content-type'), 'image/png', role);
+      assert.deepEqual(Buffer.from(await response.arrayBuffer()), fixtures[role], role);
+    }
+    const mutation = await fetch(`${baseUrl}/api/company/images/brand_logo`, json('PUT', { assetId: 'asset-1' }));
+    assert.equal(mutation.status, 404);
+  });
+});
+
+test('unauthorized company image responses expose one safe request ID in header and body', async () => {
+  const state: MemoryState = { company: {}, links: {}, descriptors: {}, legacyReads: [] };
+  await withAuthenticatedHttpServer(runtime(state), async (baseUrl) => {
+    const supplied = await fetch(`${baseUrl}/api/company/images/brand_logo/content`, {
+      headers: { 'X-Request-Id': 'company-auth-denied' },
+    });
+    assert.equal(supplied.status, 401);
+    assert.equal(supplied.headers.get('x-request-id'), 'company-auth-denied');
+    assert.deepEqual(await supplied.json(), {
+      error: {
+        code: 'ASSET_ACCESS_DENIED',
+        message: 'Asset access is denied',
+        requestId: 'company-auth-denied',
+        retryable: false,
+      },
+    });
+
+    const generated = await fetch(`${baseUrl}/api/company/images/wechat_qr/content`);
+    const requestId = generated.headers.get('x-request-id');
+    assert.match(requestId ?? '', /^req_[a-f0-9]{32}$/);
+    assert.equal((await generated.json()).error.requestId, requestId);
+  });
 });

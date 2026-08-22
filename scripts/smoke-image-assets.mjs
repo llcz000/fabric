@@ -6,8 +6,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { verifyCompanyImageContentFixtureEndpoints } from './companyImageContentFixture.mjs';
-
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const serverEntry = path.join(projectRoot, 'dist', 'server.cjs');
 
@@ -47,6 +45,18 @@ async function waitForExit(child, timeoutMs) {
     new Promise((resolve) => child.once('exit', (code) => resolve(code))),
     new Promise((_, reject) => setTimeout(() => reject(new Error('Process did not exit in time')), timeoutMs)),
   ]);
+}
+
+async function runCompanyImageContentRouteSmoke() {
+  const routeSmoke = spawn(process.execPath, [
+    path.join(projectRoot, 'scripts', 'run-ts-tests.mjs'),
+    'scripts/companyImageContentSmoke.test.ts',
+  ], {
+    cwd: projectRoot,
+    stdio: 'inherit',
+  });
+  const code = await waitForExit(routeSmoke, 20_000);
+  assert.equal(code, 0, 'production-composed company image content route smoke must pass');
 }
 
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fabric-image-assets-smoke-'));
@@ -114,7 +124,7 @@ try {
     },
   });
 
-  await verifyCompanyImageContentFixtureEndpoints();
+  await runCompanyImageContentRouteSmoke();
 
   child.kill('SIGTERM');
   await waitForExit(child, 5_000);
