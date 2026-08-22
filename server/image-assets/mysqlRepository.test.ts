@@ -166,6 +166,7 @@ test('create upload session returns the stored record for a compatible ID retry'
   assert.equal(session.createdBy, input.createdBy);
   assert.match(sql(connection), /SELECT \* FROM image_upload_sessions WHERE id = \?/);
   assert.doesNotMatch(sql(connection), /INSERT INTO image_upload_sessions/);
+  assert.doesNotMatch(sql(connection), /UPDATE image_upload_sessions/);
 });
 
 test('create upload session rejects a conflicting ID retry without overwriting the stored session', async () => {

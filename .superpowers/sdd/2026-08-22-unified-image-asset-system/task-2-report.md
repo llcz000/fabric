@@ -161,3 +161,21 @@ git diff --check
 ```
 
 GREEN results: all commands exited 0; `test:image-assets` reported 20 passing tests and lint reported `tsc --noEmit`.
+
+## Fix Round 3
+
+### Test evidence
+
+- File: `server/image-assets/mysqlRepository.test.ts`.
+- Strengthened `create upload session rejects a same-ID retry from a different principal before inserting` with `assert.doesNotMatch(sql(connection), /UPDATE image_upload_sessions/)`.
+- The assertion catches the production mutation of adding an `UPDATE image_upload_sessions` before the compatibility rejection. The existing structured `IMAGE_CONTENT_INVALID` rejection and no-`INSERT` assertion remain in the same test.
+
+### Verification
+
+```powershell
+npm.cmd run test:image-assets
+npm.cmd run lint
+git diff --check
+```
+
+All commands exited 0. The focused suite reported 20 passing tests and lint reported `tsc --noEmit`. No production code changed.
