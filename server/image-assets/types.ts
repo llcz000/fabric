@@ -46,7 +46,7 @@ export interface UploadSessionRecord {
   quarantineKey: string;
   declaredByteSize: number;
   declaredMime: string;
-  createdBy: number;
+  createdBy: string;
   expiresAt: Date;
   status: 'open' | 'finalized' | 'expired';
   assetId?: string;

@@ -15,6 +15,7 @@ import sharp from 'sharp';
 import { z } from 'zod';
 import { createServer as createViteServer } from 'vite';
 import { parseExternalImageUrl } from './src/lib/externalImageUrl';
+import { initializeImageAssetSchema } from './server/image-assets/schema';
 
 // Load environment variables
 dotenv.config();
@@ -489,6 +490,8 @@ async function getMySQLPool(): Promise<mysql.Pool> {
         INDEX idx_product_id (product_id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
+
+    await initializeImageAssetSchema(conn);
 
     // Inventory entries table
     await conn.query(`
