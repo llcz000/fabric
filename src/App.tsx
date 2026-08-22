@@ -4,7 +4,9 @@
  */
 
 import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { DocType, DocumentData, CompanyProfile, DocItem, InventoryEntry, InventoryRecord } from './types';
+import { DocType, DocumentData, CompanyProfile, CompanyImageRole, CompanyImageValue, DocItem, InventoryEntry, InventoryRecord } from './types';
+import { applyCompanyImageMutations } from './lib/imageAssets';
+import type { CompanyImageMutation } from './lib/companyImageState';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import {
   Database, PlusCircle, Settings, LayoutDashboard,
@@ -48,6 +50,43 @@ const DEFAULT_COMPANY_PROFILE: CompanyProfile = {
 3. 签收效力：开单人与收货人签字即具有同等合同效力，开单电话可作为业务沟通与对账的主要凭证。`,
   depositTerms: ''
 };
+
+function mapCompanyProfile(backendProfile: any): CompanyProfile {
+  const imageValues = backendProfile.images && typeof backendProfile.images === 'object'
+    ? Object.entries(backendProfile.images).reduce<Partial<Record<CompanyImageRole, CompanyImageValue>>>((images, [role, value]) => {
+      if (!['brand_logo', 'wechat_qr', 'alipay_qr'].includes(role) || !value || typeof value !== 'object') return images;
+      const image = value as Partial<CompanyImageValue>;
+      if ((image.source === 'asset' || image.source === 'legacy') && typeof image.displayUrl === 'string') {
+        images[role as CompanyImageRole] = {
+          role: role as CompanyImageRole,
+          source: image.source,
+          ...(typeof image.assetId === 'string' ? { assetId: image.assetId } : {}),
+          displayUrl: image.displayUrl,
+        };
+      }
+      return images;
+    }, {})
+    : undefined;
+  const logoUrl = imageValues?.brand_logo?.displayUrl ?? backendProfile.brand_logo ?? '';
+  const weChatPayUrl = imageValues?.wechat_qr?.displayUrl ?? backendProfile.wechat_qr ?? '';
+  const aliPayUrl = imageValues?.alipay_qr?.displayUrl ?? backendProfile.alipay_qr ?? '';
+
+  return {
+    name: backendProfile.company_name,
+    logoText: backendProfile.brand_name || '织梦面料 · DREAM WEAVE',
+    logoType: logoUrl ? 'image' : 'text',
+    logoUrl,
+    address: backendProfile.address || '',
+    phone: backendProfile.phone || '',
+    defaultTerms: backendProfile.default_terms || DEFAULT_COMPANY_PROFILE.defaultTerms,
+    depositTerms: backendProfile.deposit_terms || DEFAULT_COMPANY_PROFILE.depositTerms,
+    issuerLabel: DEFAULT_COMPANY_PROFILE.issuerLabel,
+    receiverLabel: DEFAULT_COMPANY_PROFILE.receiverLabel,
+    weChatPayUrl,
+    aliPayUrl,
+    ...(imageValues !== undefined ? { companyImages: imageValues } : {}),
+  };
+}
 
 type AppView = 'dashboard' | 'list' | 'create' | 'settings' | 'preview' | 'products' | 'inventory';
 
@@ -208,9 +247,9 @@ export default function App() {
   const [docToEdit, setDocToEdit] = useState<DocumentData | null>(null);
 
   // Auth-aware fetch wrapper
-  const authFetch = async (url: string, options: RequestInit = {}) => {
-    const headers: Record<string, string> = { ...(options.headers as Record<string, string> || {}) };
-    if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+  const authFetch: typeof fetch = async (url, options: RequestInit = {}) => {
+    const headers = new Headers(options.headers);
+    if (authToken) headers.set('Authorization', `Bearer ${authToken}`);
     const res = await fetch(url, { ...options, headers });
     if (res.status === 401) {
       sessionStorage.removeItem('fabric_auth_token');
@@ -239,30 +278,20 @@ export default function App() {
     }
   };
 
+  const loadCompanyProfile = async (): Promise<boolean> => {
+    const profileRes = await authFetch('/api/company');
+    if (!profileRes.ok) return false;
+    const backendProfile = await profileRes.json();
+    if (!backendProfile || !backendProfile.company_name) return false;
+    setCompanyProfile(mapCompanyProfile(backendProfile));
+    return true;
+  };
+
   // Load from database/API with local storage fallback on mount
   const loadData = async () => {
     try {
       // 1. Load Company Profile
-      const profileRes = await authFetch('/api/company');
-      if (profileRes.ok) {
-        const backendProfile = await profileRes.json();
-        if (backendProfile && backendProfile.company_name) {
-          setCompanyProfile({
-            name: backendProfile.company_name,
-            logoText: backendProfile.brand_name || '织梦面料 · DREAM WEAVE',
-            logoType: backendProfile.brand_logo ? 'image' : 'text',
-            logoUrl: backendProfile.brand_logo || '',
-            address: backendProfile.address || '',
-            phone: backendProfile.phone || '',
-            defaultTerms: backendProfile.default_terms || DEFAULT_COMPANY_PROFILE.defaultTerms,
-            depositTerms: backendProfile.deposit_terms || DEFAULT_COMPANY_PROFILE.depositTerms,
-            issuerLabel: DEFAULT_COMPANY_PROFILE.issuerLabel,
-            receiverLabel: DEFAULT_COMPANY_PROFILE.receiverLabel,
-            weChatPayUrl: backendProfile.wechat_qr || '',
-            aliPayUrl: backendProfile.alipay_qr || '',
-          });
-        }
-      }
+      await loadCompanyProfile();
 
       // 2. Load Documents
       const docsRes = await authFetch('/api/orders?per_page=100');
@@ -313,7 +342,10 @@ export default function App() {
   };
 
   // Sync profile changes with backend
-  const handleSaveProfile = async (updatedProfile: CompanyProfile) => {
+  const handleSaveProfile = async (
+    updatedProfile: CompanyProfile,
+    imageMutations: CompanyImageMutation[],
+  ) => {
     const res = await authFetch('/api/company', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -332,6 +364,14 @@ export default function App() {
     if (!res.ok) {
       const message = await res.text().catch(() => '');
       throw new Error(message || '公司配置保存失败');
+    }
+    await applyCompanyImageMutations(imageMutations, { apiFetch: authFetch, reloadCompanyProfile: loadCompanyProfile });
+    if (imageMutations.length > 0) {
+      try {
+        if (await loadCompanyProfile()) return;
+      } catch {
+        // The write already succeeded; retain the locally updated textual profile.
+      }
     }
     setCompanyProfile(updatedProfile);
     localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(updatedProfile));
@@ -733,6 +773,7 @@ export default function App() {
             <CompanyProfileEditor
               profile={companyProfile}
               onSave={handleSaveProfile}
+              apiFetch={authFetch}
             />
           )}
 

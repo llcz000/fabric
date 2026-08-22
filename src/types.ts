@@ -63,6 +63,16 @@ export interface CompanyProfile {
   receiverLabel: string; // 收货人签字栏文案（如：收货人（签字））
   weChatPayUrl?: string; // 微信收款码 Base64/URL
   aliPayUrl?: string;    // 支付宝收款码 Base64/URL
+  companyImages?: Partial<Record<CompanyImageRole, CompanyImageValue>>;
+}
+
+export type CompanyImageRole = 'brand_logo' | 'wechat_qr' | 'alipay_qr';
+
+export interface CompanyImageValue {
+  role: CompanyImageRole;
+  source: 'asset' | 'legacy' | 'none';
+  assetId?: string;
+  displayUrl?: string;
 }
 
 export interface DocumentData {
