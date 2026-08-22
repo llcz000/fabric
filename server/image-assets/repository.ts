@@ -77,6 +77,7 @@ export interface AssetRepository {
   replaceCompanyImage(companyId: number, role: CompanyImageRole, assetId: string | null): Promise<void>;
   attachProductImages(productId: number, assetIds: string[]): Promise<void>;
   detachProductImage(productId: number, assetId: string): Promise<void>;
+  recycleExpiredUnlinkedAssets(now: Date, limit: number): Promise<number>;
   listPurgeCandidates(now: Date, limit: number): Promise<ImageAssetRecord[]>;
   markPurged(assetId: string, at: Date): Promise<void>;
   reconcileReferenceCounts(): Promise<number>;

@@ -1,4 +1,5 @@
 import { ImageAssetError } from './errors';
+import { getAssetPolicy } from './policy';
 import type {
   AssetRepository,
   AssetTransaction,
@@ -109,10 +110,24 @@ export class MySqlAssetRepository implements AssetRepository {
     await this.pool.query(
       `INSERT INTO image_upload_sessions
         (id, purpose, quarantine_key, declared_byte_size, declared_mime, created_by, expires_at, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'open')`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'open')
+       ON DUPLICATE KEY UPDATE id = id`,
       [input.id, input.purpose, input.quarantineKey, input.declaredByteSize, input.declaredMime, input.createdBy, input.expiresAt],
     );
-    return { ...input, status: 'open' };
+    const storedRows = rows(await this.pool.query('SELECT * FROM image_upload_sessions WHERE id = ?', [input.id]));
+    if (!storedRows[0]) return { ...input, status: 'open' };
+    const stored = mapUploadSession(storedRows[0]);
+    if (
+      stored.purpose !== input.purpose
+      || stored.quarantineKey !== input.quarantineKey
+      || stored.declaredByteSize !== input.declaredByteSize
+      || stored.declaredMime !== input.declaredMime
+      || stored.createdBy !== input.createdBy
+      || stored.expiresAt.getTime() !== input.expiresAt.getTime()
+    ) {
+      throw new ImageAssetError('IMAGE_CONTENT_INVALID', 409, false, 'Upload session retry conflicts with the existing session');
+    }
+    return stored;
   }
 
   async getUploadSession(id: string): Promise<UploadSessionRecord | null> {
@@ -121,7 +136,7 @@ export class MySqlAssetRepository implements AssetRepository {
   }
 
   async finalizeUploadSession(input: FinalizedUpload): Promise<{ assetId: string; jobCreated: boolean }> {
-    return this.inTransaction(async (connection) => {
+    const finalized = await this.inTransaction(async (connection) => {
       const sessionRows = rows(await connection.query(
         'SELECT * FROM image_upload_sessions WHERE id = ? FOR UPDATE',
         [input.sessionId],
@@ -131,6 +146,10 @@ export class MySqlAssetRepository implements AssetRepository {
       if (session.createdBy !== input.principalId) throw new ImageAssetError('ASSET_ACCESS_DENIED', 403, false, 'Upload session belongs to another principal');
       if (session.status === 'finalized' && session.assetId) return { assetId: session.assetId, jobCreated: false };
       if (session.status !== 'open') throw new ImageAssetError('UPLOAD_SESSION_EXPIRED', 409, false, 'Upload session is not open');
+      if (session.expiresAt <= new Date()) {
+        await connection.query("UPDATE image_upload_sessions SET status = 'expired' WHERE id = ? AND status = 'open'", [input.sessionId]);
+        return null;
+      }
 
       const existingRows = rows(await connection.query(
         'SELECT * FROM image_assets WHERE sha256 = ? FOR UPDATE',
@@ -139,6 +158,7 @@ export class MySqlAssetRepository implements AssetRepository {
       const existing = existingRows[0] ? mapAsset(existingRows[0]) : null;
       const assetId = existing?.id ?? input.assetId ?? input.sessionId;
       let jobCreated = false;
+      let needsProcessing = !existing || existing.status === 'processing' || existing.status === 'degraded';
 
       if (!existing) {
         await connection.query(
@@ -150,13 +170,20 @@ export class MySqlAssetRepository implements AssetRepository {
             input.storageProvider, input.byteSize, input.width, input.height, input.principalId, JSON.stringify(input.metadata ?? {})],
         );
       } else if (existing.status === 'recycled') {
-        await connection.query(
-          "UPDATE image_assets SET status = 'ready', recycled_at = NULL, purge_after = NULL, error_code = NULL WHERE id = ?",
+        const variants = rows(await connection.query(
+          'SELECT variant FROM image_asset_variants WHERE asset_id = ?',
           [assetId],
+        ));
+        const availableVariants = new Set(variants.map((variant) => String(variant.variant)));
+        const hasRequiredVariants = getAssetPolicy(existing.purpose).variants.every((variant) => availableVariants.has(variant));
+        await connection.query(
+          "UPDATE image_assets SET created_by = ?, created_at = NOW(), status = ?, recycled_at = NULL, purge_after = NULL, purged_at = NULL, error_code = NULL WHERE id = ?",
+          [input.principalId, hasRequiredVariants ? 'ready' : 'processing', assetId],
         );
+        needsProcessing = !hasRequiredVariants;
       }
 
-      if (!existing || existing.status === 'processing' || existing.status === 'degraded') {
+      if (needsProcessing) {
         const inserted = result(await connection.query(
           `INSERT IGNORE INTO image_processing_jobs (asset_id, job_type, status, attempts, available_at)
            VALUES (?, 'process_asset', 'queued', 0, NOW())`,
@@ -171,6 +198,8 @@ export class MySqlAssetRepository implements AssetRepository {
       );
       return { assetId, jobCreated };
     });
+    if (!finalized) throw new ImageAssetError('UPLOAD_SESSION_EXPIRED', 409, false, 'Upload session has expired');
+    return finalized;
   }
 
   async getAsset(id: string): Promise<ImageAssetRecord | null> {
@@ -204,6 +233,9 @@ export class MySqlAssetRepository implements AssetRepository {
   }
 
   async completeProcessing(assetId: string, variants: AssetVariantRecord[]): Promise<void> {
+    if (variants.length === 0 || !variants.some((variant) => variant.variant === 'original')) {
+      throw new ImageAssetError('IMAGE_CONTENT_INVALID', 422, false, 'Processed variants must include the original image');
+    }
     await this.inTransaction(async (connection) => {
       const assets = rows(await connection.query('SELECT id FROM image_assets WHERE id = ? FOR UPDATE', [assetId]));
       if (!assets[0]) throw new ImageAssetError('ASSET_NOT_FOUND', 404, false, 'Asset not found');
@@ -307,6 +339,16 @@ export class MySqlAssetRepository implements AssetRepository {
     });
   }
 
+  async recycleExpiredUnlinkedAssets(now: Date, limit: number): Promise<number> {
+    const updated = result(await this.pool.query(
+      `UPDATE image_assets SET status = 'recycled', recycled_at = ?, purge_after = DATE_ADD(?, INTERVAL 30 DAY)
+       WHERE status = 'ready' AND ref_count = 0 AND created_at <= DATE_SUB(?, INTERVAL 1 DAY)
+       ORDER BY created_at LIMIT ?`,
+      [now, now, now, limit],
+    ));
+    return updated.affectedRows ?? 0;
+  }
+
   async listPurgeCandidates(now: Date, limit: number): Promise<ImageAssetRecord[]> {
     return rows(await this.pool.query(
       "SELECT * FROM image_assets WHERE status = 'recycled' AND ref_count = 0 AND purge_after <= ? ORDER BY purge_after LIMIT ?",
@@ -316,14 +358,26 @@ export class MySqlAssetRepository implements AssetRepository {
 
   async markPurged(assetId: string, at: Date): Promise<void> {
     await this.inTransaction(async (connection) => {
-      const found = rows(await connection.query('SELECT id FROM image_assets WHERE id = ? FOR UPDATE', [assetId]));
+      const found = rows(await connection.query('SELECT status, ref_count, purge_after FROM image_assets WHERE id = ? FOR UPDATE', [assetId]));
       if (!found[0]) return;
-      await connection.query(
+      if (found[0].status === 'purged') return;
+      if (
+        found[0].status !== 'recycled'
+        || Number(found[0].ref_count) !== 0
+        || found[0].purge_after == null
+        || date(found[0].purge_after) > at
+      ) {
+        throw new ImageAssetError('ASSET_NOT_READY', 409, false, 'Asset is not eligible for purge');
+      }
+      const updated = result(await connection.query(
         `UPDATE image_assets SET status = 'purged', purged_at = ?, error_code = NULL
-         WHERE id = ? AND ref_count = 0
+         WHERE id = ? AND status = 'recycled' AND ref_count = 0 AND purge_after <= ?
            AND NOT EXISTS (SELECT 1 FROM image_asset_variants WHERE asset_id = ?)`,
-        [at, assetId, assetId],
-      );
+        [at, assetId, at, assetId],
+      ));
+      if ((updated.affectedRows ?? 0) !== 1) {
+        throw new ImageAssetError('ASSET_NOT_READY', 409, false, 'Asset is not eligible for purge');
+      }
     });
   }
 
