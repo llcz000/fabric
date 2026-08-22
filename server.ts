@@ -19,6 +19,7 @@ import { createCompanyImageAuthMiddleware, createCompanyImageRouter, describeCom
 import { CosStorageAdapter, type CosSdkBoundary } from './server/image-assets/cosStorage';
 import { readLegacyImage } from './server/image-assets/legacySource';
 import { getAssetPolicy } from './server/image-assets/policy';
+import { createProductImageRouter, type ProductImageRouteRuntime } from './server/image-assets/productImages';
 import type { AssetTransaction } from './server/image-assets/repository';
 import { createImageAssetRouter } from './server/image-assets/routes';
 import { createImageAssetRuntime } from './server/image-assets/runtime';
@@ -78,6 +79,8 @@ function exceptImageAssetApi(middleware: express.RequestHandler): express.Reques
       || requestPath.startsWith('/api/image-assets/')
       || requestPath === '/api/company/images'
       || requestPath.startsWith('/api/company/images/')
+      || (process.env.PRODUCT_IMAGE_ASSETS_ENABLED?.trim().toLowerCase() === 'true'
+        && (requestPath === '/api/products' || requestPath.startsWith('/api/products/')))
     ) return next();
     middleware(req, res, next);
   };
@@ -213,6 +216,91 @@ const companyImageRuntime: CompanyImageRuntime = {
   },
 };
 app.use('/api/company/images', createCompanyImageRouter(companyImageRuntime));
+
+const productImageRuntime: ProductImageRouteRuntime = {
+  enabled: imageAssetRuntime.config.productImageAssetsEnabled,
+  service: imageAssetRuntime.service,
+  principalId: 'admin',
+  async listProducts() {
+    if (useMySQLFallback) throw new Error('Product image assets require MySQL');
+    const [rows] = await (await getMySQLPool()).query<RowDataPacket[]>('SELECT * FROM products ORDER BY updated_at DESC');
+    return rows.map((row) => productRecord(row));
+  },
+  async getProduct(productId) {
+    if (useMySQLFallback) throw new Error('Product image assets require MySQL');
+    const [rows] = await (await getMySQLPool()).query<RowDataPacket[]>('SELECT * FROM products WHERE id = ?', [productId]);
+    return rows[0] ? productRecord(rows[0]) : null;
+  },
+  async createProduct(input) {
+    if (useMySQLFallback) throw new Error('Product image assets require MySQL');
+    const pool = await getMySQLPool();
+    const now = toMySQLDateTime(new Date().toISOString());
+    const [result] = await pool.query<ResultSetHeader>(
+      'INSERT INTO products (item_no, product_name, composition, weight, width, image_count, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, ?, ?)',
+      [input.itemNo, input.productName, input.composition, input.weight, input.width, now, now],
+    );
+    const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM products WHERE id = ?', [result.insertId]);
+    if (!rows[0]) throw new Error('Created product could not be reloaded');
+    return productRecord(rows[0]);
+  },
+  async updateProduct(productId, input) {
+    if (useMySQLFallback) throw new Error('Product image assets require MySQL');
+    const pool = await getMySQLPool();
+    const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM products WHERE id = ?', [productId]);
+    if (!rows[0]) return null;
+    const previous = productRecord(rows[0]);
+    await pool.query(
+      'UPDATE products SET item_no = ?, product_name = ?, composition = ?, weight = ?, width = ?, updated_at = ? WHERE id = ?',
+      [input.itemNo, input.productName, input.composition, input.weight, input.width, toMySQLDateTime(new Date().toISOString()), productId],
+    );
+    return {
+      previous,
+      product: { ...previous, item_no: input.itemNo, product_name: input.productName, composition: input.composition, weight: input.weight, width: input.width },
+    };
+  },
+  async restoreProduct(previous) {
+    if (useMySQLFallback) throw new Error('Product image assets require MySQL');
+    await (await getMySQLPool()).query(
+      'UPDATE products SET item_no = ?, product_name = ?, composition = ?, weight = ?, width = ?, image_count = ?, updated_at = ? WHERE id = ?',
+      [previous.item_no, previous.product_name, previous.composition || '', previous.weight || '', previous.width || '', Number(previous.image_count || 0), previous.updated_at || toMySQLDateTime(new Date().toISOString()), previous.id],
+    );
+  },
+  async deleteCreatedProduct(productId) {
+    if (useMySQLFallback) throw new Error('Product image assets require MySQL');
+    await (await getMySQLPool()).query('DELETE FROM products WHERE id = ?', [productId]);
+  },
+  async findAssociations(productId) {
+    if (useMySQLFallback) return [];
+    const [rows] = await (await getMySQLPool()).query<RowDataPacket[]>(
+      'SELECT asset_id, sort_order, role, is_primary FROM product_image_assets WHERE product_id = ? AND deleted_at IS NULL ORDER BY sort_order, id',
+      [productId],
+    );
+    return rows.map((row) => ({
+      assetId: String(row.asset_id),
+      sortOrder: Number(row.sort_order),
+      role: row.role as 'pattern_original' | 'gallery' | 'swatch',
+      isPrimary: Boolean(row.is_primary),
+    }));
+  },
+  async findLegacyImages(productId) {
+    if (useMySQLFallback) return [];
+    const [rows] = await (await getMySQLPool()).query<RowDataPacket[]>(
+      'SELECT id, sort_order FROM product_images WHERE product_id = ? ORDER BY sort_order, id',
+      [productId],
+    );
+    return rows.map((row) => ({ id: Number(row.id), sortOrder: Number(row.sort_order) }));
+  },
+};
+app.use('/api/products', createProductImageRouter(productImageRuntime));
+
+function productRecord(row: RowDataPacket) {
+  return {
+    ...row,
+    id: Number(row.id),
+    item_no: String(row.item_no),
+    product_name: String(row.product_name),
+  };
+}
 
 app.post('/api/logout', (req, res) => {
   const token = req.headers.authorization?.replace('Bearer ', '');

@@ -278,6 +278,15 @@ class MemoryAssetRepository implements AssetRepository {
     this.linkEvents.push(`detach:${productId}:${assetId}`);
   }
 
+  async detachAllProductImages(productId: number): Promise<void> {
+    this.linkEvents.push(`detach-all:${productId}`);
+  }
+
+  async deleteProductWithAssets(productId: number): Promise<boolean> {
+    this.linkEvents.push(`delete-product:${productId}`);
+    return true;
+  }
+
   async recycleExpiredUnlinkedAssets(now: Date, limit: number): Promise<number> {
     this.recycleCalls.push({ now, limit });
     return 1;

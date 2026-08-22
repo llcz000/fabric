@@ -220,6 +220,14 @@ export class ImageAssetService {
     await this.repository.detachProductImage(productId, assetId);
   }
 
+  async detachAllProductImages(productId: number): Promise<void> {
+    await this.repository.detachAllProductImages(productId);
+  }
+
+  async deleteProductWithAssets(productId: number): Promise<boolean> {
+    return this.repository.deleteProductWithAssets(productId);
+  }
+
   private async requireReadyAsset(assetId: string, principalId: string): Promise<ImageAssetRecord> {
     const asset = await this.requireAuthorizedAsset(assetId, principalId);
     if (asset.status !== 'ready') {

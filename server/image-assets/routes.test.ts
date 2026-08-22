@@ -742,6 +742,16 @@ test('enabled runtime fails construction without MySQL and never falls back to J
   }), /MySQL.*required/i);
 });
 
+test('product image feature requires the unified image runtime and never selects JSON fallback', () => {
+  assert.throws(() => createImageAssetRuntime({
+    env: { PRODUCT_IMAGE_ASSETS_ENABLED: 'true', ASSET_STORAGE_PROVIDER: 'local' },
+  }), /Invalid image asset feature configuration/);
+
+  assert.throws(() => createImageAssetRuntime({
+    env: { IMAGE_ASSETS_ENABLED: 'true', PRODUCT_IMAGE_ASSETS_ENABLED: 'true', ASSET_STORAGE_PROVIDER: 'local' },
+  }), /MySQL.*required/i);
+});
+
 test('production COS runtime fails safely when configuration is incomplete', () => {
   let caught: unknown;
   try {

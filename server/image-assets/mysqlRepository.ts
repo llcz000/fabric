@@ -384,37 +384,83 @@ export class MySqlAssetRepository implements AssetRepository {
     const uniqueIds = [...new Set(assetIds)];
     if (uniqueIds.length === 0) return;
     await this.inTransaction(async (connection) => {
-      const placeholders = uniqueIds.map(() => '?').join(', ');
       const existing = rows(await connection.query(
-        `SELECT asset_id FROM product_image_assets WHERE product_id = ? AND asset_id IN (${placeholders}) AND deleted_at IS NULL FOR UPDATE`,
-        [productId, ...uniqueIds],
+        `SELECT id, asset_id, sort_order FROM product_image_assets
+         WHERE product_id = ? AND deleted_at IS NULL ORDER BY sort_order, id FOR UPDATE`,
+        [productId],
       ));
       const existingIds = new Set(existing.map((row) => String(row.asset_id)));
       await this.lockReadyTargets(connection, uniqueIds, uniqueIds);
-      for (const [index, assetId] of uniqueIds.entries()) {
+      let nextSortOrder = existing.reduce((maximum, row) => Math.max(maximum, Number(row.sort_order)), -1) + 1;
+      let hasPrimary = existing.length > 0;
+      for (const assetId of uniqueIds) {
+        if (existingIds.has(assetId)) continue;
+        const role = hasPrimary ? 'gallery' : 'pattern_original';
+        const isPrimary = hasPrimary ? 0 : 1;
         await connection.query(
           `INSERT INTO product_image_assets (product_id, asset_id, role, sort_order, is_primary, deleted_at)
-           VALUES (?, ?, 'gallery', ?, ?, NULL)
-           ON DUPLICATE KEY UPDATE deleted_at = NULL`,
-          [productId, assetId, index, index === 0 ? 1 : 0],
+           VALUES (?, ?, ?, ?, ?, NULL)
+           ON DUPLICATE KEY UPDATE role = VALUES(role), sort_order = VALUES(sort_order), is_primary = VALUES(is_primary), deleted_at = NULL`,
+          [productId, assetId, role, nextSortOrder++, isPrimary],
         );
-        if (!existingIds.has(assetId)) {
-          await connection.query("UPDATE image_assets SET ref_count = ref_count + 1, status = 'ready', recycled_at = NULL, purge_after = NULL WHERE id = ?", [assetId]);
-        }
+        await connection.query("UPDATE image_assets SET ref_count = ref_count + 1, status = 'ready', recycled_at = NULL, purge_after = NULL WHERE id = ?", [assetId]);
+        hasPrimary = true;
       }
+      await this.recomputeProductImageCount(connection, productId);
     });
   }
 
   async detachProductImage(productId: number, assetId: string): Promise<void> {
     await this.inTransaction(async (connection) => {
       const linked = rows(await connection.query(
-        'SELECT id FROM product_image_assets WHERE product_id = ? AND asset_id = ? AND deleted_at IS NULL FOR UPDATE',
-        [productId, assetId],
+        'SELECT id, asset_id, sort_order FROM product_image_assets WHERE product_id = ? AND deleted_at IS NULL ORDER BY sort_order, id FOR UPDATE',
+        [productId],
       ));
+      const target = linked.find((row) => String(row.asset_id) === assetId);
       await this.lockReadyTargets(connection, [assetId], []);
-      if (!linked[0]) return;
-      await connection.query('UPDATE product_image_assets SET deleted_at = NOW() WHERE id = ?', [linked[0].id]);
+      if (!target) return;
+      await connection.query('UPDATE product_image_assets SET deleted_at = NOW() WHERE id = ?', [target.id]);
       await this.decrementReference(connection, assetId);
+      const remaining = linked.filter((row) => row.id !== target.id);
+      for (const [index, row] of remaining.entries()) {
+        await connection.query(
+          'UPDATE product_image_assets SET role = ?, is_primary = ? WHERE id = ?',
+          [index === 0 ? 'pattern_original' : 'gallery', index === 0 ? 1 : 0, row.id],
+        );
+      }
+      await this.recomputeProductImageCount(connection, productId);
+    });
+  }
+
+  async detachAllProductImages(productId: number): Promise<void> {
+    await this.inTransaction(async (connection) => {
+      const linked = rows(await connection.query(
+        'SELECT id, asset_id FROM product_image_assets WHERE product_id = ? AND deleted_at IS NULL FOR UPDATE',
+        [productId],
+      ));
+      const assetIds = linked.map((row) => String(row.asset_id));
+      if (assetIds.length === 0) return;
+      await this.lockReadyTargets(connection, assetIds, []);
+      await connection.query('UPDATE product_image_assets SET deleted_at = NOW() WHERE product_id = ? AND deleted_at IS NULL', [productId]);
+      for (const linkedAssetId of assetIds) await this.decrementReference(connection, linkedAssetId);
+      await this.recomputeProductImageCount(connection, productId);
+    });
+  }
+
+  async deleteProductWithAssets(productId: number): Promise<boolean> {
+    return this.inTransaction(async (connection) => {
+      const products = rows(await connection.query('SELECT id FROM products WHERE id = ? FOR UPDATE', [productId]));
+      if (!products[0]) return false;
+      const linked = rows(await connection.query(
+        'SELECT id, asset_id FROM product_image_assets WHERE product_id = ? AND deleted_at IS NULL FOR UPDATE',
+        [productId],
+      ));
+      const assetIds = linked.map((row) => String(row.asset_id));
+      if (assetIds.length > 0) await this.lockReadyTargets(connection, assetIds, []);
+      await connection.query('DELETE FROM product_images WHERE product_id = ?', [productId]);
+      await connection.query('DELETE FROM products WHERE id = ?', [productId]);
+      for (const assetId of assetIds) await this.decrementReference(connection, assetId);
+      return true;
     });
   }
 
@@ -544,6 +590,14 @@ export class MySqlAssetRepository implements AssetRepository {
       "UPDATE image_assets SET ref_count = ref_count - 1, status = 'recycled', recycled_at = NOW(), purge_after = DATE_ADD(NOW(), INTERVAL 30 DAY) WHERE id = ? AND ref_count = 1",
       [assetId],
     );
+  }
+
+  private async recomputeProductImageCount(connection: AssetTransaction, productId: number): Promise<void> {
+    const counted = rows(await connection.query(
+      'SELECT COUNT(*) AS image_count FROM product_image_assets WHERE product_id = ? AND deleted_at IS NULL',
+      [productId],
+    ));
+    await connection.query('UPDATE products SET image_count = ? WHERE id = ?', [Number(counted[0]?.image_count ?? 0), productId]);
   }
 
   private async inTransaction<T>(work: (connection: AssetTransaction) => Promise<T>): Promise<T> {

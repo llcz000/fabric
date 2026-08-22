@@ -91,6 +91,8 @@ export interface AssetRepository {
   replaceCompanyImage(companyId: number, role: CompanyImageRole, assetId: string | null): Promise<void>;
   attachProductImages(productId: number, assetIds: string[]): Promise<void>;
   detachProductImage(productId: number, assetId: string): Promise<void>;
+  detachAllProductImages(productId: number): Promise<void>;
+  deleteProductWithAssets(productId: number): Promise<boolean>;
   recycleExpiredUnlinkedAssets(now: Date, limit: number): Promise<number>;
   listPurgeCandidates(now: Date, limit: number): Promise<ImageAssetRecord[]>;
   claimNextPurgeCandidate(now: Date): Promise<PurgeClaim | null>;

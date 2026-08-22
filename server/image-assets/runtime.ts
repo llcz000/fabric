@@ -132,13 +132,14 @@ function readConfig(env: NodeJS.ProcessEnv): ImageAssetRuntimeConfig {
   }
   const imageAssetsEnabled = booleanEnv(env, 'IMAGE_ASSETS_ENABLED', false);
   const companyImageAssetsEnabled = booleanEnv(env, 'COMPANY_IMAGE_ASSETS_ENABLED', false);
-  if (companyImageAssetsEnabled && !imageAssetsEnabled) {
+  const productImageAssetsEnabled = booleanEnv(env, 'PRODUCT_IMAGE_ASSETS_ENABLED', false);
+  if ((companyImageAssetsEnabled || productImageAssetsEnabled) && !imageAssetsEnabled) {
     throw new Error('Invalid image asset feature configuration');
   }
   return {
     imageAssetsEnabled,
     companyImageAssetsEnabled,
-    productImageAssetsEnabled: booleanEnv(env, 'PRODUCT_IMAGE_ASSETS_ENABLED', false),
+    productImageAssetsEnabled,
     storageProvider: storageProvider(env.ASSET_STORAGE_PROVIDER),
     signedUrlTtlSeconds: positiveIntegerEnv(env, 'ASSET_SIGNED_URL_TTL_SECONDS', DEFAULT_ACCESS_URL_TTL_SECONDS),
     uploadGrantTtlSeconds: positiveIntegerEnv(env, 'ASSET_UPLOAD_GRANT_TTL_SECONDS', DEFAULT_UPLOAD_GRANT_TTL_SECONDS),

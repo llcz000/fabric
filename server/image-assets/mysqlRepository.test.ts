@@ -37,6 +37,8 @@ class RecordingConnection {
   purgeClaimRows: Row[] = [];
   purgeClaimUpdateResult: Row = { affectedRows: 1 };
   purgeUpdateResult: Row = { affectedRows: 1 };
+  productLinkRows: Row[] = [];
+  productRows: Row[] = [{ id: 9 }];
   deleteVariantError: Error | null = null;
   lockedAssets: Row[] = [
     { id: 'new-asset', status: 'ready', ref_count: 0 },
@@ -52,7 +54,8 @@ class RecordingConnection {
     if (sql.includes('FROM image_assets WHERE sha256 = ? FOR UPDATE')) return [this.shaAssetRows, []];
     if (sql.includes("WHERE status = 'recycled'") && sql.includes('FOR UPDATE SKIP LOCKED')) return [this.purgeClaimRows, []];
     if (sql.includes("UPDATE image_assets SET status = 'purging'")) return [this.purgeClaimUpdateResult, []];
-    if (sql.includes('FROM product_image_assets')) return [[], []];
+    if (sql.includes('SELECT id FROM products WHERE id = ? FOR UPDATE')) return [this.productRows, []];
+    if (sql.includes('FROM product_image_assets')) return [this.productLinkRows, []];
     if (sql.includes('FROM company_image_assets WHERE company_id = ? AND role = ? FOR UPDATE')) {
       return [[{ asset_id: 'old-asset' }], []];
     }
@@ -888,4 +891,64 @@ test('attaching product images rejects every non-ready target within the locking
   assert.deepEqual(connection.transactions, ['BEGIN', 'ROLLBACK', 'RELEASE']);
   assert.match(sql(connection), /FROM image_assets WHERE id IN \(\?, \?\) FOR UPDATE/);
   assert.doesNotMatch(sql(connection), /INSERT INTO product_image_assets/);
+});
+
+test('attaching product images persists the first link as the primary pattern and appends later links in supplied order', async () => {
+  const connection = new RecordingConnection();
+  connection.lockedAssets = [
+    { id: 'asset-pattern', status: 'ready', ref_count: 0 },
+    { id: 'asset-gallery', status: 'ready', ref_count: 0 },
+  ];
+  const repository = new MySqlAssetRepository(connection);
+
+  await repository.attachProductImages(9, ['asset-pattern', 'asset-gallery']);
+
+  const inserts = connection.statements.filter((statement) => statement.sql.includes('INSERT INTO product_image_assets'));
+  assert.equal(inserts.length, 2);
+  assert.match(inserts[0].sql, /role, sort_order, is_primary/);
+  assert.deepEqual(inserts[0].params, [9, 'asset-pattern', 'pattern_original', 0, 1]);
+  assert.deepEqual(inserts[1].params, [9, 'asset-gallery', 'gallery', 1, 0]);
+  assert.match(sql(connection), /SELECT COUNT\(\*\) AS image_count FROM product_image_assets WHERE product_id = \? AND deleted_at IS NULL/);
+  assert.match(sql(connection), /UPDATE products SET image_count = \? WHERE id = \?/);
+});
+
+test('detaching every product asset soft-deletes links and decrements references without deleting stored objects', async () => {
+  const connection = new RecordingConnection();
+  connection.productLinkRows = [{ asset_id: 'asset-shared' }, { asset_id: 'asset-single' }];
+  connection.lockedAssets = [
+    { id: 'asset-shared', status: 'ready', ref_count: 2 },
+    { id: 'asset-single', status: 'ready', ref_count: 1 },
+  ];
+  const repository = new MySqlAssetRepository(connection);
+
+  await repository.detachAllProductImages(9);
+
+  const recordedSql = sql(connection);
+  assert.match(recordedSql, /FROM product_image_assets WHERE product_id = \? AND deleted_at IS NULL FOR UPDATE/);
+  assert.match(recordedSql, /UPDATE product_image_assets SET deleted_at = NOW\(\) WHERE product_id = \? AND deleted_at IS NULL/);
+  assert.match(recordedSql, /UPDATE image_assets SET ref_count = ref_count - 1/);
+  assert.match(recordedSql, /UPDATE products SET image_count = \? WHERE id = \?/);
+  assert.doesNotMatch(recordedSql, /DELETE FROM image_asset_variants|deleteFromCOS|DELETE FROM product_images/);
+});
+
+test('deleting a product locks and removes active asset links with reference decrements in one MySQL transaction', async () => {
+  const connection = new RecordingConnection();
+  connection.productLinkRows = [{ asset_id: 'asset-shared' }, { asset_id: 'asset-single' }];
+  connection.lockedAssets = [
+    { id: 'asset-shared', status: 'ready', ref_count: 2 },
+    { id: 'asset-single', status: 'ready', ref_count: 1 },
+  ];
+  const repository = new MySqlAssetRepository(connection);
+
+  const deleted = await repository.deleteProductWithAssets(9);
+
+  assert.equal(deleted, true);
+  assert.deepEqual(connection.transactions, ['BEGIN', 'COMMIT', 'RELEASE']);
+  const recordedSql = sql(connection);
+  assert.match(recordedSql, /SELECT id FROM products WHERE id = \? FOR UPDATE/);
+  assert.match(recordedSql, /FROM product_image_assets WHERE product_id = \? AND deleted_at IS NULL FOR UPDATE/);
+  assert.match(recordedSql, /DELETE FROM product_images WHERE product_id = \?/);
+  assert.match(recordedSql, /DELETE FROM products WHERE id = \?/);
+  assert.match(recordedSql, /UPDATE image_assets SET ref_count = ref_count - 1/);
+  assert.doesNotMatch(recordedSql, /DELETE FROM image_asset_variants|deleteFromCOS/);
 });
