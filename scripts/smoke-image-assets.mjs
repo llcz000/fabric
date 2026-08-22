@@ -47,19 +47,84 @@ async function waitForExit(child, timeoutMs) {
   ]);
 }
 
-async function runCompanyImageContentRouteSmoke() {
-  const routeSmoke = spawn(process.execPath, [
-    path.join(projectRoot, 'scripts', 'run-ts-tests.mjs'),
-    'scripts/companyImageContentSmoke.test.ts',
-  ], {
-    cwd: projectRoot,
-    stdio: 'inherit',
+function assertPng8x8(body) {
+  assert.deepEqual([...body.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+  assert.equal(body.toString('ascii', 12, 16), 'IHDR');
+  assert.deepEqual([body.readUInt32BE(16), body.readUInt32BE(20)], [8, 8]);
+}
+
+async function assertBuiltServerCompanyImageRoutes(baseUrl, token) {
+  const unauthorized = await fetch(`${baseUrl}/api/company/images/brand_logo/content`, {
+    headers: { 'X-Request-Id': 'built-company-smoke-unauthorized' },
   });
-  const code = await waitForExit(routeSmoke, 20_000);
-  assert.equal(code, 0, 'production-composed company image content route smoke must pass');
+  assert.equal(unauthorized.status, 401);
+  assert.equal(unauthorized.headers.get('x-request-id'), 'built-company-smoke-unauthorized');
+  assert.equal((await unauthorized.json()).error.requestId, 'built-company-smoke-unauthorized');
+
+  const roles = ['brand_logo', 'wechat_qr', 'alipay_qr'];
+  const responses = await Promise.all(roles.map((role) => fetch(
+    `${baseUrl}/api/company/images/${role}/content`,
+    { headers: { Authorization: `Bearer ${token}`, 'X-Request-Id': `built-company-smoke-${role}` } },
+  )));
+  const bodies = await Promise.all(responses.map(async (response) => Buffer.from(await response.arrayBuffer())));
+  assert.deepEqual(responses.map((response) => response.status), [200, 200, 200]);
+  assert.ok(responses.every((response) => response.headers.get('content-type') === 'image/png'));
+  assert.equal(new Set(bodies.map((body) => body.toString('hex'))).size, 3);
+  bodies.forEach(assertPng8x8);
+
+  const mutation = await fetch(`${baseUrl}/api/company/images/brand_logo`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ assetId: 'must-not-attach' }),
+  });
+  assert.equal(mutation.status, 404);
+}
+
+async function seedBuiltServerLegacyCompanyImages(baseUrl, token, sources) {
+  const saved = await fetch(`${baseUrl}/api/company`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      company_name: 'Built server image smoke',
+      brand_name: 'Built server image smoke',
+      brand_logo: sources.brand_logo,
+      address: 'temporary smoke workspace',
+      phone: '000-0000',
+      wechat_qr: sources.wechat_qr,
+      alipay_qr: sources.alipay_qr,
+      default_terms: '',
+      deposit_terms: '',
+    }),
+  });
+  assert.equal(saved.status, 200, 'real company API must accept feature-off legacy image fields');
+  assert.deepEqual(await saved.json(), { success: true });
+
+  const loaded = await fetch(`${baseUrl}/api/company`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  assert.equal(loaded.status, 200);
+  const company = await loaded.json();
+  assert.equal(company.brand_logo, sources.brand_logo);
+  assert.equal(company.wechat_qr, sources.wechat_qr);
+  assert.equal(company.alipay_qr, sources.alipay_qr);
 }
 
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fabric-image-assets-smoke-'));
+const uploadsDir = path.join(tempDir, 'uploads');
+fs.mkdirSync(uploadsDir, { recursive: true });
+const fixtureSources = {
+  brand_logo: path.join(uploadsDir, 'brand-logo.png'),
+  wechat_qr: path.join(uploadsDir, 'wechat-qr.png'),
+  alipay_qr: path.join(uploadsDir, 'alipay-qr.png'),
+};
+const fixtureBodies = {
+  brand_logo: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEklEQVQYlWMQbbD9jw8zjAwFAKYddEEY9FwlAAAAAElFTkSuQmCC', 'base64'),
+  wechat_qr: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEklEQVQYlWNgzlz4Hx9mGBkKACt1gwFdjghsAAAAAElFTkSuQmCC', 'base64'),
+  alipay_qr: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEklEQVQYlWO4Wc72Hx9mGBkKAPpclUGMJRtgAAAAAElFTkSuQmCC', 'base64'),
+};
+for (const role of Object.keys(fixtureSources)) {
+  fs.writeFileSync(fixtureSources[role], fixtureBodies[role]);
+}
 const port = await getFreePort();
 const password = 'test-only-image-assets-password';
 const child = spawn(process.execPath, [serverEntry], {
@@ -81,7 +146,7 @@ const child = spawn(process.execPath, [serverEntry], {
     IMAGE_ASSETS_ENABLED: 'false',
     COMPANY_IMAGE_ASSETS_ENABLED: 'false',
     PRODUCT_IMAGE_ASSETS_ENABLED: 'false',
-    ASSET_STORAGE_PROVIDER: 'cos',
+    ASSET_STORAGE_PROVIDER: 'local',
     ASSET_SIGNED_URL_TTL_SECONDS: '300',
     ASSET_UPLOAD_GRANT_TTL_SECONDS: '900',
     ASSET_UPLOAD_SESSION_TTL_SECONDS: '86400',
@@ -124,7 +189,8 @@ try {
     },
   });
 
-  await runCompanyImageContentRouteSmoke();
+  await seedBuiltServerLegacyCompanyImages(baseUrl, login.token, fixtureSources);
+  await assertBuiltServerCompanyImageRoutes(baseUrl, login.token);
 
   child.kill('SIGTERM');
   await waitForExit(child, 5_000);
