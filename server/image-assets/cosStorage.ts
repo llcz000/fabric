@@ -13,10 +13,12 @@ export interface CosObjectRequest {
   [name: string]: unknown;
 }
 
+export type CosObjectBody = Buffer | Uint8Array | AsyncIterable<Buffer | Uint8Array>;
+
 export interface CosSdkBoundary {
   getObjectUrl(params: CosObjectRequest): string;
   headObject(params: CosObjectRequest): Promise<{ headers?: Record<string, string | undefined> }>;
-  getObject(params: CosObjectRequest): Promise<{ Body: Buffer | Uint8Array }>;
+  getObject(params: CosObjectRequest): Promise<{ Body: CosObjectBody }>;
   putObject(params: CosObjectRequest & { Body: Buffer; ContentType: string }): Promise<unknown>;
   deleteObject(params: CosObjectRequest): Promise<unknown>;
 }
@@ -48,6 +50,36 @@ function isNotFound(error: unknown): boolean {
   );
 }
 
+function exceedsLimit(): ImageAssetError {
+  return new ImageAssetError('IMAGE_LIMIT_EXCEEDED', 413, false, 'Stored image exceeds the configured byte limit');
+}
+
+function isAsyncIterable(body: CosObjectBody): body is AsyncIterable<Buffer | Uint8Array> {
+  return typeof body === 'object' && body !== null && Symbol.asyncIterator in body;
+}
+
+function asBuffer(chunk: Buffer | Uint8Array): Buffer {
+  return Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength);
+}
+
+async function boundedBody(body: CosObjectBody, maxBytes: number): Promise<Buffer> {
+  if (!isAsyncIterable(body)) {
+    const buffer = asBuffer(body);
+    if (buffer.length > maxBytes) throw exceedsLimit();
+    return buffer;
+  }
+
+  const output = Buffer.allocUnsafe(maxBytes);
+  let length = 0;
+  for await (const chunk of body) {
+    const buffer = asBuffer(chunk);
+    if (buffer.length > maxBytes - length) throw exceedsLimit();
+    buffer.copy(output, length);
+    length += buffer.length;
+  }
+  return output.subarray(0, length);
+}
+
 export class CosStorageAdapter implements StorageAdapter {
   readonly provider = 'cos' as const;
 
@@ -73,14 +105,13 @@ export class CosStorageAdapter implements StorageAdapter {
 
   async read(key: string, maxBytes: number): Promise<Buffer> {
     const metadata = await this.stat(key);
-    if (metadata.byteSize > maxBytes) throw new ImageAssetError('IMAGE_LIMIT_EXCEEDED', 413, false, 'Stored image exceeds the configured byte limit');
+    if (metadata.byteSize > maxBytes) throw exceedsLimit();
     try {
       const result = await this.sdk.getObject(this.objectRequest(key));
-      const body = Buffer.isBuffer(result.Body) ? result.Body : Buffer.from(result.Body);
-      if (body.length > maxBytes) throw new ImageAssetError('IMAGE_LIMIT_EXCEEDED', 413, false, 'Stored image exceeds the configured byte limit');
-      return body;
+      return await boundedBody(result.Body, maxBytes);
     } catch (error) {
       if (error instanceof ImageAssetError) throw error;
+      if (isNotFound(error)) throw assetNotFound();
       throw storageUnavailable();
     }
   }

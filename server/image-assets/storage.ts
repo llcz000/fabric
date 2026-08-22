@@ -1,5 +1,7 @@
 import type { AssetVariantName } from './types';
 
+const ASSET_VARIANTS = new Set<AssetVariantName>(['original', 'display', 'thumbnail']);
+
 export interface UploadGrant {
   url: string;
   method: 'PUT';
@@ -21,6 +23,9 @@ export interface StorageAdapter {
 
 export function assetObjectKey(hash: string, variant: AssetVariantName, extension: string): string {
   if (!/^[a-f0-9]{64}$/i.test(hash)) throw new Error('Asset hash must be a SHA-256 hex digest');
+  if (!ASSET_VARIANTS.has(variant) || variant.includes('/') || variant.includes('\\') || variant.includes('..')) {
+    throw new Error('Asset variant must be original, display, or thumbnail');
+  }
   if (!/^[a-z0-9]+$/i.test(extension)) throw new Error('Asset extension must be alphanumeric');
   return `assets/sha256/${hash.slice(0, 2)}/${hash.slice(2, 4)}/${hash}/${variant}.${extension.toLowerCase()}`;
 }

@@ -48,6 +48,12 @@ test('content-addressed asset keys shard by the first two hash byte pairs', () =
   assert.equal(assetObjectKey(hash, 'original', 'png'), `assets/sha256/aa/bb/${hash}/original.png`);
 });
 
+test('content-addressed asset keys reject unsafe runtime variant casts', () => {
+  const hash = 'aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899';
+
+  assert.throws(() => assetObjectKey(hash, '../escape' as never, 'png'), /variant/i);
+});
+
 test('COS adapter signs constrained PUT and GET object requests through the injected SDK', async () => {
   const recording = recordingCos();
   const adapter = new CosStorageAdapter(cosConfig, recording.client);
@@ -119,6 +125,62 @@ test('COS adapter treats an injected COS not-found response as a missing object'
   assert.deepEqual(recording.calls.map((call) => call.name), ['headObject', 'headObject']);
 });
 
+test('COS adapter maps an object disappearance after stat to ASSET_NOT_FOUND', async () => {
+  const recording = recordingCos();
+  const adapter = new CosStorageAdapter(cosConfig, {
+    ...recording.client,
+    async getObject(params) {
+      recording.calls.push({ name: 'getObject', params });
+      throw { statusCode: 404, code: 'NoSuchKey' };
+    },
+  });
+
+  await assert.rejects(
+    adapter.read('assets/raced-away.png', 32),
+    (error: unknown) => error instanceof ImageAssetError && error.code === 'ASSET_NOT_FOUND',
+  );
+  assert.deepEqual(recording.calls.map((call) => call.name), ['headObject', 'getObject']);
+});
+
+test('COS adapter reads an async-iterable object body within its byte limit', async () => {
+  const recording = recordingCos();
+  const adapter = new CosStorageAdapter(cosConfig, {
+    ...recording.client,
+    async headObject(params) {
+      recording.calls.push({ name: 'headObject', params });
+      return { headers: { 'content-length': '5' } };
+    },
+    async getObject(params) {
+      recording.calls.push({ name: 'getObject', params });
+      return { Body: streamChunks([Buffer.from('im'), Buffer.from('age')]) };
+    },
+  });
+
+  assert.deepEqual(await adapter.read('assets/streamed.png', 5), Buffer.from('image'));
+});
+
+test('COS adapter stops an underreported async stream when an incoming chunk exceeds the byte limit', async () => {
+  const recording = recordingCos();
+  const yielded: number[] = [];
+  const adapter = new CosStorageAdapter(cosConfig, {
+    ...recording.client,
+    async headObject(params) {
+      recording.calls.push({ name: 'headObject', params });
+      return { headers: { 'content-length': '2' } };
+    },
+    async getObject(params) {
+      recording.calls.push({ name: 'getObject', params });
+      return { Body: streamChunks([Buffer.alloc(3), Buffer.alloc(3), Buffer.alloc(1)], yielded) };
+    },
+  });
+
+  await assert.rejects(
+    adapter.read('assets/underreported.png', 5),
+    (error: unknown) => error instanceof ImageAssetError && error.code === 'IMAGE_LIMIT_EXCEEDED',
+  );
+  assert.deepEqual(yielded, [1, 2]);
+});
+
 test('local adapter reads only keys contained by its root across traversal, sibling-prefix, and drive inputs', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'image-assets-root-'));
   const adapter = new LocalStorageAdapter(root);
@@ -186,3 +248,10 @@ test('legacy resolution reads only managed COS, contained local files, and bound
     await rm(root, { recursive: true, force: true });
   }
 });
+
+async function* streamChunks(chunks: Buffer[], yielded?: number[]): AsyncGenerator<Buffer> {
+  for (const [index, chunk] of chunks.entries()) {
+    yielded?.push(index + 1);
+    yield chunk;
+  }
+}
