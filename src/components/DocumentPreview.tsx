@@ -419,7 +419,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                 </div>
 
                 {/* Right: Company Name, Address and Phone */}
-                <div className="space-y-1 flex-1 text-right" style={{ fontFamily: 'SimSun, serif' }}>
+                <div className="space-y-1 flex-1 text-right min-w-0" style={{ fontFamily: 'SimSun, serif', minWidth: 0 }}>
                   <h1 className="text-lg sm:text-xl tracking-wide text-slate-900" style={{ fontFamily: 'SimHei, sans-serif' }}>
                     {companyProfile.name}
                   </h1>
