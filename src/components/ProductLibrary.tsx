@@ -18,6 +18,7 @@ import {
 import { ImageAssetClientError, uploadImageAsset, fetchAssetBlob } from '../lib/imageAssets';
 import {
   listProducts, describeProduct, saveProduct, detachProductImage, deleteProductById,
+  createProductRefreshTracker, shouldRefreshProductImages, shouldRefreshOnImageError,
 } from '../lib/productImages';
 
 // ── Helpers ──────────────────────────────────────────
@@ -57,12 +58,13 @@ function formatImageError(error: unknown): string {
 // ── DescriptorImage (memoized) ────────────────────────
 
 const DescriptorImage = memo(({
-  descriptor, variant, className, alt,
+  descriptor, variant, className, alt, onExpired,
 }: {
   descriptor: ProductImageDescriptor;
   variant: 'thumbnail' | 'display';
   className: string;
   alt: string;
+  onExpired?: (descriptor: ProductImageDescriptor) => void;
 }) => {
   const direct = variant === 'thumbnail'
     ? descriptor.thumbnailUrl ?? descriptor.displayUrl
@@ -93,12 +95,16 @@ const DescriptorImage = memo(({
   if (!src) {
     return <div className={className + ' bg-slate-50 flex items-center justify-center'}><Image className="w-6 h-6 text-slate-300" /></div>;
   }
-  return <img src={src} className={className} alt={alt} />;
+  return <img src={src} className={className} alt={alt} onError={() => { if (descriptor.source === 'asset') onExpired?.(descriptor); }} />;
 });
 
 // ── ThumbnailCell (memoized, outside parent) ─────────
 
-const ThumbnailCell = memo(({ productId, images }: { productId: string; images: ProductImageDescriptor[] }) => {
+const ThumbnailCell = memo(({ productId, images, onExpired }: {
+  productId: string;
+  images: ProductImageDescriptor[];
+  onExpired?: (descriptor: ProductImageDescriptor) => void;
+}) => {
   const thumbs = images.slice(0, 3);
   if (thumbs.length === 0) {
     return <div className="w-18 h-18 bg-slate-50 rounded flex items-center justify-center"><Image className="w-6 h-6 text-slate-300" /></div>;
@@ -112,6 +118,7 @@ const ThumbnailCell = memo(({ productId, images }: { productId: string; images: 
           variant="thumbnail"
           className="w-16 h-16 object-cover rounded border border-slate-200 cursor-pointer hover:opacity-80 shrink-0"
           alt=""
+          onExpired={onExpired}
         />
       ))}
     </div>
@@ -158,6 +165,26 @@ export default function ProductLibrary() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
+  const refreshTracker = useRef(createProductRefreshTracker()).current;
+
+  // ── Signed-URL expiry refresh (single retry, no loop) ──
+
+  const refreshProduct = async (productId: string) => {
+    refreshTracker.markRefreshed(productId);
+    try {
+      const detail = await describeProduct(authFetch, productId);
+      setProducts((prev) => prev.map((p) => (p.id === productId ? { ...p, ...detail } : p)));
+      if (editingProduct.id === productId) setEditImages(detail.images ?? []);
+      if (lightboxProductId === productId) setLightboxImages(detail.images ?? []);
+    } catch {
+      // Single retry exhausted; fall back to broken/legacy rendering.
+    }
+  };
+
+  const handleImageError = (productId: string, descriptor?: ProductImageDescriptor) => {
+    if (!shouldRefreshOnImageError(descriptor, refreshTracker, productId)) return;
+    void refreshProduct(productId);
+  };
 
   // ── Load products ──────────────────────────────────
 
@@ -167,6 +194,11 @@ export default function ProductLibrary() {
       const serverProducts = await listProducts(authFetch);
       setProducts(serverProducts);
       try { await replaceAllProducts(serverProducts); } catch { /* cache best-effort */ }
+      for (const p of serverProducts) {
+        if (shouldRefreshProductImages(p.id, p.images ?? [], refreshTracker)) {
+          void refreshProduct(p.id);
+        }
+      }
     } catch {
       try {
         const list = await getAllProducts();
@@ -539,7 +571,7 @@ export default function ProductLibrary() {
                           {selectedIds.has(p.id) ? <CheckSquare className="w-4 h-4 text-sky-600" /> : <Square className="w-4 h-4" />}
                         </button>
                       </td>
-                      <td className="py-2 px-2"><ThumbnailCell productId={p.id} images={p.images ?? []} /></td>
+                      <td className="py-2 px-2"><ThumbnailCell productId={p.id} images={p.images ?? []} onExpired={(d) => handleImageError(p.id, d)} /></td>
                       <td className="py-2 px-2 font-bold text-slate-800">{missingItemNo ? <span className="text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded text-xs font-bold">缺货号</span> : p.itemNo}</td>
                       <td className="py-2 px-2 text-slate-700">{p.productName || '-'}</td>
                       <td className="py-2 px-2 text-slate-600">{p.composition || '-'}</td>
@@ -594,7 +626,7 @@ export default function ProductLibrary() {
                 <div className="flex flex-wrap gap-2">
                   {editImages.map((img, i) => (
                     <div key={img.assetId ?? img.legacyImageId ?? i} className="relative group">
-                      <DescriptorImage descriptor={img} variant="thumbnail" className="w-20 h-20 object-cover rounded-lg border border-slate-200" alt="" />
+                      <DescriptorImage descriptor={img} variant="thumbnail" className="w-20 h-20 object-cover rounded-lg border border-slate-200" alt="" onExpired={(d) => handleImageError(editingProduct.id, d)} />
                       <button onClick={() => handleDeleteImage(img, i)} className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"><X className="w-3 h-3" /></button>
                     </div>
                   ))}
@@ -671,7 +703,7 @@ export default function ProductLibrary() {
               <button onClick={(e) => { e.stopPropagation(); setLightboxIndex(prev => prev < lightboxImages.length - 1 ? prev + 1 : 0); }} className="absolute right-4 text-white/70 hover:text-white cursor-pointer z-10"><ChevronRight className="w-10 h-10" /></button>
             </>
           )}
-          <DescriptorImage descriptor={lightboxImages[lightboxIndex]} variant="display" className="max-w-[90vw] max-h-[90vh] object-contain" alt="" />
+          <DescriptorImage descriptor={lightboxImages[lightboxIndex]} variant="display" className="max-w-[90vw] max-h-[90vh] object-contain" alt="" onExpired={(d) => handleImageError(lightboxProductId, d)} />
         </div>
       )}
     </div>

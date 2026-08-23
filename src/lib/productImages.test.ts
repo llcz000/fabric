@@ -15,8 +15,12 @@ import {
   detachProductImage,
   deleteProductById,
   isDescriptorExpired,
+  createProductRefreshTracker,
+  shouldRefreshProductImages,
+  shouldRefreshOnImageError,
   ImageAssetClientError,
 } from './productImages';
+import type { ProductImageDescriptor } from '../types';
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -213,5 +217,47 @@ test('isDescriptorExpired reflects expiresAt against the supplied clock', () => 
   const base = { source: 'asset', role: 'pattern_original', sortOrder: 0, isPrimary: true, assetId: 'a1' } as const;
   assert.equal(isDescriptorExpired({ ...base, expiresAt: '2026-08-22T01:00:00.000Z' }, Date.parse('2026-08-22T00:59:00.000Z')), false);
   assert.equal(isDescriptorExpired({ ...base, expiresAt: '2026-08-22T01:00:00.000Z' }, Date.parse('2026-08-22T01:00:00.000Z')), true);
-  assert.equal(isDescriptorExpired({ ...base }, Date.now()), false);
+  assert.equal(isDescriptorExpired({ ...base, expiresAt: undefined }, Date.now()), false);
+});
+
+test('createProductRefreshTracker gates a product to a single refresh', () => {
+  const tracker = createProductRefreshTracker();
+  assert.equal(tracker.hasRefreshed('9'), false);
+  tracker.markRefreshed('9');
+  assert.equal(tracker.hasRefreshed('9'), true);
+  assert.equal(tracker.hasRefreshed('10'), false);
+});
+
+test('shouldRefreshProductImages is true only for expired asset descriptors not yet refreshed', () => {
+  const tracker = createProductRefreshTracker();
+  const expired = [
+    { source: 'asset', role: 'pattern_original', sortOrder: 0, isPrimary: true, assetId: 'a1', expiresAt: '2026-08-22T01:00:00.000Z' },
+  ] as ProductImageDescriptor[];
+  const now = Date.parse('2026-08-22T01:00:01.000Z');
+  assert.equal(shouldRefreshProductImages('9', expired, tracker, now), true);
+  tracker.markRefreshed('9');
+  assert.equal(shouldRefreshProductImages('9', expired, tracker, now), false);
+});
+
+test('shouldRefreshProductImages is false for legacy descriptors and future expiry', () => {
+  const tracker = createProductRefreshTracker();
+  const now = Date.parse('2026-08-22T01:00:01.000Z');
+  const legacy = [
+    { source: 'legacy', role: 'legacy', sortOrder: 0, isPrimary: true, legacyImageId: 12, contentUrl: '/api/products/9/images/12' },
+  ] as ProductImageDescriptor[];
+  assert.equal(shouldRefreshProductImages('9', legacy, tracker, now), false);
+  const future = [
+    { source: 'asset', role: 'pattern_original', sortOrder: 0, isPrimary: true, assetId: 'a1', expiresAt: '2099-01-01T00:00:00.000Z' },
+  ] as ProductImageDescriptor[];
+  assert.equal(shouldRefreshProductImages('9', future, tracker, now), false);
+});
+
+test('shouldRefreshOnImageError refreshes asset descriptors once and never legacy', () => {
+  const tracker = createProductRefreshTracker();
+  const asset = { source: 'asset', role: 'pattern_original', sortOrder: 0, isPrimary: true, assetId: 'a1' } as ProductImageDescriptor;
+  const legacy = { source: 'legacy', role: 'legacy', sortOrder: 0, isPrimary: true, legacyImageId: 12, contentUrl: '/api/products/9/images/12' } as ProductImageDescriptor;
+  assert.equal(shouldRefreshOnImageError(asset, tracker, '9'), true);
+  tracker.markRefreshed('9');
+  assert.equal(shouldRefreshOnImageError(asset, tracker, '9'), false);
+  assert.equal(shouldRefreshOnImageError(legacy, tracker, '10'), false);
 });

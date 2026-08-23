@@ -70,12 +70,11 @@ export function listProducts(
 ): Promise<ProductItem[]> {
   const limit = clampLimit(options.limit);
   const offset = Math.max(0, Math.floor(options.offset ?? 0));
-  return requestJson<ProductItem[]>(
+  return requestJson<ServerProductRow[]>(
     apiFetch,
     `/api/products?limit=${limit}&offset=${offset}`,
   ).then((rows) => {
-    const source: ServerProductRow[] = Array.isArray(rows) ? rows : [];
-    return source.map((row) => mapProductRow(row));
+    return (Array.isArray(rows) ? rows : []).map((row) => mapProductRow(row));
   });
 }
 
@@ -125,6 +124,52 @@ export function isDescriptorExpired(descriptor: Pick<ProductImageDescriptor, 'ex
   const parsed = Date.parse(descriptor.expiresAt);
   if (Number.isNaN(parsed)) return false;
   return parsed <= now;
+}
+
+export interface ProductRefreshTracker {
+  hasRefreshed(productId: string): boolean;
+  markRefreshed(productId: string): void;
+}
+
+/**
+ * Tracks per-product descriptor refresh attempts so an expired signed URL or a
+ * failed image load triggers at most one re-fetch, preventing refresh loops.
+ */
+export function createProductRefreshTracker(): ProductRefreshTracker {
+  const refreshed = new Set<string>();
+  return {
+    hasRefreshed: (productId) => refreshed.has(productId),
+    markRefreshed: (productId) => { refreshed.add(productId); },
+  };
+}
+
+/**
+ * True when a product has at least one expired asset descriptor and has not
+ * already been refreshed. Legacy descriptors carry no signed URL and never
+ * trigger a refresh.
+ */
+export function shouldRefreshProductImages(
+  productId: string,
+  descriptors: ProductImageDescriptor[],
+  tracker: ProductRefreshTracker,
+  now = Date.now(),
+): boolean {
+  if (tracker.hasRefreshed(productId)) return false;
+  return descriptors.some((descriptor) => descriptor.source === 'asset' && isDescriptorExpired(descriptor, now));
+}
+
+/**
+ * True when an image load error should trigger a one-time descriptor refresh.
+ * Only asset descriptors (signed thumbnail/display URLs) are refreshable;
+ * legacy descriptors already fall back to an authenticated blob and never loop.
+ */
+export function shouldRefreshOnImageError(
+  descriptor: ProductImageDescriptor | undefined,
+  tracker: ProductRefreshTracker,
+  productId: string,
+): boolean {
+  if (!descriptor || descriptor.source !== 'asset') return false;
+  return !tracker.hasRefreshed(productId);
 }
 
 function mapProductRow(row: ServerProductRow): ProductItem {
