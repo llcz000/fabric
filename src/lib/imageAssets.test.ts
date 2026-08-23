@@ -153,3 +153,24 @@ test('reads display bytes only from a same-origin content URL through authentica
       && error.retryable === false,
   );
 });
+
+test('reads a legacy product image content URL as an authenticated blob for feature-off rendering', async () => {
+  const requests: RecordedRequest[] = [];
+  const apiFetch: typeof fetch = async (input, init: RequestInit = {}) => {
+    const headers = new Headers(init.headers);
+    requests.push({ input: String(input), method: init.method ?? 'GET', authorization: headers.get('Authorization') });
+    return new Response(new Blob(['product-bytes'], { type: 'image/jpeg' }), { status: 200 });
+  };
+
+  const blob = await imageAssets.fetchAssetBlob('/api/products/9/images/12', {
+    apiFetch: async (input, init) => apiFetch(input, {
+      ...init,
+      headers: { Authorization: 'Bearer admin-token', ...(init?.headers ?? {}) },
+    }),
+  });
+
+  assert.equal(await blob.text(), 'product-bytes');
+  assert.deepEqual(requests, [{
+    input: '/api/products/9/images/12', method: 'GET', authorization: 'Bearer admin-token',
+  }]);
+});

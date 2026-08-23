@@ -2,173 +2,104 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  *
- * IndexedDB wrapper for product library storage.
- * Stores product metadata as JSON and images as base64 strings
- * (more reliable than Blobs on iOS Safari).
+ * IndexedDB wrapper for product library metadata.
+ *
+ * v3: image payloads are no longer cached in IndexedDB. Product rows store
+ * metadata only; image descriptors (asset IDs, signed URLs) live at runtime
+ * and are refreshed from the server, never persisted as Base64 or raw URLs.
  */
 
-import { ProductItem } from '../types';
+import type { ProductItem } from '../types';
 
 const DB_NAME = 'textile_dms';
-const DB_VERSION = 2;
+export const DB_VERSION = 3;
 const STORE_PRODUCTS = 'products';
-const STORE_IMAGES = 'product_images';
+const STORE_IMAGES_LEGACY = 'product_images';
 
-function openDB(): Promise<IDBDatabase> {
+function resolveIndexedDB(idb?: IDBFactory): IDBFactory {
+  if (idb) return idb;
+  const factory = (globalThis as unknown as { indexedDB?: IDBFactory }).indexedDB;
+  if (!factory) throw new Error('IndexedDB is unavailable');
+  return factory;
+}
+
+function openDB(idb?: IDBFactory): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    const req = resolveIndexedDB(idb).open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = () => {
       const db = req.result;
-      // DB v1 cleanup: delete old stores and recreate
-      if (db.objectStoreNames.contains(STORE_PRODUCTS)) db.deleteObjectStore(STORE_PRODUCTS);
-      if (db.objectStoreNames.contains(STORE_IMAGES)) db.deleteObjectStore(STORE_IMAGES);
-      const productsStore = db.createObjectStore(STORE_PRODUCTS, { keyPath: 'id' });
-      productsStore.createIndex('itemNo', 'itemNo', { unique: false });
-      const imagesStore = db.createObjectStore(STORE_IMAGES, { keyPath: 'id' });
-      imagesStore.createIndex('productId', 'productId', { unique: false });
+      if (db.objectStoreNames.contains(STORE_IMAGES_LEGACY)) {
+        db.deleteObjectStore(STORE_IMAGES_LEGACY);
+      }
+      if (!db.objectStoreNames.contains(STORE_PRODUCTS)) {
+        const store = db.createObjectStore(STORE_PRODUCTS, { keyPath: 'id' });
+        store.createIndex('itemNo', 'itemNo', { unique: false });
+      }
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
-    req.onblocked = () => { alert('请关闭其他标签页后刷新'); reject(new Error('blocked')); };
+    req.onblocked = () => reject(new Error('blocked'));
   });
 }
 
-// ── Products ──────────────────────────────────────────
+// ── Products (metadata only) ────────────────────────────────────────
 
-export async function getAllProducts(): Promise<ProductItem[]> {
-  const db = await openDB();
+function toMetadata(product: ProductItem): ProductItem {
+  return {
+    id: product.id,
+    itemNo: product.itemNo,
+    productName: product.productName,
+    composition: product.composition,
+    weight: product.weight,
+    width: product.width,
+    imageCount: product.imageCount,
+    createdAt: product.createdAt,
+    updatedAt: product.updatedAt,
+  };
+}
+
+export async function getAllProducts(idb?: IDBFactory): Promise<ProductItem[]> {
+  const db = await openDB(idb);
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_PRODUCTS, 'readonly');
-    const store = tx.objectStore(STORE_PRODUCTS);
-    const req = store.getAll();
+    const req = tx.objectStore(STORE_PRODUCTS).getAll();
     req.onsuccess = () => resolve(req.result || []);
     req.onerror = () => reject(req.error);
   });
 }
 
-export async function putProduct(product: ProductItem): Promise<void> {
-  const db = await openDB();
+export async function putProduct(product: ProductItem, idb?: IDBFactory): Promise<void> {
+  const db = await openDB(idb);
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_PRODUCTS, 'readwrite');
-    tx.objectStore(STORE_PRODUCTS).put(product);
+    tx.objectStore(STORE_PRODUCTS).put(toMetadata(product));
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
 }
 
-export async function deleteProduct(id: string): Promise<void> {
-  const db = await openDB();
+export async function deleteProduct(id: string, idb?: IDBFactory): Promise<void> {
+  const db = await openDB(idb);
   return new Promise((resolve, reject) => {
-    const tx = db.transaction([STORE_PRODUCTS, STORE_IMAGES], 'readwrite');
+    const tx = db.transaction(STORE_PRODUCTS, 'readwrite');
     tx.objectStore(STORE_PRODUCTS).delete(id);
-    const imgStore = tx.objectStore(STORE_IMAGES);
-    const idx = imgStore.index('productId');
-    const req = idx.openCursor(IDBKeyRange.only(id));
-    req.onsuccess = () => { const c = req.result; if (c) { c.delete(); c.continue(); } };
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
 }
 
-// ── Product Images (stored as base64 strings) ─────────
-
-export async function getImages(productId: string): Promise<{ id: string; order: number; thumbnailUrl: string }[]> {
-  const db = await openDB();
+/**
+ * Replaces the entire product metadata set in one transaction. Used after a
+ * server refresh so stale local rows are removed rather than merged.
+ */
+export async function replaceAllProducts(products: ProductItem[], idb?: IDBFactory): Promise<void> {
+  const db = await openDB(idb);
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_IMAGES, 'readonly');
-    const idx = tx.objectStore(STORE_IMAGES).index('productId');
-    const results: any[] = [];
-    const req = idx.openCursor(IDBKeyRange.only(productId));
-    req.onsuccess = () => {
-      const c = req.result;
-      if (c) {
-        results.push({ id: c.value.id, order: c.value.order, thumbnailUrl: c.value.thumbnail });
-        c.continue();
-      } else {
-        results.sort((a, b) => a.order - b.order);
-        resolve(results);
-      }
-    };
-    req.onerror = () => reject(req.error);
-  });
-}
-
-// Returns a blob URL for the full image
-export async function getFullImageUrl(imageId: string): Promise<string | null> {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_IMAGES, 'readonly');
-    const req = tx.objectStore(STORE_IMAGES).get(imageId);
-    req.onsuccess = () => {
-      const rec = req.result;
-      if (!rec?.full) { resolve(null); return; }
-      resolve(rec.full);
-    };
-    req.onerror = () => reject(req.error);
-  });
-}
-
-export async function addProductImage(
-  productId: string, order: number,
-  thumbnailUrl: string, fullUrl: string,
-): Promise<string> {
-  const db = await openDB();
-  const id = `img_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_IMAGES, 'readwrite');
-    tx.objectStore(STORE_IMAGES).add({ id, productId, order, thumbnail: thumbnailUrl, full: fullUrl });
-    tx.oncomplete = () => resolve(id);
-    tx.onerror = () => reject(tx.error);
-  });
-}
-
-function blobToDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
-}
-
-export async function deleteImage(imageId: string): Promise<void> {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_IMAGES, 'readwrite');
-    tx.objectStore(STORE_IMAGES).delete(imageId);
+    const tx = db.transaction(STORE_PRODUCTS, 'readwrite');
+    const store = tx.objectStore(STORE_PRODUCTS);
+    store.clear();
+    for (const product of products) store.put(toMetadata(product));
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
-}
-
-// ── Image compression ─────────────────────────────────
-
-export function compressImage(file: File, maxWidth: number, quality: number): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const reader = new FileReader();
-    reader.onload = () => { img.src = reader.result as string; };
-    reader.onerror = () => reject(new Error('Failed to read file'));
-    reader.readAsDataURL(file);
-
-    img.onload = () => {
-      try {
-        let { width, height } = img;
-        if (width > maxWidth) { height = Math.round((height * maxWidth) / width); width = maxWidth; }
-        const canvas = document.createElement('canvas');
-        canvas.width = width; canvas.height = height;
-        canvas.getContext('2d')!.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', quality));
-      } catch (e) { reject(e); }
-    };
-    img.onerror = () => reject(new Error('Failed to load image'));
-  });
-}
-
-export async function processImageUpload(file: File): Promise<{ thumbnail: string; full: string }> {
-  const [thumbnail, full] = await Promise.all([
-    compressImage(file, 300, 0.6),
-    compressImage(file, 1600, 0.75),
-  ]);
-  return { thumbnail, full };
 }

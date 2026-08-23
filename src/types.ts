@@ -118,14 +118,28 @@ export interface ProductItem {
   imageCount: number;
   createdAt: string;
   updatedAt: string;
+  images?: ProductImageDescriptor[];
 }
 
-export interface ProductImage {
-  id: string;
-  productId: string;
-  order: number;
-  url: string;           // COS or local URL
-  thumbnailUrl: string;
+export type ProductImageSource = 'asset' | 'legacy';
+export type ProductImageRole = 'pattern_original' | 'gallery' | 'swatch' | 'legacy';
+
+/**
+ * Runtime image descriptor mapped from a server product response. Descriptors
+ * carry only asset IDs, signed/same-origin URLs, and ordering metadata — never
+ * Base64 payloads or raw COS object keys. They are intentionally not persisted.
+ */
+export interface ProductImageDescriptor {
+  source: ProductImageSource;
+  role: ProductImageRole;
+  sortOrder: number;
+  isPrimary: boolean;
+  assetId?: string;
+  thumbnailUrl?: string;
+  displayUrl?: string;
+  expiresAt?: string;
+  legacyImageId?: number;
+  contentUrl?: string;
 }
 
 // ==================== Inventory ====================

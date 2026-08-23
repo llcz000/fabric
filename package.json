@@ -11,7 +11,7 @@
     "lint": "tsc --noEmit",
     "test:unit": "node scripts/run-ts-tests.mjs",
     "test:image-export": "node scripts/run-ts-tests.mjs src/lib/imageCapture.test.ts src/components/DocumentPreview.test.ts",
-    "test:image-assets": "node scripts/run-ts-tests.mjs server/image-assets src/lib/imageAssets.test.ts src/lib/companyImageState.test.ts",
+    "test:image-assets": "node scripts/run-ts-tests.mjs server/image-assets src/lib/imageAssets.test.ts src/lib/companyImageState.test.ts src/lib/db.test.ts src/lib/productImages.test.ts",
     "test:image-assets:smoke": "node scripts/smoke-image-assets.mjs",
     "test:security": "node scripts/smoke-security.mjs"
   },

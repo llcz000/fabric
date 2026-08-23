@@ -3,26 +3,25 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * Product Library — browse, search, CRUD, import/export fabric product records
- * with multi-image pattern support.
+ * with multi-image pattern support backed by the image asset API.
  */
 
 import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
-import { ProductItem } from '../types';
+import { ProductItem, ProductImageDescriptor } from '../types';
 import {
   Plus, Upload, Download, Trash2, Edit3, X, ChevronLeft,
   ChevronRight, Image, Package, CheckSquare, Square, Filter,
 } from 'lucide-react';
 import {
-  getAllProducts, putProduct, deleteProduct,
-  getImages, getFullImageUrl, addProductImage, deleteImage,
-  processImageUpload,
+  getAllProducts, putProduct, deleteProduct, replaceAllProducts,
 } from '../lib/db';
+import { ImageAssetClientError, uploadImageAsset, fetchAssetBlob } from '../lib/imageAssets';
+import {
+  listProducts, describeProduct, saveProduct, detachProductImage, deleteProductById,
+} from '../lib/productImages';
 
 // ── Helpers ──────────────────────────────────────────
 
-function genId(): string {
-  return 'prod_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-}
 function nowISO(): string {
   return new Date().toISOString();
 }
@@ -32,7 +31,7 @@ function blankProduct(): ProductItem {
 
 function getAuthHeaders(): Record<string, string> {
   const token = sessionStorage.getItem('fabric_auth_token');
-  return token ? { 'Authorization': `Bearer ${token}` } : {};
+  return token ? { 'Authorization': 'Bearer ' + token } : {};
 }
 
 async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
@@ -48,62 +47,72 @@ async function authFetch(url: string, options: RequestInit = {}): Promise<Respon
   return res;
 }
 
-// Blob → base64 data URL for server transport
-function blobToDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
+function formatImageError(error: unknown): string {
+  if (error instanceof ImageAssetClientError) {
+    return error.requestId ? error.message + '（请求 ID：' + error.requestId + '）' : error.message;
+  }
+  return error instanceof Error ? error.message : '图片处理失败，请重试。';
 }
+
+// ── DescriptorImage (memoized) ────────────────────────
+
+const DescriptorImage = memo(({
+  descriptor, variant, className, alt,
+}: {
+  descriptor: ProductImageDescriptor;
+  variant: 'thumbnail' | 'display';
+  className: string;
+  alt: string;
+}) => {
+  const direct = variant === 'thumbnail'
+    ? descriptor.thumbnailUrl ?? descriptor.displayUrl
+    : descriptor.displayUrl ?? descriptor.thumbnailUrl;
+  const [legacySrc, setLegacySrc] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (direct || !descriptor.contentUrl) {
+      setLegacySrc(undefined);
+      return;
+    }
+    let cancelled = false;
+    let objectUrl: string | undefined;
+    fetchAssetBlob(descriptor.contentUrl, { apiFetch: authFetch })
+      .then((blob) => {
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setLegacySrc(objectUrl);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [direct, descriptor.contentUrl]);
+
+  const src = direct ?? legacySrc;
+  if (!src) {
+    return <div className={className + ' bg-slate-50 flex items-center justify-center'}><Image className="w-6 h-6 text-slate-300" /></div>;
+  }
+  return <img src={src} className={className} alt={alt} />;
+});
 
 // ── ThumbnailCell (memoized, outside parent) ─────────
 
-const ThumbnailCell = memo(({ productId }: { productId: string }) => {
-  const [thumbs, setThumbs] = useState<{ id: string; url: string }[]>([]);
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    getImages(productId).then(async imgs => {
-      if (cancelled) return;
-      if (imgs.length > 0) {
-        setThumbs(imgs.slice(0, 3).map(i => ({ id: i.id, url: i.thumbnailUrl })));
-        setLoaded(true);
-        return;
-      }
-      // Fallback: fetch thumbnails from server and cache in IndexedDB
-      try {
-        const token = sessionStorage.getItem('fabric_auth_token');
-        const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
-        const res = await fetch(`/api/products/${productId}/thumbnails`, { headers });
-        if (res.ok && !cancelled) {
-          const { images: batchImages } = await res.json();
-          const urls: { id: string; url: string }[] = [];
-          for (const bi of (batchImages || [])) {
-            const dataUrl = `data:image/jpeg;base64,${bi.base64}`;
-            urls.push({ id: String(bi.id), url: dataUrl });
-            // Cache to IndexedDB (fire-and-forget, don't await)
-            addProductImage(productId, bi.sort_order || urls.length - 1, dataUrl, dataUrl).catch(() => {});
-          }
-          setThumbs(urls.slice(0, 3));
-        }
-      } catch { }
-      setLoaded(true);
-    });
-    return () => { cancelled = true; };
-  }, [productId]);
-
-  if (!loaded) return <div className="w-18 h-18 bg-slate-100 rounded animate-pulse" />;
-  if (thumbs.length === 0) return <div className="w-18 h-18 bg-slate-50 rounded flex items-center justify-center"><Image className="w-6 h-6 text-slate-300" /></div>;
-
+const ThumbnailCell = memo(({ productId, images }: { productId: string; images: ProductImageDescriptor[] }) => {
+  const thumbs = images.slice(0, 3);
+  if (thumbs.length === 0) {
+    return <div className="w-18 h-18 bg-slate-50 rounded flex items-center justify-center"><Image className="w-6 h-6 text-slate-300" /></div>;
+  }
   return (
     <div className="flex gap-1.5 min-w-[80px] shrink-0" data-product-id={productId}>
       {thumbs.map((t, i) => (
-        <img key={t.id} src={t.url} className="w-16 h-16 object-cover rounded border border-slate-200 cursor-pointer hover:opacity-80 shrink-0"
-          onClick={() => { const ev = new CustomEvent('open-lightbox', { detail: { productId, index: i } }); window.dispatchEvent(ev); }}
-          alt="" />
+        <DescriptorImage
+          key={t.assetId ?? t.legacyImageId ?? i}
+          descriptor={t}
+          variant="thumbnail"
+          className="w-16 h-16 object-cover rounded border border-slate-200 cursor-pointer hover:opacity-80 shrink-0"
+          alt=""
+        />
       ))}
     </div>
   );
@@ -137,12 +146,12 @@ export default function ProductLibrary() {
   const [productNameInput, setProductNameInput] = useState('');
   const [editModal, setEditModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<ProductItem>(blankProduct());
-  const [editImages, setEditImages] = useState<{ id: string; order: number; thumbnailUrl: string }[]>([]);
+  const [editImages, setEditImages] = useState<ProductImageDescriptor[]>([]);
   const [pendingFiles, setPendingFiles] = useState<{ file: File; url: string }[]>([]);
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ProductItem | null>(null);
   const [lightboxProductId, setLightboxProductId] = useState<string | null>(null);
-  const [lightboxImages, setLightboxImages] = useState<string[]>([]);
+  const [lightboxImages, setLightboxImages] = useState<ProductImageDescriptor[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
@@ -155,36 +164,15 @@ export default function ProductLibrary() {
   const loadProducts = useCallback(async () => {
     setLoading(true);
     try {
-      // Primary: load from server (source of truth)
-      const serverRes = await authFetch('/api/products');
-      if (serverRes.ok) {
-        const serverProducts = await serverRes.json();
-        const mapped: ProductItem[] = serverProducts.map((sp: any) => ({
-          id: String(sp.id),
-          itemNo: sp.item_no || sp.itemNo,
-          productName: sp.product_name || sp.productName,
-          composition: sp.composition || '',
-          weight: sp.weight || '',
-          width: sp.width || '',
-          imageCount: sp.image_count || sp.images?.length || 0,
-          createdAt: sp.created_at || '',
-          updatedAt: sp.updated_at || '',
-        }));
-        mapped.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-        setProducts(mapped);
-      } else {
-        // Fallback: load from IndexedDB cache
-        const list = await getAllProducts();
-        list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-        setProducts(list);
-      }
+      const serverProducts = await listProducts(authFetch);
+      setProducts(serverProducts);
+      try { await replaceAllProducts(serverProducts); } catch { /* cache best-effort */ }
     } catch {
-      // Fallback: load from IndexedDB cache
       try {
         const list = await getAllProducts();
         list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
         setProducts(list);
-      } catch { }
+      } catch { /* no cache available */ }
     } finally {
       setLoading(false);
     }
@@ -197,19 +185,13 @@ export default function ProductLibrary() {
   useEffect(() => {
     const handler = async (ev: Event) => {
       const { productId, index } = (ev as CustomEvent).detail;
-      // Load full images from server (not IndexedDB cache — that's thumbnail quality)
       try {
-        const token = sessionStorage.getItem('fabric_auth_token');
-        const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
-        const res = await fetch(`/api/products/${productId}/thumbnails?full=1`, { headers });
-        if (res.ok) {
-          const { images: batchImages } = await res.json();
-          const urls = (batchImages || []).map((bi: any) => `data:image/jpeg;base64,${bi.base64}`);
-          setLightboxImages(urls);
-          setLightboxProductId(productId);
-          setLightboxIndex(Math.min(index, urls.length - 1));
-        }
-      } catch { }
+        const detail = await describeProduct(authFetch, String(productId));
+        const imgs = detail.images ?? [];
+        setLightboxImages(imgs);
+        setLightboxProductId(String(productId));
+        setLightboxIndex(Math.min(Math.max(0, index), Math.max(0, imgs.length - 1)));
+      } catch { /* leave lightbox closed */ }
     };
     window.addEventListener('open-lightbox', handler);
     return () => window.removeEventListener('open-lightbox', handler);
@@ -246,7 +228,7 @@ export default function ProductLibrary() {
   // ── CRUD ───────────────────────────────────────────
 
   const openCreate = () => {
-    setEditingProduct({ ...blankProduct(), id: genId() });
+    setEditingProduct(blankProduct());
     setEditImages([]);
     setPendingFiles([]);
     setEditModal(true);
@@ -256,53 +238,40 @@ export default function ProductLibrary() {
     setEditingProduct({ ...product });
     setPendingFiles([]);
     try {
-      const imgs = await getImages(product.id);
-      setEditImages(imgs.map(i => ({ id: i.id, order: i.order, thumbnailUrl: i.thumbnailUrl })));
-    } catch { setEditImages([]); }
+      const detail = await describeProduct(authFetch, product.id);
+      setEditImages(detail.images ?? []);
+    } catch {
+      setEditImages(product.images ?? []);
+    }
     setEditModal(true);
   };
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      const p = { ...editingProduct, updatedAt: nowISO() };
-
-      // Process new images (compress + store in IndexedDB)
-      let order = editImages.length;
+      const assetIds: string[] = [];
       for (const pf of pendingFiles) {
-        const { thumbnail, full } = await processImageUpload(pf.file);
-        const imgId = await addProductImage(p.id, order, thumbnail, full);
-        setEditImages(prev => [...prev, { id: imgId, order, thumbnailUrl: thumbnail }]);
-        order++;
+        const asset = await uploadImageAsset(pf.file, 'product_image', { apiFetch: authFetch });
+        assetIds.push(asset.id);
       }
 
-      p.imageCount = order;
-      if (!p.createdAt) p.createdAt = nowISO();
-
-      // Save to server (primary)
-      const formData = new FormData();
-      formData.append('itemNo', p.itemNo);
-      formData.append('productName', p.productName);
-      formData.append('composition', p.composition);
-      formData.append('weight', p.weight);
-      formData.append('width', p.width);
-      for (const pf of [...pendingFiles]) {
-        formData.append('image_files', pf.file, pf.file.name);
-      }
-      const isEdit = /^\d+$/.test(p.id) && products.some(x => x.id === p.id);
-      const url = isEdit ? `/api/products/${p.id}` : '/api/products';
-      const method = isEdit ? 'PUT' : 'POST';
-      const syncRes = await authFetch(url, { method, body: formData });
-      if (!syncRes.ok) throw new Error('服务器保存失败');
+      await saveProduct(authFetch, {
+        id: editingProduct.id,
+        itemNo: editingProduct.itemNo,
+        productName: editingProduct.productName,
+        composition: editingProduct.composition,
+        weight: editingProduct.weight,
+        width: editingProduct.width,
+        imageAssetIds: assetIds,
+      });
 
       showToast('产品已保存');
       setEditModal(false);
+      pendingFiles.forEach(f => URL.revokeObjectURL(f.url));
       setPendingFiles([]);
-
-      // Reload from server
       await loadProducts();
     } catch (e: any) {
-      showToast('保存失败: ' + (e.message || '未知错误'));
+      showToast('保存失败: ' + formatImageError(e));
     } finally {
       setSaving(false);
     }
@@ -311,19 +280,15 @@ export default function ProductLibrary() {
   const handleDelete = async () => {
     if (!deleteTarget) return;
     try {
-      if (/^\d+$/.test(deleteTarget.id)) {
-        const res = await authFetch(`/api/products/${deleteTarget.id}`, { method: 'DELETE' });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.error || `服务器删除失败 (${res.status})`);
-        }
+      if (/^[0-9]+$/.test(deleteTarget.id)) {
+        await deleteProductById(authFetch, deleteTarget.id);
       }
       await deleteProduct(deleteTarget.id);
       setSelectedIds(prev => { const n = new Set(prev); n.delete(deleteTarget.id); return n; });
       showToast('已删除');
       setDeleteTarget(null);
       await loadProducts();
-    } catch (e: any) { showToast('删除失败: ' + (e.message || '')); }
+    } catch (e: any) { showToast('删除失败: ' + formatImageError(e)); }
   };
 
   // Batch delete state
@@ -341,7 +306,7 @@ export default function ProductLibrary() {
     setBatchDeleteTargets(null);
 
     try {
-      const serverIds = ids.filter(id => /^\d+$/.test(id));
+      const serverIds = ids.filter(id => /^[0-9]+$/.test(id));
       let serverDeleted = 0;
       if (serverIds.length > 0) {
         const res = await authFetch('/api/products/batch-delete', {
@@ -349,7 +314,7 @@ export default function ProductLibrary() {
           body: JSON.stringify({ ids: serverIds }),
         });
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || `服务器批量删除失败 (${res.status})`);
+        if (!res.ok) throw new Error(data.error || '服务器批量删除失败 (' + res.status + ')');
         serverDeleted = Number(data.deleted || 0);
       }
 
@@ -357,32 +322,28 @@ export default function ProductLibrary() {
         try { await deleteProduct(id); } catch { }
       }
       setSelectedIds(new Set());
-      showToast(`已删除 ${serverIds.length > 0 ? serverDeleted : ids.length} 条记录`);
+      showToast('已删除 ' + (serverIds.length > 0 ? serverDeleted : ids.length) + ' 条记录');
       await loadProducts();
     } catch (error: any) {
       showToast('批量删除失败: ' + (error.message || '未知错误'));
     }
   };
 
-  const handleDeleteImage = async (imageId: string, index: number) => {
-    // Call the backend DELETE so COS file + DB row are actually removed.
-    const isServerImage = /^\d+$/.test(imageId);
-    const isServerProduct = editingProduct && /^\d+$/.test(editingProduct.id);
-    if (isServerImage && isServerProduct) {
-      try {
-        const res = await authFetch(`/api/products/${editingProduct.id}/images/${imageId}`, { method: 'DELETE' });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          showToast('删除图片失败: ' + (data.error || res.statusText));
-          return;
-        }
-      } catch (e: any) {
-        showToast('删除图片失败: ' + (e.message || ''));
+  const handleDeleteImage = async (image: ProductImageDescriptor, index: number) => {
+    if (!editingProduct || !/^[0-9]+$/.test(editingProduct.id)) return;
+    try {
+      if (image.source === 'asset' && image.assetId) {
+        await detachProductImage(authFetch, editingProduct.id, image.assetId);
+      } else if (image.legacyImageId !== undefined) {
+        const res = await authFetch('/api/products/' + editingProduct.id + '/images/' + image.legacyImageId, { method: 'DELETE' });
+        if (!res.ok) throw new Error('服务器删除图片失败');
+      } else {
         return;
       }
+      setEditImages(prev => prev.filter((_, i) => i !== index));
+    } catch (e: any) {
+      showToast('删除图片失败: ' + formatImageError(e));
     }
-    try { await deleteImage(imageId); } catch {}
-    setEditImages(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSelectImage = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -432,29 +393,29 @@ export default function ProductLibrary() {
         if (blob.size > 5000) {
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a'); a.href = url;
-          a.download = `产品库_${new Date().toISOString().slice(0, 10)}.xlsx`;
+          a.download = '产品库_' + new Date().toISOString().slice(0, 10) + '.xlsx';
           a.click(); URL.revokeObjectURL(url);
-          showToast(`已导出 ${selected.length} 条记录`);
+          showToast('已导出 ' + selected.length + ' 条记录');
           return;
         }
       }
     } catch { /* fall through to client-side export */ }
 
-    // Client-side fallback: export metadata from IndexedDB as .xls (HTML table)
+    // Client-side fallback: export metadata as .xls (HTML table)
     try {
       const rows: string[] = [];
       for (const p of selected) {
-        const imgs = await getImages(p.id).catch(() => []);
-        const imgCount = imgs.length > 0 ? `[${imgs.length}张图片]` : '';
-        rows.push(`<tr><td>${esc(p.itemNo)}</td><td>${esc(p.productName)}</td><td>${esc(p.composition)}</td><td>${esc(p.weight)}</td><td>${esc(p.width)}</td><td>${esc(imgCount)}</td></tr>`);
+        const imgCount = p.images?.length ?? 0;
+        const cell = imgCount > 0 ? '[' + imgCount + '张图片]' : '';
+        rows.push('<tr><td>' + esc(p.itemNo) + '</td><td>' + esc(p.productName) + '</td><td>' + esc(p.composition) + '</td><td>' + esc(p.weight) + '</td><td>' + esc(p.width) + '</td><td>' + esc(cell) + '</td></tr>');
       }
-      const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body><table><tr><th>货号</th><th>品名</th><th>成分</th><th>克重</th><th>门幅</th><th>花型</th></tr>${rows.join('')}</table></body></html>`;
+      const html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body><table><tr><th>货号</th><th>品名</th><th>成分</th><th>克重</th><th>门幅</th><th>花型</th></tr>' + rows.join('') + '</table></body></html>';
       const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a'); a.href = url;
-      a.download = `产品库_${new Date().toISOString().slice(0, 10)}.xls`;
+      a.download = '产品库_' + new Date().toISOString().slice(0, 10) + '.xls';
       a.click(); URL.revokeObjectURL(url);
-      showToast(`已导出 ${selected.length} 条记录（不含图片）`);
+      showToast('已导出 ' + selected.length + ' 条记录（不含图片）');
     } catch (e: any) { showToast('导出失败: ' + (e.message || '')); }
   };
 
@@ -470,52 +431,14 @@ export default function ProductLibrary() {
       const res = await authFetch('/api/products/import', { method: 'POST', body: form });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Import failed');
-      let msg = `成功导入 ${data.count} 条记录`;
+      let msg = '成功导入 ' + data.count + ' 条记录';
       if (data.warnings && data.warnings.length > 0) {
-        msg += `，${data.warnings.length} 条缺货号`;
+        msg += '，' + data.warnings.length + ' 条缺货号';
         showToast(msg);
-        // Show details after short delay
         setTimeout(() => showToast(data.warnings.join('；')), 2800);
       } else {
         showToast(msg);
       }
-
-      // Sync imported products from server to local IndexedDB
-      try {
-        const serverRes = await authFetch('/api/products');
-        if (serverRes.ok) {
-          const serverProducts = await serverRes.json();
-          for (const sp of serverProducts) {
-            const serverId = String(sp.id);
-            const existingById = products.find(p => p.id === serverId);
-            if (!existingById) {
-              await putProduct({
-                id: serverId, itemNo: sp.item_no || sp.itemNo,
-                productName: sp.product_name || sp.productName,
-                composition: sp.composition || '', weight: sp.weight || '',
-                width: sp.width || '', imageCount: sp.image_count || sp.images?.length || 0,
-                createdAt: sp.created_at || new Date().toISOString(),
-                updatedAt: sp.updated_at || new Date().toISOString(),
-              });
-              const imgs = sp.images || [];
-              if (imgs.length > 0) {
-                try {
-                  // Batch download: single request for all thumbnails
-                  const batchRes = await authFetch(`/api/products/${serverId}/thumbnails`);
-                  if (batchRes.ok) {
-                    const { images: batchImages } = await batchRes.json();
-                    for (const bi of batchImages || []) {
-                      const dataUrl = `data:image/jpeg;base64,${bi.base64}`;
-                      await addProductImage(serverId, bi.sort_order || 0, dataUrl, dataUrl);
-                    }
-                  }
-                } catch { /* skip */ }
-              }
-            }
-          }
-        }
-      } catch { /* best-effort */ }
-
       await loadProducts();
     } catch (err: any) { showToast('导入失败: ' + (err.message || '')); }
     setTimeout(() => { e.target.value = ''; }, 200);
@@ -544,7 +467,7 @@ export default function ProductLibrary() {
           <input type="file" accept=".xlsx" className="hidden" ref={importInputRef} onChange={handleImport} />
           <button type="button" onClick={handleExport}
             className="flex items-center gap-1 px-3 py-2 border border-slate-200 hover:border-slate-300 bg-white text-slate-600 rounded-xl text-xs font-semibold cursor-pointer transition-colors">
-            <Download className="w-3.5 h-3.5" />导出{selectedIds.size > 0 ? `选中(${selectedIds.size})` : '全部'}
+            <Download className="w-3.5 h-3.5" />导出{selectedIds.size > 0 ? '选中(' + selectedIds.size + ')' : '全部'}
           </button>
           <button type="button" onClick={openCreate}
             className="flex items-center gap-1 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-sm font-semibold shadow-sm cursor-pointer transition-colors">
@@ -610,13 +533,13 @@ export default function ProductLibrary() {
                   {filteredProducts.map(p => {
                     const missingItemNo = !p.itemNo || p.itemNo === '(缺货号)';
                     return (
-                    <tr key={p.id} className={`border-b border-slate-100 hover:bg-slate-50/50 transition-colors ${missingItemNo ? 'bg-amber-50/60' : ''}`}>
+                    <tr key={p.id} className={'border-b border-slate-100 hover:bg-slate-50/50 transition-colors ' + (missingItemNo ? 'bg-amber-50/60' : '')}>
                       <td className="py-2 px-2">
                         <button onClick={() => toggleSelect(p.id)} className="cursor-pointer text-slate-400 hover:text-sky-600">
                           {selectedIds.has(p.id) ? <CheckSquare className="w-4 h-4 text-sky-600" /> : <Square className="w-4 h-4" />}
                         </button>
                       </td>
-                      <td className="py-2 px-2"><ThumbnailCell productId={p.id} /></td>
+                      <td className="py-2 px-2"><ThumbnailCell productId={p.id} images={p.images ?? []} /></td>
                       <td className="py-2 px-2 font-bold text-slate-800">{missingItemNo ? <span className="text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded text-xs font-bold">缺货号</span> : p.itemNo}</td>
                       <td className="py-2 px-2 text-slate-700">{p.productName || '-'}</td>
                       <td className="py-2 px-2 text-slate-600">{p.composition || '-'}</td>
@@ -670,9 +593,9 @@ export default function ProductLibrary() {
                 <span className="text-xs text-slate-500 font-semibold">花型图片 ({editImages.length})</span>
                 <div className="flex flex-wrap gap-2">
                   {editImages.map((img, i) => (
-                    <div key={img.id} className="relative group">
-                      <img src={img.thumbnailUrl} className="w-20 h-20 object-cover rounded-lg border border-slate-200" alt="" />
-                      <button onClick={() => handleDeleteImage(img.id, i)} className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"><X className="w-3 h-3" /></button>
+                    <div key={img.assetId ?? img.legacyImageId ?? i} className="relative group">
+                      <DescriptorImage descriptor={img} variant="thumbnail" className="w-20 h-20 object-cover rounded-lg border border-slate-200" alt="" />
+                      <button onClick={() => handleDeleteImage(img, i)} className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"><X className="w-3 h-3" /></button>
                     </div>
                   ))}
                 </div>
@@ -681,7 +604,7 @@ export default function ProductLibrary() {
 
             {/* Add images */}
             <div
-              className={`block border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors ${dragOver ? 'border-sky-400 bg-sky-50' : 'border-slate-200 hover:border-sky-300'}`}
+              className={'block border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors ' + (dragOver ? 'border-sky-400 bg-sky-50' : 'border-slate-200 hover:border-sky-300')}
               onClick={() => {
                 if (fileInputRef.current) fileInputRef.current.value = '';
                 fileInputRef.current?.click();
@@ -690,8 +613,8 @@ export default function ProductLibrary() {
               onDragLeave={() => setDragOver(false)}
               onDrop={handleDrop}
             >
-              <Image className={`w-6 h-6 mx-auto mb-1 ${dragOver ? 'text-sky-400' : 'text-slate-300'}`} />
-              <span className={`text-xs ${dragOver ? 'text-sky-500' : 'text-slate-400'}`}>
+              <Image className={'w-6 h-6 mx-auto mb-1 ' + (dragOver ? 'text-sky-400' : 'text-slate-300')} />
+              <span className={'text-xs ' + (dragOver ? 'text-sky-500' : 'text-slate-400')}>
                 {dragOver ? '释放以上传图片' : '点击或拖拽上传花型图片（可多选）'}
               </span>
               <input type="file" accept="image/*" multiple className="sr-only" ref={fileInputRef} onChange={handleSelectImage} />
@@ -748,7 +671,7 @@ export default function ProductLibrary() {
               <button onClick={(e) => { e.stopPropagation(); setLightboxIndex(prev => prev < lightboxImages.length - 1 ? prev + 1 : 0); }} className="absolute right-4 text-white/70 hover:text-white cursor-pointer z-10"><ChevronRight className="w-10 h-10" /></button>
             </>
           )}
-          <img src={lightboxImages[lightboxIndex]} className="max-w-[90vw] max-h-[90vh] object-contain" onClick={(e) => e.stopPropagation()} alt="" />
+          <DescriptorImage descriptor={lightboxImages[lightboxIndex]} variant="display" className="max-w-[90vw] max-h-[90vh] object-contain" alt="" />
         </div>
       )}
     </div>
