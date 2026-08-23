@@ -20,12 +20,11 @@ import { CosStorageAdapter, type CosSdkBoundary } from './server/image-assets/co
 import { readLegacyImage } from './server/image-assets/legacySource';
 import { getAssetPolicy } from './server/image-assets/policy';
 import type { ProductImageRouteRuntime } from './server/image-assets/productImages';
-import { isProductImageApiRequest } from './server/image-assets/productRouteScope';
-import { mountProductImageServerRoutes } from './server/image-assets/productServer';
 import type { AssetTransaction } from './server/image-assets/repository';
 import { createImageAssetRouter } from './server/image-assets/routes';
 import { createImageAssetRuntime } from './server/image-assets/runtime';
 import { initializeImageAssetSchema } from './server/image-assets/schema';
+import { exceptImageAssetApi, exceptProductApi, mountProductRouteAssembly } from './server/appAssembly';
 
 // Load environment variables
 dotenv.config();
@@ -50,8 +49,9 @@ fs.mkdirSync(path.join(UPLOADS_DIR, 'products'), { recursive: true });
 // Setup middleware
 const globalJsonParser = express.json();
 const globalUrlencodedParser = express.urlencoded({ extended: true });
-app.use(exceptImageAssetApi(globalJsonParser));
-app.use(exceptImageAssetApi(globalUrlencodedParser));
+const productImageAssetsParserEnabled = process.env.PRODUCT_IMAGE_ASSETS_ENABLED?.trim().toLowerCase() === 'true';
+app.use(exceptImageAssetApi(globalJsonParser, productImageAssetsParserEnabled));
+app.use(exceptImageAssetApi(globalUrlencodedParser, productImageAssetsParserEnabled));
 app.use('/uploads', assetAuthMiddleware, express.static(UPLOADS_DIR, {
   setHeaders: (res) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -71,28 +71,6 @@ const authTokens = new Map<string, number>();
 function positiveIntegerFromEnv(name: string, fallback: number): number {
   const value = Number(process.env[name]);
   return Number.isSafeInteger(value) && value > 0 ? value : fallback;
-}
-
-function exceptImageAssetApi(middleware: express.RequestHandler): express.RequestHandler {
-  return (req, res, next) => {
-    const requestPath = req.path.toLowerCase();
-    if (
-      requestPath === '/api/image-assets'
-      || requestPath.startsWith('/api/image-assets/')
-      || requestPath === '/api/company/images'
-      || requestPath.startsWith('/api/company/images/')
-      || (process.env.PRODUCT_IMAGE_ASSETS_ENABLED?.trim().toLowerCase() === 'true'
-        && isProductImageApiRequest(req))
-    ) return next();
-    middleware(req, res, next);
-  };
-}
-
-function exceptProductApi(middleware: express.RequestHandler): express.RequestHandler {
-  return (req, res, next) => {
-    if (req.path === '/products' || req.path.startsWith('/products/')) return next();
-    middleware(req, res, next);
-  };
 }
 
 const RATE_LIMIT_WINDOW_MS = positiveIntegerFromEnv('RATE_LIMIT_WINDOW_MS', 15 * 60 * 1000);
@@ -199,15 +177,14 @@ app.use('/api/company/images', createCompanyImageAuthMiddleware((req) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
   return getValidToken(token) !== null;
 }));
-mountProductImageServerRoutes(app, {
-  runtime: productImageRuntime,
-  authenticate(req) {
+mountProductRouteAssembly(app, {
+  productImageRuntime,
+  authenticateProduct(req) {
     const token = req.headers.authorization?.replace('Bearer ', '');
     return getValidToken(token) !== null;
   },
   globalAuth: authMiddleware,
 });
-app.use('/api', exceptProductApi(authMiddleware));
 
 app.use('/api/image-assets', createImageAssetRouter(imageAssetRuntime));
 
