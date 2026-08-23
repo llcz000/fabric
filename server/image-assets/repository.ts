@@ -39,6 +39,11 @@ export interface ReconciliationCandidate {
   variants: AssetVariantRecord[];
 }
 
+export interface ReconciliationCursor {
+  createdAt: Date;
+  id: string;
+}
+
 export interface ProductWriteRecord {
   itemNo: string;
   productName: string;
@@ -143,7 +148,7 @@ export interface AssetRepository {
   reconcileReferenceCounts(): Promise<number>;
   recoverStaleJobs(now: Date): Promise<number>;
   listOrphanCandidates(now: Date, limit: number): Promise<ImageAssetRecord[]>;
-  listReconciliationCandidates(limit: number): Promise<ReconciliationCandidate[]>;
+  listReconciliationCandidates(after: ReconciliationCursor | null, limit: number): Promise<ReconciliationCandidate[]>;
   markAssetObjectMissing(assetId: string, code: string): Promise<boolean>;
 }
 

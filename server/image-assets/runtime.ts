@@ -11,7 +11,7 @@ import { getAssetPolicy } from './policy';
 import type { AssetRepository } from './repository';
 import { ImageAssetService } from './service';
 import { expiresAt, type StorageAdapter, type UploadGrant } from './storage';
-import { ImageAssetWorker } from './worker';
+import { ImageAssetWorker, runWorkerMaintenanceCycle } from './worker';
 
 const DEFAULT_ACCESS_URL_TTL_SECONDS = 300;
 const DEFAULT_UPLOAD_GRANT_TTL_SECONDS = 900;
@@ -143,12 +143,7 @@ export function startImageAssetWorker(
 
   const runWorkerCycle = async (): Promise<void> => {
     try {
-      for (let index = 0; index < 10; index += 1) {
-        const didWork = await worker.runOnce();
-        if (!didWork) break;
-      }
-      await worker.recycleOnce();
-      await worker.cleanupExpiredUploadsOnce();
+      await runWorkerMaintenanceCycle(worker);
     } catch (error) {
       log(safeLogLine({ stage: 'worker-cycle', errorCode: errorCodeOf(error) }));
     }

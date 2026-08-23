@@ -2,7 +2,7 @@ import { ImageAssetError, type ImageAssetErrorCode } from './errors';
 import { safeLogLine } from './observability';
 import { getAssetPolicy } from './policy';
 import { generateImageVariants, type ProcessedVariant } from './processor';
-import type { AssetRepository, AssetVariantRecord, ProcessingJob } from './repository';
+import type { AssetRepository, AssetVariantRecord, ProcessingJob, ReconciliationCursor } from './repository';
 import { assetObjectKey, type StorageAdapter } from './storage';
 import type { UploadSessionRecord } from './types';
 import type { ValidatedImage } from './validator';
@@ -21,9 +21,27 @@ export interface ReconciliationSummary {
   elapsedMs: number;
 }
 
+export interface WorkerMaintenanceTarget {
+  runOnce(): Promise<boolean>;
+  recycleOnce(limit?: number): Promise<number>;
+  cleanupExpiredUploadsOnce(limit?: number): Promise<number>;
+  purgeOnce(limit?: number): Promise<number>;
+}
+
+export async function runWorkerMaintenanceCycle(worker: WorkerMaintenanceTarget, maxJobs = 10): Promise<void> {
+  for (let index = 0; index < maxJobs; index += 1) {
+    const didWork = await worker.runOnce();
+    if (!didWork) break;
+  }
+  await worker.recycleOnce();
+  await worker.cleanupExpiredUploadsOnce();
+  await worker.purgeOnce();
+}
+
 export class ImageAssetWorker {
   private readonly now: () => Date;
   private readonly log: ((line: string) => void) | undefined;
+  private reconcileCursor: ReconciliationCursor | null = null;
 
   constructor(
     private readonly repository: AssetRepository,
@@ -104,7 +122,7 @@ export class ImageAssetWorker {
     const startedAt = this.now().getTime();
     const refCountDrift = await this.repository.reconcileReferenceCounts();
     const orphanCandidates = (await this.repository.listOrphanCandidates(this.now(), limit)).length;
-    const candidates = await this.repository.listReconciliationCandidates(limit);
+    const candidates = await this.repository.listReconciliationCandidates(this.reconcileCursor, limit);
     let missingObjects = 0;
     for (const candidate of candidates) {
       let missing = false;
@@ -117,6 +135,12 @@ export class ImageAssetWorker {
       if (missing && await this.repository.markAssetObjectMissing(candidate.asset.id, 'ASSET_NOT_FOUND')) {
         missingObjects += 1;
       }
+    }
+    if (candidates.length > 0) {
+      const last = candidates[candidates.length - 1].asset;
+      this.reconcileCursor = { createdAt: last.createdAt, id: last.id };
+    } else {
+      this.reconcileCursor = null;
     }
     const elapsedMs = this.now().getTime() - startedAt;
     const summary: ReconciliationSummary = { refCountDrift, missingObjects, orphanCandidates, elapsedMs };

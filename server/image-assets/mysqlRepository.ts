@@ -13,6 +13,7 @@ import type {
   ProductWriteRecord,
   PurgeClaim,
   ReconciliationCandidate,
+  ReconciliationCursor,
   LegacyProductImageRecord,
 } from './repository';
 import { MAX_PRODUCT_IMAGE_ASSOCIATIONS, type AssetStatus, type CompanyImageRole, type ImageAssetRecord, type UploadSessionRecord } from './types';
@@ -702,10 +703,16 @@ export class MySqlAssetRepository implements AssetRepository {
     )).map(mapAsset);
   }
 
-  async listReconciliationCandidates(limit: number): Promise<ReconciliationCandidate[]> {
+  async listReconciliationCandidates(after: ReconciliationCursor | null, limit: number): Promise<ReconciliationCandidate[]> {
+    const where = after
+      ? "WHERE status NOT IN ('purged', 'purging', 'quarantine') AND (created_at > ? OR (created_at = ? AND id > ?))"
+      : "WHERE status NOT IN ('purged', 'purging', 'quarantine')";
+    const params = after
+      ? [after.createdAt, after.createdAt, after.id, limit]
+      : [limit];
     const assetRows = rows(await this.pool.query(
-      "SELECT * FROM image_assets WHERE status NOT IN ('purged', 'purging', 'quarantine') ORDER BY created_at LIMIT ?",
-      [limit],
+      'SELECT * FROM image_assets ' + where + ' ORDER BY created_at, id LIMIT ?',
+      params,
     ));
     if (assetRows.length === 0) return [];
     const assets = assetRows.map(mapAsset);

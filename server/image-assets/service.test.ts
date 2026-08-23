@@ -15,6 +15,7 @@ import type {
   ProductRecord,
   ProductWriteRecord,
   ReconciliationCandidate,
+  ReconciliationCursor,
 } from './repository';
 import { ImageAssetService } from './service';
 import { assetObjectKey, type StorageAdapter, type UploadGrant } from './storage';
@@ -23,7 +24,7 @@ import type {
   ImageAssetRecord,
   UploadSessionRecord,
 } from './types';
-import { ImageAssetWorker } from './worker';
+import { ImageAssetWorker, runWorkerMaintenanceCycle } from './worker';
 import { redactLogText, safeLogLine } from './observability';
 import { validateImageBuffer } from './validator';
 
@@ -407,9 +408,18 @@ class MemoryAssetRepository implements AssetRepository {
       .slice(0, limit);
   }
 
-  async listReconciliationCandidates(limit: number): Promise<ReconciliationCandidate[]> {
-    return [...this.assets.values()]
+  async listReconciliationCandidates(after: ReconciliationCursor | null, limit: number): Promise<ReconciliationCandidate[]> {
+    const eligible = [...this.assets.values()]
       .filter((asset) => !['purged', 'purging', 'quarantine'].includes(asset.status))
+      .filter((asset) => !after
+        || asset.createdAt.getTime() > after.createdAt.getTime()
+        || (asset.createdAt.getTime() === after.createdAt.getTime() && asset.id > after.id))
+      .sort((left, right) => {
+        const timeDelta = left.createdAt.getTime() - right.createdAt.getTime();
+        if (timeDelta !== 0) return timeDelta;
+        return left.id < right.id ? -1 : left.id > right.id ? 1 : 0;
+      });
+    return eligible
       .slice(0, limit)
       .map((asset) => ({ asset, variants: [...(this.variants.get(asset.id) ?? [])] }));
   }
@@ -1552,4 +1562,83 @@ test('safeLogLine keeps stable ids and codes while dropping secret fields', () =
   assert.equal(Object.hasOwn(parsed, 'authorization'), false);
   assert.equal(Object.hasOwn(parsed, 'cookie'), false);
   assert.doesNotMatch(line, /leak-me|leak-cookie|leak-sign/);
+});
+
+test('worker maintenance cycle invokes purge after recycle and expired-upload sweep', async () => {
+  const calls: string[] = [];
+  const target = {
+    runOnce: async () => { calls.push('runOnce'); return false; },
+    recycleOnce: async () => { calls.push('recycleOnce'); return 0; },
+    cleanupExpiredUploadsOnce: async () => { calls.push('cleanupExpiredUploadsOnce'); return 0; },
+    purgeOnce: async () => { calls.push('purgeOnce'); return 0; },
+  };
+
+  await runWorkerMaintenanceCycle(target);
+
+  assert.deepEqual(calls, ['runOnce', 'recycleOnce', 'cleanupExpiredUploadsOnce', 'purgeOnce']);
+});
+
+test('reconciliation cursor advances past the first batch on subsequent runs', async () => {
+  const clock = new MutableClock();
+  const repository = new MemoryAssetRepository(clock);
+  const storage = new MemoryStorage();
+  const worker = new ImageAssetWorker(repository, storage, { now: clock.now, log: () => {} });
+  const baseAsset = {
+    originalFilename: 'fixture.png',
+    detectedMime: 'image/png',
+    detectedExtension: 'png',
+    purpose: 'company_logo' as const,
+    storageProvider: 'local' as const,
+    byteSize: 8,
+    width: 2,
+    height: 2,
+    status: 'ready' as const,
+    refCount: 0,
+    createdBy: 'principal-1',
+  };
+  const olderId = 'cursor-older';
+  const newerId = 'cursor-newer';
+  repository.assets.set(olderId, {
+    id: olderId,
+    sha256: 'ab'.repeat(32),
+    ...baseAsset,
+    createdAt: new Date('2026-08-20T00:00:00Z'),
+    updatedAt: new Date('2026-08-20T00:00:00Z'),
+  });
+  repository.assets.set(newerId, {
+    id: newerId,
+    sha256: 'cd'.repeat(32),
+    ...baseAsset,
+    createdAt: new Date('2026-08-21T00:00:00Z'),
+    updatedAt: new Date('2026-08-21T00:00:00Z'),
+  });
+  repository.variants.set(olderId, [{
+    assetId: olderId,
+    variant: 'display',
+    objectKey: 'assets/cursor-older/display.webp',
+    mime: 'image/webp',
+    byteSize: 4,
+    width: 2,
+    height: 2,
+    createdAt: new Date('2026-08-20T00:00:00Z'),
+  }]);
+  repository.variants.set(newerId, [{
+    assetId: newerId,
+    variant: 'display',
+    objectKey: 'assets/cursor-newer/display.webp',
+    mime: 'image/webp',
+    byteSize: 4,
+    width: 2,
+    height: 2,
+    createdAt: new Date('2026-08-21T00:00:00Z'),
+  }]);
+
+  const first = await worker.reconcileOnce(1);
+  assert.equal(first.missingObjects, 1);
+  assert.equal(repository.requireAsset(olderId).status, 'degraded');
+  assert.equal(repository.requireAsset(newerId).status, 'ready');
+
+  const second = await worker.reconcileOnce(1);
+  assert.equal(second.missingObjects, 1);
+  assert.equal(repository.requireAsset(newerId).status, 'degraded');
 });
