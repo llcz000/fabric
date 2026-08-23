@@ -399,9 +399,9 @@ GROUP BY o.id;
 提交到 GitHub 的文件中包含真实有效的凭证：
 
 ```
-DB_PASSWORD="Lq9749780"
-COS_SECRET_ID="AKIDFMyDOQG7xgEf3JOK7nIeoofNwbpyzzvk"
-COS_SECRET_KEY="1tdEeyVu9GVipnlkx2zmgOyPjtqTXWbg"
+DB_PASSWORD="<redacted>"
+COS_SECRET_ID="<redacted>"
+COS_SECRET_KEY="<redacted>"
 ```
 
 任何有仓库访问权限的人都可以使用这些凭证连接到生产 MySQL 数据库和腾讯云 COS 存储桶。这些凭证必须立即轮换。

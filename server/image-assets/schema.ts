@@ -68,11 +68,6 @@ export async function initializeImageAssetSchema(connection: SqlConnection): Pro
   `);
 
   await connection.query(`
-    ALTER TABLE image_upload_sessions
-    ADD COLUMN IF NOT EXISTS quarantine_cleaned_at DATETIME NULL;
-  `);
-
-  await connection.query(`
     CREATE TABLE IF NOT EXISTS image_processing_jobs (
       id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
       asset_id VARCHAR(36) NOT NULL,
