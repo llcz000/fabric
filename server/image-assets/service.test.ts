@@ -8,8 +8,12 @@ import type {
   AssetRepository,
   AssetVariantRecord,
   FinalizedUpload,
+  LegacyProductImageRecord,
   NewUploadSession,
   ProcessingJob,
+  ProductAssetAssociationRecord,
+  ProductRecord,
+  ProductWriteRecord,
 } from './repository';
 import { ImageAssetService } from './service';
 import { assetObjectKey, type StorageAdapter, type UploadGrant } from './storage';
@@ -41,6 +45,7 @@ class MemoryAssetRepository implements AssetRepository {
   readonly jobs = new Map<number, ProcessingJob>();
   readonly events: string[];
   readonly linkEvents: string[] = [];
+  readonly products = new Map<number, ProductRecord>();
   readonly recycleCalls: Array<{ now: Date; limit: number }> = [];
   purgeCandidateIds: string[] = [];
   purgeClaimAllowed = true;
@@ -272,6 +277,42 @@ class MemoryAssetRepository implements AssetRepository {
 
   async attachProductImages(productId: number, assetIds: string[]): Promise<void> {
     this.linkEvents.push(`attach:${productId}:${assetIds.join(',')}`);
+  }
+
+  async createProductWithImages(input: ProductWriteRecord, assetIds: string[]): Promise<ProductRecord> {
+    const id = Math.max(0, ...this.products.keys()) + 1;
+    const product: ProductRecord = { id, item_no: input.itemNo, product_name: input.productName, image_count: assetIds.length };
+    this.products.set(id, product);
+    this.linkEvents.push(`create-product:${id}:${assetIds.join(',')}`);
+    return product;
+  }
+
+  async updateProductWithImages(productId: number, input: ProductWriteRecord, assetIds: string[]): Promise<ProductRecord | null> {
+    const product = this.products.get(productId);
+    if (!product) return null;
+    Object.assign(product, { item_no: input.itemNo, product_name: input.productName });
+    this.linkEvents.push(`update-product:${productId}:${assetIds.join(',')}`);
+    return product;
+  }
+
+  async listProductsPage(limit: number, offset: number): Promise<ProductRecord[]> {
+    return [...this.products.values()].slice(offset, offset + limit);
+  }
+
+  async findProductIdsByItemNos(itemNos: string[]): Promise<number[]> {
+    return [...this.products.values()].filter((product) => itemNos.includes(product.item_no)).map((product) => product.id);
+  }
+
+  async getProductRecord(productId: number): Promise<ProductRecord | null> {
+    return this.products.get(productId) ?? null;
+  }
+
+  async listProductImageAssociations(_productIds: number[], _primaryOnly: boolean): Promise<ProductAssetAssociationRecord[]> {
+    return [];
+  }
+
+  async listLegacyProductImages(_productIds: number[], _primaryOnly: boolean): Promise<LegacyProductImageRecord[]> {
+    return [];
   }
 
   async detachProductImage(productId: number, assetId: string): Promise<void> {

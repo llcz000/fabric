@@ -34,6 +34,34 @@ export interface PurgeClaim {
   variants: AssetVariantRecord[];
 }
 
+export interface ProductWriteRecord {
+  itemNo: string;
+  productName: string;
+  composition: string;
+  weight: string;
+  width: string;
+}
+
+export interface ProductRecord extends Record<string, unknown> {
+  id: number;
+  item_no: string;
+  product_name: string;
+}
+
+export interface ProductAssetAssociationRecord {
+  productId: number;
+  assetId: string;
+  sortOrder: number;
+  role: 'pattern_original' | 'gallery' | 'swatch';
+  isPrimary: boolean;
+}
+
+export interface LegacyProductImageRecord {
+  productId: number;
+  id: number;
+  sortOrder: number;
+}
+
 export interface NewUploadSession {
   id: string;
   purpose: AssetPurpose;
@@ -90,6 +118,13 @@ export interface AssetRepository {
   markUploadSessionQuarantineCleaned(sessionId: string, cleanedAt: Date): Promise<boolean>;
   replaceCompanyImage(companyId: number, role: CompanyImageRole, assetId: string | null): Promise<void>;
   attachProductImages(productId: number, assetIds: string[]): Promise<void>;
+  createProductWithImages(input: ProductWriteRecord, assetIds: string[]): Promise<ProductRecord>;
+  updateProductWithImages(productId: number, input: ProductWriteRecord, assetIds: string[]): Promise<ProductRecord | null>;
+  listProductsPage(limit: number, offset: number): Promise<ProductRecord[]>;
+  findProductIdsByItemNos(itemNos: string[]): Promise<number[]>;
+  getProductRecord(productId: number): Promise<ProductRecord | null>;
+  listProductImageAssociations(productIds: number[], primaryOnly: boolean): Promise<ProductAssetAssociationRecord[]>;
+  listLegacyProductImages(productIds: number[], primaryOnly: boolean): Promise<LegacyProductImageRecord[]>;
   detachProductImage(productId: number, assetId: string): Promise<void>;
   detachAllProductImages(productId: number): Promise<void>;
   deleteProductWithAssets(productId: number): Promise<boolean>;

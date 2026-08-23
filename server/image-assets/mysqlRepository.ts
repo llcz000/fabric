@@ -8,9 +8,13 @@ import type {
   FinalizedUploadResult,
   NewUploadSession,
   ProcessingJob,
+  ProductAssetAssociationRecord,
+  ProductRecord,
+  ProductWriteRecord,
   PurgeClaim,
+  LegacyProductImageRecord,
 } from './repository';
-import type { AssetStatus, CompanyImageRole, ImageAssetRecord, UploadSessionRecord } from './types';
+import { MAX_PRODUCT_IMAGE_ASSOCIATIONS, type AssetStatus, type CompanyImageRole, type ImageAssetRecord, type UploadSessionRecord } from './types';
 
 interface AssetPool {
   query(sql: string, params?: unknown[]): Promise<[unknown, unknown]>;
@@ -86,6 +90,10 @@ function mapAsset(row: Row): ImageAssetRecord {
         ? JSON.parse(row.metadata_json)
         : row.metadata_json as Record<string, unknown>,
   };
+}
+
+function mapProduct(row: Row): ProductRecord {
+  return { ...row, id: Number(row.id), item_no: String(row.item_no), product_name: String(row.product_name) };
 }
 
 function mapVariant(row: Row): AssetVariantRecord {
@@ -383,18 +391,127 @@ export class MySqlAssetRepository implements AssetRepository {
   async attachProductImages(productId: number, assetIds: string[]): Promise<void> {
     const uniqueIds = [...new Set(assetIds)];
     if (uniqueIds.length === 0) return;
-    await this.inTransaction(async (connection) => {
+    await this.inTransaction((connection) => this.attachProductImagesInTransaction(connection, productId, uniqueIds));
+  }
+
+  async createProductWithImages(input: ProductWriteRecord, assetIds: string[]): Promise<ProductRecord> {
+    return this.inTransaction(async (connection) => {
+      const createdAt = new Date();
+      const inserted = result(await connection.query(
+        'INSERT INTO products (item_no, product_name, composition, weight, width, image_count, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, ?, ?)',
+        [input.itemNo, input.productName, input.composition, input.weight, input.width, createdAt, createdAt],
+      ));
+      const productId = Number((inserted as Result & { insertId?: number }).insertId);
+      if (!Number.isSafeInteger(productId) || productId <= 0) throw new Error('Product insert did not return an ID');
+      await this.attachProductImagesInTransaction(connection, productId, [...new Set(assetIds)]);
+      return {
+        id: productId,
+        item_no: input.itemNo,
+        product_name: input.productName,
+        composition: input.composition,
+        weight: input.weight,
+        width: input.width,
+        image_count: new Set(assetIds).size,
+        created_at: createdAt,
+        updated_at: createdAt,
+      };
+    });
+  }
+
+  async updateProductWithImages(productId: number, input: ProductWriteRecord, assetIds: string[]): Promise<ProductRecord | null> {
+    return this.inTransaction(async (connection) => {
+      const products = rows(await connection.query('SELECT * FROM products WHERE id = ? FOR UPDATE', [productId]));
+      if (!products[0]) return null;
+      const updatedAt = new Date();
+      await connection.query(
+        'UPDATE products SET item_no = ?, product_name = ?, composition = ?, weight = ?, width = ?, updated_at = ? WHERE id = ?',
+        [input.itemNo, input.productName, input.composition, input.weight, input.width, updatedAt, productId],
+      );
+      await this.attachProductImagesInTransaction(connection, productId, [...new Set(assetIds)]);
+      const count = rows(await connection.query(
+        'SELECT COUNT(*) AS image_count FROM product_image_assets WHERE product_id = ? AND deleted_at IS NULL',
+        [productId],
+      ));
+      return {
+        ...mapProduct(products[0]),
+        item_no: input.itemNo,
+        product_name: input.productName,
+        composition: input.composition,
+        weight: input.weight,
+        width: input.width,
+        image_count: Number(count[0]?.image_count ?? 0),
+        updated_at: updatedAt,
+      };
+    });
+  }
+
+  async listProductsPage(limit: number, offset: number): Promise<ProductRecord[]> {
+    return rows(await this.pool.query('SELECT * FROM products ORDER BY updated_at DESC LIMIT ? OFFSET ?', [limit, offset])).map(mapProduct);
+  }
+
+  async findProductIdsByItemNos(itemNos: string[]): Promise<number[]> {
+    if (itemNos.length === 0) return [];
+    const placeholders = itemNos.map(() => '?').join(', ');
+    return rows(await this.pool.query(`SELECT id FROM products WHERE item_no IN (${placeholders})`, itemNos)).map((row) => Number(row.id));
+  }
+
+  async getProductRecord(productId: number): Promise<ProductRecord | null> {
+    const products = rows(await this.pool.query('SELECT * FROM products WHERE id = ?', [productId]));
+    return products[0] ? mapProduct(products[0]) : null;
+  }
+
+  async listProductImageAssociations(productIds: number[], primaryOnly: boolean): Promise<ProductAssetAssociationRecord[]> {
+    if (productIds.length === 0) return [];
+    const placeholders = productIds.map(() => '?').join(', ');
+    const primaryClause = primaryOnly ? ' AND pia.is_primary = 1' : '';
+    return rows(await this.pool.query(
+      `SELECT pia.product_id, pia.asset_id, pia.sort_order, pia.role, pia.is_primary
+       FROM product_image_assets pia
+       WHERE pia.product_id IN (${placeholders}) AND pia.deleted_at IS NULL${primaryClause}
+       ORDER BY pia.product_id, pia.sort_order, pia.id`,
+      productIds,
+    )).map((row) => ({
+      productId: Number(row.product_id),
+      assetId: String(row.asset_id),
+      sortOrder: Number(row.sort_order),
+      role: row.role as ProductAssetAssociationRecord['role'],
+      isPrimary: Boolean(row.is_primary),
+    }));
+  }
+
+  async listLegacyProductImages(productIds: number[], primaryOnly: boolean): Promise<LegacyProductImageRecord[]> {
+    if (productIds.length === 0) return [];
+    const placeholders = productIds.map(() => '?').join(', ');
+    const limitClause = primaryOnly
+      ? ` AND pi.sort_order = (SELECT MIN(pi2.sort_order) FROM product_images pi2 WHERE pi2.product_id = pi.product_id)`
+      : '';
+    return rows(await this.pool.query(
+      `SELECT pi.product_id, pi.id, pi.sort_order FROM product_images pi
+       WHERE pi.product_id IN (${placeholders})${limitClause}
+       ORDER BY pi.product_id, pi.sort_order, pi.id`,
+      productIds,
+    )).map((row) => ({ productId: Number(row.product_id), id: Number(row.id), sortOrder: Number(row.sort_order) }));
+  }
+
+  private async attachProductImagesInTransaction(connection: AssetTransaction, productId: number, uniqueIds: string[]): Promise<void> {
+    if (uniqueIds.length === 0) {
+      await this.recomputeProductImageCount(connection, productId);
+      return;
+    }
       const existing = rows(await connection.query(
         `SELECT id, asset_id, sort_order FROM product_image_assets
          WHERE product_id = ? AND deleted_at IS NULL ORDER BY sort_order, id FOR UPDATE`,
         [productId],
       ));
       const existingIds = new Set(existing.map((row) => String(row.asset_id)));
-      await this.lockReadyTargets(connection, uniqueIds, uniqueIds);
+      const newIds = uniqueIds.filter((assetId) => !existingIds.has(assetId));
+      if (existing.length + newIds.length > MAX_PRODUCT_IMAGE_ASSOCIATIONS) {
+        throw new ImageAssetError('IMAGE_LIMIT_EXCEEDED', 413, false, `A product may have at most ${MAX_PRODUCT_IMAGE_ASSOCIATIONS} active images`);
+      }
+      await this.lockReadyTargets(connection, newIds, newIds);
       let nextSortOrder = existing.reduce((maximum, row) => Math.max(maximum, Number(row.sort_order)), -1) + 1;
       let hasPrimary = existing.length > 0;
-      for (const assetId of uniqueIds) {
-        if (existingIds.has(assetId)) continue;
+      for (const assetId of newIds) {
         const role = hasPrimary ? 'gallery' : 'pattern_original';
         const isPrimary = hasPrimary ? 0 : 1;
         await connection.query(
@@ -407,7 +524,6 @@ export class MySqlAssetRepository implements AssetRepository {
         hasPrimary = true;
       }
       await this.recomputeProductImageCount(connection, productId);
-    });
   }
 
   async detachProductImage(productId: number, assetId: string): Promise<void> {

@@ -17,40 +17,43 @@ import {
 const RAW_COS_URL = 'https://fabric-images-1448065940.cos.ap-shanghai.myqcloud.com/products/legacy.png';
 
 function runtime(overrides: Partial<ProductImageRuntime> = {}): ProductImageRuntime {
+  const service = {
+    async getAccessUrls(requests: Array<{ assetId: string; variant: 'original' | 'display' | 'thumbnail' }>) {
+      return requests.map((request) => ({
+        ...request,
+        url: `https://signed.example/${request.assetId}/${request.variant}`,
+        expiresAt: '2026-08-23T12:00:00.000Z',
+      }));
+    },
+    async attachProductImages() {},
+    async createProductWithImages() { throw new Error('not configured'); },
+    async updateProductWithImages() { throw new Error('not configured'); },
+    async listProductsPage() { return []; },
+    async findProductIdsByItemNos() { return []; },
+    async getProductRecord() { return null; },
+    async listProductImageAssociations() { return []; },
+    async listLegacyProductImages() { return []; },
+    async detachProductImage() {},
+    async detachAllProductImages() {},
+    async deleteProductWithAssets() { return false; },
+    ...(overrides.service ?? {}),
+  };
   return {
     enabled: true,
-    service: {
-      async getAccessUrls(requests) {
-        return requests.map((request) => ({
-          ...request,
-          url: `https://signed.example/${request.assetId}/${request.variant}`,
-          expiresAt: '2026-08-23T12:00:00.000Z',
-        }));
-      },
-      async attachProductImages() {},
-      async detachProductImage() {},
-      async detachAllProductImages() {},
-      async deleteProductWithAssets() { return false; },
-    },
-    async findAssociations() {
-      return [];
-    },
-    async findLegacyImages() {
-      return [];
-    },
     ...overrides,
+    service,
   };
 }
 
 test('product asset descriptors preserve persisted order and primary roles with signed thumbnail and display URLs', async () => {
-  const images = await describeProductImages(7, 'admin', runtime({
-    async findAssociations() {
+  const value = runtime();
+  value.service!.listProductImageAssociations = async () => {
       return [
-        { assetId: 'asset-pattern', sortOrder: 0, role: 'pattern_original', isPrimary: true },
-        { assetId: 'asset-gallery', sortOrder: 1, role: 'gallery', isPrimary: false },
+        { productId: 7, assetId: 'asset-pattern', sortOrder: 0, role: 'pattern_original', isPrimary: true },
+        { productId: 7, assetId: 'asset-gallery', sortOrder: 1, role: 'gallery', isPrimary: false },
       ];
-    },
-  }));
+  };
+  const images = await describeProductImages(7, 'admin', value);
 
   assert.deepEqual(images, [
     {
@@ -75,11 +78,9 @@ test('product asset descriptors preserve persisted order and primary roles with 
 });
 
 test('product descriptors fall back to controlled legacy content URLs and never expose raw COS URLs', async () => {
-  const images = await describeProductImages(7, 'admin', runtime({
-    async findLegacyImages() {
-      return [{ id: 19, sortOrder: 3, rawSource: RAW_COS_URL }];
-    },
-  }));
+  const value = runtime();
+  value.service!.listLegacyProductImages = async () => [{ productId: 7, id: 19, sortOrder: 3, rawSource: RAW_COS_URL } as never];
+  const images = await describeProductImages(7, 'admin', value);
 
   assert.deepEqual(images, [{
     legacyImageId: 19,
@@ -108,11 +109,8 @@ interface ProductState {
 
 function routeRuntime(state: ProductState): ProductImageRouteRuntime {
   const get = (id: number) => state.products.find((product) => product.id === id) ?? null;
-  const base = runtime({
-    async findAssociations(productId) {
-      return state.links.get(productId) ?? [];
-    },
-    service: {
+  const base = runtime();
+  (base as { service: ProductImageRuntime['service'] }).service = {
       async getAccessUrls(requests) {
         return requests.map((request) => ({ ...request, url: `https://signed.example/${request.assetId}/${request.variant}`, expiresAt: '2026-08-23T12:00:00.000Z' }));
       },
@@ -127,6 +125,38 @@ function routeRuntime(state: ProductState): ProductImageRouteRuntime {
         }
         state.links.set(productId, current);
       },
+      async createProductWithImages(input, assetIds) {
+        state.calls.push(`atomic-create:${assetIds.join(',')}`);
+        if (state.failAttach) throw new Error('asset storage failure');
+        const id = Math.max(0, ...state.products.map((product) => Number(product.id))) + 1;
+        const created = { id, item_no: input.itemNo, product_name: input.productName, composition: input.composition, weight: input.weight, width: input.width, image_count: assetIds.length };
+        state.products.push(created);
+        state.links.set(id, assetIds.map((assetId, index) => ({ assetId, sortOrder: index, role: index === 0 ? 'pattern_original' : 'gallery', isPrimary: index === 0 })));
+        return created;
+      },
+      async updateProductWithImages(productId, input, assetIds) {
+        state.calls.push(`atomic-update:${productId}:${assetIds.join(',')}`);
+        if (state.failAttach) throw new Error('asset storage failure');
+        const product = get(productId);
+        if (!product) return null;
+        Object.assign(product, { item_no: input.itemNo, product_name: input.productName, composition: input.composition, weight: input.weight, width: input.width });
+        const current = state.links.get(productId) ?? [];
+        for (const assetId of assetIds) {
+          current.push({ assetId, sortOrder: current.length, role: current.length === 0 ? 'pattern_original' : 'gallery', isPrimary: current.length === 0 });
+        }
+        state.links.set(productId, current);
+        product.image_count = current.length;
+        return product;
+      },
+      async listProductsPage(limit, offset) { return state.products.slice(offset, offset + limit); },
+      async findProductIdsByItemNos(itemNos) { return state.products.filter((product) => itemNos.includes(product.item_no)).map((product) => product.id); },
+      async getProductRecord(productId) { return get(productId); },
+      async listProductImageAssociations(productIds, primaryOnly) {
+        return productIds.flatMap((productId) => (state.links.get(productId) ?? [])
+          .filter((association) => !primaryOnly || association.isPrimary)
+          .map((association) => ({ productId, ...association })));
+      },
+      async listLegacyProductImages() { return []; },
       async detachProductImage(productId, assetId) {
         state.calls.push(`detach:${productId}:${assetId}`);
         state.links.set(productId, (state.links.get(productId) ?? []).filter((image) => image.assetId !== assetId));
@@ -143,38 +173,10 @@ function routeRuntime(state: ProductState): ProductImageRouteRuntime {
         state.products.splice(index, 1);
         return true;
       },
-    },
-  });
+    };
   return {
     ...base,
     principalId: 'admin',
-    async listProducts() { return state.products; },
-    async getProduct(productId) { return get(productId); },
-    async createProduct(input) {
-      const id = Math.max(0, ...state.products.map((product) => Number(product.id))) + 1;
-      const created = { id, item_no: input.itemNo, product_name: input.productName, composition: input.composition, weight: input.weight, width: input.width, image_count: 0 };
-      state.products.push(created);
-      state.calls.push(`create:${id}`);
-      return created;
-    },
-    async updateProduct(productId, input) {
-      const product = get(productId);
-      if (!product) return null;
-      const previous = { ...product };
-      Object.assign(product, { item_no: input.itemNo, product_name: input.productName, composition: input.composition, weight: input.weight, width: input.width });
-      state.calls.push(`update:${productId}`);
-      return { product, previous };
-    },
-    async restoreProduct(previous) {
-      const product = get(Number(previous.id));
-      if (product) Object.assign(product, previous);
-      state.calls.push(`restore:${previous.id}`);
-    },
-    async deleteCreatedProduct(productId) {
-      const index = state.products.findIndex((product) => product.id === productId);
-      if (index >= 0) state.products.splice(index, 1);
-      state.calls.push(`delete-created:${productId}`);
-    },
   };
 }
 
@@ -218,7 +220,7 @@ test('product router composes actual CRUD routes with ordered asset descriptors 
     const deleted = await fetch(`${baseUrl}/api/products/1`, { method: 'DELETE', headers: { 'X-Request-Id': 'delete-product' } });
     assert.equal(deleted.status, 200);
     assert.deepEqual(state.calls, [
-      'create:1', 'attach:1:asset-pattern,asset-gallery', 'update:1', 'attach:1:asset-shared', 'detach:1:asset-pattern', 'delete:1',
+      'atomic-create:asset-pattern,asset-gallery', 'atomic-update:1:asset-shared', 'detach:1:asset-pattern', 'delete:1',
     ]);
   });
 });
@@ -241,7 +243,7 @@ test('product router rejects legacy multipart, unexpected JSON, unsafe query inp
   });
 });
 
-test('product router compensates a created product when asset attachment fails', async () => {
+test('product router leaves no product or links when the atomic create fails', async () => {
   const state: ProductState = { products: [], links: new Map(), calls: [], failAttach: true };
   await withProductRouter(routeRuntime(state), async (baseUrl) => {
     const response = await fetch(`${baseUrl}/api/products`, productJson('POST', { itemNo: 'F-003', productName: 'Rollback', imageAssetIds: ['asset-fails'] }, 'product-rollback'));
@@ -249,11 +251,11 @@ test('product router compensates a created product when asset attachment fails',
     const body = await response.json();
     assert.equal(body.error.requestId, 'product-rollback');
     assert.equal(state.products.length, 0);
-    assert.deepEqual(state.calls, ['create:1', 'attach:1:asset-fails', 'delete-created:1']);
+    assert.deepEqual(state.calls, ['atomic-create:asset-fails']);
   });
 });
 
-test('product router restores prior product fields when an append association fails', async () => {
+test('product router preserves prior fields and links when the atomic update fails', async () => {
   const state: ProductState = {
     products: [{ id: 1, item_no: 'F-004', product_name: 'Before', composition: 'Cotton', weight: '100', width: '150', image_count: 0 }],
     links: new Map(),
@@ -267,7 +269,7 @@ test('product router restores prior product fields when an append association fa
     assert.equal(response.status, 503);
   });
   assert.deepEqual(state.products[0], { id: 1, item_no: 'F-004', product_name: 'Before', composition: 'Cotton', weight: '100', width: '150', image_count: 0 });
-  assert.deepEqual(state.calls, ['update:1', 'attach:1:asset-fails', 'restore:1']);
+  assert.deepEqual(state.calls, ['atomic-update:1:asset-fails']);
 });
 
 test('product router rejects an update that repeats an already associated asset before changing product fields', async () => {
@@ -284,6 +286,29 @@ test('product router rejects an update that repeats an already associated asset 
     assert.equal((await response.json()).error.code, 'IMAGE_CONTENT_INVALID');
   });
   assert.equal(state.products[0].product_name, 'Existing');
+  assert.deepEqual(state.calls, []);
+});
+
+test('product router rejects additions that would raise the active association total above 20', async () => {
+  const existing = Array.from({ length: 19 }, (_, index) => ({
+    assetId: `existing-${index + 1}`,
+    sortOrder: index,
+    role: index === 0 ? 'pattern_original' as const : 'gallery' as const,
+    isPrimary: index === 0,
+  }));
+  const state: ProductState = {
+    products: [{ id: 1, item_no: 'F-020', product_name: 'Limited', image_count: 19 }],
+    links: new Map([[1, existing]]),
+    calls: [],
+  };
+  await withProductRouter(routeRuntime(state), async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/products/1`, productJson('PUT', {
+      itemNo: 'F-020', productName: 'Limited', imageAssetIds: ['new-1', 'new-2'],
+    }, 'product-total-limit'));
+    assert.equal(response.status, 413);
+    assert.equal((await response.json()).error.code, 'IMAGE_LIMIT_EXCEEDED');
+  });
+  assert.equal(state.products[0].image_count, 19);
   assert.deepEqual(state.calls, []);
 });
 
@@ -305,4 +330,86 @@ test('feature-off product image router delegates unchanged JSON handling to the 
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }
+});
+
+test('product list uses bounded pagination, one bulk association read, and thumbnail-only signing', async () => {
+  const state: ProductState = {
+    products: [
+      { id: 1, item_no: 'F-L1', product_name: 'List one', image_count: 1 },
+      { id: 2, item_no: 'F-L2', product_name: 'List two', image_count: 1 },
+    ],
+    links: new Map([
+      [1, [{ assetId: 'asset-list-1', sortOrder: 0, role: 'pattern_original', isPrimary: true }]],
+      [2, [{ assetId: 'asset-list-2', sortOrder: 0, role: 'pattern_original', isPrimary: true }]],
+    ]),
+    calls: [],
+  };
+  const value = routeRuntime(state);
+  const associationReads: number[][] = [];
+  const signBatches: Array<Array<{ assetId: string; variant: string }>> = [];
+  value.service!.listProductImageAssociations = async (productIds, primaryOnly) => {
+    associationReads.push(productIds);
+    assert.equal(primaryOnly, true);
+    return productIds.flatMap((productId) => (state.links.get(productId) ?? []).map((association) => ({ productId, ...association })));
+  };
+  const originalService = value.service!;
+  originalService.getAccessUrls = async (requests) => {
+    signBatches.push(requests);
+    return requests.map((request) => ({ ...request, url: `https://signed.example/${request.assetId}/${request.variant}`, expiresAt: '2026-08-23T12:00:00.000Z' }));
+  };
+
+  await withProductRouter(value, async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/products?limit=2&offset=0`);
+    assert.equal(response.status, 200);
+    const products = await response.json();
+    assert.equal(products.length, 2);
+    assert.deepEqual(products.map((product: { images: unknown[] }) => product.images.length), [1, 1]);
+  });
+
+  assert.deepEqual(associationReads, [[1, 2]]);
+  assert.equal(signBatches.length, 1);
+  assert.deepEqual(signBatches[0], [
+    { assetId: 'asset-list-1', variant: 'thumbnail' },
+    { assetId: 'asset-list-2', variant: 'thumbnail' },
+  ]);
+});
+
+test('product list safely rejects unbounded, invalid, and unsupported pagination input', async () => {
+  const state: ProductState = { products: [], links: new Map(), calls: [] };
+  await withProductRouter(routeRuntime(state), async (baseUrl) => {
+    for (const query of ['limit=101', 'limit=all', 'limit=20&offset=-1', 'limit=20&cursor=raw']) {
+      const response = await fetch(`${baseUrl}/api/products?${query}`, { headers: { 'X-Request-Id': 'product-list-invalid' } });
+      assert.equal(response.status, 422, query);
+      assert.equal((await response.json()).error.requestId, 'product-list-invalid', query);
+    }
+  });
+});
+
+test('product create and update call one atomic unit of work without compensation callbacks', async () => {
+  const state: ProductState = { products: [], links: new Map(), calls: [] };
+  const value = routeRuntime(state);
+  const service = value.service as NonNullable<ProductImageRouteRuntime['service']> & {
+    createProductWithImages(input: unknown, assetIds: string[]): Promise<ProductRecord>;
+    updateProductWithImages(productId: number, input: unknown, assetIds: string[]): Promise<ProductRecord | null>;
+  };
+  service.createProductWithImages = async (_input, assetIds) => {
+    state.calls.push(`atomic-create:${assetIds.join(',')}`);
+    const product = { id: 1, item_no: 'F-A1', product_name: 'Atomic', image_count: assetIds.length };
+    state.products.push(product);
+    state.links.set(1, assetIds.map((assetId, index) => ({ assetId, sortOrder: index, role: index === 0 ? 'pattern_original' : 'gallery', isPrimary: index === 0 })));
+    return product;
+  };
+  service.updateProductWithImages = async (productId, _input, assetIds) => {
+    state.calls.push(`atomic-update:${productId}:${assetIds.join(',')}`);
+    return state.products[0] ?? null;
+  };
+
+  await withProductRouter(value, async (baseUrl) => {
+    const created = await fetch(`${baseUrl}/api/products`, productJson('POST', { itemNo: 'F-A1', productName: 'Atomic', imageAssetIds: ['asset-a'] }));
+    assert.equal(created.status, 201);
+    const updated = await fetch(`${baseUrl}/api/products/1`, productJson('PUT', { itemNo: 'F-A1', productName: 'Atomic', imageAssetIds: ['asset-b'] }));
+    assert.equal(updated.status, 200);
+  });
+
+  assert.deepEqual(state.calls, ['atomic-create:asset-a', 'atomic-update:1:asset-b']);
 });

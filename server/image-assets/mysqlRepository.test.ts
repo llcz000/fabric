@@ -40,6 +40,7 @@ class RecordingConnection {
   productLinkRows: Row[] = [];
   productRows: Row[] = [{ id: 9 }];
   deleteVariantError: Error | null = null;
+  failSqlPattern: string | null = null;
   lockedAssets: Row[] = [
     { id: 'new-asset', status: 'ready', ref_count: 0 },
     { id: 'old-asset', status: 'ready', ref_count: 1 },
@@ -47,6 +48,7 @@ class RecordingConnection {
 
   async query(sql: string, params: unknown[] = []): Promise<QueryResult> {
     this.statements.push({ sql, params });
+    if (this.failSqlPattern && sql.includes(this.failSqlPattern)) throw new Error('injected product transaction failure');
     if (sql.includes('INSERT INTO image_upload_sessions') && this.insertUploadError) throw this.insertUploadError;
     if (sql.includes('FROM image_upload_sessions WHERE id = ? FOR UPDATE')) {
       return [this.uploadSessionRow ? [this.uploadSessionRow] : [], []];
@@ -55,6 +57,7 @@ class RecordingConnection {
     if (sql.includes("WHERE status = 'recycled'") && sql.includes('FOR UPDATE SKIP LOCKED')) return [this.purgeClaimRows, []];
     if (sql.includes("UPDATE image_assets SET status = 'purging'")) return [this.purgeClaimUpdateResult, []];
     if (sql.includes('SELECT id FROM products WHERE id = ? FOR UPDATE')) return [this.productRows, []];
+    if (sql.includes('SELECT * FROM products WHERE id = ? FOR UPDATE')) return [this.productRows, []];
     if (sql.includes('FROM product_image_assets')) return [this.productLinkRows, []];
     if (sql.includes('FROM company_image_assets WHERE company_id = ? AND role = ? FOR UPDATE')) {
       return [[{ asset_id: 'old-asset' }], []];
@@ -912,6 +915,33 @@ test('attaching product images persists the first link as the primary pattern an
   assert.match(sql(connection), /UPDATE products SET image_count = \? WHERE id = \?/);
 });
 
+test('attaching product images enforces the 20-image total while holding the product association lock', async () => {
+  const connection = new RecordingConnection();
+  connection.productLinkRows = Array.from({ length: 19 }, (_, index) => ({
+    id: index + 1,
+    asset_id: `existing-${index + 1}`,
+    sort_order: index,
+  }));
+  connection.lockedAssets = [
+    { id: 'new-asset-1', status: 'ready', ref_count: 0 },
+    { id: 'new-asset-2', status: 'ready', ref_count: 0 },
+  ];
+  const repository = new MySqlAssetRepository(connection);
+
+  await assert.rejects(
+    repository.attachProductImages(9, ['new-asset-1', 'new-asset-2']),
+    (error: unknown) => error instanceof ImageAssetError && error.code === 'IMAGE_LIMIT_EXCEEDED',
+  );
+
+  assert.deepEqual(connection.transactions, ['BEGIN', 'ROLLBACK', 'RELEASE']);
+  const associationLock = connection.statements.findIndex((statement) => statement.sql.includes('FROM product_image_assets'));
+  const assetLock = connection.statements.findIndex((statement) => statement.sql.includes('FROM image_assets WHERE id IN'));
+  assert.ok(associationLock >= 0);
+  assert.ok(assetLock === -1 || associationLock < assetLock);
+  assert.match(connection.statements[associationLock].sql, /FOR UPDATE/);
+  assert.doesNotMatch(sql(connection), /INSERT INTO product_image_assets|ref_count = ref_count \+ 1/);
+});
+
 test('detaching every product asset soft-deletes links and decrements references without deleting stored objects', async () => {
   const connection = new RecordingConnection();
   connection.productLinkRows = [{ asset_id: 'asset-shared' }, { asset_id: 'asset-single' }];
@@ -951,4 +981,46 @@ test('deleting a product locks and removes active asset links with reference dec
   assert.match(recordedSql, /DELETE FROM products WHERE id = \?/);
   assert.match(recordedSql, /UPDATE image_assets SET ref_count = ref_count - 1/);
   assert.doesNotMatch(recordedSql, /DELETE FROM image_asset_variants|deleteFromCOS/);
+});
+
+test('creating a product and its asset links rolls back every write when association completion fails', async () => {
+  const connection = new RecordingConnection();
+  connection.lockedAssets = [{ id: 'asset-create', status: 'ready', ref_count: 0 }];
+  connection.failSqlPattern = 'UPDATE products SET image_count';
+  const repository = new MySqlAssetRepository(connection) as MySqlAssetRepository & {
+    createProductWithImages(input: Record<string, string>, assetIds: string[]): Promise<unknown>;
+  };
+
+  await assert.rejects(
+    repository.createProductWithImages({ itemNo: 'F-101', productName: 'Atomic create', composition: '', weight: '', width: '' }, ['asset-create']),
+    /injected product transaction failure/,
+  );
+
+  assert.deepEqual(connection.transactions, ['BEGIN', 'ROLLBACK', 'RELEASE']);
+  const recordedSql = sql(connection);
+  assert.match(recordedSql, /INSERT INTO products/);
+  assert.match(recordedSql, /INSERT INTO product_image_assets/);
+  assert.match(recordedSql, /ref_count = ref_count \+ 1/);
+  assert.doesNotMatch(recordedSql, /COMMIT/);
+});
+
+test('updating product fields and appending assets rolls back both domains when a link write fails', async () => {
+  const connection = new RecordingConnection();
+  connection.productRows = [{ id: 9, item_no: 'F-OLD', product_name: 'Before', composition: '', weight: '', width: '', image_count: 0 }];
+  connection.lockedAssets = [{ id: 'asset-update', status: 'ready', ref_count: 0 }];
+  connection.failSqlPattern = 'INSERT INTO product_image_assets';
+  const repository = new MySqlAssetRepository(connection) as MySqlAssetRepository & {
+    updateProductWithImages(productId: number, input: Record<string, string>, assetIds: string[]): Promise<unknown>;
+  };
+
+  await assert.rejects(
+    repository.updateProductWithImages(9, { itemNo: 'F-NEW', productName: 'After', composition: '', weight: '', width: '' }, ['asset-update']),
+    /injected product transaction failure/,
+  );
+
+  assert.deepEqual(connection.transactions, ['BEGIN', 'ROLLBACK', 'RELEASE']);
+  const productWrite = connection.statements.findIndex((statement) => statement.sql.includes('UPDATE products SET item_no'));
+  const associationWrite = connection.statements.findIndex((statement) => statement.sql.includes('INSERT INTO product_image_assets'));
+  assert.ok(productWrite >= 0 && associationWrite > productWrite);
+  assert.doesNotMatch(sql(connection), /ref_count = ref_count \+ 1/);
 });

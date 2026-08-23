@@ -4,7 +4,15 @@ import express from 'express';
 import { z } from 'zod';
 
 import { ImageAssetError } from './errors';
+import type {
+  LegacyProductImageRecord,
+  ProductAssetAssociationRecord,
+  ProductRecord as RepositoryProductRecord,
+  ProductWriteRecord,
+} from './repository';
 import type { AccessUrlRequest, AccessUrlResult } from './service';
+import { MAX_PRODUCT_IMAGE_ASSOCIATIONS } from './types';
+import { isProductImageRequest } from './productRouteScope';
 
 export type ProductImageRole = 'pattern_original' | 'gallery' | 'swatch';
 
@@ -43,15 +51,20 @@ export interface ProductImageRuntime {
   readonly service: {
     getAccessUrls(requests: AccessUrlRequest[], principalId: string): Promise<AccessUrlResult[]>;
     attachProductImages(productId: number, assetIds: string[]): Promise<void>;
+    createProductWithImages(input: ProductWriteRecord, assetIds: string[]): Promise<RepositoryProductRecord>;
+    updateProductWithImages(productId: number, input: ProductWriteRecord, assetIds: string[]): Promise<RepositoryProductRecord | null>;
+    listProductsPage(limit: number, offset: number): Promise<RepositoryProductRecord[]>;
+    findProductIdsByItemNos(itemNos: string[]): Promise<number[]>;
+    getProductRecord(productId: number): Promise<RepositoryProductRecord | null>;
+    listProductImageAssociations(productIds: number[], primaryOnly: boolean): Promise<ProductAssetAssociationRecord[]>;
+    listLegacyProductImages(productIds: number[], primaryOnly: boolean): Promise<LegacyProductImageRecord[]>;
     detachProductImage(productId: number, assetId: string): Promise<void>;
     detachAllProductImages(productId: number): Promise<void>;
     deleteProductWithAssets(productId: number): Promise<boolean>;
   } | null;
-  findAssociations(productId: number): Promise<ProductAssetAssociation[]>;
-  findLegacyImages(productId: number): Promise<LegacyProductImage[]>;
 }
 
-const MAX_PRODUCT_IMAGE_ASSETS = 20;
+const MAX_PRODUCT_IMAGE_ASSETS = MAX_PRODUCT_IMAGE_ASSOCIATIONS;
 const MAX_PRODUCT_MUTATION_BYTES = 32 * 1024;
 const MAX_BATCH_DELETE_PRODUCTS = 100;
 const SAFE_ASSET_ID = /^[a-zA-Z0-9_-]{1,128}$/;
@@ -76,28 +89,16 @@ const batchDeleteSchema = z.object({
   }
 });
 
-export interface ProductWriteInput {
-  itemNo: string;
-  productName: string;
-  composition: string;
-  weight: string;
-  width: string;
-}
+const productListQuerySchema = z.object({
+  limit: z.string().regex(/^\d+$/).transform(Number).pipe(z.number().int().min(1).max(100)).optional().default(50),
+  offset: z.string().regex(/^\d+$/).transform(Number).pipe(z.number().int().min(0).max(1_000_000)).optional().default(0),
+}).strict();
 
-export interface ProductRecord extends Record<string, unknown> {
-  id: number;
-  item_no: string;
-  product_name: string;
-}
+export type ProductWriteInput = ProductWriteRecord;
+export type ProductRecord = RepositoryProductRecord;
 
 export interface ProductImageRouteRuntime extends ProductImageRuntime {
   readonly principalId: string;
-  listProducts(): Promise<ProductRecord[]>;
-  getProduct(productId: number): Promise<ProductRecord | null>;
-  createProduct(input: ProductWriteInput): Promise<ProductRecord>;
-  updateProduct(productId: number, input: ProductWriteInput): Promise<{ product: ProductRecord; previous: ProductRecord } | null>;
-  restoreProduct(previous: ProductRecord): Promise<void>;
-  deleteCreatedProduct(productId: number): Promise<void>;
 }
 
 export function parseProductImageAssetIds(value: unknown): string[] {
@@ -124,11 +125,13 @@ export async function describeProductImages(
 ): Promise<ProductImageDescriptor[]> {
   if (!runtime.enabled || !runtime.service) return [];
 
-  const associations = (await runtime.findAssociations(productId))
+  const associations = (await runtime.service.listProductImageAssociations([productId], false))
+    .map(({ productId: _productId, ...association }) => association)
     .filter((association) => VALID_ROLES.has(association.role))
     .sort((left, right) => left.sortOrder - right.sortOrder || left.assetId.localeCompare(right.assetId));
   if (associations.length === 0) {
-    return (await runtime.findLegacyImages(productId))
+    return (await runtime.service.listLegacyProductImages([productId], false))
+      .map(({ productId: _productId, ...legacy }) => legacy)
       .sort((left, right) => left.sortOrder - right.sortOrder || left.id - right.id)
       .map((legacy, index): LegacyProductImageDescriptor => ({
         legacyImageId: legacy.id,
@@ -170,7 +173,7 @@ export async function attachProductImageAssets(
   const assetIds = parseProductImageAssetIds(imageAssetIds);
   if (assetIds.length === 0) return 0;
   await runtime.service.attachProductImages(productId, assetIds);
-  return (await runtime.findAssociations(productId)).length;
+  return (await runtime.service.listProductImageAssociations([productId], false)).length;
 }
 
 export async function detachProductImageAsset(
@@ -181,12 +184,12 @@ export async function detachProductImageAsset(
   if (!runtime.enabled || !runtime.service || !SAFE_ASSET_ID.test(assetId)) {
     throw new ImageAssetError('ASSET_NOT_FOUND', 404, false, 'Product image not found');
   }
-  const current = await runtime.findAssociations(productId);
+  const current = await runtime.service.listProductImageAssociations([productId], false);
   if (!current.some((association) => association.assetId === assetId)) {
     throw new ImageAssetError('ASSET_NOT_FOUND', 404, false, 'Product image not found');
   }
   await runtime.service.detachProductImage(productId, assetId);
-  return (await runtime.findAssociations(productId)).length;
+  return (await runtime.service.listProductImageAssociations([productId], false)).length;
 }
 
 export async function detachAllProductImageAssets(productId: number, runtime: ProductImageRuntime): Promise<void> {
@@ -196,30 +199,24 @@ export async function detachAllProductImageAssets(productId: number, runtime: Pr
 export function createProductImageRouter(runtime: ProductImageRouteRuntime): express.Router {
   const router = express.Router();
 
-  router.use((req, res, next) => {
-    if (!runtime.enabled || !runtime.service) return next();
-    const supplied = req.get('X-Request-Id');
-    res.set('X-Request-Id', supplied && SAFE_REQUEST_ID.test(supplied) ? supplied : `req_${randomUUID().replace(/-/g, '')}`);
-    next();
-  });
   router.use((req, _res, next) => {
-    if (!runtime.enabled || !runtime.service) return next();
+    if (!runtime.enabled || !runtime.service || !isProductImageRequest(req)) return next();
     express.json({ limit: MAX_PRODUCT_MUTATION_BYTES, strict: false })(req, _res, next);
   });
 
   router.get('/', asyncRoute(async (req, res, next) => {
     if (!runtime.enabled || !runtime.service) return next();
-    rejectQuery(req);
-    const products = await runtime.listProducts();
-    res.json(await Promise.all(products.map((product) => productResponse(product, runtime))));
+    const page = parse(productListQuerySchema, req.query);
+    const products = await runtime.service.listProductsPage(page.limit, page.offset);
+    res.json(await productListResponse(products, runtime));
   }));
 
   router.get('/:id/thumbnails', asyncRoute(async (req, res, next) => {
     if (!runtime.enabled || !runtime.service) return next();
     rejectQuery(req);
     const product = await requireProduct(parseProductId(req.params.id), runtime);
-    const images = await describeProductImages(product.id, runtime.principalId, runtime);
-    res.json({ images });
+    const listed = await productListResponse([product], runtime);
+    res.json({ images: listed[0]?.images ?? [] });
   }));
 
   router.get('/:id', asyncRoute(async (req, res, next) => {
@@ -235,7 +232,7 @@ export function createProductImageRouter(runtime: ProductImageRouteRuntime): exp
     const input = parse(batchDeleteSchema, req.body);
     const ids = input.ids?.length
       ? input.ids
-      : (await runtime.listProducts()).filter((product) => input.itemNos!.includes(product.item_no)).map((product) => product.id);
+      : await runtime.service.findProductIdsByItemNos(input.itemNos!);
     let deleted = 0;
     for (const productId of ids) {
       if (await runtime.service.deleteProductWithAssets(productId)) deleted += 1;
@@ -250,23 +247,8 @@ export function createProductImageRouter(runtime: ProductImageRouteRuntime): exp
     const parsed = parse(productWriteSchema, req.body);
     const assetIds = parsed.imageAssetIds === undefined ? [] : parseProductImageAssetIds(parsed.imageAssetIds);
     const input = writeInput(parsed);
-    let created: ProductRecord | null = null;
-    let attached = false;
-    try {
-      created = await runtime.createProduct(input);
-      if (assetIds.length > 0) {
-        await runtime.service.attachProductImages(created.id, assetIds);
-        attached = true;
-      }
-      const product = await requireProduct(created.id, runtime);
-      res.status(201).json(await productResponse(product, runtime));
-    } catch (error) {
-      if (created) {
-        if (attached) await bestEffort(() => runtime.service!.detachAllProductImages(created!.id));
-        await bestEffort(() => runtime.deleteCreatedProduct(created!.id));
-      }
-      throw error;
-    }
+    const created = await runtime.service.createProductWithImages(input, assetIds);
+    res.status(201).json(await productResponse(created, runtime));
   }));
 
   router.put('/:id', asyncRoute(async (req, res, next) => {
@@ -276,26 +258,16 @@ export function createProductImageRouter(runtime: ProductImageRouteRuntime): exp
     const productId = parseProductId(req.params.id);
     const parsed = parse(productWriteSchema, req.body);
     const assetIds = parsed.imageAssetIds === undefined ? [] : parseProductImageAssetIds(parsed.imageAssetIds);
-    const existingAssetIds = new Set((await runtime.findAssociations(productId)).map((association) => association.assetId));
+    const existingAssetIds = new Set((await runtime.service.listProductImageAssociations([productId], false)).map((association) => association.assetId));
     if (assetIds.some((assetId) => existingAssetIds.has(assetId))) {
       throw new ImageAssetError('IMAGE_CONTENT_INVALID', 422, false, 'imageAssetIds must contain only new product assets');
     }
-    const updated = await runtime.updateProduct(productId, writeInput(parsed));
-    if (!updated) throw new ImageAssetError('ASSET_NOT_FOUND', 404, false, 'Product not found');
-    let attached = false;
-    try {
-      if (assetIds.length > 0) {
-        await runtime.service.attachProductImages(productId, assetIds);
-        attached = true;
-      }
-      res.json(await productResponse(await requireProduct(productId, runtime), runtime));
-    } catch (error) {
-      if (attached) {
-        for (const assetId of assetIds) await bestEffort(() => runtime.service!.detachProductImage(productId, assetId));
-      }
-      await bestEffort(() => runtime.restoreProduct(updated.previous));
-      throw error;
+    if (existingAssetIds.size + assetIds.length > MAX_PRODUCT_IMAGE_ASSOCIATIONS) {
+      throw new ImageAssetError('IMAGE_LIMIT_EXCEEDED', 413, false, `A product may have at most ${MAX_PRODUCT_IMAGE_ASSOCIATIONS} active images`);
     }
+    const updated = await runtime.service.updateProductWithImages(productId, writeInput(parsed), assetIds);
+    if (!updated) throw new ImageAssetError('ASSET_NOT_FOUND', 404, false, 'Product not found');
+    res.json(await productResponse(updated, runtime));
   }));
 
   router.delete('/:productId/images/:assetId', asyncRoute(async (req, res, next) => {
@@ -319,7 +291,9 @@ export function createProductImageRouter(runtime: ProductImageRouteRuntime): exp
 
   router.use((error: unknown, req, res, next) => {
     if (!runtime.enabled || !runtime.service) return next(error);
-    const requestId = res.get('X-Request-Id') || `req_${randomUUID().replace(/-/g, '')}`;
+    if (!isProductImageRequest(req)) return next(error);
+    const supplied = req.get('X-Request-Id');
+    const requestId = res.get('X-Request-Id') || (supplied && SAFE_REQUEST_ID.test(supplied) ? supplied : `req_${randomUUID().replace(/-/g, '')}`);
     res.set('X-Request-Id', requestId);
     if (error instanceof ImageAssetError) return res.status(error.statusCode).json(error.toResponse(requestId));
     if (error instanceof z.ZodError || isBodyParserError(error)) {
@@ -337,13 +311,59 @@ function writeInput(value: z.infer<typeof productWriteSchema>): ProductWriteInpu
   return { itemNo: value.itemNo, productName: value.productName, composition: value.composition, weight: value.weight, width: value.width };
 }
 
+async function productListResponse(products: ProductRecord[], runtime: ProductImageRouteRuntime): Promise<Array<Record<string, unknown> & { images: unknown[] }>> {
+  if (products.length === 0) return [];
+  const productIds = products.map((product) => product.id);
+  const primaryAssociations = await runtime.service!.listProductImageAssociations(productIds, true);
+  const associatedProductIds = new Set(primaryAssociations.map((association) => association.productId));
+  const legacy = await runtime.service!.listLegacyProductImages(
+    productIds.filter((productId) => !associatedProductIds.has(productId)),
+    true,
+  );
+  const signed = primaryAssociations.length === 0
+    ? []
+    : await runtime.service!.getAccessUrls(
+      primaryAssociations.map((association) => ({ assetId: association.assetId, variant: 'thumbnail' as const })),
+      runtime.principalId,
+    );
+  const signedByAsset = new Map(signed.map((entry) => [entry.assetId, entry]));
+  const imageByProduct = new Map<number, unknown>();
+  for (const association of primaryAssociations) {
+    const thumbnail = signedByAsset.get(association.assetId);
+    if (!thumbnail) throw new ImageAssetError('ASSET_NOT_READY', 409, true, 'Product thumbnail is not ready');
+    imageByProduct.set(association.productId, {
+      assetId: association.assetId,
+      sortOrder: association.sortOrder,
+      role: association.role,
+      isPrimary: association.isPrimary,
+      thumbnailUrl: thumbnail.url,
+      expiresAt: thumbnail.expiresAt,
+    });
+  }
+  for (const image of legacy) {
+    if (!imageByProduct.has(image.productId)) {
+      imageByProduct.set(image.productId, {
+        legacyImageId: image.id,
+        sortOrder: image.sortOrder,
+        role: 'legacy',
+        isPrimary: true,
+        contentUrl: `/api/products/${image.productId}/images/${image.id}`,
+      });
+    }
+  }
+  return products.map((product) => {
+    const image = imageByProduct.get(product.id);
+    return { ...product, images: image ? [image] : [], image_count: Number(product.image_count ?? (image ? 1 : 0)) };
+  });
+}
+
 async function productResponse(product: ProductRecord, runtime: ProductImageRouteRuntime): Promise<Record<string, unknown>> {
   const images = await describeProductImages(product.id, runtime.principalId, runtime);
   return { ...product, images, image_count: images.length };
 }
 
 async function requireProduct(productId: number, runtime: ProductImageRouteRuntime): Promise<ProductRecord> {
-  const product = await runtime.getProduct(productId);
+  const product = await runtime.service!.getProductRecord(productId);
   if (!product) throw new ImageAssetError('ASSET_NOT_FOUND', 404, false, 'Product not found');
   return product;
 }
@@ -376,10 +396,6 @@ function isBodyParserError(error: unknown): boolean {
 
 function isTooLarge(error: unknown): boolean {
   return Boolean(error && typeof error === 'object' && ((error as { type?: unknown }).type === 'entity.too.large' || (error as { status?: unknown }).status === 413));
-}
-
-async function bestEffort(work: () => Promise<unknown>): Promise<void> {
-  try { await work(); } catch { /* Preserve the original failure after compensation is attempted. */ }
 }
 
 function asyncRoute(handler: express.RequestHandler): express.RequestHandler {

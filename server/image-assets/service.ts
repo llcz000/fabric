@@ -3,7 +3,14 @@ import path from 'node:path';
 
 import { ImageAssetError } from './errors';
 import { getAssetPolicy } from './policy';
-import type { AssetRepository, AssetVariantRecord } from './repository';
+import type {
+  AssetRepository,
+  AssetVariantRecord,
+  LegacyProductImageRecord,
+  ProductAssetAssociationRecord,
+  ProductRecord,
+  ProductWriteRecord,
+} from './repository';
 import type { StorageAdapter } from './storage';
 import type {
   AssetDescriptor,
@@ -214,6 +221,34 @@ export class ImageAssetService {
 
   async attachProductImages(productId: number, assetIds: string[]): Promise<void> {
     await this.repository.attachProductImages(productId, assetIds);
+  }
+
+  createProductWithImages(input: ProductWriteRecord, assetIds: string[]): Promise<ProductRecord> {
+    return this.repository.createProductWithImages(input, assetIds);
+  }
+
+  updateProductWithImages(productId: number, input: ProductWriteRecord, assetIds: string[]): Promise<ProductRecord | null> {
+    return this.repository.updateProductWithImages(productId, input, assetIds);
+  }
+
+  listProductsPage(limit: number, offset: number): Promise<ProductRecord[]> {
+    return this.repository.listProductsPage(limit, offset);
+  }
+
+  findProductIdsByItemNos(itemNos: string[]): Promise<number[]> {
+    return this.repository.findProductIdsByItemNos(itemNos);
+  }
+
+  getProductRecord(productId: number): Promise<ProductRecord | null> {
+    return this.repository.getProductRecord(productId);
+  }
+
+  listProductImageAssociations(productIds: number[], primaryOnly: boolean): Promise<ProductAssetAssociationRecord[]> {
+    return this.repository.listProductImageAssociations(productIds, primaryOnly);
+  }
+
+  listLegacyProductImages(productIds: number[], primaryOnly: boolean): Promise<LegacyProductImageRecord[]> {
+    return this.repository.listLegacyProductImages(productIds, primaryOnly);
   }
 
   async detachProductImage(productId: number, assetId: string): Promise<void> {

@@ -4,6 +4,7 @@ export type AssetPurpose = 'company_logo' | 'company_qr' | 'product_image';
 export type AssetStatus = 'quarantine' | 'processing' | 'ready' | 'recycled' | 'purging' | 'degraded' | 'purged';
 export type AssetVariantName = 'original' | 'display' | 'thumbnail';
 export type CompanyImageRole = 'brand_logo' | 'wechat_qr' | 'alipay_qr';
+export const MAX_PRODUCT_IMAGE_ASSOCIATIONS = 20;
 
 export interface ImageAssetRecord {
   id: string;
