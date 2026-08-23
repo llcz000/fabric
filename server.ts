@@ -24,7 +24,7 @@ import type { AssetTransaction } from './server/image-assets/repository';
 import { createImageAssetRouter } from './server/image-assets/routes';
 import { createImageAssetRuntime } from './server/image-assets/runtime';
 import { initializeImageAssetSchema } from './server/image-assets/schema';
-import { exceptImageAssetApi, exceptProductApi, mountProductRouteAssembly } from './server/appAssembly';
+import { exceptImageAssetApi, mountProductRouteAssembly } from './server/appAssembly';
 
 // Load environment variables
 dotenv.config();
