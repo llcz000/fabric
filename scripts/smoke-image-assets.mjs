@@ -221,6 +221,28 @@ await withSmokeProcessLifecycle({
       },
     });
 
+    const redactionProbe = await fetch(baseUrl + '/api/image-assets/upload-sessions', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer SMOKE-SECRET-BEARER',
+        Cookie: 'sid=SMOKE-SECRET-COOKIE',
+        'Content-Type': 'application/json',
+        'X-Request-Id': 'image-assets-smoke-redaction',
+      },
+      body: JSON.stringify({
+        purpose: 'company_logo',
+        originalFilename: 'logo.png',
+        declaredMime: 'image/png',
+        declaredByteSize: 4,
+        password: 'SMOKE-SECRET-PASSWORD',
+        secretKey: 'SMOKE-SECRET-KEY',
+      }),
+    });
+    assert.equal(redactionProbe.status, 401, 'image asset API must reject an invalid bearer token');
+    const redactionProbeText = await redactionProbe.text();
+    assert.doesNotMatch(redactionProbeText, /SMOKE-SECRET-(BEARER|COOKIE|PASSWORD|KEY)/i,
+      'image asset errors must not reflect credential material');
+
     await seedBuiltServerLegacyCompanyImages(baseUrl, login.token, setup.fixtureSources);
     await assertBuiltServerCompanyImageRoutes(baseUrl, login.token);
   },

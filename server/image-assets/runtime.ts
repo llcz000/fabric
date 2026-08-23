@@ -6,6 +6,7 @@ import { CosStorageAdapter, type CosSdkBoundary } from './cosStorage';
 import { ImageAssetError } from './errors';
 import { LocalStorageAdapter } from './localStorage';
 import { MySqlAssetRepository } from './mysqlRepository';
+import { safeLogLine } from './observability';
 import { getAssetPolicy } from './policy';
 import type { AssetRepository } from './repository';
 import { ImageAssetService } from './service';
@@ -52,6 +53,13 @@ export interface CreateImageAssetRuntimeOptions {
   cosSdk?: CosSdkBoundary;
   localStorageRoot?: string;
   now?: () => Date;
+  log?: (line: string) => void;
+}
+
+export interface StartImageAssetWorkerOptions {
+  workerIntervalMs?: number;
+  reconcileIntervalMs?: number;
+  log?: (line: string) => void;
 }
 
 export function createImageAssetRuntime(options: CreateImageAssetRuntimeOptions = {}): ImageAssetRuntime {
@@ -85,7 +93,7 @@ export function createImageAssetRuntime(options: CreateImageAssetRuntimeOptions 
     uploadSessionTtlSeconds: config.uploadSessionTtlSeconds,
     accessUrlTtlSeconds: config.signedUrlTtlSeconds,
   });
-  const worker = new ImageAssetWorker(repository, storage, { now });
+  const worker = new ImageAssetWorker(repository, storage, { now, log: options.log });
 
   const runtime: ImageAssetRuntime = {
     enabled: true,
@@ -123,6 +131,59 @@ export function createImageAssetRuntime(options: CreateImageAssetRuntimeOptions 
     };
   }
   return runtime;
+}
+
+export function startImageAssetWorker(
+  worker: ImageAssetWorker,
+  options: StartImageAssetWorkerOptions = {},
+): () => void {
+  const workerIntervalMs = options.workerIntervalMs ?? 60_000;
+  const reconcileIntervalMs = options.reconcileIntervalMs ?? 24 * 60 * 60 * 1000;
+  const log = options.log ?? ((line: string) => console.log(line));
+
+  const runWorkerCycle = async (): Promise<void> => {
+    try {
+      for (let index = 0; index < 10; index += 1) {
+        const didWork = await worker.runOnce();
+        if (!didWork) break;
+      }
+      await worker.recycleOnce();
+      await worker.cleanupExpiredUploadsOnce();
+    } catch (error) {
+      log(safeLogLine({ stage: 'worker-cycle', errorCode: errorCodeOf(error) }));
+    }
+  };
+
+  const runReconcile = async (): Promise<void> => {
+    try {
+      await worker.reconcileOnce();
+    } catch (error) {
+      log(safeLogLine({ stage: 'reconciliation', errorCode: errorCodeOf(error) }));
+    }
+  };
+
+  void (async () => {
+    try {
+      const recovered = await worker.recoverStaleJobs();
+      log(safeLogLine({ stage: 'startup-recovery', recoveredJobs: recovered }));
+    } catch (error) {
+      log(safeLogLine({ stage: 'startup-recovery', errorCode: errorCodeOf(error) }));
+    }
+  })();
+
+  const workerTimer = setInterval(() => { void runWorkerCycle(); }, workerIntervalMs);
+  const reconcileTimer = setInterval(() => { void runReconcile(); }, reconcileIntervalMs);
+  workerTimer.unref?.();
+  reconcileTimer.unref?.();
+
+  return () => {
+    clearInterval(workerTimer);
+    clearInterval(reconcileTimer);
+  };
+}
+
+function errorCodeOf(error: unknown): string {
+  return error instanceof ImageAssetError ? error.code : 'INTERNAL_ERROR';
 }
 
 function readConfig(env: NodeJS.ProcessEnv): ImageAssetRuntimeConfig {

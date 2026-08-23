@@ -14,6 +14,7 @@ import type {
   ProductAssetAssociationRecord,
   ProductRecord,
   ProductWriteRecord,
+  ReconciliationCandidate,
 } from './repository';
 import { ImageAssetService } from './service';
 import { assetObjectKey, type StorageAdapter, type UploadGrant } from './storage';
@@ -23,6 +24,7 @@ import type {
   UploadSessionRecord,
 } from './types';
 import { ImageAssetWorker } from './worker';
+import { redactLogText, safeLogLine } from './observability';
 import { validateImageBuffer } from './validator';
 
 const START = new Date('2026-08-22T00:00:00.000Z');
@@ -54,6 +56,7 @@ class MemoryAssetRepository implements AssetRepository {
   completeProcessingFailures = 0;
   completeOnFailJob = false;
   markDegradedCalls = 0;
+  reconcileCounts = 0;
   private nextJobId = 1;
 
   constructor(private readonly clock: MutableClock, events: string[] = []) {
@@ -382,7 +385,41 @@ class MemoryAssetRepository implements AssetRepository {
   }
 
   async reconcileReferenceCounts(): Promise<number> {
-    return 0;
+    return this.reconcileCounts;
+  }
+
+  async recoverStaleJobs(now: Date): Promise<number> {
+    let recovered = 0;
+    const threshold = now.getTime() - 5 * 60_000;
+    for (const job of this.jobs.values()) {
+      if (job.status === 'processing' && job.lockedAt && job.lockedAt.getTime() <= threshold) {
+        job.status = 'queued';
+        job.lockedAt = undefined;
+        recovered += 1;
+      }
+    }
+    return recovered;
+  }
+
+  async listOrphanCandidates(now: Date, limit: number): Promise<ImageAssetRecord[]> {
+    return [...this.assets.values()]
+      .filter((asset) => asset.refCount === 0 && asset.status === 'recycled' && asset.purgeAfter && asset.purgeAfter <= now)
+      .slice(0, limit);
+  }
+
+  async listReconciliationCandidates(limit: number): Promise<ReconciliationCandidate[]> {
+    return [...this.assets.values()]
+      .filter((asset) => !['purged', 'purging', 'quarantine'].includes(asset.status))
+      .slice(0, limit)
+      .map((asset) => ({ asset, variants: [...(this.variants.get(asset.id) ?? [])] }));
+  }
+
+  async markAssetObjectMissing(assetId: string, code: string): Promise<boolean> {
+    const asset = this.assets.get(assetId);
+    if (!asset || ['purged', 'purging', 'quarantine'].includes(asset.status)) return false;
+    asset.status = 'degraded';
+    asset.errorCode = code as ImageAssetRecord['errorCode'];
+    return true;
   }
 
   requireAsset(id: string): ImageAssetRecord {
@@ -1333,4 +1370,186 @@ test('expired upload storage failure leaves the session discoverable for retry',
 
   assert.equal(await worker.cleanupExpiredUploadsOnce(), 1);
   assert.equal((session as UploadSessionRecord & { quarantineCleanedAt?: Date }).quarantineCleanedAt?.getTime(), START.getTime());
+});
+
+test('reconciliation recomputes reference-count drift and reports it', async () => {
+  const clock = new MutableClock();
+  const repository = new MemoryAssetRepository(clock);
+  repository.reconcileCounts = 2;
+  const worker = new ImageAssetWorker(repository, new MemoryStorage(), { now: clock.now, log: () => {} });
+
+  const summary = await worker.reconcileOnce();
+
+  assert.equal(summary.refCountDrift, 2);
+  assert.equal(summary.missingObjects, 0);
+  assert.equal(summary.orphanCandidates, 0);
+});
+
+test('reconciliation marks missing objects degraded without deleting them', async () => {
+  const clock = new MutableClock();
+  const repository = new MemoryAssetRepository(clock);
+  const storage = new MemoryStorage();
+  const worker = new ImageAssetWorker(repository, storage, { now: clock.now, log: () => {} });
+  const assetId = 'missing-object-asset';
+  repository.assets.set(assetId, {
+    id: assetId,
+    sha256: 'de'.repeat(32),
+    originalFilename: 'fixture.png',
+    detectedMime: 'image/png',
+    detectedExtension: 'png',
+    purpose: 'company_logo',
+    storageProvider: 'local',
+    byteSize: 8,
+    width: 2,
+    height: 2,
+    status: 'ready',
+    refCount: 0,
+    createdBy: 'principal-1',
+    createdAt: START,
+    updatedAt: START,
+  });
+  const variant: AssetVariantRecord = {
+    assetId,
+    variant: 'display',
+    objectKey: 'assets/missing-object/display.webp',
+    mime: 'image/webp',
+    byteSize: 4,
+    width: 2,
+    height: 2,
+    createdAt: START,
+  };
+  repository.variants.set(assetId, [variant]);
+
+  const summary = await worker.reconcileOnce();
+
+  assert.equal(summary.missingObjects, 1);
+  assert.equal(repository.requireAsset(assetId).status, 'degraded');
+  assert.equal(repository.requireAsset(assetId).errorCode, 'ASSET_NOT_FOUND');
+  assert.equal(storage.deletes.length, 0);
+});
+
+test('reconciliation lists orphan candidates without deleting them', async () => {
+  const clock = new MutableClock();
+  const repository = new MemoryAssetRepository(clock);
+  const storage = new MemoryStorage();
+  const worker = new ImageAssetWorker(repository, storage, { now: clock.now, log: () => {} });
+  const assetId = 'orphan-asset';
+  repository.assets.set(assetId, {
+    id: assetId,
+    sha256: 'ef'.repeat(32),
+    originalFilename: 'fixture.png',
+    detectedMime: 'image/png',
+    detectedExtension: 'png',
+    purpose: 'product_image',
+    storageProvider: 'local',
+    byteSize: 8,
+    width: 2,
+    height: 2,
+    status: 'recycled',
+    refCount: 0,
+    createdBy: 'principal-1',
+    createdAt: new Date('2026-06-01T00:00:00Z'),
+    updatedAt: new Date('2026-06-01T00:00:00Z'),
+    recycledAt: new Date('2026-07-01T00:00:00Z'),
+    purgeAfter: new Date('2026-08-01T00:00:00Z'),
+  });
+  const variant: AssetVariantRecord = {
+    assetId,
+    variant: 'original',
+    objectKey: 'assets/orphan/original.png',
+    mime: 'image/png',
+    byteSize: 8,
+    width: 2,
+    height: 2,
+    createdAt: new Date('2026-06-01T00:00:00Z'),
+  };
+  repository.variants.set(assetId, [variant]);
+  storage.objects.set(variant.objectKey, { body: Buffer.alloc(8), contentType: 'image/png' });
+
+  const summary = await worker.reconcileOnce();
+
+  assert.equal(summary.orphanCandidates, 1);
+  assert.equal(storage.deletes.length, 0);
+  assert.equal(repository.requireAsset(assetId).status, 'recycled');
+});
+
+test('recoverStaleJobs requeues jobs locked longer than five minutes', async () => {
+  const clock = new MutableClock();
+  const repository = new MemoryAssetRepository(clock);
+  const worker = new ImageAssetWorker(repository, new MemoryStorage(), { now: clock.now, log: () => {} });
+  repository.jobs.set(1, {
+    id: 1,
+    assetId: 'stale-asset',
+    jobType: 'process_asset',
+    status: 'processing',
+    attempts: 2,
+    availableAt: START,
+    lockedAt: new Date(START.getTime() - 6 * 60_000),
+  });
+  repository.jobs.set(2, {
+    id: 2,
+    assetId: 'fresh-asset',
+    jobType: 'process_asset',
+    status: 'processing',
+    attempts: 1,
+    availableAt: START,
+    lockedAt: new Date(START.getTime() - 60_000),
+  });
+
+  const recovered = await worker.recoverStaleJobs();
+
+  assert.equal(recovered, 1);
+  assert.equal(repository.jobs.get(1)?.status, 'queued');
+  assert.equal(repository.jobs.get(1)?.lockedAt, undefined);
+  assert.equal(repository.jobs.get(2)?.status, 'processing');
+});
+
+test('reconciliation emits a redacted JSON summary with counts and elapsed ms', async () => {
+  const clock = new MutableClock();
+  const repository = new MemoryAssetRepository(clock);
+  const storage = new MemoryStorage();
+  const logs: string[] = [];
+  const worker = new ImageAssetWorker(repository, storage, { now: clock.now, log: (line) => logs.push(line) });
+
+  await worker.reconcileOnce();
+
+  const summaryLine = JSON.parse(logs[logs.length - 1]);
+  assert.equal(summaryLine.stage, 'reconciliation');
+  assert.equal(typeof summaryLine.refCountDrift, 'number');
+  assert.equal(typeof summaryLine.missingObjects, 'number');
+  assert.equal(typeof summaryLine.orphanCandidates, 'number');
+  assert.equal(typeof summaryLine.elapsedMs, 'number');
+  assert.ok(summaryLine.elapsedMs >= 0);
+});
+
+test('redactLogText scrubs Authorization, Bearer, SecretKey, sign, and Cookie values', () => {
+  const input = 'Authorization: Bearer abc.def; SecretKey=XYZ123; sign=SECRETSIGN; Cookie: sid=COOKIEVAL';
+  const output = redactLogText(input);
+  assert.doesNotMatch(output, /abc\.def/);
+  assert.doesNotMatch(output, /XYZ123/);
+  assert.doesNotMatch(output, /SECRETSIGN/);
+  assert.doesNotMatch(output, /COOKIEVAL/);
+  assert.match(output, /\[redacted\]/);
+});
+
+test('safeLogLine keeps stable ids and codes while dropping secret fields', () => {
+  const line = safeLogLine({
+    stage: 'process',
+    requestId: 'req-1',
+    assetId: 'asset-9',
+    jobId: 42,
+    errorCode: 'STORAGE_UNAVAILABLE',
+    authorization: 'Bearer leak-me',
+    cookie: 'sid=leak-cookie',
+    url: 'https://bucket.cos.region.myqcloud.com/key?sign=leak-sign',
+  });
+  const parsed = JSON.parse(line);
+  assert.equal(parsed.stage, 'process');
+  assert.equal(parsed.requestId, 'req-1');
+  assert.equal(parsed.assetId, 'asset-9');
+  assert.equal(parsed.jobId, 42);
+  assert.equal(parsed.errorCode, 'STORAGE_UNAVAILABLE');
+  assert.equal(Object.hasOwn(parsed, 'authorization'), false);
+  assert.equal(Object.hasOwn(parsed, 'cookie'), false);
+  assert.doesNotMatch(line, /leak-me|leak-cookie|leak-sign/);
 });

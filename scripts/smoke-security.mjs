@@ -198,6 +198,18 @@ try {
   const unauthenticated = await fetch(`${baseUrl}/api/company`);
   assert.equal(unauthenticated.status, 401, 'protected API must require authentication');
 
+  const redactionProbe = await fetch(baseUrl + '/api/company', {
+    headers: {
+      Authorization: 'Bearer SMOKE-SECRET-BEARER',
+      Cookie: 'sid=SMOKE-SECRET-COOKIE',
+      'X-Request-Id': 'security-redaction',
+    },
+  });
+  assert.equal(redactionProbe.status, 401, 'missing valid auth must return 401');
+  const redactionProbeText = await redactionProbe.text();
+  assert.doesNotMatch(redactionProbeText, /SMOKE-SECRET-BEARER|SMOKE-SECRET-COOKIE/i,
+    'error responses must not reflect bearer or cookie secrets');
+
   const unauthenticatedAsset = await fetch(`${baseUrl}/api/image-assets/upload-sessions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

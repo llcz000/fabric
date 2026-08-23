@@ -1,4 +1,5 @@
 import { ImageAssetError, type ImageAssetErrorCode } from './errors';
+import { safeLogLine } from './observability';
 import { getAssetPolicy } from './policy';
 import { generateImageVariants, type ProcessedVariant } from './processor';
 import type { AssetRepository, AssetVariantRecord, ProcessingJob } from './repository';
@@ -10,10 +11,19 @@ const RETRY_DELAYS_MS = [5_000, 30_000, 5 * 60_000];
 
 export interface ImageAssetWorkerOptions {
   now?: () => Date;
+  log?: (line: string) => void;
+}
+
+export interface ReconciliationSummary {
+  refCountDrift: number;
+  missingObjects: number;
+  orphanCandidates: number;
+  elapsedMs: number;
 }
 
 export class ImageAssetWorker {
   private readonly now: () => Date;
+  private readonly log: ((line: string) => void) | undefined;
 
   constructor(
     private readonly repository: AssetRepository,
@@ -21,6 +31,7 @@ export class ImageAssetWorker {
     options: ImageAssetWorkerOptions = {},
   ) {
     this.now = options.now ?? (() => new Date());
+    this.log = options.log;
   }
 
   async runOnce(): Promise<boolean> {
@@ -83,6 +94,34 @@ export class ImageAssetWorker {
       }
     }
     return purged;
+  }
+
+  async recoverStaleJobs(): Promise<number> {
+    return this.repository.recoverStaleJobs(this.now());
+  }
+
+  async reconcileOnce(limit = 100): Promise<ReconciliationSummary> {
+    const startedAt = this.now().getTime();
+    const refCountDrift = await this.repository.reconcileReferenceCounts();
+    const orphanCandidates = (await this.repository.listOrphanCandidates(this.now(), limit)).length;
+    const candidates = await this.repository.listReconciliationCandidates(limit);
+    let missingObjects = 0;
+    for (const candidate of candidates) {
+      let missing = false;
+      for (const variant of candidate.variants) {
+        if (!await storageOperation(() => this.storage.exists(variant.objectKey))) {
+          missing = true;
+          break;
+        }
+      }
+      if (missing && await this.repository.markAssetObjectMissing(candidate.asset.id, 'ASSET_NOT_FOUND')) {
+        missingObjects += 1;
+      }
+    }
+    const elapsedMs = this.now().getTime() - startedAt;
+    const summary: ReconciliationSummary = { refCountDrift, missingObjects, orphanCandidates, elapsedMs };
+    this.logSafe({ stage: 'reconciliation', ...summary });
+    return summary;
   }
 
   private async processJob(job: ProcessingJob): Promise<void> {
@@ -152,6 +191,10 @@ export class ImageAssetWorker {
     if (await storageOperation(() => this.storage.exists(objectKey))) {
       throw new ImageAssetError('STORAGE_UNAVAILABLE', 503, true, message);
     }
+  }
+
+  private logSafe(entry: Record<string, unknown>): void {
+    if (this.log) this.log(safeLogLine(entry));
   }
 }
 

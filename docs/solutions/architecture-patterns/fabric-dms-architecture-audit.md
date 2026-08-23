@@ -667,3 +667,7 @@ app.put('/api/orders/:id', async (req, res) => {
 ## 关联
 
 本次审计是此仓库的第一份架构文档。无已有的关联文档或 GitHub issues。
+
+## 后续更新：统一图片资产系统
+
+后续引入的统一图片资产系统解决了本审计中与图片相关的多项高风险问题（跨域签名过期、匿名代理 403、多套不一致图片链路、上传/删除非原子、Base64 缓存）：公司 Logo/二维码与产品图片统一走私有 COS + 服务端校验 + SHA-256 去重 + 显式业务关联 + 30 天回收 + 同源受控导出。存储模型、功能开关、迁移/上传、回收与对账运维见 docs/solutions/architecture-patterns/image-asset-operations.md。

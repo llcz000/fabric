@@ -12,6 +12,7 @@ import type {
   ProductRecord,
   ProductWriteRecord,
   PurgeClaim,
+  ReconciliationCandidate,
   LegacyProductImageRecord,
 } from './repository';
 import { MAX_PRODUCT_IMAGE_ASSOCIATIONS, type AssetStatus, type CompanyImageRole, type ImageAssetRecord, type UploadSessionRecord } from './types';
@@ -684,6 +685,51 @@ export class MySqlAssetRepository implements AssetRepository {
           END
     `));
     return update.affectedRows ?? 0;
+  }
+
+  async recoverStaleJobs(now: Date): Promise<number> {
+    const updated = result(await this.pool.query(
+      "UPDATE image_processing_jobs SET status = 'queued', locked_at = NULL WHERE status = 'processing' AND locked_at <= DATE_SUB(?, INTERVAL 5 MINUTE)",
+      [now],
+    ));
+    return updated.affectedRows ?? 0;
+  }
+
+  async listOrphanCandidates(now: Date, limit: number): Promise<ImageAssetRecord[]> {
+    return rows(await this.pool.query(
+      "SELECT * FROM image_assets WHERE ref_count = 0 AND status = 'recycled' AND purge_after <= ? ORDER BY purge_after LIMIT ?",
+      [now, limit],
+    )).map(mapAsset);
+  }
+
+  async listReconciliationCandidates(limit: number): Promise<ReconciliationCandidate[]> {
+    const assetRows = rows(await this.pool.query(
+      "SELECT * FROM image_assets WHERE status NOT IN ('purged', 'purging', 'quarantine') ORDER BY created_at LIMIT ?",
+      [limit],
+    ));
+    if (assetRows.length === 0) return [];
+    const assets = assetRows.map(mapAsset);
+    const ids = assets.map((asset) => asset.id);
+    const placeholders = ids.map(() => '?').join(', ');
+    const variantRows = rows(await this.pool.query(
+      'SELECT * FROM image_asset_variants WHERE asset_id IN (' + placeholders + ') ORDER BY variant',
+      ids,
+    )).map(mapVariant);
+    const byAsset = new Map<string, AssetVariantRecord[]>();
+    for (const variant of variantRows) {
+      const list = byAsset.get(variant.assetId) ?? [];
+      list.push(variant);
+      byAsset.set(variant.assetId, list);
+    }
+    return assets.map((asset) => ({ asset, variants: byAsset.get(asset.id) ?? [] }));
+  }
+
+  async markAssetObjectMissing(assetId: string, code: string): Promise<boolean> {
+    const updated = result(await this.pool.query(
+      "UPDATE image_assets SET status = 'degraded', error_code = ? WHERE id = ? AND status NOT IN ('purged', 'purging', 'quarantine')",
+      [code, assetId],
+    ));
+    return (updated.affectedRows ?? 0) === 1;
   }
 
   private async lockReadyTargets(connection: AssetTransaction, assetIds: Array<string | null>, requiredReadyIds: string[]): Promise<void> {

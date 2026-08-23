@@ -7,6 +7,22 @@ updated: 2026-08-13
 
 # API 清单
 
+## 统一图片资产接口（新增）
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| POST | /api/image-assets/upload-sessions | 是 | 申请隔离区上传会话（返回直传授权） |
+| POST | /api/image-assets/upload-sessions/:id/finalize | 是 | 服务端校验、SHA-256 去重并创建处理任务（幂等） |
+| GET | /api/image-assets/:id | 是 | 读取资产描述符 |
+| POST | /api/image-assets/access-urls | 是 | 批量申请短期签名访问 URL（最多 100） |
+| GET | /api/image-assets/:id/content?variant=... | 是 | 同源受控内容读取（流式返回真实 Content-Type/Length/ETag） |
+| GET | /api/company/images/:role/content | 是 | 公司图片兼容内容端点（新关联优先、旧字段兜底） |
+| PUT | /api/company/images/:role | 是 | 替换公司图片角色（body: assetId） |
+| DELETE | /api/company/images/:role | 是 | 删除公司图片角色关联 |
+| DELETE | /api/products/:productId/images/:assetId | 是 | 删除产品单图关联（feature-on） |
+
+统一错误结构：error.code / error.message / error.requestId / error.retryable。稳定错误码：UPLOAD_SESSION_EXPIRED、IMAGE_CONTENT_INVALID、IMAGE_LIMIT_EXCEEDED、ASSET_NOT_READY、ASSET_ACCESS_DENIED、ASSET_NOT_FOUND、ASSET_PROCESSING_FAILED、STORAGE_UNAVAILABLE。响应不得暴露 COS 凭据、签名原文、内部堆栈或不必要的完整 object key。
+
 ## 运维
 
 | 方法 | 路径 | 鉴权 | 说明 |

@@ -34,6 +34,11 @@ export interface PurgeClaim {
   variants: AssetVariantRecord[];
 }
 
+export interface ReconciliationCandidate {
+  asset: ImageAssetRecord;
+  variants: AssetVariantRecord[];
+}
+
 export interface ProductWriteRecord {
   itemNo: string;
   productName: string;
@@ -136,6 +141,10 @@ export interface AssetRepository {
   /** Worker precondition: call only for a purging claim after every retained variant object is confirmed absent. */
   markPurged(assetId: string, at: Date): Promise<void>;
   reconcileReferenceCounts(): Promise<number>;
+  recoverStaleJobs(now: Date): Promise<number>;
+  listOrphanCandidates(now: Date, limit: number): Promise<ImageAssetRecord[]>;
+  listReconciliationCandidates(limit: number): Promise<ReconciliationCandidate[]>;
+  markAssetObjectMissing(assetId: string, code: string): Promise<boolean>;
 }
 
 export type { AssetPurpose, AssetStatus };

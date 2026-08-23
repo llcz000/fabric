@@ -22,7 +22,7 @@ import { getAssetPolicy } from './server/image-assets/policy';
 import type { ProductImageRouteRuntime } from './server/image-assets/productImages';
 import type { AssetTransaction } from './server/image-assets/repository';
 import { createImageAssetRouter } from './server/image-assets/routes';
-import { createImageAssetRuntime } from './server/image-assets/runtime';
+import { createImageAssetRuntime, startImageAssetWorker } from './server/image-assets/runtime';
 import { initializeImageAssetSchema } from './server/image-assets/schema';
 import { exceptImageAssetApi, mountProductRouteAssembly } from './server/appAssembly';
 
@@ -167,6 +167,7 @@ const imageAssetRuntime = createImageAssetRuntime({
     },
   },
 });
+let stopImageAssetWorker: (() => void) | undefined;
 const productImageRuntime: ProductImageRouteRuntime = {
   enabled: imageAssetRuntime.config.productImageAssetsEnabled,
   service: imageAssetRuntime.service,
@@ -2648,6 +2649,10 @@ async function startServer() {
     console.log(`[Image Assets] ${imageAssetRuntime.enabled ? `Enabled (${imageAssetRuntime.storageProvider})` : 'Disabled'}`);
   });
 
+  if (imageAssetRuntime.enabled && imageAssetRuntime.worker) {
+    stopImageAssetWorker = startImageAssetWorker(imageAssetRuntime.worker);
+  }
+
   registerShutdownHandlers(server);
 }
 
@@ -2665,6 +2670,7 @@ function registerShutdownHandlers(server: Server) {
     forceExitTimer.unref();
 
     server.close(async (error) => {
+      stopImageAssetWorker?.();
       try {
         if (mysqlPool) await mysqlPool.end();
       } catch (dbError) {
