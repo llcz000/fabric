@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { CosStorageAdapter, type CosSdkBoundary } from '../server/image-assets/cosStorage';
@@ -98,6 +98,7 @@ export interface MigrationOptions {
   dryRun: boolean;
   batchSize: number;
   afterId?: number;
+  completedSourceIds?: ReadonlySet<string>;
 }
 
 export interface MigrationCliArgs {
@@ -210,8 +211,8 @@ export function buildMigrationSources(
 
 const SECRET_PATTERNS: RegExp[] = [
   /((?:secret[_-]?(?:key|id)?|password|token)\s*[:=]\s*)[^\s,;]+/gi,
-  /(authorization\s*:\s*)[^\s,;]+/gi,
   /(bearer\s+)[^\s,;]+/gi,
+  /(authorization\s*:\s*)[^\s,;]+/gi,
   /(sign(?:ature)?\s*=\s*)[^\s&,;]+/gi,
 ];
 
@@ -308,9 +309,10 @@ export function buildReport(
   afterId?: number,
 ): MigrationReport {
   const processed = results.filter((result) => result.status !== 'failed');
-  const nextAfterId = processed.length === 0
+  const productProcessed = processed.filter((result) => result.domain === 'product');
+  const nextAfterId = productProcessed.length === 0
     ? undefined
-    : Math.max(...processed.map((result) => result.legacyId));
+    : Math.max(...productProcessed.map((result) => result.legacyId));
   return {
     generatedAt: new Date().toISOString(),
     domain,
@@ -320,6 +322,14 @@ export function buildReport(
     results,
     summary: buildSummary(results),
   };
+}
+
+export function completedSourceIdsFromResults(results: MigrationResult[]): Set<string> {
+  return new Set(
+    results
+      .filter((result) => result.status === 'migrated' || result.status === 'skipped')
+      .map((result) => result.sourceId),
+  );
 }
 
 function failure(source: MigrationSource, error: unknown): MigrationResult {
@@ -339,10 +349,11 @@ async function runSource(
   source: MigrationSource,
   backend: MigrationBackend,
   dryRun: boolean,
+  completedSourceIds?: ReadonlySet<string>,
 ): Promise<MigrationResult> {
   const base = { sourceId: source.sourceId, legacyId: source.legacyId, domain: source.kind };
 
-  if (!dryRun && await backend.isCompleted(source)) {
+  if (!dryRun && (completedSourceIds?.has(source.sourceId) || await backend.isCompleted(source))) {
     return { ...base, status: 'skipped', message: 'Already migrated' };
   }
 
@@ -398,14 +409,14 @@ export async function runMigration(
 ): Promise<MigrationResult[]> {
   const results: MigrationResult[] = [];
   const afterId = options.afterId ?? -1;
-  const pending = sources.filter((source) => source.legacyId > afterId);
+  const pending = sources.filter((source) => source.kind === 'company' || source.legacyId > afterId);
   const batches = chunk(pending, Math.max(1, options.batchSize));
   let batchIndex = 0;
   try {
     for (const batch of batches) {
       const batchResults: MigrationResult[] = [];
       for (const source of batch) {
-        batchResults.push(await runSource(source, backend, options.dryRun));
+        batchResults.push(await runSource(source, backend, options.dryRun, options.completedSourceIds));
       }
       results.push(...batchResults);
       onProgress?.(batchResults, batchIndex);
@@ -701,10 +712,12 @@ async function main(): Promise<void> {
   const legacy = await backend.loadLegacyRows(args.domain);
   const sources = buildMigrationSources(legacy.companyRows, legacy.productRows, args.domain);
 
+  const completedSourceIds = completedSourceIdsFromResults(await loadPreviousReport(reportPath));
+
   const results = await runMigration(
     sources,
     backend,
-    { dryRun: args.dryRun, batchSize: args.batchSize, afterId: args.afterId },
+    { dryRun: args.dryRun, batchSize: args.batchSize, afterId: args.afterId, completedSourceIds },
     (batch) => batch.forEach(logResult),
   );
 
@@ -716,6 +729,16 @@ async function main(): Promise<void> {
   console.log('report=' + reportPath);
   if (args.dryRun) {
     console.log('Dry-run complete. Re-run with --apply to write.');
+  }
+}
+
+async function loadPreviousReport(reportPath: string): Promise<MigrationResult[]> {
+  try {
+    const raw = await readFile(reportPath, 'utf8');
+    const parsed = JSON.parse(raw) as MigrationReport;
+    return Array.isArray(parsed.results) ? parsed.results : [];
+  } catch {
+    return [];
   }
 }
 

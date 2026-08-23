@@ -8,6 +8,7 @@ import {
   buildMigrationSources,
   buildReport,
   buildSummary,
+  completedSourceIdsFromResults,
   parseMigrationArgs,
   redactSecrets,
   resolveReportPath,
@@ -171,6 +172,31 @@ test('--after-id resume cursor filters sources', async () => {
   assert.equal(migrated.length, 2);
 });
 
+test('--after-id cursor scopes to product rows and never skips company sources', async () => {
+  const state = fakeState();
+  state.readResult = () => Buffer.from('bytes');
+  const backend = fakeBackend(state);
+  const company = [
+    { id: 1, brand_logo: 'logo', wechat_qr: 'qr', alipay_qr: '' },
+  ];
+  const products = [
+    { id: 1, product_id: 1, sort_order: 0, cos_key: 'a' },
+    { id: 2, product_id: 1, sort_order: 1, cos_key: 'b' },
+    { id: 3, product_id: 2, sort_order: 0, cos_key: 'c' },
+    { id: 4, product_id: 3, sort_order: 0, cos_key: 'd' },
+  ];
+  const sources = buildMigrationSources(company, products, 'all');
+  const results = await runMigration(sources, backend, { dryRun: false, batchSize: 100, afterId: 3 });
+
+  const companyResults = results.filter((r) => r.domain === 'company');
+  assert.equal(companyResults.length, 2);
+  assert.ok(companyResults.every((r) => r.status === 'migrated'));
+
+  const productResults = results.filter((r) => r.domain === 'product');
+  assert.deepEqual(productResults.map((r) => r.legacyId), [4]);
+  assert.equal(productResults[0].status, 'migrated');
+});
+
 test('identical content deduplicates to one asset with both products linked', async () => {
   const state = fakeState();
   state.readResult = () => Buffer.from('same-content');
@@ -188,6 +214,34 @@ test('identical content deduplicates to one asset with both products linked', as
   assert.equal(migrated.filter((r) => r.deduplicated).length, 1);
   assert.equal(state.assetIdsByHash.size, 1);
   assert.equal(state.attaches.length, 2);
+});
+
+test('deduplicated legacy ids in one product are both skipped on rerun via the completion ledger', async () => {
+  const products = [
+    { id: 1, product_id: 1, sort_order: 0, cos_key: 'a' },
+    { id: 2, product_id: 1, sort_order: 1, cos_key: 'a' },
+  ];
+  const sources = buildMigrationSources([], products, 'product');
+
+  const firstState = fakeState();
+  firstState.readResult = () => Buffer.from('same-content');
+  const firstBackend = fakeBackend(firstState);
+  const first = await runMigration(sources, firstBackend, { dryRun: false, batchSize: 100 });
+  assert.equal(first.filter((r) => r.status === 'migrated').length, 2);
+  assert.equal(firstState.assetIdsByHash.size, 1);
+
+  const completedSourceIds = completedSourceIdsFromResults(first);
+
+  const secondState = fakeState();
+  const secondBackend = fakeBackend(secondState);
+  const second = await runMigration(sources, secondBackend, {
+    dryRun: false,
+    batchSize: 100,
+    completedSourceIds,
+  });
+  assert.equal(second.filter((r) => r.status === 'skipped').length, 2);
+  assert.equal(secondState.ingests, 0);
+  assert.equal(secondState.attaches.length, 0);
 });
 
 test('each migrated source attaches exactly once (refCount correctness at orchestration level)', async () => {
@@ -253,6 +307,12 @@ test('results and logs never contain credentials or signed URLs', async () => {
   assert.ok(!serialized.includes('sign='));
   assert.match(redactSecrets('SecretKey=abc, sign=xyz, Bearer tok'), /redacted/);
   assert.ok(!redactSecrets('SecretKey=abc, sign=xyz').includes('abc'));
+});
+
+test('redactSecrets redacts the full token after Bearer', () => {
+  const redacted = redactSecrets('Authorization: Bearer abc.def.ghi');
+  assert.ok(!redacted.includes('abc.def.ghi'));
+  assert.match(redacted, /\[redacted\]/);
 });
 
 test('resolveReportPath rejects paths escaping the project directory', () => {
