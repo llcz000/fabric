@@ -1,15 +1,13 @@
-import { mkdir, readdir, rm, stat } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, rm, stat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { build } from 'esbuild';
 
 const projectRoot = process.cwd();
-const outputRoot = path.join(projectRoot, 'tmp', 'tests');
+const outputParent = path.join(projectRoot, 'tmp');
 const defaultRoots = ['server', 'src', 'scripts'];
 const requestedPaths = process.argv.slice(2);
-
-await rm(outputRoot, { recursive: true, force: true });
-await mkdir(outputRoot, { recursive: true });
 
 async function findTestFiles(entry) {
   const absoluteEntry = path.resolve(projectRoot, entry);
@@ -48,30 +46,57 @@ async function findTestFiles(entry) {
 const roots = requestedPaths.length > 0 ? requestedPaths : defaultRoots;
 const testFiles = (await Promise.all(roots.map(findTestFiles))).flat().sort();
 
-const bundledFiles = [];
-for (const testFile of testFiles) {
-  const relativePath = path.relative(projectRoot, testFile);
-  const outputPath = path.join(outputRoot, relativePath).replace(/\.ts$/, '.cjs');
-  await mkdir(path.dirname(outputPath), { recursive: true });
-  await build({
-    entryPoints: [testFile],
-    bundle: true,
-    platform: 'node',
-    format: 'cjs',
-    outfile: outputPath,
-    sourcemap: false,
-  });
-  bundledFiles.push(outputPath);
-}
-
-if (bundledFiles.length === 0) {
+if (testFiles.length === 0) {
   throw new Error('No *.test.ts files found');
 }
 
-const testProcess = await import('node:child_process').then(({ spawn }) => new Promise((resolve, reject) => {
-  const child = spawn(process.execPath, ['--test', ...bundledFiles], { stdio: 'inherit' });
-  child.once('error', reject);
-  child.once('exit', (code, signal) => resolve({ code, signal }));
-}));
+await mkdir(outputParent, { recursive: true });
+const outputRoot = await mkdtemp(path.join(outputParent, 'tests-'));
+let runError;
 
-process.exitCode = testProcess.code ?? 1;
+try {
+  const bundledFiles = [];
+  for (const testFile of testFiles) {
+    const relativePath = path.relative(projectRoot, testFile);
+    const outputPath = path.join(outputRoot, relativePath).replace(/\.ts$/, '.cjs');
+    await mkdir(path.dirname(outputPath), { recursive: true });
+    await build({
+      entryPoints: [testFile],
+      bundle: true,
+      platform: 'node',
+      format: 'cjs',
+      outfile: outputPath,
+      sourcemap: false,
+    });
+    bundledFiles.push(outputPath);
+  }
+
+  const testExitCode = await new Promise((resolve, reject) => {
+    let settled = false;
+    const child = spawn(process.execPath, ['--test', ...bundledFiles], { stdio: 'inherit' });
+    child.once('error', (error) => {
+      if (settled) return;
+      settled = true;
+      reject(error);
+    });
+    child.once('close', (code) => {
+      if (settled) return;
+      settled = true;
+      resolve(code);
+    });
+  });
+
+  process.exitCode = testExitCode ?? 1;
+} catch (error) {
+  runError = error;
+} finally {
+  try {
+    await rm(outputRoot, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+  } catch (cleanupError) {
+    runError = runError
+      ? new AggregateError([runError, cleanupError], 'Test run and output cleanup both failed')
+      : cleanupError;
+  }
+}
+
+if (runError) throw runError;
