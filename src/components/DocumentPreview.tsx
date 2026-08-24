@@ -146,6 +146,17 @@ function formatDateChinese(dateStr: string): string {
   return `${parseInt(d[0])}年${parseInt(d[1])}月${parseInt(d[2])}日`;
 }
 
+export function applyDocumentCaptureLayout(captureContainer: HTMLElement, captureClone: HTMLElement): void {
+  captureContainer.style.position = 'fixed';
+  captureContainer.style.left = '-100000px';
+  captureContainer.style.top = '0';
+  captureContainer.style.width = 'fit-content';
+  captureContainer.style.background = '#fff';
+  captureContainer.style.pointerEvents = 'none';
+  captureClone.style.width = 'min-content';
+  captureClone.style.maxWidth = 'none';
+}
+
 export default function DocumentPreview({ document, companyProfile, onEdit, onBack }: DocumentPreviewProps) {
   const isSample = document.type === DocType.SAMPLE;
   const isDeposit = document.type === DocType.DEPOSIT;
@@ -190,23 +201,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       const dataUrl = await withPreparedCapture(node, apiFetch, async (captureClone) => {
         const captureContainer = window.document.createElement('div');
         try {
-          captureContainer.style.position = 'fixed';
-          captureContainer.style.left = '-100000px';
-          captureContainer.style.top = '0';
-          captureContainer.style.width = '900px';
-          captureContainer.style.background = '#fff';
-          captureContainer.style.pointerEvents = 'none';
-          captureClone.style.width = '900px';
-          captureClone.style.maxWidth = 'none';
-          const signature = captureClone.querySelector('.signature-section') as HTMLElement | null;
-          if (signature) {
-            signature.style.display = 'flex';
-            signature.style.flexDirection = 'row';
-            signature.style.justifyContent = 'space-between';
-            signature.style.alignItems = 'flex-start';
-            const qrContainer = signature.querySelector('[class*="order-first"]') as HTMLElement | null;
-            if (qrContainer) qrContainer.style.order = '0';
-          }
+          applyDocumentCaptureLayout(captureContainer, captureClone);
           captureContainer.appendChild(captureClone);
           window.document.body.appendChild(captureContainer);
           await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
@@ -401,10 +396,11 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       </div>
 
       {/* Invoice Page Sheet Wrapper: Designed to look like paper */}
-      <div className="preview-wrapper bg-white rounded-3xl border border-slate-200 shadow-md mx-auto" style={{ width: 'fit-content' }}>
+      <div data-preview-scroll="true" className="w-full overflow-x-auto pb-1">
+        <div className="preview-wrapper bg-white rounded-3xl border border-slate-200 shadow-md mx-auto" style={{ width: 'fit-content' }}>
 
         {/* Printable Section */}
-        <div ref={printRef} className="print-container p-4 sm:p-6 bg-white text-slate-900 leading-normal select-text" style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: 'min-content' }}>
+        <div ref={printRef} data-document-sheet="true" className="print-container p-6 bg-white text-slate-900 leading-normal select-text" style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: 'min-content' }}>
 
           {/* Header Block, Title & Metadata Grouped tightly to reduce vertical space */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -420,7 +416,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
 
                 {/* Right: Company Name, Address and Phone */}
                 <div className="space-y-1 flex-1 text-right min-w-0" style={{ fontFamily: 'SimSun, serif', minWidth: 0 }}>
-                  <h1 className="text-lg sm:text-xl tracking-wide text-slate-900" style={{ fontFamily: 'SimHei, sans-serif' }}>
+                  <h1 data-company-heading="true" className="text-xl tracking-wide text-slate-900" style={{ fontFamily: 'SimHei, sans-serif' }}>
                     {companyProfile.name}
                   </h1>
                   <div className="text-[11px] text-slate-500" style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
@@ -431,14 +427,27 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
               </div>
             </div>
             <div className="text-center py-0">
-              <h2 className="text-sm sm:text-base font-black tracking-[0.5em] text-slate-950 uppercase pl-[0.5em]">
+              <h2 data-document-heading="true" className="text-base font-black tracking-[0.5em] text-slate-950 uppercase pl-[0.5em]">
                 {isSample ? '样布码单' : (isDeposit ? '定金单' : '销售发货码单')}
               </h2>
             </div>
 
             {/* 2. Metadata Section: NO, 收货单位, Date above table */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2 pb-0.5 text-xs text-slate-800" style={{ fontFamily: 'SimSun, serif' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            <div
+              data-document-metadata="true"
+              className="gap-2 pb-0.5 text-xs text-slate-800"
+              style={{
+                display: 'flex',
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'flex-end',
+                fontFamily: 'SimSun, serif',
+              }}
+            >
+              <div
+                data-document-metadata-primary="true"
+                style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0, wordBreak: 'break-all' }}
+              >
                 <div>
                   <span>NO：</span>
                   <span className="text-slate-900">{document.docNo}</span>
@@ -448,7 +457,11 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                   <span>{document.customerName}</span>
                 </div>
               </div>
-              <div className="text-[11px] leading-tight">
+              <div
+                data-document-date="true"
+                className="text-[11px] leading-tight"
+                style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
+              >
                 <span>日期：</span>
                 <span>{formatDateChinese(document.date)}</span>
               </div>
@@ -694,7 +707,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                 </span>
               </div>
               {/* Second line: Receiver, Phone, Address */}
-              <div className="flex flex-wrap items-center gap-x-3 sm:gap-x-5 gap-y-2 text-xs text-slate-800">
+              <div data-signature-contacts="true" className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-800">
                 <div>
                 <span>收货人签字：</span>
                 <span className="underline underline-offset-4 pl-1">
@@ -737,6 +750,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
             )}
           </div>
 
+          </div>
         </div>
       </div>
     </div>
