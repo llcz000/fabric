@@ -33,6 +33,12 @@ request.json
 *.swp
 *.swo
 
+# Machine-specific workspace and helper files
+.npmrc
+opencodex-desktop-launcher.cmd
+scripts/generate_mockup.py
+Fabric-DMS-Knowledge-Base/.obsidian/workspace.json
+
 # Sensitive file found during the 2026-08-13 audit; rotate its credentials.
 docs/yxm
 
