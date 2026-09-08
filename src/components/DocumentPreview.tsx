@@ -5,11 +5,10 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { DocumentData, DocType, SampleItem, SalesItem, CompanyProfile } from '../types';
-import { Printer, ArrowLeft, Edit3, Scissors, Download, Landmark, PhoneCall, Image } from 'lucide-react';
+import { ArrowLeft, Edit3, Scissors, Download, Landmark, PhoneCall, Image } from 'lucide-react';
 import html2canvas from 'html2canvas-pro';
 import { ImageAssetClientError } from '../lib/imageAssets';
 import { withPreparedCapture } from '../lib/imageCapture';
-import { createInvoicePdfBytes } from '../lib/invoicePdf';
 
 interface DocumentPreviewProps {
   document: DocumentData;
@@ -192,7 +191,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
   const printRef = useRef<HTMLDivElement | null>(null);
   const exportAbortRef = useRef<AbortController | null>(null);
   const mountedRef = useRef(true);
-  const [generatingTask, setGeneratingTask] = useState<'image' | 'print' | null>(null);
+  const [generatingTask, setGeneratingTask] = useState<'image' | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const generating = generatingTask !== null;
 
@@ -203,60 +202,6 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       exportAbortRef.current?.abort(new DOMException('Document preview unmounted', 'AbortError'));
     };
   }, []);
-
-  const handlePrint = async () => {
-    if (generating || exportAbortRef.current) return;
-    const node = printRef.current;
-    if (!node) return;
-
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      alert('无法打开打印 PDF，请允许此网站打开弹出窗口后重试。');
-      return;
-    }
-    printWindow.document.title = '正在生成打印 PDF';
-    printWindow.document.body.textContent = '正在生成 240×140mm 打印 PDF，请稍候…';
-
-    const exportController = new AbortController();
-    exportAbortRef.current = exportController;
-    setGeneratingTask('print');
-    let pdfOpened = false;
-    try {
-      const token = sessionStorage.getItem('fabric_auth_token');
-      const apiFetch: typeof fetch = (input, init: RequestInit = {}) => {
-        const headers = new Headers(init.headers);
-        if (token) headers.set('Authorization', `Bearer ${token}`);
-        return fetch(input, { ...init, headers });
-      };
-      const dataUrl = await captureDocumentPng(node, apiFetch, exportController.signal);
-      if (
-        exportController.signal.aborted
-        || !mountedRef.current
-        || exportAbortRef.current !== exportController
-      ) return;
-
-      const pdfBytes = await createInvoicePdfBytes(dataUrl);
-      const pdfBuffer = Uint8Array.from(pdfBytes).buffer;
-      const pdfUrl = URL.createObjectURL(new Blob([pdfBuffer], { type: 'application/pdf' }));
-      printWindow.location.replace(pdfUrl);
-      pdfOpened = true;
-      window.setTimeout(() => URL.revokeObjectURL(pdfUrl), 60_000);
-    } catch (err: unknown) {
-      if (err instanceof DOMException && err.name === 'AbortError') return;
-      const errMsg = err instanceof ImageAssetClientError
-        ? err.message
-        : err instanceof DOMException && err.name === 'TimeoutError'
-          ? '图片准备超时，请重试。'
-          : '打印 PDF 生成失败，请重试。';
-      const requestId = err instanceof ImageAssetClientError && err.requestId ? `（请求ID: ${err.requestId}）` : '';
-      console.error('Print PDF generation failed:', err);
-      alert(errMsg + requestId);
-    } finally {
-      if (!pdfOpened) printWindow.close();
-      if (exportAbortRef.current === exportController) exportAbortRef.current = null;
-      if (mountedRef.current) setGeneratingTask(null);
-    }
-  };
 
   // Export current document as PNG image
   const handleExportImage = async () => {
@@ -352,14 +297,13 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       }
     } catch (e: any) {
       console.error('API Excel export failed:', e);
-      alert('导出Excel单据失败，可能因为暂未上传对应单据类型的Excel模版文件，或者服务器端环境有配置限制。您可以继续使用在线直接打印。');
+      alert('导出打印Excel失败，请稍后重试。');
     }
   };
 
   return (
     <div className="space-y-6">
       <style>{`
-        @page{size:240mm 140mm;margin:0}
         .qr-code-img{width:240px!important;height:240px!important}
         @media(max-width:768px){.qr-code-img{width:180px!important;height:180px!important}}
         .preview-wrapper .terms-box { background-color: #f8fafc !important; border-color: #cbd5e1 !important; }
@@ -370,7 +314,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
           <div style={{ background: '#fff', borderRadius: 16, padding: '36px 48px', textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
             <div style={{ width: 48, height: 48, border: '4px solid #e2e8f0', borderTopColor: '#0ea5e9', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 16px' }}></div>
             <p style={{ fontSize: 18, fontWeight: 700, color: '#1e293b', margin: 0 }}>
-              {generatingTask === 'print' ? '正在生成打印 PDF' : '正在生成图片'}
+              正在生成图片
             </p>
             <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 6 }}>请稍候...</p>
           </div>
@@ -420,7 +364,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
             className="flex items-center gap-1.5 px-3.5 py-2 border border-emerald-200 hover:border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-semibold cursor-pointer transition-colors duration-150"
           >
             <Download className="w-3.5 h-3.5 text-emerald-600" />
-            导出Excel
+            下载打印Excel
           </button>
 
           <button
@@ -443,15 +387,6 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
             生成图片
           </button>
 
-          <button
-            type="button"
-            id="btn-preview-print"
-            onClick={handlePrint}
-            className="flex items-center gap-2 px-6 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-sm font-semibold shadow-md hover:shadow-lg cursor-pointer transition-all duration-150"
-          >
-            <Printer className="w-4.5 h-4.5" />
-            打开打印PDF (240×140mm)
-          </button>
         </div>
       </div>
 

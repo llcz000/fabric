@@ -15,12 +15,14 @@ import sharp from 'sharp';
 import { z } from 'zod';
 import { createServer as createViteServer } from 'vite';
 import { parseExternalImageUrl } from './src/lib/externalImageUrl';
-import { createCompanyImageAuthMiddleware, createCompanyImageRouter, describeCompanyImages, omitCompanyLegacyImageValues, type CompanyImageRuntime } from './server/image-assets/companyImages';
+import { createCompanyImageAuthMiddleware, createCompanyImageRouter, describeCompanyImages, omitCompanyLegacyImageValues, readCompanyImageForExport, type CompanyImageRuntime } from './server/image-assets/companyImages';
 import { CosStorageAdapter, type CosSdkBoundary } from './server/image-assets/cosStorage';
 import { readLegacyImage } from './server/image-assets/legacySource';
 import { getAssetPolicy } from './server/image-assets/policy';
 import type { ProductImageRouteRuntime } from './server/image-assets/productImages';
 import type { AssetTransaction } from './server/image-assets/repository';
+import type { CompanyImageRole } from './server/image-assets/types';
+import { buildDocumentWorkbook } from './server/documentExcel';
 import { createImageAssetRouter } from './server/image-assets/routes';
 import { createImageAssetRuntime, startImageAssetWorker } from './server/image-assets/runtime';
 import { initializeImageAssetSchema } from './server/image-assets/schema';
@@ -1323,280 +1325,19 @@ app.get('/api/export_template/:id', async (req, res) => {
       }
     } catch { /* use empty company info */ }
 
-    const templateType = order.template_type || 'sample';
-    const isSample = templateType === 'sample';
-    const isDeposit = templateType === 'deposit';
-
-    // Try to find a template file
-    const config = loadTemplateConfig();
-    let templatePath: string | null = null;
-    for (const [, info] of Object.entries(config.templates as Record<string, any>)) {
-      if (info.path && fs.existsSync(info.path)) {
-        templatePath = info.path;
-        break;
+    const imageRoles: CompanyImageRole[] = ['brand_logo', 'wechat_qr', 'alipay_qr'];
+    const images: Partial<Record<CompanyImageRole, { body: Buffer; mime: 'image/png' }>> = {};
+    for (const role of imageRoles) {
+      try {
+        const image = await readCompanyImageForExport(company, companyImageRuntime, role);
+        if (!image) continue;
+        images[role] = { body: await sharp(image.body, { animated: true }).png().toBuffer(), mime: 'image/png' };
+      } catch (imageError: any) {
+        console.warn(`[GET /api/export_template/:id] Skipping unavailable ${role} image:`, imageError.message);
       }
     }
 
-    const workbook = new ExcelJS.Workbook();
-    let worksheet: ExcelJS.Worksheet;
-
-    if (templatePath) {
-      // Load template and fill data into named ranges or specific cells
-      await workbook.xlsx.readFile(templatePath);
-      worksheet = workbook.worksheets[0];
-
-      // Attempt to fill template placeholders
-      const replaceInSheet = (sheet: ExcelJS.Worksheet) => {
-        sheet.eachRow((row) => {
-          row.eachCell((cell) => {
-            if (typeof cell.value === 'string') {
-              let v = cell.value;
-              v = v.replace(/\{\{docNo\}\}/g, order.order_no || '');
-              v = v.replace(/\{\{date\}\}/g, (order.order_date || '').substring(0, 10));
-              v = v.replace(/\{\{customerName\}\}/g, order.receiving_unit || '');
-              v = v.replace(/\{\{styleNo\}\}/g, order.style_no || '');
-              v = v.replace(/\{\{totalMeters\}\}/g, String(order.total_meters || 0));
-              v = v.replace(/\{\{totalPieces\}\}/g, String(order.total_pieces || 0));
-              v = v.replace(/\{\{totalAmount\}\}/g, String(order.total_amount || 0));
-              v = v.replace(/\{\{deposit\}\}/g, String(order.deposit || 0));
-              v = v.replace(/\{\{signPerson\}\}/g, order.sign_person || '');
-              v = v.replace(/\{\{receiver\}\}/g, order.receiver || '');
-              v = v.replace(/\{\{companyName\}\}/g, company.company_name || '');
-              v = v.replace(/\{\{companyAddress\}\}/g, company.address || '');
-              v = v.replace(/\{\{companyPhone\}\}/g, company.phone || '');
-              v = v.replace(/\{\{terms\}\}/g, company.default_terms || '');
-              cell.value = v;
-            }
-          });
-        });
-      };
-      replaceInSheet(worksheet);
-    } else {
-      // Generate Excel from scratch
-      worksheet = workbook.addWorksheet('单据');
-
-      // Column definitions
-      const title = isSample ? '样布码单' : (isDeposit ? '定金单' : '销售发货码单');
-      const cols = isSample
-        ? ['序号', '货号', '色号', '品名', '成分', '克重', '门幅(cm)', '米数(m)', '单价(元)', '金额(元)', '备注']
-        : isDeposit
-          ? ['序号', '货号', '色号', '品名', '米数(m)', '单价(元)', '金额(元)']
-          : ['序号', '货号', '色号', '品名', '匹号/箱号', '门幅(cm)', '米数(m)', '单价(元)', '金额(元)', '备注'];
-
-      // -- Row 1: Company name
-      worksheet.mergeCells(1, 1, 1, cols.length);
-      const titleCell = worksheet.getCell(1, 1);
-      titleCell.value = company.company_name || '';
-      titleCell.font = { name: '宋体', size: 16, bold: true };
-      titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
-      worksheet.getRow(1).height = 32;
-
-      // -- Row 2: Document title
-      worksheet.mergeCells(2, 1, 2, cols.length);
-      const subTitleCell = worksheet.getCell(2, 1);
-      subTitleCell.value = title;
-      subTitleCell.font = { name: '宋体', size: 14, bold: true };
-      subTitleCell.alignment = { horizontal: 'center', vertical: 'middle' };
-      worksheet.getRow(2).height = 28;
-
-      // -- Row 3: Order info
-      const halfCols = Math.floor(cols.length / 2);
-      worksheet.mergeCells(3, 1, 3, halfCols);
-      const cell3_1 = worksheet.getCell(3, 1);
-      cell3_1.value = `单据编号：${order.order_no || ''}`;
-      cell3_1.font = { name: '宋体', size: 11 };
-      worksheet.mergeCells(3, halfCols + 1, 3, cols.length);
-      const cell3_2 = worksheet.getCell(3, halfCols + 1);
-      cell3_2.value = `日期：${(order.order_date || '').substring(0, 10)}`;
-      cell3_2.font = { name: '宋体', size: 11 };
-      cell3_2.alignment = { horizontal: 'right' };
-      worksheet.getRow(3).height = 22;
-
-      // -- Row 4: Customer info
-      worksheet.mergeCells(4, 1, 4, cols.length);
-      const cell4 = worksheet.getCell(4, 1);
-      cell4.value = `客户：${order.receiving_unit || ''}    款号：${order.style_no || ''}`;
-      cell4.font = { name: '宋体', size: 11 };
-      worksheet.getRow(4).height = 22;
-
-      // -- Row 5: Header row
-      const headerRow = worksheet.getRow(5);
-      for (let c = 0; c < cols.length; c++) {
-        const cell = headerRow.getCell(c + 1);
-        cell.value = cols[c];
-        cell.font = { name: '宋体', size: 10, bold: true };
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8E8E8' } };
-        cell.border = {
-          top: { style: 'thin' }, bottom: { style: 'thin' },
-          left: { style: 'thin' }, right: { style: 'thin' },
-        };
-        cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-      }
-      headerRow.height = 24;
-
-      // Column widths
-      const colWidths = isSample
-        ? [6, 14, 12, 16, 18, 8, 10, 10, 10, 12, 16]
-        : isDeposit
-          ? [6, 14, 14, 14, 14, 14, 16]
-          : [6, 14, 12, 16, 14, 10, 10, 10, 12, 16];
-      for (let c = 0; c < colWidths.length; c++) {
-        worksheet.getColumn(c + 1).width = colWidths[c];
-      }
-
-      // -- Data rows
-      const thinBorder: Partial<ExcelJS.Borders> = {
-        top: { style: 'thin' }, bottom: { style: 'thin' },
-        left: { style: 'thin' }, right: { style: 'thin' },
-      };
-
-      for (let r = 0; r < items.length; r++) {
-        const item = items[r];
-        const rowNum = 6 + r;
-        const row = worksheet.getRow(rowNum);
-        row.height = 22;
-
-        const cells = isSample
-          ? [
-              r + 1,
-              item.product_no || '', item.color_no || '', item.product_name || '',
-              item.composition || '', item.weight || '', item.width || '',
-              item.meters || 0, item.unit_price || 0, item.amount || 0, item.remark || '',
-            ]
-          : isDeposit
-            ? [
-                r + 1,
-                item.product_no || '', item.color_no || '', item.product_name || '',
-                item.meters || 0, item.unit_price || 0, item.amount || 0,
-              ]
-            : [
-                r + 1,
-                item.product_no || '', item.color_no || '', item.product_name || '',
-                item.piece_meters ? (() => { try { const arr = typeof item.piece_meters === 'string' ? JSON.parse(item.piece_meters) : item.piece_meters; return Array.isArray(arr) ? arr.join(', ') : item.piece_meters; } catch { return item.piece_meters; } })() : '', item.width || '',
-                item.meters || 0, item.unit_price || 0, item.amount || 0, item.remark || '',
-              ];
-
-        for (let c = 0; c < cells.length; c++) {
-          const cell = row.getCell(c + 1);
-          cell.value = cells[c];
-          cell.font = { name: '宋体', size: 10 };
-          cell.border = thinBorder;
-          cell.alignment = { horizontal: 'center', vertical: 'middle' };
-        }
-      }
-
-      const dataEndRow = 6 + items.length;
-
-      // -- Totals row
-      const totalRow = worksheet.getRow(dataEndRow);
-      totalRow.height = 24;
-      // For sample: cols 1-7 are labels (through 门幅), for sales: cols 1-6, for deposit: cols 1-4
-      const totalMergeEnd = isSample ? 7 : (isDeposit ? 4 : 6);
-      worksheet.mergeCells(dataEndRow, 1, dataEndRow, totalMergeEnd);
-      const totalLabelCell = worksheet.getCell(dataEndRow, 1);
-      totalLabelCell.value = '合计';
-      totalLabelCell.font = { name: '宋体', size: 10, bold: true };
-      totalLabelCell.alignment = { horizontal: 'center', vertical: 'middle' };
-      totalLabelCell.border = thinBorder;
-
-      for (let c = 2; c <= totalMergeEnd; c++) {
-        const cell = worksheet.getCell(dataEndRow, c);
-        cell.border = thinBorder;
-      }
-
-      const metersCol = totalMergeEnd + 1;
-      const priceCol = totalMergeEnd + 2;
-      const amountCol = totalMergeEnd + 3;
-      const remarkCol = totalMergeEnd + 4;
-
-      const metersCell = worksheet.getCell(dataEndRow, metersCol);
-      metersCell.value = order.total_meters || 0;
-      metersCell.font = { name: '宋体', size: 10, bold: true };
-      metersCell.alignment = { horizontal: 'center', vertical: 'middle' };
-      metersCell.border = thinBorder;
-
-      const priceCell = worksheet.getCell(dataEndRow, priceCol);
-      priceCell.border = thinBorder;
-
-      const amountCell = worksheet.getCell(dataEndRow, amountCol);
-      amountCell.value = order.total_amount || 0;
-      amountCell.font = { name: '宋体', size: 10, bold: true };
-      amountCell.alignment = { horizontal: 'center', vertical: 'middle' };
-      amountCell.border = thinBorder;
-
-      if (!isDeposit) {
-        const remarkCell = worksheet.getCell(dataEndRow, remarkCol);
-        remarkCell.border = thinBorder;
-      }
-
-      // -- Deposit amount row (deposit orders only)
-      let footerOffset = 0;
-      if (isDeposit) {
-        footerOffset = 1;
-        const depositRowNum = dataEndRow + 1;
-        const depositRow = worksheet.getRow(depositRowNum);
-        depositRow.height = 24;
-        worksheet.mergeCells(depositRowNum, 1, depositRowNum, totalMergeEnd);
-        const depositLabelCell = worksheet.getCell(depositRowNum, 1);
-        const depositPct = parseFloat(order.deposit || 0);
-        const depositAmount = (parseFloat(order.total_amount || 0) * depositPct) / 100;
-        depositLabelCell.value = `定金比例：${depositPct}%  定金金额：¥${depositAmount.toFixed(2)}`;
-        depositLabelCell.font = { name: '宋体', size: 10, bold: true };
-        depositLabelCell.alignment = { horizontal: 'center', vertical: 'middle' };
-        depositLabelCell.border = thinBorder;
-        for (let c = 2; c <= totalMergeEnd; c++) {
-          const cell = worksheet.getCell(depositRowNum, c);
-          cell.border = thinBorder;
-        }
-        for (let c = totalMergeEnd + 1; c <= cols.length; c++) {
-          const cell = worksheet.getCell(depositRowNum, c);
-          cell.border = thinBorder;
-        }
-      }
-
-      // -- Signature & footer section
-      const footerStart = dataEndRow + 2 + footerOffset;
-      worksheet.mergeCells(footerStart, 1, footerStart, halfCols);
-      worksheet.getCell(footerStart, 1).value = `开单人：${order.sign_person || ''}`;
-      worksheet.getCell(footerStart, 1).font = { name: '宋体', size: 11 };
-      worksheet.getRow(footerStart).height = 22;
-
-      worksheet.mergeCells(footerStart, halfCols + 1, footerStart, cols.length);
-      const receiverCell = worksheet.getCell(footerStart, halfCols + 1);
-      receiverCell.value = `收货人：${order.receiver || ''}`;
-      receiverCell.font = { name: '宋体', size: 11 };
-      receiverCell.alignment = { horizontal: 'right' };
-
-      let termsRowOffset = 0;
-      // -- Receiver address (deposit only)
-      if (isDeposit) {
-        termsRowOffset = 1;
-        const addrRow = footerStart + 1;
-        worksheet.mergeCells(addrRow, 1, addrRow, cols.length);
-        worksheet.getCell(addrRow, 1).value = `收货地址：${order.receiver_address || ''}`;
-        worksheet.getCell(addrRow, 1).font = { name: '宋体', size: 11 };
-        worksheet.getRow(addrRow).height = 22;
-      }
-
-      // -- Terms
-      const termsContent = isDeposit
-        ? (company.deposit_terms || company.default_terms || '')
-        : (company.default_terms || '');
-      if (termsContent) {
-        const termsRow = footerStart + 1 + termsRowOffset;
-        worksheet.mergeCells(termsRow, 1, termsRow, cols.length);
-        worksheet.getCell(termsRow, 1).value = `备注：${termsContent}`;
-        worksheet.getCell(termsRow, 1).font = { name: '宋体', size: 9, color: { argb: 'FF666666' } };
-        worksheet.getRow(termsRow).height = 20;
-      }
-
-      // -- Print settings
-      worksheet.pageSetup.orientation = 'landscape';
-      worksheet.pageSetup.fitToPage = true;
-      worksheet.pageSetup.fitToWidth = 1;
-      worksheet.pageSetup.paperSize = 9; // A4
-    }
-
+    const workbook = buildDocumentWorkbook({ order, items, company, images });
     const buffer = await workbook.xlsx.writeBuffer();
     const base64 = Buffer.from(buffer).toString('base64');
 

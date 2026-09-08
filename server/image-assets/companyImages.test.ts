@@ -14,6 +14,7 @@ import {
   createCompanyImageRouter,
   describeCompanyImages,
   omitCompanyLegacyImageValues,
+  readCompanyImageForExport,
   type CompanyImageRuntime,
 } from './companyImages';
 import { CosStorageAdapter, type CosSdkBoundary } from './cosStorage';
@@ -164,6 +165,22 @@ test('company descriptors use a valid legacy image when the linked asset is not 
   assert.deepEqual(images, {
     brand_logo: { role: 'brand_logo', source: 'legacy', displayUrl: '/api/company/images/brand_logo/content' },
   });
+});
+
+test('reads ready managed and legacy company images for document workbook export', async () => {
+  const state: MemoryState = {
+    company: { brand_logo: '', wechat_qr: 'data:image/png;base64,AA==', alipay_qr: '' },
+    links: { brand_logo: 'asset-1' },
+    descriptors: { 'asset-1': descriptor('asset-1') },
+    legacyReads: [],
+  };
+  const appRuntime = runtime(state);
+
+  const logo = await readCompanyImageForExport(state.company, appRuntime, 'brand_logo');
+  const wechat = await readCompanyImageForExport(state.company, appRuntime, 'wechat_qr');
+
+  assert.deepEqual(logo, { body: PNG, mime: 'image/png' });
+  assert.deepEqual(wechat, { body: PNG, mime: 'image/png' });
 });
 
 test('PUT replacement and DELETE preserve company text while changing only the selected association', async () => {

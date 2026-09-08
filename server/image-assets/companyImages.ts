@@ -108,6 +108,20 @@ export async function describeCompanyImages(
   return images;
 }
 
+export async function readCompanyImageForExport(
+  company: Record<string, unknown>,
+  runtime: CompanyImageRuntime,
+  role: CompanyImageRole,
+): Promise<{ body: Buffer; mime: string } | null> {
+  const assetId = await readyAssociation(runtime, role);
+  if (assetId) {
+    const content = await requireService(runtime).readContent(assetId, 'display', PRINCIPAL_ID);
+    return { body: content.body, mime: content.mime };
+  }
+  const body = await legacyContent(runtime, company, role);
+  return body ? { body, mime: await detectedMime(body) } : null;
+}
+
 export function omitCompanyLegacyImageValues<T extends Record<string, unknown>>(value: T, enabled: boolean): T {
   if (!enabled) return value;
   const { brand_logo: _brandLogo, wechat_qr: _wechatQr, alipay_qr: _alipayQr, ...text } = value;
