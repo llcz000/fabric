@@ -153,8 +153,9 @@ export function applyDocumentCaptureLayout(captureContainer: HTMLElement, captur
   captureContainer.style.width = 'fit-content';
   captureContainer.style.background = '#fff';
   captureContainer.style.pointerEvents = 'none';
-  captureClone.style.width = 'min-content';
-  captureClone.style.maxWidth = 'none';
+  captureClone.style.width = '240mm';
+  captureClone.style.minHeight = '140mm';
+  captureClone.style.maxWidth = '240mm';
 }
 
 export default function DocumentPreview({ document, companyProfile, onEdit, onBack }: DocumentPreviewProps) {
@@ -302,6 +303,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
   return (
     <div className="space-y-6">
       <style>{`
+        @page{size:240mm 140mm;margin:0}
         .qr-code-img{width:240px!important;height:240px!important}
         @media(max-width:768px){.qr-code-img{width:180px!important;height:180px!important}}
         .preview-wrapper .terms-box { background-color: #f8fafc !important; border-color: #cbd5e1 !important; }
@@ -390,7 +392,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
             className="flex items-center gap-2 px-6 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-sm font-semibold shadow-md hover:shadow-lg cursor-pointer transition-all duration-150"
           >
             <Printer className="w-4.5 h-4.5" />
-            打印单据 (A4排版)
+            打印单据 (增值税发票排版)
           </button>
         </div>
       </div>
@@ -400,7 +402,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
         <div className="preview-wrapper bg-white rounded-3xl border border-slate-200 shadow-md mx-auto" style={{ width: 'fit-content' }}>
 
         {/* Printable Section */}
-        <div ref={printRef} data-document-sheet="true" className="print-container p-6 bg-white text-slate-900 leading-normal select-text" style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: 'min-content' }}>
+        <div ref={printRef} data-document-sheet="true" className="print-container p-6 bg-white text-slate-900 leading-normal select-text" style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '240mm', minHeight: '140mm', boxSizing: 'border-box', padding: '8mm 10mm' }}>
 
           {/* Header Block, Title & Metadata Grouped tightly to reduce vertical space */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -469,9 +471,9 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
           </div>
 
           {/* 3. Central Packing Grid Table */}
-          <div style={{ border: '1px solid #000', marginTop: '4px', fontFamily: 'SimSun, serif', fontSize: '11px', color: '#1e293b', width: 'fit-content' }}>
+          <div style={{ border: '1px solid #000', marginTop: '4px', fontFamily: 'SimSun, serif', fontSize: '11px', color: '#1e293b', width: '100%', minWidth: 0 }}>
             {isSample ? (
-              <div className="print-grid" style={{ display: 'grid', gap: '1px', background: '#000', gridTemplateColumns: '94px 78px 78px 78px 78px 78px 78px 78px 94px 46px' }}>
+              <div data-document-grid="true" className="print-grid" style={{ display: 'grid', gap: '1px', background: '#000', width: '100%', gridTemplateColumns: 'minmax(0, 1.2fr) repeat(2, minmax(0, 1fr)) minmax(0, 1.15fr) minmax(0, 0.85fr) minmax(0, 1.05fr) minmax(0, 1fr) minmax(0, 1.05fr) minmax(0, 1.2fr) minmax(0, 0.75fr)' }}>
                 {/* Header */}
                 <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>货号</div>
                 <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>色号</div>
@@ -526,7 +528,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                 </div>
               </div>
             ) : isDeposit ? (
-              <div className="print-grid" style={{ display: 'grid', gap: '1px', background: '#000', gridTemplateColumns: '110px 110px 110px 110px 110px 120px' }}>
+              <div data-document-grid="true" className="print-grid" style={{ display: 'grid', gap: '1px', background: '#000', width: '100%', gridTemplateColumns: 'repeat(5, minmax(0, 1fr)) minmax(0, 1.1fr)' }}>
                 {/* Header */}
                 <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>货号</div>
                 <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>色号</div>
@@ -577,7 +579,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                 })()}
               </div>
             ) : (
-              <div className="print-grid" style={{ display: 'grid', gap: '1px', background: '#000', gridTemplateColumns: hasDeduction ? '65px 60px 70px 50px 50px 50px 50px 50px 50px 50px 50px 50px 50px 65px 60px 50px 60px 70px' : '65px 60px 70px 50px 50px 50px 50px 50px 50px 50px 50px 50px 50px 50px 65px 60px 70px' }}>
+              <div data-document-grid="true" className="print-grid" style={{ display: 'grid', gap: '1px', background: '#000', width: '100%', gridTemplateColumns: hasDeduction ? 'minmax(0, 1.25fr) minmax(0, 1.1fr) minmax(0, 1.3fr) repeat(10, minmax(0, 0.72fr)) minmax(0, 0.9fr) minmax(0, 1.05fr) minmax(0, 0.95fr) minmax(0, 1.05fr) minmax(0, 1.25fr)' : 'minmax(0, 1.25fr) minmax(0, 1.1fr) minmax(0, 1.3fr) repeat(10, minmax(0, 0.72fr)) minmax(0, 0.9fr) minmax(0, 1.05fr) minmax(0, 1.05fr) minmax(0, 1.25fr)' }}>
                 {/* Header */}
                 <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>货号</div>
                 <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>色号</div>

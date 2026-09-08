@@ -107,7 +107,7 @@ test('header company info block is shrinkable so its right edge aligns with the 
   assert.match(markup, /min-width:0/);
 });
 
-test('document paper layout stays fixed and keeps the date on the right at every viewport width', () => {
+test('document paper uses a 240mm by 140mm VAT invoice page and keeps the date on the right', () => {
   const companyProfile: CompanyProfile = {
     name: '杭州歌朗纺织服饰有限公司',
     logoText: 'Logo',
@@ -157,12 +157,69 @@ test('document paper layout stays fixed and keeps the date on the right at every
   assert.match(markup, /data-document-metadata-primary="true"[^>]*style="[^"]*min-width:0[^"]*word-break:break-all/);
   assert.match(markup, /data-document-date="true"[^>]*style="[^"]*white-space:nowrap[^"]*flex-shrink:0/);
   assert.match(markup, /data-document-sheet="true"[^>]*class="[^"]*\bp-6\b/);
+  assert.match(markup, /data-document-sheet="true"[^>]*style="[^"]*width:240mm[^"]*min-height:140mm[^"]*box-sizing:border-box[^"]*padding:8mm 10mm/);
   assert.doesNotMatch(markup, /data-document-sheet="true"[^>]*class="[^"]*sm:/);
   assert.match(markup, /data-preview-scroll="true"[^>]*class="[^"]*overflow-x-auto/);
   assert.match(markup, /data-company-heading="true"[^>]*class="[^"]*\btext-xl\b/);
   assert.match(markup, /data-document-heading="true"[^>]*class="[^"]*\btext-base\b/);
   assert.match(markup, /data-signature-contacts="true"[^>]*class="[^"]*\bgap-x-5\b/);
   assert.match(markup, />日期：<\/span><span>2026年8月20日<\/span>/);
+  assert.match(markup, /@page\{size:240mm 140mm;margin:0\}/);
+  assert.match(markup, />打印单据 \(增值税发票排版\)<\/button>/);
+});
+
+test('every document table uses fluid columns inside the invoice content width', () => {
+  const companyProfile: CompanyProfile = {
+    name: '杭州歌朗纺织服饰有限公司',
+    logoText: 'Logo',
+    logoType: 'image',
+    logoUrl: '',
+    address: '杭州市萧山区北干街道',
+    phone: '18658899589',
+    defaultTerms: '',
+    depositTerms: '',
+    issuerLabel: 'Issuer',
+    receiverLabel: 'Receiver',
+    weChatPayUrl: '',
+    aliPayUrl: '',
+  };
+  const baseDocument: DocumentData = {
+    id: 'invoice-width-doc',
+    docNo: 'YB-20260828-002',
+    type: DocType.SAMPLE,
+    date: '2026-08-28',
+    customerName: '深圳花花服饰有限公司',
+    items: [],
+    companyName: companyProfile.name,
+    companyAddress: companyProfile.address,
+    companyPhone: companyProfile.phone,
+    terms: '',
+    issuer: '',
+    receiver: '',
+    receiverAddress: '',
+    bottomPhone: companyProfile.phone,
+    totalMeters: 0,
+    totalRolls: 0,
+    totalAmount: 0,
+    receivableAmount: 0,
+    createdAt: '2026-08-28T00:00:00.000Z',
+    updatedAt: '2026-08-28T00:00:00.000Z',
+  };
+
+  for (const type of [DocType.SAMPLE, DocType.DEPOSIT, DocType.SALES]) {
+    const markup = renderToStaticMarkup(React.createElement(DocumentPreview, {
+      document: { ...baseDocument, type },
+      companyProfile,
+      onEdit() {},
+      onBack() {},
+    }));
+    const grid = markup.match(/data-document-grid="true"[^>]*style="([^"]+)"/);
+
+    assert.ok(grid, `${type} should render a marked document grid`);
+    assert.match(grid[1], /width:100%/);
+    assert.match(grid[1], /grid-template-columns:.*minmax\(0,/);
+    assert.doesNotMatch(grid[1], /grid-template-columns:[^;]*px/);
+  }
 });
 
 test('image capture preserves the table-sized document layout without a second layout pass', () => {
@@ -179,7 +236,8 @@ test('image capture preserves the table-sized document layout without a second l
   applyDocumentCaptureLayout(captureContainer, captureClone);
 
   assert.equal(captureContainer.style.width, 'fit-content');
-  assert.equal(captureClone.style.width, 'min-content');
-  assert.equal(captureClone.style.maxWidth, 'none');
+  assert.equal(captureClone.style.width, '240mm');
+  assert.equal(captureClone.style.minHeight, '140mm');
+  assert.equal(captureClone.style.maxWidth, '240mm');
   assert.equal(layoutQueries, 0);
 });

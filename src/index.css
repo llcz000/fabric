@@ -84,15 +84,18 @@ a, button, input, select, textarea {
 
   @page {
     margin: 0;
-    size: landscape;
+    size: 240mm 140mm;
   }
 
   /* Center print container to align header and table */
   .print-container {
-    width: fit-content !important;
-    max-width: none !important;
+    box-sizing: border-box !important;
+    width: 240mm !important;
+    min-width: 240mm !important;
+    max-width: 240mm !important;
+    min-height: 140mm !important;
     margin: 0 auto !important;
-    padding: 1cm 1.5cm !important;
+    padding: 8mm 10mm !important;
     box-shadow: none !important;
     border: none !important;
     background: transparent !important;
@@ -112,6 +115,10 @@ a, button, input, select, textarea {
   .print-grid > div {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+  }
+
+  .print-grid > div {
+    min-width: 0 !important;
   }
 
   /* Make sure tables print borders and background properly */
