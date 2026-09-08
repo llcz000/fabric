@@ -165,7 +165,7 @@ test('document paper uses a 240mm by 140mm VAT invoice page and keeps the date o
   assert.match(markup, /data-signature-contacts="true"[^>]*class="[^"]*\bgap-x-5\b/);
   assert.match(markup, />日期：<\/span><span>2026年8月20日<\/span>/);
   assert.match(markup, /@page\{size:240mm 140mm;margin:0\}/);
-  assert.match(markup, />打印单据 \(增值税发票排版\)<\/button>/);
+  assert.match(markup, />打开打印PDF \(240×140mm\)<\/button>/);
 });
 
 test('every document table uses fluid columns inside the invoice content width', () => {

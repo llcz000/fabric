@@ -9,6 +9,7 @@ import { Printer, ArrowLeft, Edit3, Scissors, Download, Landmark, PhoneCall, Ima
 import html2canvas from 'html2canvas-pro';
 import { ImageAssetClientError } from '../lib/imageAssets';
 import { withPreparedCapture } from '../lib/imageCapture';
+import { createInvoicePdfBytes } from '../lib/invoicePdf';
 
 interface DocumentPreviewProps {
   document: DocumentData;
@@ -158,6 +159,28 @@ export function applyDocumentCaptureLayout(captureContainer: HTMLElement, captur
   captureClone.style.maxWidth = '240mm';
 }
 
+async function captureDocumentPng(node: HTMLElement, apiFetch: typeof fetch, signal: AbortSignal): Promise<string> {
+  return withPreparedCapture(node, apiFetch, async (captureClone) => {
+    const captureContainer = window.document.createElement('div');
+    try {
+      applyDocumentCaptureLayout(captureContainer, captureClone);
+      captureContainer.appendChild(captureClone);
+      window.document.body.appendChild(captureContainer);
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      const canvas = await html2canvas(captureClone, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        useCORS: false,
+        allowTaint: false,
+        logging: false,
+      });
+      return canvas.toDataURL('image/png');
+    } finally {
+      captureContainer.remove();
+    }
+  }, { signal });
+}
+
 export default function DocumentPreview({ document, companyProfile, onEdit, onBack }: DocumentPreviewProps) {
   const isSample = document.type === DocType.SAMPLE;
   const isDeposit = document.type === DocType.DEPOSIT;
@@ -169,8 +192,9 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
   const printRef = useRef<HTMLDivElement | null>(null);
   const exportAbortRef = useRef<AbortController | null>(null);
   const mountedRef = useRef(true);
-  const [generating, setGenerating] = useState(false);
+  const [generatingTask, setGeneratingTask] = useState<'image' | 'print' | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const generating = generatingTask !== null;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -180,8 +204,58 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
     };
   }, []);
 
-  const handlePrint = () => {
-    window.print();
+  const handlePrint = async () => {
+    if (generating || exportAbortRef.current) return;
+    const node = printRef.current;
+    if (!node) return;
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('无法打开打印 PDF，请允许此网站打开弹出窗口后重试。');
+      return;
+    }
+    printWindow.document.title = '正在生成打印 PDF';
+    printWindow.document.body.textContent = '正在生成 240×140mm 打印 PDF，请稍候…';
+
+    const exportController = new AbortController();
+    exportAbortRef.current = exportController;
+    setGeneratingTask('print');
+    let pdfOpened = false;
+    try {
+      const token = sessionStorage.getItem('fabric_auth_token');
+      const apiFetch: typeof fetch = (input, init: RequestInit = {}) => {
+        const headers = new Headers(init.headers);
+        if (token) headers.set('Authorization', `Bearer ${token}`);
+        return fetch(input, { ...init, headers });
+      };
+      const dataUrl = await captureDocumentPng(node, apiFetch, exportController.signal);
+      if (
+        exportController.signal.aborted
+        || !mountedRef.current
+        || exportAbortRef.current !== exportController
+      ) return;
+
+      const pdfBytes = await createInvoicePdfBytes(dataUrl);
+      const pdfBuffer = Uint8Array.from(pdfBytes).buffer;
+      const pdfUrl = URL.createObjectURL(new Blob([pdfBuffer], { type: 'application/pdf' }));
+      printWindow.location.replace(pdfUrl);
+      pdfOpened = true;
+      window.setTimeout(() => URL.revokeObjectURL(pdfUrl), 60_000);
+    } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      const errMsg = err instanceof ImageAssetClientError
+        ? err.message
+        : err instanceof DOMException && err.name === 'TimeoutError'
+          ? '图片准备超时，请重试。'
+          : '打印 PDF 生成失败，请重试。';
+      const requestId = err instanceof ImageAssetClientError && err.requestId ? `（请求ID: ${err.requestId}）` : '';
+      console.error('Print PDF generation failed:', err);
+      alert(errMsg + requestId);
+    } finally {
+      if (!pdfOpened) printWindow.close();
+      if (exportAbortRef.current === exportController) exportAbortRef.current = null;
+      if (mountedRef.current) setGeneratingTask(null);
+    }
   };
 
   // Export current document as PNG image
@@ -191,7 +265,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
     if (!node) return;
     const exportController = new AbortController();
     exportAbortRef.current = exportController;
-    setGenerating(true);
+    setGeneratingTask('image');
     try {
       const token = sessionStorage.getItem('fabric_auth_token');
       const apiFetch: typeof fetch = (input, init: RequestInit = {}) => {
@@ -199,25 +273,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
         if (token) headers.set('Authorization', `Bearer ${token}`);
         return fetch(input, { ...init, headers });
       };
-      const dataUrl = await withPreparedCapture(node, apiFetch, async (captureClone) => {
-        const captureContainer = window.document.createElement('div');
-        try {
-          applyDocumentCaptureLayout(captureContainer, captureClone);
-          captureContainer.appendChild(captureClone);
-          window.document.body.appendChild(captureContainer);
-          await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-          const canvas = await html2canvas(captureClone, {
-            scale: 2,
-            backgroundColor: '#ffffff',
-            useCORS: false,
-            allowTaint: false,
-            logging: false,
-          });
-          return canvas.toDataURL('image/png');
-        } finally {
-          captureContainer.remove();
-        }
-      }, { signal: exportController.signal });
+      const dataUrl = await captureDocumentPng(node, apiFetch, exportController.signal);
 
       if (
         exportController.signal.aborted
@@ -249,7 +305,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
       alert('生成图片失败: ' + errMsg + requestId);
     } finally {
       if (exportAbortRef.current === exportController) exportAbortRef.current = null;
-      if (mountedRef.current) setGenerating(false);
+      if (mountedRef.current) setGeneratingTask(null);
     }
   };
 
@@ -313,7 +369,9 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.6)' }}>
           <div style={{ background: '#fff', borderRadius: 16, padding: '36px 48px', textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
             <div style={{ width: 48, height: 48, border: '4px solid #e2e8f0', borderTopColor: '#0ea5e9', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 16px' }}></div>
-            <p style={{ fontSize: 18, fontWeight: 700, color: '#1e293b', margin: 0 }}>正在生成图片</p>
+            <p style={{ fontSize: 18, fontWeight: 700, color: '#1e293b', margin: 0 }}>
+              {generatingTask === 'print' ? '正在生成打印 PDF' : '正在生成图片'}
+            </p>
             <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 6 }}>请稍候...</p>
           </div>
         </div>
@@ -392,7 +450,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
             className="flex items-center gap-2 px-6 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-sm font-semibold shadow-md hover:shadow-lg cursor-pointer transition-all duration-150"
           >
             <Printer className="w-4.5 h-4.5" />
-            打印单据 (增值税发票排版)
+            打开打印PDF (240×140mm)
           </button>
         </div>
       </div>
