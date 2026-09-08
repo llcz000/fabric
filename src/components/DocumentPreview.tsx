@@ -4,146 +4,19 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { DocumentData, DocType, SampleItem, SalesItem, CompanyProfile } from '../types';
+import { DocumentData, SampleItem, SalesItem, CompanyProfile } from '../types';
 import { ArrowLeft, Edit3, Scissors, Download, Landmark, PhoneCall, Image } from 'lucide-react';
 import html2canvas from 'html2canvas-pro';
 import { ImageAssetClientError } from '../lib/imageAssets';
 import { withPreparedCapture } from '../lib/imageCapture';
+import { buildFrontendDocumentPrintModel } from '../lib/documentPrintAdapters';
+import { numberToChineseCapital, parseRollValues } from '../lib/documentPrintModel';
 
 interface DocumentPreviewProps {
   document: DocumentData;
   companyProfile: CompanyProfile;
   onEdit: () => void;
   onBack: () => void;
-}
-
-// Helper to parse individual roll numbers for Sales Delivery Slip
-const getRollValues = (rollNoStr: string, totalMeters: number): number[] => {
-  if (!rollNoStr) return [totalMeters];
-  const tokens = rollNoStr.trim().split(/[,，\s]+/);
-  const values: number[] = [];
-  let isNumericList = true;
-  for (const t of tokens) {
-    if (!t) continue;
-    if (!/^\d+(\.\d+)?$/.test(t)) {
-      isNumericList = false;
-      break;
-    }
-    const val = parseFloat(t);
-    if (isNaN(val) || val <= 0) {
-      isNumericList = false;
-      break;
-    }
-    values.push(val);
-  }
-  if (isNumericList && values.length > 0) {
-    return values;
-  }
-  return [totalMeters];
-};
-
-// Convert numbers to big Chinese financial characters (人民币大写)
-function numberToChineseCapital(num: number): string {
-  const fraction = ['角', '分'];
-  const digit = ['零', '壹', '贰', '叁', '肆', '伍', '陆', '柒', '捌', '玖'];
-  const unit = [
-    ['元', '万', '亿'],
-    ['', '拾', '佰', '仟'],
-  ];
-  
-  let s = '';
-  // Handle decimal points up to 2 decimal places
-  const val = Math.round(num * 100) / 100;
-  const parts = String(val).split('.');
-  let integerPart = parseInt(parts[0], 10);
-  const decimalPart = parts[1] || '';
-
-  // Handle integers
-  if (isNaN(integerPart)) {
-    return '零元整';
-  }
-
-  // Convert integer part
-  let integerStr = '';
-  if (integerPart === 0) {
-    integerStr = '零';
-  } else {
-    let unitIndex = 0;
-    while (integerPart > 0) {
-      let section = integerPart % 10000;
-      let sectionStr = '';
-      let needZero = false;
-      
-      for (let i = 0; i < 4; i++) {
-        const d = section % 10;
-        if (d === 0) {
-          if (needZero) {
-            sectionStr = digit[0] + sectionStr;
-          }
-          needZero = false;
-        } else {
-          sectionStr = digit[d] + unit[1][i] + sectionStr;
-          needZero = true;
-        }
-        section = Math.floor(section / 10);
-      }
-      
-      // Remove trailing zeros in sections
-      sectionStr = sectionStr.replace(/零+$/, '');
-      if (sectionStr) {
-        integerStr = sectionStr + unit[0][unitIndex] + integerStr;
-      } else if (unitIndex === 0) {
-        integerStr = '元';
-      }
-      
-      unitIndex++;
-      integerPart = Math.floor(integerPart / 10000);
-    }
-  }
-
-  // Fix zeros formatting
-  integerStr = integerStr.replace(/零+/g, '零');
-  integerStr = integerStr.replace(/^零(?!元)(?=.)/, '');
-  integerStr = integerStr.replace(/零元/, '元');
-  integerStr = integerStr.replace(/零万/, '万');
-  if (integerStr.startsWith('元') && integerStr.length > 1) {
-    integerStr = integerStr.substring(1);
-  }
-  if (!integerStr.endsWith('元') && !integerStr.includes('元')) {
-    integerStr += '元';
-  }
-
-  s = integerStr;
-
-  // Convert decimal part
-  let decimalStr = '';
-  if (!decimalPart || decimalPart === '00' || decimalPart === '0') {
-    decimalStr = '整';
-  } else {
-    const j = parseInt(decimalPart[0], 10) || 0;
-    const f = parseInt(decimalPart[1], 10) || 0;
-    
-    if (j > 0) {
-      decimalStr += digit[j] + fraction[0];
-    } else if (f > 0) {
-      decimalStr += digit[0]; // add zero if no corner
-    }
-    
-    if (f > 0) {
-      decimalStr += digit[f] + fraction[1];
-    } else {
-      decimalStr += '整';
-    }
-  }
-
-  return s + decimalStr;
-}
-
-// Convert "2026-07-08" to "2026年7月8日"
-function formatDateChinese(dateStr: string): string {
-  const d = dateStr.substring(0, 10).split('-');
-  if (d.length !== 3) return dateStr.substring(0, 10);
-  return `${parseInt(d[0])}年${parseInt(d[1])}月${parseInt(d[2])}日`;
 }
 
 export function applyDocumentCaptureLayout(captureContainer: HTMLElement, captureClone: HTMLElement): void {
@@ -181,9 +54,10 @@ async function captureDocumentPng(node: HTMLElement, apiFetch: typeof fetch, sig
 }
 
 export default function DocumentPreview({ document, companyProfile, onEdit, onBack }: DocumentPreviewProps) {
-  const isSample = document.type === DocType.SAMPLE;
-  const isDeposit = document.type === DocType.DEPOSIT;
-  const isSales = document.type === DocType.SALES;
+  const printModel = buildFrontendDocumentPrintModel(document, companyProfile);
+  const isSample = printModel.type === 'sample';
+  const isDeposit = printModel.type === 'deposit';
+  const isSales = printModel.type === 'sales';
   const hasDeduction = isSales && (
     (document.deductionMeters || 0) > 0 ||
     document.items.some(item => ((item as SalesItem).deductionMeters || 0) > 0)
@@ -412,18 +286,17 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                 {/* Right: Company Name, Address and Phone */}
                 <div className="space-y-1 flex-1 text-right min-w-0" style={{ fontFamily: 'SimSun, serif', minWidth: 0 }}>
                   <h1 data-company-heading="true" className="text-xl tracking-wide text-slate-900" style={{ fontFamily: 'SimHei, sans-serif' }}>
-                    {companyProfile.name}
+                    {printModel.companyName}
                   </h1>
                   <div className="text-[11px] text-slate-500" style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    <p>地址：{companyProfile.address}</p>
-                    <p>电话：{companyProfile.phone}</p>
+                    {printModel.companyLines.map((line) => <p key={line}>{line}</p>)}
                   </div>
                 </div>
               </div>
             </div>
             <div className="text-center py-0">
               <h2 data-document-heading="true" className="text-base font-black tracking-[0.5em] text-slate-950 uppercase pl-[0.5em]">
-                {isSample ? '样布码单' : (isDeposit ? '定金单' : '销售发货码单')}
+                {printModel.title}
               </h2>
             </div>
 
@@ -445,11 +318,11 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
               >
                 <div>
                   <span>NO：</span>
-                  <span className="text-slate-900">{document.docNo}</span>
+                  <span className="text-slate-900">{printModel.docNo}</span>
                 </div>
                 <div>
                   <span>收货单位：</span>
-                  <span>{document.customerName}</span>
+                  <span>{printModel.customerName}</span>
                 </div>
               </div>
               <div
@@ -458,7 +331,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                 style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
               >
                 <span>日期：</span>
-                <span>{formatDateChinese(document.date)}</span>
+                <span>{printModel.dateText}</span>
               </div>
             </div>
           </div>
@@ -466,18 +339,9 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
           {/* 3. Central Packing Grid Table */}
           <div style={{ border: '1px solid #000', marginTop: '4px', fontFamily: 'SimSun, serif', fontSize: '11px', color: '#1e293b', width: '100%', minWidth: 0 }}>
             {isSample ? (
-              <div data-document-grid="true" className="print-grid" style={{ display: 'grid', gap: '1px', background: '#000', width: '100%', gridTemplateColumns: 'minmax(0, 1.2fr) repeat(2, minmax(0, 1fr)) minmax(0, 1.15fr) minmax(0, 0.85fr) minmax(0, 1.05fr) minmax(0, 1fr) minmax(0, 1.05fr) minmax(0, 1.2fr) minmax(0, 0.75fr)' }}>
+              <div data-document-grid="true" className="print-grid" style={{ display: 'grid', gap: '1px', background: '#000', width: '100%', gridTemplateColumns: printModel.columns.map((column) => `minmax(0, ${column.webFraction}fr)`).join(' ') }}>
                 {/* Header */}
-                <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>货号</div>
-                <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>色号</div>
-                <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>品名</div>
-                <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>成分</div>
-                <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>克重</div>
-                <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>门幅(cm)</div>
-                <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>米数(米)</div>
-                <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>单价(元)</div>
-                <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>金额(元)</div>
-                <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>备注</div>
+                {printModel.columns.map((column) => <div key={column.key} style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>{column.label}</div>)}
 
                 {/* Data rows */}
                 {document.items.map((item) => {
@@ -521,14 +385,9 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                 </div>
               </div>
             ) : isDeposit ? (
-              <div data-document-grid="true" className="print-grid" style={{ display: 'grid', gap: '1px', background: '#000', width: '100%', gridTemplateColumns: 'repeat(5, minmax(0, 1fr)) minmax(0, 1.1fr)' }}>
+              <div data-document-grid="true" className="print-grid" style={{ display: 'grid', gap: '1px', background: '#000', width: '100%', gridTemplateColumns: printModel.columns.map((column) => `minmax(0, ${column.webFraction}fr)`).join(' ') }}>
                 {/* Header */}
-                <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>货号</div>
-                <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>色号</div>
-                <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>品名</div>
-                <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>米数(米)</div>
-                <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>单价(元)</div>
-                <div style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>金额(元)</div>
+                {printModel.columns.map((column) => <div key={column.key} style={{ padding: '6px 4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>{column.label}</div>)}
 
                 {/* Data rows */}
                 {document.items.map((item) => (
@@ -572,33 +431,14 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                 })()}
               </div>
             ) : (
-              <div data-document-grid="true" className="print-grid" style={{ display: 'grid', gap: '1px', background: '#000', width: '100%', gridTemplateColumns: hasDeduction ? 'minmax(0, 1.25fr) minmax(0, 1.1fr) minmax(0, 1.3fr) repeat(10, minmax(0, 0.72fr)) minmax(0, 0.9fr) minmax(0, 1.05fr) minmax(0, 0.95fr) minmax(0, 1.05fr) minmax(0, 1.25fr)' : 'minmax(0, 1.25fr) minmax(0, 1.1fr) minmax(0, 1.3fr) repeat(10, minmax(0, 0.72fr)) minmax(0, 0.9fr) minmax(0, 1.05fr) minmax(0, 1.05fr) minmax(0, 1.25fr)' }}>
+              <div data-document-grid="true" className="print-grid" style={{ display: 'grid', gap: '1px', background: '#000', width: '100%', gridTemplateColumns: printModel.columns.map((column) => `minmax(0, ${column.webFraction}fr)`).join(' ') }}>
                 {/* Header */}
-                <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>货号</div>
-                <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>色号</div>
-                <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>品名</div>
-                <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>1</div>
-                <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>2</div>
-                <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>3</div>
-                <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>4</div>
-                <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>5</div>
-                <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>6</div>
-                <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>7</div>
-                <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>8</div>
-                <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>9</div>
-                <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>10</div>
-                <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>匹数</div>
-                <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>米数(米)</div>
-                {hasDeduction && (
-                <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#fef3c7', whiteSpace: 'nowrap' }}>扣损(米)</div>
-                )}
-                <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>单价(元)</div>
-                <div style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: '#f1f5f9', whiteSpace: 'nowrap' }}>金额(元)</div>
+                {printModel.columns.map((column) => <div key={column.key} style={{ padding: '4px', textAlign: 'center', fontWeight: 600, backgroundColor: column.key === 'deduction' ? '#fef3c7' : '#f1f5f9', whiteSpace: 'nowrap' }}>{column.label}</div>)}
 
                 {/* Data rows with rowspan */}
                 {document.items.map((item) => {
                   const sales = item as SalesItem;
-                  const rolls = getRollValues(sales.rollNo, sales.meters);
+                  const rolls = parseRollValues(sales.rollNo, sales.meters);
                   const rowCount = Math.ceil(rolls.length / 10) || 1;
 
                   const cells: React.ReactNode[] = [];
@@ -684,9 +524,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
           <div className="terms-box border rounded-sm p-2 text-[11px] leading-relaxed" style={{ fontFamily: 'SimSun, serif', backgroundColor: '#f8fafc', borderColor: '#cbd5e1', color: '#334155' }}>
             <span>备注条款：</span>
             <span className="whitespace-pre-wrap" style={{ wordBreak: 'break-all' }}>
-              {isDeposit
-                ? (document.terms || companyProfile.depositTerms || '无备注条款。')
-                : (document.terms || companyProfile.defaultTerms || '无备注条款。')}
+              {printModel.terms}
             </span>
           </div>
 
@@ -698,7 +536,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
               <div className="text-xs text-slate-800 mb-1">
                 <span>开单人签字：</span>
                 <span className="underline underline-offset-4 pl-1">
-                  {document.issuer || '        '}
+                  {printModel.signature.issuer || '        '}
                 </span>
               </div>
               {/* Second line: Receiver, Phone, Address */}
@@ -706,20 +544,20 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
                 <div>
                 <span>收货人签字：</span>
                 <span className="underline underline-offset-4 pl-1">
-                  {document.receiver || '        '}
+                  {printModel.signature.receiver || '        '}
                 </span>
               </div>
               <div>
                 <span>电话：</span>
                 <span className="underline underline-offset-4">
-                  {document.bottomPhone || '        '}
+                  {printModel.signature.phone || '        '}
                 </span>
               </div>
               {isDeposit && (
               <div>
                 <span>收货地址：</span>
                 <span className="underline underline-offset-4">
-                  {document.receiverAddress || '        '}
+                  {printModel.signature.receiverAddress || '        '}
                 </span>
               </div>
               )}

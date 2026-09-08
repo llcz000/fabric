@@ -67,3 +67,28 @@ test('builds an enlarged fixed-scale sample workbook inside 14mm punch-safe marg
   assert.equal(sheet.getCell('G14').font.size, 9);
   assert.equal(sheet.getCell('J7').value, '雪晴 1328 8902 262');
 });
+
+test('renders persisted bulk orders with the shared sales structure', async () => {
+  const workbook = buildDocumentWorkbook({
+    order: {
+      order_no: 'XS-1', template_type: 'bulk', order_date: '2026-09-08', receiving_unit: '客户',
+      total_meters: 3, total_pieces: 2, total_amount: 180, deposit: 20,
+      deduction_meters: 1, receivable_amount: 160, receiver_phone: '',
+    },
+    items: [{
+      product_no: 'G1', color_no: '红', product_name: '布', piece_meters: '[1,2]',
+      meters: 3, deduction_meters: 1, unit_price: 60, amount: 180,
+    }],
+    company: { company_name: '公司', address: '地址', phone: '公司电话', default_terms: '条款' },
+  });
+  const bytes = await workbook.xlsx.writeBuffer();
+  const reopened = new ExcelJS.Workbook();
+  await reopened.xlsx.load(bytes);
+  const sheet = reopened.worksheets[0];
+
+  assert.equal(sheet.getCell('A3').value, '销售发货码单');
+  assert.deepEqual(Array.from({ length: 18 }, (_, index) => sheet.getRow(6).getCell(index + 1).value),
+    ['货号', '色号', '品名', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '匹数', '米数(米)', '扣损(米)', '单价(元)', '金额(元)']);
+  assert.equal(sheet.getCell('D7').value, '1.0');
+  assert.equal(sheet.getCell('A12').value, '收货人签字：    电话：');
+});

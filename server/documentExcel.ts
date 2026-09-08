@@ -1,18 +1,13 @@
 import ExcelJS from 'exceljs';
 
 import type { CompanyImageRole } from './image-assets/types';
+import { buildBackendDocumentPrintModel } from './documentPrintAdapter';
 
 export interface DocumentWorkbookInput {
   order: Record<string, unknown>;
   items: Array<Record<string, unknown>>;
   company: Record<string, unknown>;
   images?: Partial<Record<CompanyImageRole, { body: Buffer; mime: 'image/png' | 'image/jpeg' }>>;
-}
-
-interface ColumnDefinition {
-  header: string;
-  width: number;
-  value(item: Record<string, unknown>): unknown;
 }
 
 const THIN_BORDER: Partial<ExcelJS.Borders> = {
@@ -22,105 +17,66 @@ const THIN_BORDER: Partial<ExcelJS.Borders> = {
   right: { style: 'thin', color: { argb: 'FF000000' } },
 };
 
-const SAMPLE_COLUMNS: ColumnDefinition[] = [
-  { header: '货号', width: 11, value: (item) => item.product_no ?? '' },
-  { header: '色号', width: 10, value: (item) => item.color_no ?? '' },
-  { header: '品名', width: 13, value: (item) => item.product_name ?? '' },
-  { header: '成分', width: 15, value: (item) => item.composition ?? '' },
-  { header: '克重', width: 7.5, value: (item) => item.weight ?? '' },
-  { header: '门幅(cm)', width: 8.5, value: (item) => item.width ?? '' },
-  { header: '米数(米)', width: 8.5, value: (item) => item.meters ?? 0 },
-  { header: '单价(元)', width: 8.5, value: (item) => item.unit_price ?? 0 },
-  { header: '金额(元)', width: 10.5, value: (item) => item.amount ?? 0 },
-  { header: '备注', width: 10, value: (item) => item.remark ?? '' },
-];
-
-const SALES_COLUMNS: ColumnDefinition[] = [
-  { header: '货号', width: 10, value: (item) => item.product_no ?? '' },
-  { header: '色号', width: 9, value: (item) => item.color_no ?? '' },
-  { header: '品名', width: 13, value: (item) => item.product_name ?? '' },
-  { header: '匹号/箱号', width: 12, value: (item) => pieceNumbers(item.piece_meters) },
-  { header: '门幅(cm)', width: 8, value: (item) => item.width ?? '' },
-  { header: '米数(米)', width: 8, value: (item) => item.meters ?? 0 },
-  { header: '扣损(米)', width: 8, value: (item) => item.deduction_meters ?? 0 },
-  { header: '单价(元)', width: 8, value: (item) => item.unit_price ?? 0 },
-  { header: '金额(元)', width: 10, value: (item) => item.amount ?? 0 },
-  { header: '备注', width: 10, value: (item) => item.remark ?? '' },
-];
-
-const DEPOSIT_COLUMNS: ColumnDefinition[] = [
-  { header: '货号', width: 13, value: (item) => item.product_no ?? '' },
-  { header: '色号', width: 12, value: (item) => item.color_no ?? '' },
-  { header: '品名', width: 16, value: (item) => item.product_name ?? '' },
-  { header: '米数(米)', width: 11, value: (item) => item.meters ?? 0 },
-  { header: '单价(元)', width: 11, value: (item) => item.unit_price ?? 0 },
-  { header: '金额(元)', width: 13, value: (item) => item.amount ?? 0 },
-  { header: '备注', width: 14, value: (item) => item.remark ?? '' },
-];
-
 export function buildDocumentWorkbook(input: DocumentWorkbookInput): ExcelJS.Workbook {
   const { order, items, company, images = {} } = input;
-  const type = String(order.template_type ?? 'sample');
-  const columns = type === 'deposit' ? DEPOSIT_COLUMNS : type === 'sales' ? SALES_COLUMNS : SAMPLE_COLUMNS;
-  const title = type === 'deposit' ? '定金单' : type === 'sales' ? '销售发货码单' : '样布码单';
+  const model = buildBackendDocumentPrintModel(order, items, company);
+  const columns = model.columns;
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('打印单据');
   const lastColumn = columns.length;
   const lastColumnLetter = sheet.getColumn(lastColumn).letter;
   const splitColumn = Math.floor(lastColumn / 2);
 
-  columns.forEach((column, index) => { sheet.getColumn(index + 1).width = column.width; });
+  columns.forEach((column, index) => { sheet.getColumn(index + 1).width = column.excelWidth; });
   sheet.properties.defaultRowHeight = 18;
   sheet.views = [{ showGridLines: false }];
 
   sheet.mergeCells(1, 1, 2, 2);
   sheet.mergeCells(1, 3, 1, lastColumn);
   sheet.mergeCells(2, 3, 2, lastColumn);
-  styledCell(sheet.getCell(1, 3), company.company_name ?? '', 18, true, 'right');
-  styledCell(sheet.getCell(2, 3), `地址：${company.address ?? ''}\n电话：${company.phone ?? ''}`, 10, false, 'right');
+  styledCell(sheet.getCell(1, 3), model.companyName, 18, true, 'right');
+  styledCell(sheet.getCell(2, 3), model.companyLines.join('\n'), 10, false, 'right');
   sheet.getRow(1).height = 27;
   sheet.getRow(2).height = 32;
 
   sheet.mergeCells(3, 1, 3, lastColumn);
-  styledCell(sheet.getCell(3, 1), title, 16, true, 'center');
+  styledCell(sheet.getCell(3, 1), model.title, 16, true, 'center');
   sheet.getRow(3).height = 28;
 
   sheet.mergeCells(4, 1, 4, splitColumn);
   sheet.mergeCells(4, splitColumn + 1, 4, lastColumn);
-  styledCell(sheet.getCell(4, 1), `NO：${order.order_no ?? ''}`, 11, false, 'left');
-  styledCell(sheet.getCell(4, splitColumn + 1), `日期：${String(order.order_date ?? '').slice(0, 10)}`, 11, false, 'right');
+  styledCell(sheet.getCell(4, 1), `NO：${model.docNo}`, 11, false, 'left');
+  styledCell(sheet.getCell(4, splitColumn + 1), `日期：${model.dateText}`, 11, false, 'right');
   sheet.mergeCells(5, 1, 5, lastColumn);
-  styledCell(sheet.getCell(5, 1), `收货单位：${order.receiving_unit ?? ''}`, 11, false, 'left');
+  styledCell(sheet.getCell(5, 1), `收货单位：${model.customerName}`, 11, false, 'left');
 
   const headerRowNumber = 6;
   const headerRow = sheet.getRow(headerRowNumber);
   columns.forEach((column, index) => {
     const cell = headerRow.getCell(index + 1);
-    styledCell(cell, column.header, 10, true, 'center');
+    styledCell(cell, column.label, 10, true, 'center');
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
     cell.border = THIN_BORDER;
   });
   headerRow.height = 25;
 
-  items.forEach((item, itemIndex) => {
+  model.rows.forEach((values, itemIndex) => {
     const row = sheet.getRow(headerRowNumber + 1 + itemIndex);
     row.height = 32;
-    columns.forEach((column, columnIndex) => {
+    values.forEach((value, columnIndex) => {
       const cell = row.getCell(columnIndex + 1);
-      styledCell(cell, column.value(item), 10, false, 'center');
+      styledCell(cell, value, 10, false, 'center');
       cell.alignment = { ...cell.alignment, wrapText: true, shrinkToFit: false };
       cell.border = THIN_BORDER;
-      if ([6, 7, 8].includes(columnIndex)) cell.numFmt = '0.00';
     });
   });
 
-  const summaryRow = headerRowNumber + 1 + items.length;
-  addSummaryRow(sheet, summaryRow, lastColumn, `总计数（米）：${numberText(order.total_meters)}`, `合计金额：¥${numberText(order.total_amount)}`);
-  addSummaryRow(sheet, summaryRow + 1, lastColumn, `实发总匹数：${Number(order.total_pieces ?? 0)} 匹`, `应收金额：¥${numberText(order.receivable_amount ?? order.total_amount)}`);
+  const summaryRow = headerRowNumber + 1 + model.rows.length;
+  model.summaries.forEach((summary, index) => addSummaryRow(sheet, summaryRow + index, lastColumn, summary.left, summary.right ?? ''));
 
-  const termsRow = summaryRow + 2;
+  const termsRow = summaryRow + model.summaries.length;
   sheet.mergeCells(termsRow, 1, termsRow, lastColumn);
-  styledCell(sheet.getCell(termsRow, 1), `备注条款：${company.default_terms ?? ''}`, 10, false, 'left');
+  styledCell(sheet.getCell(termsRow, 1), `备注条款：${model.terms}`, 10, false, 'left');
   sheet.getCell(termsRow, 1).alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
   sheet.getCell(termsRow, 1).border = THIN_BORDER;
   sheet.getRow(termsRow).height = 32;
@@ -128,9 +84,9 @@ export function buildDocumentWorkbook(input: DocumentWorkbookInput): ExcelJS.Wor
   const footerRow = termsRow + 1;
   const qrStartColumn = Math.max(3, lastColumn - 3);
   sheet.mergeCells(footerRow, 1, footerRow, qrStartColumn - 1);
-  styledCell(sheet.getCell(footerRow, 1), `开单人签字：${order.sign_person ?? ''}`, 11, false, 'left');
+  styledCell(sheet.getCell(footerRow, 1), `开单人签字：${model.signature.issuer}`, 11, false, 'left');
   sheet.mergeCells(footerRow + 1, 1, footerRow + 1, qrStartColumn - 1);
-  styledCell(sheet.getCell(footerRow + 1, 1), `收货人签字：${order.receiver ?? ''}    电话：${order.receiver_phone ?? ''}`, 11, false, 'left');
+  styledCell(sheet.getCell(footerRow + 1, 1), `收货人签字：${model.signature.receiver}    电话：${model.signature.phone}`, 11, false, 'left');
   for (let rowNumber = footerRow; rowNumber <= footerRow + 3; rowNumber++) sheet.getRow(rowNumber).height = 20;
 
   addCompanyImage(workbook, sheet, images.brand_logo, { col: 0.15, row: 0.2 }, { width: 105, height: 34 });
@@ -185,20 +141,4 @@ function addCompanyImage(
   if (!image) return;
   const imageId = workbook.addImage({ buffer: image.body, extension: image.mime === 'image/jpeg' ? 'jpeg' : 'png' });
   sheet.addImage(imageId, { tl, ext, editAs: 'oneCell' });
-}
-
-function numberText(value: unknown): string {
-  const number = Number(value ?? 0);
-  return Number.isFinite(number) ? number.toFixed(2) : '0.00';
-}
-
-function pieceNumbers(value: unknown): string {
-  if (Array.isArray(value)) return value.join(', ');
-  if (typeof value !== 'string') return String(value ?? '');
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed.join(', ') : value;
-  } catch {
-    return value;
-  }
 }
