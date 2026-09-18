@@ -58,6 +58,56 @@ test('feature-off legacy company fields render strict export role markers withou
   assert.doesNotMatch(markup, /companyImages/);
 });
 
+test('deposit preview shows both payment QR codes like the sample slip', () => {
+  const companyProfile: CompanyProfile = {
+    name: 'Fabric Co.',
+    logoText: 'Fabric',
+    logoType: 'text',
+    logoUrl: '',
+    address: 'Shaoxing',
+    phone: '0575-00000000',
+    defaultTerms: '',
+    depositTerms: 'Deposit terms',
+    issuerLabel: 'Issuer',
+    receiverLabel: 'Receiver',
+    weChatPayUrl: 'https://example.com/wechat.png',
+    aliPayUrl: 'https://example.com/alipay.png',
+  };
+  const document: DocumentData = {
+    id: 'deposit-qr-doc',
+    docNo: 'DJ-20260918-001',
+    type: DocType.DEPOSIT,
+    date: '2026-09-18',
+    customerName: 'Customer',
+    items: [],
+    companyName: companyProfile.name,
+    companyAddress: companyProfile.address,
+    companyPhone: companyProfile.phone,
+    terms: companyProfile.depositTerms,
+    issuer: '',
+    receiver: '',
+    receiverAddress: '',
+    bottomPhone: companyProfile.phone,
+    totalMeters: 0,
+    totalRolls: 0,
+    totalAmount: 0,
+    receivableAmount: 0,
+    deposit: 20,
+    createdAt: '2026-09-18T00:00:00.000Z',
+    updatedAt: '2026-09-18T00:00:00.000Z',
+  };
+
+  const markup = renderToStaticMarkup(React.createElement(DocumentPreview, {
+    document,
+    companyProfile,
+    onEdit() {},
+    onBack() {},
+  }));
+
+  assert.match(markup, /src="https:\/\/example\.com\/wechat\.png"[^>]*data-company-image-role="wechat_qr"/);
+  assert.match(markup, /src="https:\/\/example\.com\/alipay\.png"[^>]*data-company-image-role="alipay_qr"/);
+});
+
 test('header company info block is shrinkable so its right edge aligns with the data table', () => {
   const companyProfile: CompanyProfile = {
     name: '一个名称特别长的纺织印染有限公司',

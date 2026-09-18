@@ -564,8 +564,8 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
             </div>
             </div>
 
-            {/* Right: Payment QRCodes (WeChat & Alipay) - Only shown for Sample Slip */}
-            {isSample && (
+            {/* Right: Payment QRCodes (WeChat & Alipay) */}
+            {(isSample || isDeposit) && (
               <div className="flex items-center">
                   {companyProfile.weChatPayUrl && (
                     <div className="flex flex-col items-center" style={{ marginRight: 32 }}>
