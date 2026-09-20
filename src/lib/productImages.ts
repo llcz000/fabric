@@ -8,7 +8,7 @@
  * imageAssets.ts so every failure surfaces a stable code and request ID.
  */
 
-import { ImageAssetClientError } from './imageAssets';
+import { ImageAssetClientError, uploadImageAsset } from './imageAssets';
 import type {
   ProductImageDescriptor,
   ProductImageRole,
@@ -35,6 +35,10 @@ export interface SaveProductInput {
   weight: string;
   width: string;
   imageAssetIds?: string[];
+}
+
+export interface SaveProductWithFilesOptions {
+  uploadAsset?: (file: File) => Promise<{ id: string }>;
 }
 
 interface ServerProductRow extends Record<string, unknown> {
@@ -100,6 +104,59 @@ export async function saveProduct(apiFetch: typeof fetch, input: SaveProductInpu
     body: JSON.stringify(body),
   });
   return mapProductRow(row);
+}
+
+export async function saveProductWithFiles(
+  apiFetch: typeof fetch,
+  input: SaveProductInput,
+  files: File[],
+  options: SaveProductWithFilesOptions = {},
+): Promise<ProductItem> {
+  if (files.length === 0) return saveProduct(apiFetch, input);
+
+  const uploadAsset = options.uploadAsset
+    ?? ((file: File) => uploadImageAsset(file, 'product_image', { apiFetch }));
+  const assetIds: string[] = [];
+  try {
+    for (const file of files) assetIds.push((await uploadAsset(file)).id);
+  } catch (error) {
+    if (assetIds.length === 0 && error instanceof ImageAssetClientError && error.code === 'STORAGE_UNAVAILABLE') {
+      return saveLegacyProductWithFiles(apiFetch, input, files);
+    }
+    throw error;
+  }
+
+  return saveProduct(apiFetch, { ...input, imageAssetIds: assetIds });
+}
+
+async function saveLegacyProductWithFiles(
+  apiFetch: typeof fetch,
+  input: SaveProductInput,
+  files: File[],
+): Promise<ProductItem> {
+  const isEdit = input.id !== undefined && /^[0-9]+$/.test(input.id);
+  const form = new FormData();
+  form.append('itemNo', input.itemNo);
+  form.append('productName', input.productName);
+  form.append('composition', input.composition);
+  form.append('weight', input.weight);
+  form.append('width', input.width);
+  for (const file of files) form.append('image_files', file, file.name);
+
+  const row = await requestJson<ServerProductRow & { success?: boolean }>(
+    apiFetch,
+    isEdit ? `/api/products/${input.id}` : '/api/products',
+    { method: isEdit ? 'PUT' : 'POST', body: form },
+  );
+  return mapProductRow({
+    ...row,
+    id: Number(row.id ?? input.id),
+    item_no: input.itemNo,
+    product_name: input.productName,
+    composition: input.composition,
+    weight: input.weight,
+    width: input.width,
+  });
 }
 
 export async function detachProductImage(

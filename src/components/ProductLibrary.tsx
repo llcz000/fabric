@@ -15,9 +15,9 @@ import {
 import {
   getAllProducts, putProduct, deleteProduct, replaceAllProducts,
 } from '../lib/db';
-import { ImageAssetClientError, uploadImageAsset, fetchAssetBlob } from '../lib/imageAssets';
+import { ImageAssetClientError, fetchAssetBlob } from '../lib/imageAssets';
 import {
-  listProducts, describeProduct, saveProduct, detachProductImage, deleteProductById,
+  listProducts, describeProduct, saveProductWithFiles, detachProductImage, deleteProductById,
   createProductRefreshTracker, shouldRefreshProductImages, shouldRefreshOnImageError,
 } from '../lib/productImages';
 
@@ -281,21 +281,14 @@ export default function ProductLibrary() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const assetIds: string[] = [];
-      for (const pf of pendingFiles) {
-        const asset = await uploadImageAsset(pf.file, 'product_image', { apiFetch: authFetch });
-        assetIds.push(asset.id);
-      }
-
-      await saveProduct(authFetch, {
+      await saveProductWithFiles(authFetch, {
         id: editingProduct.id,
         itemNo: editingProduct.itemNo,
         productName: editingProduct.productName,
         composition: editingProduct.composition,
         weight: editingProduct.weight,
         width: editingProduct.width,
-        imageAssetIds: assetIds,
-      });
+      }, pendingFiles.map((pending) => pending.file));
 
       showToast('产品已保存');
       setEditModal(false);

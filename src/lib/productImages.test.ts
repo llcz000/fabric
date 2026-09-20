@@ -12,6 +12,7 @@ import {
   listProducts,
   describeProduct,
   saveProduct,
+  saveProductWithFiles,
   detachProductImage,
   deleteProductById,
   isDescriptorExpired,
@@ -191,6 +192,42 @@ test('saveProduct uses PUT for a numeric existing id', async () => {
     imageAssetIds: ['asset-1'],
   });
   assert.deepEqual(requests, [{ url: '/api/products/9', method: 'PUT' }]);
+});
+
+test('saveProductWithFiles falls back to the legacy multipart route when image assets are unavailable', async () => {
+  const requests: { url: string; method: string; contentType: string; body: FormData }[] = [];
+  const apiFetch: typeof fetch = async (input, init: RequestInit = {}) => {
+    requests.push({
+      url: String(input),
+      method: init.method ?? 'GET',
+      contentType: new Headers(init.headers).get('Content-Type') ?? '',
+      body: init.body as FormData,
+    });
+    return jsonResponse({ id: 10, success: true });
+  };
+  const file = new File([new Uint8Array([137, 80, 78, 71])], 'swatch.png', { type: 'image/png' });
+
+  const saved = await saveProductWithFiles(apiFetch, {
+    itemNo: 'A-003', productName: 'Legacy image', composition: 'cotton', weight: '180', width: '150',
+  }, [file], {
+    uploadAsset: async () => {
+      throw new ImageAssetClientError({
+        code: 'STORAGE_UNAVAILABLE', message: 'unavailable', requestId: 'req-disabled', retryable: true,
+      });
+    },
+  });
+
+  assert.equal(saved.id, '10');
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].url, '/api/products');
+  assert.equal(requests[0].method, 'POST');
+  assert.equal(requests[0].contentType, '');
+  assert.equal(requests[0].body.get('itemNo'), 'A-003');
+  assert.equal(requests[0].body.get('productName'), 'Legacy image');
+  const uploaded = requests[0].body.get('image_files') as File;
+  assert.equal(uploaded.name, 'swatch.png');
+  assert.equal(uploaded.type, 'image/png');
+  assert.equal(uploaded.size, 4);
 });
 
 test('detachProductImage deletes by assetId', async () => {
