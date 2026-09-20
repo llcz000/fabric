@@ -100,7 +100,7 @@ const DescriptorImage = memo(({
 
 // ── ThumbnailCell (memoized, outside parent) ─────────
 
-const ThumbnailCell = memo(({ productId, images, onExpired }: {
+export const ThumbnailCell = memo(({ productId, images, onExpired }: {
   productId: string;
   images: ProductImageDescriptor[];
   onExpired?: (descriptor: ProductImageDescriptor) => void;
@@ -112,14 +112,22 @@ const ThumbnailCell = memo(({ productId, images, onExpired }: {
   return (
     <div className="flex gap-1.5 min-w-[80px] shrink-0" data-product-id={productId}>
       {thumbs.map((t, i) => (
-        <DescriptorImage
+        <button
           key={t.assetId ?? t.legacyImageId ?? i}
-          descriptor={t}
-          variant="thumbnail"
-          className="w-16 h-16 object-cover rounded border border-slate-200 cursor-pointer hover:opacity-80 shrink-0"
-          alt=""
-          onExpired={onExpired}
-        />
+          type="button"
+          data-lightbox-index={i}
+          aria-label={'查看花型原图 ' + (i + 1)}
+          onClick={() => window.dispatchEvent(new CustomEvent('open-lightbox', { detail: { productId, index: i } }))}
+          className="block p-0 border-0 bg-transparent cursor-pointer shrink-0"
+        >
+          <DescriptorImage
+            descriptor={t}
+            variant="thumbnail"
+            className="w-16 h-16 object-cover rounded border border-slate-200 hover:opacity-80"
+            alt=""
+            onExpired={onExpired}
+          />
+        </button>
       ))}
     </div>
   );
