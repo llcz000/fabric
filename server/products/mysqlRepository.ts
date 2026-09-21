@@ -1,6 +1,7 @@
 import { ImageAssetError } from '../image-assets/errors';
 import type { AssetTransaction } from '../image-assets/repository';
 import { reconcileProductIssues, type ReconciledProductIssue } from './issues';
+import { ProductError } from './errors';
 import type { ProductRecord, ProductRepository } from './repository';
 import type {
   PatternTag,
@@ -101,12 +102,36 @@ export class MySqlProductRepository implements ProductRepository {
     });
   }
 
+  async attachProductImages(productId: number, role: ProductImageLayoutItem['role'], assetIds: string[]): Promise<boolean> {
+    return this.inTransaction(async (connection) => {
+      const product = await this.lockProduct(connection, productId);
+      if (!product) return false;
+      const existing = await this.lockCurrentImages(connection, productId);
+      const existingIds = new Set(existing.map((row) => String(row.asset_id)));
+      if (assetIds.some((assetId) => existingIds.has(assetId)) || new Set(assetIds).size !== assetIds.length) {
+        throw new ProductError('PRODUCT_CONFLICT', 409, false, 'Product image is already attached');
+      }
+      const nextOrder = existing
+        .filter((row) => row.role === role)
+        .reduce((maximum, row) => Math.max(maximum, Number(row.sort_order)), -1) + 1;
+      const layout = validateImageLayout([
+        ...existing.map(mapLockedLayout),
+        ...assetIds.map((assetId, index) => ({ assetId, role, sortOrder: nextOrder + index })),
+      ]);
+      const requestedIds = new Set(layout.map((item) => item.assetId));
+      await this.lockAssets(connection, [...requestedIds].sort(), new Set(assetIds));
+      await this.applyImageLayout(connection, productId, { existing, layout });
+      await this.reconcileIssues(connection, productId, productInput(product), layout);
+      return true;
+    });
+  }
+
   async replaceImageLayout(productId: number, layoutInput: ProductImageLayoutItem[]): Promise<void> {
     const layout = validateImageLayout(layoutInput);
     await this.inTransaction(async (connection) => {
       const product = await this.lockProduct(connection, productId);
       if (!product) throw new Error('Product not found');
-      const imageState = await this.lockImageState(connection, productId, layout);
+      const imageState = await this.lockImageState(connection, productId, layout, true);
       await this.applyImageLayout(connection, productId, imageState);
       await this.reconcileIssues(connection, productId, productInput(product), layout);
     });
@@ -426,9 +451,16 @@ export class MySqlProductRepository implements ProductRepository {
     connection: AssetTransaction,
     productId: number,
     layout: ProductImageLayoutItem[],
+    requireSameAssetSet = false,
   ): Promise<LockedImageState> {
     const existing = await this.lockCurrentImages(connection, productId);
     const requestedIds = new Set(layout.map((item) => item.assetId));
+    if (requireSameAssetSet) {
+      const existingIds = new Set(existing.map((row) => String(row.asset_id)));
+      if (existingIds.size !== requestedIds.size || [...existingIds].some((assetId) => !requestedIds.has(assetId))) {
+        throw new ProductError('PRODUCT_LAYOUT_STALE', 409, false, 'Product image layout is stale');
+      }
+    }
     const allIds = [...new Set([...existing.map((row) => String(row.asset_id)), ...requestedIds])].sort();
     await this.lockAssets(connection, allIds, requestedIds);
     return { existing, layout };

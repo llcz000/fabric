@@ -108,19 +108,34 @@ test('not-ready asset rolls back the complete update transaction', async () => {
   assert.equal(connection.statements.some((statement) => statement.sql.includes('UPDATE products SET item_no')), false);
 });
 
-test('layout replacement increments new references and recycles removed references', async () => {
+test('layout replacement rejects a stale asset set and rolls back without mutation', async () => {
   const connection = preparedConnection(input);
   connection.imageLinks = [{ id: 10, asset_id: 'old', role: 'pattern_original', sort_order: 0, is_primary: 1 }];
   connection.assetStatuses.set('old', { id: 'old', status: 'ready', ref_count: 1 });
   const repository = new MySqlProductRepository(connection);
 
-  await repository.replaceImageLayout(7, [
+  await assert.rejects(repository.replaceImageLayout(7, [
     { assetId: 'pattern', role: 'pattern_original', sortOrder: 0, isPrimary: true },
-  ]);
+  ]), { code: 'PRODUCT_LAYOUT_STALE' });
 
   const sql = connection.statements.map((statement) => statement.sql).join('\n');
-  assert.match(sql, /ref_count = ref_count \+ 1/);
-  assert.match(sql, /status = 'recycled'/);
+  assert.doesNotMatch(sql, /ref_count = ref_count \+ 1/);
+  assert.doesNotMatch(sql, /status = 'recycled'/);
+  assert.deepEqual(connection.transactions, ['BEGIN', 'ROLLBACK', 'RELEASE']);
+});
+
+test('categorized attachment appends within its role and increments only the new asset reference', async () => {
+  const connection = preparedConnection(input);
+  connection.imageLinks = [{ id: 10, asset_id: 'detail', role: 'detail', sort_order: 0, is_primary: 0 }];
+  connection.assetStatuses.set('extra', { id: 'extra', status: 'ready', ref_count: 0 });
+  const repository = new MySqlProductRepository(connection);
+
+  assert.equal(await repository.attachProductImages(7, 'detail', ['extra']), true);
+
+  const inserted = connection.statements.find((statement) => statement.sql.includes('INSERT INTO product_image_assets'));
+  assert.deepEqual(inserted?.params.slice(1, 4), ['extra', 'detail', 1]);
+  const increments = connection.statements.filter((statement) => statement.sql.includes('ref_count = ref_count + 1'));
+  assert.deepEqual(increments.map((statement) => statement.params), [['extra']]);
   assert.deepEqual(connection.transactions, ['BEGIN', 'COMMIT', 'RELEASE']);
 });
 

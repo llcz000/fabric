@@ -14,6 +14,11 @@ import type { AccessUrlRequest, AccessUrlResult } from './service';
 import { MAX_PRODUCT_IMAGE_ASSOCIATIONS } from './types';
 import { isProductImageRequest } from './productRouteScope';
 
+// Compatibility exports for callers migrating from the former aggregate router.
+// Production route ownership now lives in server/products/routes.ts.
+export { PRODUCT_IMAGE_ROLES } from '../products/types';
+export type { ProductImageLayoutDraft, ProductImageLayoutItem } from '../products/types';
+
 export type ProductImageRole = 'pattern_original' | 'gallery' | 'swatch';
 
 export interface ProductAssetAssociation {

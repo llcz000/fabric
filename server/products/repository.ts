@@ -24,6 +24,7 @@ export interface ProductRecord {
 export interface ProductRepository {
   createProduct(input: ProductWriteInput, principalId: string): Promise<ProductRecord>;
   updateProduct(productId: number, input: ProductWriteInput, principalId: string): Promise<ProductRecord | null>;
+  attachProductImages(productId: number, role: ProductImageLayoutItem['role'], assetIds: string[]): Promise<boolean>;
   replaceImageLayout(productId: number, layout: ProductImageLayoutItem[]): Promise<void>;
   deleteProductImage(productId: number, assetId: string): Promise<void>;
   deleteProduct(productId: number): Promise<boolean>;

@@ -19,7 +19,6 @@ import { createCompanyImageAuthMiddleware, createCompanyImageRouter, describeCom
 import { CosStorageAdapter, type CosSdkBoundary } from './server/image-assets/cosStorage';
 import { readLegacyImage } from './server/image-assets/legacySource';
 import { getAssetPolicy } from './server/image-assets/policy';
-import type { ProductImageRouteRuntime } from './server/image-assets/productImages';
 import type { AssetTransaction } from './server/image-assets/repository';
 import type { CompanyImageRole } from './server/image-assets/types';
 import { buildDocumentWorkbook } from './server/documentExcel';
@@ -27,6 +26,9 @@ import { createImageAssetRouter } from './server/image-assets/routes';
 import { createImageAssetRuntime, startImageAssetWorker } from './server/image-assets/runtime';
 import { initializeImageAssetSchema } from './server/image-assets/schema';
 import { exceptImageAssetApi, mountProductRouteAssembly } from './server/appAssembly';
+import { MySqlProductRepository } from './server/products/mysqlRepository';
+import { ProductService } from './server/products/service';
+import type { ProductRouteRuntime } from './server/products/routes';
 
 // Load environment variables
 dotenv.config();
@@ -170,9 +172,19 @@ const imageAssetRuntime = createImageAssetRuntime({
   },
 });
 let stopImageAssetWorker: (() => void) | undefined;
-const productImageRuntime: ProductImageRouteRuntime = {
+const productRuntime: ProductRouteRuntime = {
   enabled: imageAssetRuntime.config.productImageAssetsEnabled,
-  service: imageAssetRuntime.service,
+  assetAccess: imageAssetRuntime.service ?? undefined,
+  service: imageAssetRuntime.config.productImageAssetsEnabled
+    ? new ProductService(new MySqlProductRepository({
+      async query(sql: string, params?: unknown[]) {
+        return await (await getMySQLPool()).query(sql, params) as unknown as [unknown, unknown];
+      },
+      async getConnection() {
+        return await (await getMySQLPool()).getConnection() as unknown as AssetTransaction;
+      },
+    }))
+    : null,
   principalId: 'admin',
 };
 
@@ -181,7 +193,7 @@ app.use('/api/company/images', createCompanyImageAuthMiddleware((req) => {
   return getValidToken(token) !== null;
 }));
 mountProductRouteAssembly(app, {
-  productImageRuntime,
+  productRuntime,
   authenticateProduct(req) {
     const token = req.headers.authorization?.replace('Bearer ', '');
     return getValidToken(token) !== null;

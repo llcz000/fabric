@@ -1,11 +1,13 @@
 import type { ProductRecord, ProductRepository } from './repository';
+import { ProductError } from './errors';
 import type {
   PatternTag,
   PatternTagBatchInput,
   PatternTagStatus,
   PatternTagUpdate,
   ProductDetail,
-  ProductImageLayoutItem,
+  ProductImageLayoutDraft,
+  ProductImageRole,
   ProductListFilter,
   ProductPage,
   ProductWriteInput,
@@ -22,7 +24,19 @@ export class ProductService {
       : this.products.updateProduct(productId, validated, principalId));
   }
 
-  replaceImageLayout(productId: number, layout: ProductImageLayoutItem[]): Promise<void> {
+  async attachProductImages(
+    productId: number,
+    role: ProductImageRole,
+    assetIds: string[],
+    _principalId: string,
+  ): Promise<ProductDetail | null> {
+    requirePositiveId(productId, 'productId');
+    const layout = validateImageLayout(assetIds.map((assetId, sortOrder) => ({ assetId, role, sortOrder })));
+    if (!await this.products.attachProductImages(productId, role, layout.map((item) => item.assetId))) return null;
+    return await this.products.getProductDetail(productId);
+  }
+
+  replaceImageLayout(productId: number, layout: ProductImageLayoutDraft[]): Promise<void> {
     return this.products.replaceImageLayout(productId, validateImageLayout(layout));
   }
 
@@ -35,9 +49,9 @@ export class ProductService {
   }
 
   searchPatternTags(query = '', status: PatternTagStatus = 'active'): Promise<PatternTag[]> {
-    if (status !== 'active' && status !== 'archived') throw new Error('Invalid pattern tag status');
+    if (status !== 'active' && status !== 'archived') throw invalidProduct('Invalid pattern tag status');
     const trimmed = query.trim();
-    if (trimmed.length > 32) throw new Error('Pattern tag search must contain at most 32 characters');
+    if (trimmed.length > 32) throw invalidProduct('Pattern tag search must contain at most 32 characters');
     return this.products.searchPatternTags(trimmed, status);
   }
 
@@ -47,10 +61,10 @@ export class ProductService {
   }
 
   async updatePatternTag(tagId: number, update: PatternTagUpdate, principalId: string): Promise<PatternTag | null> {
-    if (!Number.isSafeInteger(tagId) || tagId <= 0) throw new Error('Invalid pattern tag ID');
-    if (update.name === undefined && update.status === undefined) throw new Error('Pattern tag update is empty');
+    if (!Number.isSafeInteger(tagId) || tagId <= 0) throw invalidProduct('Invalid pattern tag ID');
+    if (update.name === undefined && update.status === undefined) throw invalidProduct('Pattern tag update is empty');
     if (update.status !== undefined && update.status !== 'active' && update.status !== 'archived') {
-      throw new Error('Invalid pattern tag status');
+      throw invalidProduct('Invalid pattern tag status');
     }
     const validated: PatternTagUpdate = { status: update.status };
     if (update.name !== undefined) {
@@ -63,8 +77,8 @@ export class ProductService {
   async applyPatternTagBatch(input: PatternTagBatchInput, principalId: string): Promise<void> {
     const productIds = uniquePositiveIds(input.productIds, 'productIds', 100);
     const tagIds = uniquePositiveIds(input.tagIds, 'tagIds', MAX_PRODUCT_PATTERN_TAGS);
-    if (input.operation !== 'add' && input.operation !== 'remove') throw new Error('Invalid pattern tag batch operation');
-    if (productIds.length === 0 || tagIds.length === 0) throw new Error('Pattern tag batch selections must not be empty');
+    if (input.operation !== 'add' && input.operation !== 'remove') throw invalidProduct('Invalid pattern tag batch operation');
+    if (productIds.length === 0 || tagIds.length === 0) throw invalidProduct('Pattern tag batch selections must not be empty');
     await this.products.applyPatternTagBatch({ productIds, tagIds, operation: input.operation }, principalId);
   }
 
@@ -80,7 +94,7 @@ export class ProductService {
   ignoreIssue(productId: number, issueId: number, principalId: string, note?: string): Promise<boolean> {
     requirePositiveId(productId, 'productId');
     requirePositiveId(issueId, 'issueId');
-    if (note !== undefined && note.length > 1_000) throw new Error('Issue note is too long');
+    if (note !== undefined && note.length > 1_000) throw invalidProduct('Issue note is too long');
     return this.products.ignoreIssue(productId, issueId, principalId, note?.trim());
   }
 
@@ -97,14 +111,14 @@ export function validateProductWrite(input: ProductWriteInput): ProductWriteInpu
   const composition = boundedText(input.composition, 'composition', 0, 2_000);
   const weight = boundedText(input.weight, 'weight', 0, 255);
   const width = boundedText(input.width, 'width', 0, 255);
-  if (!Array.isArray(input.patternTagIds)) throw new Error('patternTagIds must be an array');
+  if (!Array.isArray(input.patternTagIds)) throw invalidProduct('patternTagIds must be an array');
   const patternTagIds = [...new Set(input.patternTagIds)];
-  if (patternTagIds.length !== input.patternTagIds.length) throw new Error('patternTagIds must not contain duplicates');
+  if (patternTagIds.length !== input.patternTagIds.length) throw invalidProduct('patternTagIds must not contain duplicates');
   if (patternTagIds.length > MAX_PRODUCT_PATTERN_TAGS) {
-    throw new Error(`A product may have at most ${MAX_PRODUCT_PATTERN_TAGS} pattern tags`);
+    throw invalidProduct(`A product may have at most ${MAX_PRODUCT_PATTERN_TAGS} pattern tags`);
   }
   if (patternTagIds.some((id) => !Number.isSafeInteger(id) || id <= 0)) {
-    throw new Error('patternTagIds contains an invalid tag ID');
+    throw invalidProduct('patternTagIds contains an invalid tag ID');
   }
   patternTagIds.sort((left, right) => left - right);
   const images = validateImageLayout(input.images).map(({ isPrimary: _isPrimary, ...image }) => image);
@@ -112,37 +126,37 @@ export function validateProductWrite(input: ProductWriteInput): ProductWriteInpu
 }
 
 function boundedText(value: string, field: string, minimum: number, maximum: number): string {
-  if (typeof value !== 'string') throw new Error(`${field} must be a string`);
+  if (typeof value !== 'string') throw invalidProduct(`${field} must be a string`);
   const trimmed = value.trim();
   if (trimmed.length < minimum || trimmed.length > maximum) {
-    throw new Error(`${field} must contain ${minimum}-${maximum} characters`);
+    throw invalidProduct(`${field} must contain ${minimum}-${maximum} characters`);
   }
   return trimmed;
 }
 
 function patternTagDisplayName(value: string): string {
-  if (typeof value !== 'string') throw new Error('Pattern tag name must be a string');
+  if (typeof value !== 'string') throw invalidProduct('Pattern tag name must be a string');
   const trimmed = value.trim();
-  if (trimmed.length < 1 || trimmed.length > 32) throw new Error('Pattern tag name must contain 1-32 characters');
+  if (trimmed.length < 1 || trimmed.length > 32) throw invalidProduct('Pattern tag name must contain 1-32 characters');
   return trimmed;
 }
 
 function uniquePositiveIds(values: number[], field: string, maximum: number): number[] {
-  if (!Array.isArray(values)) throw new Error(`${field} must be an array`);
-  if (values.length > maximum) throw new Error(`${field} may contain at most ${maximum} IDs`);
-  if (values.some((id) => !Number.isSafeInteger(id) || id <= 0)) throw new Error(`${field} contains an invalid ID`);
+  if (!Array.isArray(values)) throw invalidProduct(`${field} must be an array`);
+  if (values.length > maximum) throw invalidProduct(`${field} may contain at most ${maximum} IDs`);
+  if (values.some((id) => !Number.isSafeInteger(id) || id <= 0)) throw invalidProduct(`${field} contains an invalid ID`);
   const unique = [...new Set(values)];
-  if (unique.length !== values.length) throw new Error(`${field} must not contain duplicate IDs`);
+  if (unique.length !== values.length) throw invalidProduct(`${field} must not contain duplicate IDs`);
   return unique.sort((left, right) => left - right);
 }
 
 function validateProductListFilter(filter: ProductListFilter): ProductListFilter {
   const limit = Number(filter.limit);
   const offset = Number(filter.offset);
-  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) throw new Error('limit must be between 1 and 100');
-  if (!Number.isSafeInteger(offset) || offset < 0 || offset > 1_000_000) throw new Error('offset is invalid');
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) throw invalidProduct('limit must be between 1 and 100');
+  if (!Number.isSafeInteger(offset) || offset < 0 || offset > 1_000_000) throw invalidProduct('offset is invalid');
   const q = filter.q?.trim();
-  if (q && q.length > 255) throw new Error('q is too long');
+  if (q && q.length > 255) throw invalidProduct('q is too long');
   return {
     ...filter,
     q: q || undefined,
@@ -155,5 +169,9 @@ function validateProductListFilter(filter: ProductListFilter): ProductListFilter
 }
 
 function requirePositiveId(value: number, field: string): void {
-  if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${field} is invalid`);
+  if (!Number.isSafeInteger(value) || value <= 0) throw invalidProduct(`${field} is invalid`);
+}
+
+function invalidProduct(message: string): ProductError {
+  return new ProductError('PRODUCT_INVALID', 422, false, message);
 }

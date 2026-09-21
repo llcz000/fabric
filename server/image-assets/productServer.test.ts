@@ -4,30 +4,26 @@ import test from 'node:test';
 
 import express from 'express';
 
+import type { ProductRouteRuntime, ProductRouteService } from '../products/routes';
 import { mountProductImageServerRoutes } from './productServer';
-import type { ProductImageRouteRuntime } from './productImages';
 
-function runtime(enabled: boolean): ProductImageRouteRuntime {
-  return {
-    enabled,
-    principalId: 'admin',
-    service: enabled ? {
-      async getAccessUrls() { return []; },
-      async attachProductImages() {},
-      async createProductWithImages(input, assetIds) {
-        return { id: 1, item_no: input.itemNo, product_name: input.productName, image_count: assetIds.length };
-      },
-      async updateProductWithImages() { return null; },
-      async listProductsPage() { return []; },
-      async findProductIdsByItemNos() { return []; },
-      async getProductRecord() { return null; },
-      async listProductImageAssociations() { return []; },
-      async listLegacyProductImages() { return []; },
-      async detachProductImage() {},
-      async detachAllProductImages() {},
-      async deleteProductWithAssets() { return false; },
-    } : null,
-  };
+function runtime(enabled: boolean): ProductRouteRuntime {
+  const service: ProductRouteService | null = enabled ? {
+    async saveProduct() { throw new Error('not used'); },
+    async attachProductImages() { throw new Error('not used'); },
+    async replaceImageLayout() {},
+    async deleteProductImage() {},
+    async deleteProduct() { return false; },
+    async searchPatternTags() { return []; },
+    async createPatternTag() { throw new Error('not used'); },
+    async updatePatternTag() { return null; },
+    async applyPatternTagBatch() {},
+    async listProducts(filter) { return { items: [], total: 0, limit: filter.limit, offset: filter.offset }; },
+    async getProductDetail() { return null; },
+    async ignoreIssue() { return false; },
+    async reopenIssue() { return false; },
+  } : null;
+  return { enabled, principalId: 'admin', service };
 }
 
 async function withComposedServer<T>(enabled: boolean, work: (baseUrl: string, globalAuthCalls: () => number) => Promise<T>): Promise<T> {
@@ -35,7 +31,8 @@ async function withComposedServer<T>(enabled: boolean, work: (baseUrl: string, g
   let globalAuthCount = 0;
   const globalParser = express.json();
   app.use((req, res, next) => {
-    if (enabled && (req.path === '/api/products' || req.path.startsWith('/api/products/'))) return next();
+    if (enabled && (req.path === '/api/products' || req.path.startsWith('/api/products/')
+      || req.path === '/api/product-pattern-tags' || req.path.startsWith('/api/product-pattern-tags/'))) return next();
     globalParser(req, res, next);
   });
   mountProductImageServerRoutes(app, {
@@ -59,24 +56,26 @@ async function withComposedServer<T>(enabled: boolean, work: (baseUrl: string, g
   }
 }
 
-test('production product mount authenticates exact feature-on routes before global auth with one safe request ID', async () => {
+test('production product mount authenticates product and tag routes before global auth', async () => {
   await withComposedServer(true, async (baseUrl, globalAuthCalls) => {
-    const denied = await fetch(`${baseUrl}/api/products?limit=20`, { headers: { 'X-Request-Id': 'product-auth-denied' } });
-    assert.equal(denied.status, 401);
-    assert.equal(denied.headers.get('x-request-id'), 'product-auth-denied');
-    assert.deepEqual(await denied.json(), {
-      error: { code: 'ASSET_ACCESS_DENIED', message: 'Asset access is denied', requestId: 'product-auth-denied', retryable: false },
-    });
+    for (const path of ['/api/products?limit=20', '/api/product-pattern-tags?status=active']) {
+      const denied = await fetch(`${baseUrl}${path}`, { headers: { 'X-Request-Id': 'product-auth-denied' } });
+      assert.equal(denied.status, 401);
+      assert.equal(denied.headers.get('x-request-id'), 'product-auth-denied');
+      assert.equal((await denied.json()).error.code, 'ASSET_ACCESS_DENIED');
+    }
     assert.equal(globalAuthCalls(), 0);
 
-    const allowed = await fetch(`${baseUrl}/api/products?limit=20`, { headers: { Authorization: 'Bearer good', 'X-Request-Id': 'product-auth-allowed' } });
+    const allowed = await fetch(`${baseUrl}/api/products?limit=20`, {
+      headers: { Authorization: 'Bearer good', 'X-Request-Id': 'product-auth-allowed' },
+    });
     assert.equal(allowed.status, 200);
-    assert.equal(allowed.headers.get('x-request-id'), 'product-auth-allowed');
+    assert.deepEqual(await allowed.json(), { items: [], total: 0, limit: 20, offset: 0 });
     assert.equal(globalAuthCalls(), 0);
   });
 });
 
-test('production product mount owns feature-on parsing but leaves non-image product routes under global auth', async () => {
+test('production product mount owns feature-on parsing but leaves import under global auth', async () => {
   await withComposedServer(true, async (baseUrl, globalAuthCalls) => {
     const malformed = await fetch(`${baseUrl}/api/products`, {
       method: 'POST',

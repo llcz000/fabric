@@ -9,6 +9,7 @@ class CapturingRepository implements ProductRepository {
   readonly creates: Array<{ input: ProductWriteInput; principalId: string }> = [];
   readonly updates: Array<{ productId: number; input: ProductWriteInput; principalId: string }> = [];
   createdTagNames: string[] = [];
+  attachedImages: Array<{ productId: number; role: ProductImageLayoutItem['role']; assetIds: string[] }> = [];
 
   async createProduct(input: ProductWriteInput, principalId: string): Promise<ProductRecord> {
     this.creates.push({ input, principalId });
@@ -18,6 +19,11 @@ class CapturingRepository implements ProductRepository {
   async updateProduct(productId: number, input: ProductWriteInput, principalId: string): Promise<ProductRecord> {
     this.updates.push({ productId, input, principalId });
     return record(productId, input);
+  }
+
+  async attachProductImages(productId: number, role: ProductImageLayoutItem['role'], assetIds: string[]): Promise<boolean> {
+    this.attachedImages.push({ productId, role, assetIds });
+    return true;
   }
 
   async replaceImageLayout(_productId: number, _layout: ProductImageLayoutItem[]): Promise<void> {}
@@ -88,6 +94,15 @@ test('save rejects invalid layout before opening a repository transaction', asyn
   }, 'admin-1'), /one pattern_original/);
 
   assert.equal(repository.creates.length, 0);
+});
+
+test('attach validates categorized asset IDs before opening the repository transaction', async () => {
+  const repository = new CapturingRepository();
+  const service = new ProductService(repository);
+
+  await assert.rejects(service.attachProductImages(7, 'detail', ['valid', 'bad id'], 'admin-1'), /invalid assetId/);
+
+  assert.deepEqual(repository.attachedImages, []);
 });
 
 test('create pattern tag trims the display name before repository creation', async () => {

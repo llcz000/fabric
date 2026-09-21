@@ -18,6 +18,7 @@ export function isProductImageApiRequest(req: ProductRouteRequest): boolean {
 function isProductImageRoute(method: string, requestPath: string): boolean {
   if (requestPath === '/') return method === 'GET' || method === 'POST';
   if (requestPath === '/batch-delete') return method === 'POST';
+  if (requestPath === '/batch-pattern-tags') return method === 'POST';
 
   const single = /^\/([^/]+)$/.exec(requestPath);
   if (single && (method === 'GET' || method === 'PUT' || method === 'DELETE')) {
@@ -25,6 +26,9 @@ function isProductImageRoute(method: string, requestPath: string): boolean {
   }
 
   if (/^\/[^/]+\/thumbnails$/.test(requestPath)) return method === 'GET';
+  if (/^\/[^/]+\/images$/.test(requestPath)) return method === 'POST';
+  if (/^\/[^/]+\/image-layout$/.test(requestPath)) return method === 'PATCH';
+  if (/^\/[^/]+\/issues\/[^/]+\/(ignore|reopen)$/.test(requestPath)) return method === 'POST';
 
   const image = /^\/([^/]+)\/images\/([^/]+)$/.exec(requestPath);
   if (image && method === 'DELETE' && !/^\d+$/.test(image[2]) && SAFE_ASSET_ID.test(image[2])) {

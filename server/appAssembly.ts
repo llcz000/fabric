@@ -1,6 +1,6 @@
 import type express from 'express';
 
-import type { ProductImageRouteRuntime } from './image-assets/productImages';
+import type { ProductRouteRuntime } from './products/routes';
 import { isProductImageApiRequest } from './image-assets/productRouteScope';
 import { mountProductImageServerRoutes } from './image-assets/productServer';
 
@@ -23,6 +23,10 @@ export function exceptImageAssetApi(
       || requestPath.startsWith('/api/image-assets/')
       || requestPath === '/api/company/images'
       || requestPath.startsWith('/api/company/images/')
+      || (productImageAssetsEnabled && (
+        requestPath === '/api/product-pattern-tags'
+        || requestPath.startsWith('/api/product-pattern-tags/')
+      ))
       || (productImageAssetsEnabled && isProductImageApiRequest(req))
     ) return next();
     middleware(req, res, next);
@@ -38,13 +42,18 @@ export function exceptImageAssetApi(
  */
 export function exceptProductApi(middleware: express.RequestHandler): express.RequestHandler {
   return (req, res, next) => {
-    if (req.path === '/products' || req.path.startsWith('/products/')) return next();
+    if (
+      req.path === '/products'
+      || req.path.startsWith('/products/')
+      || req.path === '/product-pattern-tags'
+      || req.path.startsWith('/product-pattern-tags/')
+    ) return next();
     middleware(req, res, next);
   };
 }
 
 export interface MountProductRouteAssemblyOptions {
-  productImageRuntime: ProductImageRouteRuntime;
+  productRuntime: ProductRouteRuntime;
   authenticateProduct(req: express.Request): boolean;
   globalAuth: express.RequestHandler;
 }
@@ -64,7 +73,7 @@ export function mountProductRouteAssembly(
   options: MountProductRouteAssemblyOptions,
 ): void {
   mountProductImageServerRoutes(app, {
-    runtime: options.productImageRuntime,
+    runtime: options.productRuntime,
     authenticate: options.authenticateProduct,
     globalAuth: options.globalAuth,
   });
