@@ -34,6 +34,12 @@ class CapturingRepository implements ProductRepository {
   }
   async updatePatternTag() { return null; }
   async applyPatternTagBatch() {}
+  async listProducts(filter: { limit: number; offset: number }) {
+    return { items: [], total: 0, limit: filter.limit, offset: filter.offset };
+  }
+  async getProductDetail() { return null; }
+  async ignoreIssue() { return false; }
+  async reopenIssue() { return false; }
 }
 const validInput: ProductWriteInput = {
   itemNo: ' G-001 ',

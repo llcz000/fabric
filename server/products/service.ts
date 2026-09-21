@@ -4,7 +4,10 @@ import type {
   PatternTagBatchInput,
   PatternTagStatus,
   PatternTagUpdate,
+  ProductDetail,
   ProductImageLayoutItem,
+  ProductListFilter,
+  ProductPage,
   ProductWriteInput,
 } from './types';
 import { MAX_PRODUCT_PATTERN_TAGS, normalizePatternTagName, validateImageLayout } from './validation';
@@ -64,6 +67,28 @@ export class ProductService {
     if (productIds.length === 0 || tagIds.length === 0) throw new Error('Pattern tag batch selections must not be empty');
     await this.products.applyPatternTagBatch({ productIds, tagIds, operation: input.operation }, principalId);
   }
+
+  listProducts(filter: ProductListFilter): Promise<ProductPage> {
+    return this.products.listProducts(validateProductListFilter(filter));
+  }
+
+  getProductDetail(productId: number): Promise<ProductDetail | null> {
+    requirePositiveId(productId, 'productId');
+    return this.products.getProductDetail(productId);
+  }
+
+  ignoreIssue(productId: number, issueId: number, principalId: string, note?: string): Promise<boolean> {
+    requirePositiveId(productId, 'productId');
+    requirePositiveId(issueId, 'issueId');
+    if (note !== undefined && note.length > 1_000) throw new Error('Issue note is too long');
+    return this.products.ignoreIssue(productId, issueId, principalId, note?.trim());
+  }
+
+  reopenIssue(productId: number, issueId: number, principalId: string): Promise<boolean> {
+    requirePositiveId(productId, 'productId');
+    requirePositiveId(issueId, 'issueId');
+    return this.products.reopenIssue(productId, issueId, principalId);
+  }
 }
 
 export function validateProductWrite(input: ProductWriteInput): ProductWriteInput {
@@ -109,4 +134,26 @@ function uniquePositiveIds(values: number[], field: string, maximum: number): nu
   const unique = [...new Set(values)];
   if (unique.length !== values.length) throw new Error(`${field} must not contain duplicate IDs`);
   return unique.sort((left, right) => left - right);
+}
+
+function validateProductListFilter(filter: ProductListFilter): ProductListFilter {
+  const limit = Number(filter.limit);
+  const offset = Number(filter.offset);
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) throw new Error('limit must be between 1 and 100');
+  if (!Number.isSafeInteger(offset) || offset < 0 || offset > 1_000_000) throw new Error('offset is invalid');
+  const q = filter.q?.trim();
+  if (q && q.length > 255) throw new Error('q is too long');
+  return {
+    ...filter,
+    q: q || undefined,
+    tagIds: uniquePositiveIds(filter.tagIds ?? [], 'tagIds', MAX_PRODUCT_PATTERN_TAGS),
+    issueCodes: [...new Set(filter.issueCodes ?? [])],
+    tagMode: 'all',
+    limit,
+    offset,
+  };
+}
+
+function requirePositiveId(value: number, field: string): void {
+  if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${field} is invalid`);
 }

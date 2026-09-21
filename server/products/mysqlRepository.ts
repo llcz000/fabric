@@ -1,12 +1,20 @@
 import { ImageAssetError } from '../image-assets/errors';
 import type { AssetTransaction } from '../image-assets/repository';
+import { reconcileProductIssues, type ReconciledProductIssue } from './issues';
 import type { ProductRecord, ProductRepository } from './repository';
 import type {
   PatternTag,
   PatternTagBatchInput,
   PatternTagStatus,
   PatternTagUpdate,
+  ProductDetail,
   ProductImageLayoutItem,
+  ProductImageOriginType,
+  ProductIssue,
+  ProductIssueCode,
+  ProductListFilter,
+  ProductPage,
+  ProductSummary,
   ProductWriteInput,
 } from './types';
 import { MAX_PRODUCT_PATTERN_TAGS, validateImageLayout } from './validation';
@@ -47,6 +55,7 @@ export class MySqlProductRepository implements ProductRepository {
       const tagState = await this.lockTagState(connection, productId, tagIds);
       await this.applyImageLayout(connection, productId, imageState);
       await this.applyTagSet(connection, productId, tagState, principalId);
+      await this.reconcileIssues(connection, productId, input, layout);
 
       return {
         id: productId,
@@ -72,6 +81,7 @@ export class MySqlProductRepository implements ProductRepository {
       const tagState = await this.lockTagState(connection, productId, tagIds);
       await this.applyImageLayout(connection, productId, imageState);
       await this.applyTagSet(connection, productId, tagState, principalId);
+      await this.reconcileIssues(connection, productId, input, layout);
       const updatedAt = new Date();
       await connection.query(
         'UPDATE products SET item_no = ?, product_name = ?, composition = ?, weight = ?, width = ?, image_count = ?, updated_at = ? WHERE id = ?',
@@ -94,15 +104,18 @@ export class MySqlProductRepository implements ProductRepository {
   async replaceImageLayout(productId: number, layoutInput: ProductImageLayoutItem[]): Promise<void> {
     const layout = validateImageLayout(layoutInput);
     await this.inTransaction(async (connection) => {
-      if (!await this.lockProduct(connection, productId)) throw new Error('Product not found');
+      const product = await this.lockProduct(connection, productId);
+      if (!product) throw new Error('Product not found');
       const imageState = await this.lockImageState(connection, productId, layout);
       await this.applyImageLayout(connection, productId, imageState);
+      await this.reconcileIssues(connection, productId, productInput(product), layout);
     });
   }
 
   async deleteProductImage(productId: number, assetId: string): Promise<void> {
     await this.inTransaction(async (connection) => {
-      if (!await this.lockProduct(connection, productId)) throw new Error('Product not found');
+      const product = await this.lockProduct(connection, productId);
+      if (!product) throw new Error('Product not found');
       const existing = await this.lockCurrentImages(connection, productId);
       const target = existing.find((row) => String(row.asset_id) === assetId);
       if (!target) return;
@@ -112,6 +125,7 @@ export class MySqlProductRepository implements ProductRepository {
       const remaining = existing.filter((row) => row.id !== target.id);
       await this.resequenceExisting(connection, remaining);
       await connection.query('UPDATE products SET image_count = ?, updated_at = NOW() WHERE id = ?', [remaining.length, productId]);
+      await this.reconcileIssues(connection, productId, productInput(product), remaining.map(mapLockedLayout));
     });
   }
 
@@ -231,6 +245,176 @@ export class MySqlProductRepository implements ProductRepository {
         }
       }
     });
+  }
+
+  async listProducts(filter: ProductListFilter): Promise<ProductPage> {
+    const matched = buildMatchedProducts(filter);
+    const totalRows = rows(await this.pool.query(
+      `SELECT COUNT(*) AS total FROM (${matched.sql}) matched_products`,
+      matched.params,
+    ));
+    const productRows = rows(await this.pool.query(
+      `SELECT p.* FROM products p
+       JOIN (${matched.sql}) matched_products ON matched_products.id = p.id
+       ORDER BY p.updated_at DESC, p.id DESC LIMIT ? OFFSET ?`,
+      [...matched.params, filter.limit, filter.offset],
+    ));
+    const items = await this.enrichProductSummaries(productRows);
+    return {
+      items,
+      total: Number(totalRows[0]?.total ?? 0),
+      limit: filter.limit,
+      offset: filter.offset,
+    };
+  }
+
+  async getProductDetail(productId: number): Promise<ProductDetail | null> {
+    const productRows = rows(await this.pool.query('SELECT * FROM products WHERE id = ?', [productId]));
+    if (!productRows[0]) return null;
+    const summaries = await this.enrichProductSummaries(productRows);
+    const imageRows = rows(await this.pool.query(
+      `SELECT asset_id, role, sort_order, is_primary, origin_type, origin_metadata
+       FROM product_image_assets WHERE product_id = ? AND deleted_at IS NULL ORDER BY role, sort_order, id`,
+      [productId],
+    ));
+    const issueRows = rows(await this.pool.query(
+      'SELECT * FROM product_issues WHERE product_id = ? ORDER BY status, severity, id',
+      [productId],
+    ));
+    return {
+      ...summaries[0],
+      images: imageRows.map((row) => ({
+        assetId: String(row.asset_id),
+        role: row.role as ProductImageLayoutItem['role'],
+        sortOrder: Number(row.sort_order),
+        isPrimary: Boolean(row.is_primary),
+        originType: row.origin_type as ProductImageOriginType,
+        originMetadata: jsonObject(row.origin_metadata),
+      })),
+      issues: issueRows.map(mapProductIssue),
+    };
+  }
+
+  ignoreIssue(productId: number, issueId: number, principalId: string, note?: string): Promise<boolean> {
+    return this.setIssueStatus(productId, issueId, 'ignored', principalId, note);
+  }
+
+  reopenIssue(productId: number, issueId: number, principalId: string): Promise<boolean> {
+    return this.setIssueStatus(productId, issueId, 'open', principalId);
+  }
+
+  private async enrichProductSummaries(productRows: Row[]): Promise<ProductSummary[]> {
+    if (productRows.length === 0) return [];
+    const productIds = productRows.map((row) => Number(row.id));
+    const imageRows = rows(await this.pool.query(
+      `SELECT product_id,
+         SUM(role = 'pattern_original') AS pattern_count,
+         SUM(role = 'fabric_display') AS fabric_display_count,
+         SUM(role = 'detail') AS detail_count,
+         SUM(role = 'ai_effect') AS ai_effect_count,
+         SUM(role = 'unclassified') AS unclassified_count,
+         MAX(CASE WHEN is_primary = 1 THEN asset_id END) AS primary_asset_id
+       FROM product_image_assets
+       WHERE product_id IN (${placeholders(productIds)}) AND deleted_at IS NULL GROUP BY product_id`,
+      productIds,
+    ));
+    const tagRows = rows(await this.pool.query(
+      `SELECT ppt.product_id, pt.id, pt.name, pt.status
+       FROM product_pattern_tags ppt JOIN pattern_tags pt ON pt.id = ppt.tag_id
+       WHERE ppt.product_id IN (${placeholders(productIds)}) ORDER BY ppt.product_id, pt.name, pt.id`,
+      productIds,
+    ));
+    const issueRows = rows(await this.pool.query(
+      `SELECT product_id, COUNT(*) AS open_issue_count FROM product_issues
+       WHERE product_id IN (${placeholders(productIds)}) AND status = 'open' GROUP BY product_id`,
+      productIds,
+    ));
+    const imagesByProduct = new Map(imageRows.map((row) => [Number(row.product_id), row]));
+    const tagsByProduct = new Map<number, ProductSummary['patternTags']>();
+    for (const row of tagRows) {
+      const productId = Number(row.product_id);
+      const list = tagsByProduct.get(productId) ?? [];
+      list.push({ id: Number(row.id), name: String(row.name), status: row.status as PatternTagStatus });
+      tagsByProduct.set(productId, list);
+    }
+    const issuesByProduct = new Map(issueRows.map((row) => [Number(row.product_id), Number(row.open_issue_count)]));
+    return productRows.map((row) => {
+      const id = Number(row.id);
+      const image = imagesByProduct.get(id);
+      const openIssueCount = issuesByProduct.get(id) ?? 0;
+      return {
+        ...mapProduct(row),
+        categoryCounts: {
+          patternOriginal: Number(image?.pattern_count ?? 0),
+          fabricDisplay: Number(image?.fabric_display_count ?? 0),
+          detail: Number(image?.detail_count ?? 0),
+          aiEffect: Number(image?.ai_effect_count ?? 0),
+          unclassified: Number(image?.unclassified_count ?? 0),
+        },
+        primaryAssetId: image?.primary_asset_id ? String(image.primary_asset_id) : undefined,
+        patternTags: tagsByProduct.get(id) ?? [],
+        reviewStatus: openIssueCount > 0 ? 'needs_attention' : 'reviewed',
+        openIssueCount,
+      };
+    });
+  }
+
+  private setIssueStatus(
+    productId: number,
+    issueId: number,
+    status: 'open' | 'ignored',
+    principalId: string,
+    note?: string,
+  ): Promise<boolean> {
+    return this.inTransaction(async (connection) => {
+      const found = rows(await connection.query(
+        'SELECT id, product_id FROM product_issues WHERE id = ? FOR UPDATE',
+        [issueId],
+      ));
+      if (!found[0] || Number(found[0].product_id) !== productId) return false;
+      if (status === 'ignored') {
+        await connection.query(
+          "UPDATE product_issues SET status = 'ignored', resolution_note = ?, resolved_by = ?, resolved_at = NOW() WHERE id = ?",
+          [note ?? '', principalId, issueId],
+        );
+      } else {
+        await connection.query(
+          "UPDATE product_issues SET status = 'open', resolution_note = NULL, resolved_by = NULL, resolved_at = NULL WHERE id = ?",
+          [issueId],
+        );
+      }
+      return true;
+    });
+  }
+
+  private async reconcileIssues(
+    connection: AssetTransaction,
+    productId: number,
+    input: Pick<ProductWriteInput, 'productName' | 'composition' | 'weight' | 'width'>,
+    layout: Array<Pick<ProductImageLayoutItem, 'role'>>,
+  ): Promise<void> {
+    const existingRows = rows(await connection.query(
+      'SELECT * FROM product_issues WHERE product_id = ? ORDER BY id FOR UPDATE',
+      [productId],
+    ));
+    const existing = existingRows.map(mapReconciledIssue);
+    const reconciled = reconcileProductIssues({ ...input, images: layout }, existing);
+    for (const issue of reconciled) {
+      if (issue.id === undefined) {
+        await connection.query(
+          `INSERT INTO product_issues
+           (product_id, product_image_asset_id, code, severity, field_name, message, source_ref, status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [productId, issue.productImageAssetId ?? null, issue.code, issue.severity, issue.fieldName, issue.message, issue.sourceRef, issue.status],
+        );
+      } else {
+        await connection.query(
+          `UPDATE product_issues SET severity = ?, message = ?, status = ?, resolution_note = ?,
+             resolved_by = ?, resolved_at = ? WHERE id = ?`,
+          [issue.severity, issue.message, issue.status, issue.resolutionNote ?? null, issue.resolvedBy ?? null, issue.resolvedAt ?? null, issue.id],
+        );
+      }
+    }
   }
 
   private async lockProduct(connection: AssetTransaction, productId: number): Promise<Row | null> {
@@ -430,4 +614,131 @@ function isDuplicateEntry(error: unknown): boolean {
 
 function escapeLike(value: string): string {
   return value.replace(/[\\%_]/g, (character) => `\\${character}`);
+}
+
+function buildMatchedProducts(filter: ProductListFilter): { sql: string; params: unknown[] } {
+  const joins: string[] = [];
+  const where: string[] = ['1 = 1'];
+  const params: unknown[] = [];
+  let having = '';
+  if (filter.tagIds.length > 0) {
+    joins.push(
+      `JOIN product_pattern_tags filter_tags
+       ON filter_tags.product_id = p.id AND filter_tags.tag_id IN (${placeholders(filter.tagIds)})`,
+    );
+    params.push(...filter.tagIds);
+    having = ` HAVING COUNT(DISTINCT filter_tags.tag_id) = ${filter.tagIds.length}`;
+  }
+  if (filter.q) {
+    const like = `%${escapeLike(filter.q)}%`;
+    where.push(`(
+      p.item_no LIKE ? ESCAPE '\\\\' OR p.product_name LIKE ? ESCAPE '\\\\'
+      OR p.composition LIKE ? ESCAPE '\\\\'
+      OR EXISTS (
+        SELECT 1 FROM product_pattern_tags search_links
+        JOIN pattern_tags search_tags ON search_tags.id = search_links.tag_id
+        WHERE search_links.product_id = p.id AND search_tags.name LIKE ? ESCAPE '\\\\'
+      )
+    )`);
+    params.push(like, like, like, like);
+  }
+  if (filter.reviewStatus === 'reviewed') {
+    where.push("NOT EXISTS (SELECT 1 FROM product_issues review_issues WHERE review_issues.product_id = p.id AND review_issues.status = 'open')");
+  } else if (filter.reviewStatus === 'needs_attention') {
+    where.push("EXISTS (SELECT 1 FROM product_issues review_issues WHERE review_issues.product_id = p.id AND review_issues.status = 'open')");
+  }
+  if (filter.issueCodes.length > 0) {
+    where.push(`EXISTS (
+      SELECT 1 FROM product_issues code_issues
+      WHERE code_issues.product_id = p.id AND code_issues.status = 'open'
+        AND code_issues.code IN (${placeholders(filter.issueCodes)})
+    )`);
+    params.push(...filter.issueCodes);
+  }
+  if (filter.imageState === 'missing_pattern') {
+    where.push("NOT EXISTS (SELECT 1 FROM product_image_assets state_images WHERE state_images.product_id = p.id AND state_images.deleted_at IS NULL AND state_images.role = 'pattern_original')");
+  } else if (filter.imageState === 'has_unclassified') {
+    where.push("EXISTS (SELECT 1 FROM product_image_assets state_images WHERE state_images.product_id = p.id AND state_images.deleted_at IS NULL AND state_images.role = 'unclassified')");
+  } else if (filter.imageState === 'complete') {
+    where.push("EXISTS (SELECT 1 FROM product_image_assets state_images WHERE state_images.product_id = p.id AND state_images.deleted_at IS NULL AND state_images.role = 'pattern_original')");
+    where.push("NOT EXISTS (SELECT 1 FROM product_image_assets state_images WHERE state_images.product_id = p.id AND state_images.deleted_at IS NULL AND state_images.role = 'unclassified')");
+  }
+  if (filter.duplicateItemNo) {
+    where.push('EXISTS (SELECT 1 FROM products duplicates WHERE duplicates.item_no = p.item_no AND duplicates.id <> p.id)');
+  }
+  return {
+    sql: `SELECT p.id FROM products p ${joins.join('\n')} WHERE ${where.join(' AND ')} GROUP BY p.id${having}`,
+    params,
+  };
+}
+
+function mapProduct(row: Row): ProductRecord {
+  return {
+    id: Number(row.id),
+    itemNo: String(row.item_no ?? ''),
+    productName: String(row.product_name ?? ''),
+    composition: String(row.composition ?? ''),
+    weight: String(row.weight ?? ''),
+    width: String(row.width ?? ''),
+    imageCount: Number(row.image_count ?? 0),
+    createdAt: date(row.created_at),
+    updatedAt: date(row.updated_at),
+  };
+}
+
+function productInput(row: Row): Pick<ProductWriteInput, 'productName' | 'composition' | 'weight' | 'width'> {
+  return {
+    productName: String(row.product_name ?? ''),
+    composition: String(row.composition ?? ''),
+    weight: String(row.weight ?? ''),
+    width: String(row.width ?? ''),
+  };
+}
+
+function mapLockedLayout(row: Row): ProductImageLayoutItem {
+  const role = row.role as ProductImageLayoutItem['role'];
+  return {
+    assetId: String(row.asset_id),
+    role,
+    sortOrder: Number(row.sort_order),
+    isPrimary: role === 'pattern_original',
+  };
+}
+
+function mapReconciledIssue(row: Row): ReconciledProductIssue {
+  return {
+    id: Number(row.id),
+    productImageAssetId: row.product_image_asset_id == null ? undefined : Number(row.product_image_asset_id),
+    code: row.code as ProductIssueCode,
+    severity: row.severity as ReconciledProductIssue['severity'],
+    fieldName: String(row.field_name ?? ''),
+    message: String(row.message ?? ''),
+    sourceRef: String(row.source_ref ?? ''),
+    status: row.status as ReconciledProductIssue['status'],
+    resolutionNote: row.resolution_note == null ? undefined : String(row.resolution_note),
+    resolvedBy: row.resolved_by == null ? undefined : String(row.resolved_by),
+    resolvedAt: row.resolved_at == null ? undefined : date(row.resolved_at),
+  };
+}
+
+function mapProductIssue(row: Row): ProductIssue {
+  return {
+    ...mapReconciledIssue(row),
+    id: Number(row.id),
+    productId: Number(row.product_id),
+    createdAt: date(row.created_at),
+    updatedAt: date(row.updated_at),
+  };
+}
+
+function jsonObject(value: unknown): Record<string, unknown> | undefined {
+  if (value == null) return undefined;
+  if (typeof value === 'object' && !Array.isArray(value)) return value as Record<string, unknown>;
+  if (typeof value !== 'string') return undefined;
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : undefined;
+  } catch {
+    return undefined;
+  }
 }

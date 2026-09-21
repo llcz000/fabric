@@ -97,3 +97,46 @@ export interface PatternTagBatchInput {
   operation: 'add' | 'remove';
   tagIds: number[];
 }
+
+export interface PatternTagSummary {
+  id: number;
+  name: string;
+  status: PatternTagStatus;
+}
+
+export interface ProductCategoryCounts {
+  patternOriginal: number;
+  fabricDisplay: number;
+  detail: number;
+  aiEffect: number;
+  unclassified: number;
+}
+
+export interface ProductSummary {
+  id: number;
+  itemNo: string;
+  productName: string;
+  composition: string;
+  weight: string;
+  width: string;
+  imageCount: number;
+  createdAt: Date;
+  updatedAt: Date;
+  categoryCounts: ProductCategoryCounts;
+  primaryAssetId?: string;
+  patternTags: PatternTagSummary[];
+  reviewStatus: ProductReviewStatus;
+  openIssueCount: number;
+}
+
+export interface ProductPage {
+  items: ProductSummary[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface ProductDetail extends ProductSummary {
+  images: Array<ProductImageLayoutItem & { originType: ProductImageOriginType; originMetadata?: Record<string, unknown> }>;
+  issues: ProductIssue[];
+}

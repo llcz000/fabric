@@ -21,6 +21,11 @@ class RecordingConnection {
   batchTagLinks: Row[] = [];
   duplicateTagInsert = false;
   existingTagRow: Row | null = null;
+  listProductRows: Row[] = [];
+  listImageSummaryRows: Row[] = [];
+  listTagSummaryRows: Row[] = [];
+  listIssueSummaryRows: Row[] = [];
+  listTotal = 0;
   failSqlPattern: string | null = null;
 
   async query(sql: string, params: unknown[] = []): Promise<[unknown, unknown]> {
@@ -37,6 +42,11 @@ class RecordingConnection {
     }
     if (sql.includes('SELECT id FROM products WHERE id IN')) return [this.batchProductRows, []];
     if (sql.includes('SELECT product_id, tag_id FROM product_pattern_tags')) return [this.batchTagLinks, []];
+    if (sql.includes('SELECT COUNT(*) AS total FROM (')) return [[{ total: this.listTotal }], []];
+    if (sql.includes('JOIN (') && sql.includes('ORDER BY p.updated_at DESC')) return [this.listProductRows, []];
+    if (sql.includes('AS pattern_count') && sql.includes('FROM product_image_assets')) return [this.listImageSummaryRows, []];
+    if (sql.includes('SELECT ppt.product_id, pt.id, pt.name, pt.status')) return [this.listTagSummaryRows, []];
+    if (sql.includes('AS open_issue_count') && sql.includes('FROM product_issues')) return [this.listIssueSummaryRows, []];
     if (sql.includes('SELECT * FROM products WHERE id = ? FOR UPDATE')) return [this.productRows, []];
     if (sql.includes('FROM product_image_assets') && sql.includes('FOR UPDATE')) return [this.imageLinks, []];
     if (sql.includes('FROM product_pattern_tags') && sql.includes('FOR UPDATE')) return [this.tagLinks, []];
@@ -162,6 +172,49 @@ test('editing may retain an archived tag but cannot attach it to another product
     /Archived pattern tag/,
   );
   assert.deepEqual(newlyAttached.transactions, ['BEGIN', 'ROLLBACK', 'RELEASE']);
+});
+
+test('tag all-mode and keyword filtering happen before stable pagination', async () => {
+  const connection = new RecordingConnection();
+  connection.listTotal = 2;
+  const repository = new MySqlProductRepository(connection);
+
+  const page = await repository.listProducts({
+    q: '50%_棉', tagIds: [2, 5], tagMode: 'all', issueCodes: [], limit: 50, offset: 50,
+  });
+
+  const sql = connection.statements.map((statement) => statement.sql).join('\n');
+  assert.match(sql, /HAVING COUNT\(DISTINCT filter_tags\.tag_id\) = 2/);
+  assert.match(sql, /ORDER BY p\.updated_at DESC, p\.id DESC LIMIT \? OFFSET \?/);
+  assert.equal(connection.statements.some((statement) => statement.params.includes('%50\\%\\_棉%')), true);
+  assert.equal(page.total, 2);
+  assert.equal(page.offset, 50);
+});
+
+test('product page enriches two products with three batch queries and no per-product queries', async () => {
+  const connection = new RecordingConnection();
+  connection.listTotal = 2;
+  connection.listProductRows = [
+    { id: 8, item_no: 'B', product_name: 'Blue', composition: 'Cotton', weight: '120', width: '150', image_count: 1, created_at: new Date(0), updated_at: new Date(2) },
+    { id: 7, item_no: 'A', product_name: 'Amber', composition: 'Linen', weight: '110', width: '145', image_count: 0, created_at: new Date(0), updated_at: new Date(1) },
+  ];
+  connection.listImageSummaryRows = [
+    { product_id: 8, pattern_count: 1, fabric_display_count: 0, detail_count: 0, ai_effect_count: 0, unclassified_count: 0, primary_asset_id: 'asset-8' },
+  ];
+  connection.listTagSummaryRows = [
+    { product_id: 8, id: 2, name: '碎花', status: 'active' },
+    { product_id: 7, id: 5, name: '春夏', status: 'archived' },
+  ];
+  connection.listIssueSummaryRows = [{ product_id: 7, open_issue_count: 2 }];
+  const repository = new MySqlProductRepository(connection);
+
+  const page = await repository.listProducts({ tagIds: [], tagMode: 'all', issueCodes: [], limit: 50, offset: 0 });
+
+  assert.equal(connection.statements.length, 5);
+  assert.equal(page.items[0].categoryCounts.patternOriginal, 1);
+  assert.deepEqual(page.items[0].patternTags, [{ id: 2, name: '碎花', status: 'active' }]);
+  assert.equal(page.items[1].reviewStatus, 'needs_attention');
+  assert.equal(page.items[1].openIssueCount, 2);
 });
 
 function preparedConnection(value: ProductWriteInput): RecordingConnection {
