@@ -13,7 +13,7 @@
 - image_upload_sessions：隔离区上传会话，默认 24 小时过期。
 - image_processing_jobs：数据库任务表 + 应用内 worker，含尝试次数、locked_at、last_error_code。
 - company_image_assets：公司图片关联，(company_id, role) 唯一，role 支持 brand_logo/wechat_qr/alipay_qr。
-- product_image_assets：产品图片关联，含 role（pattern_original/gallery/swatch）、sort_order、is_primary、legacy_product_image_id、软删除 deleted_at。
+- product_image_assets：产品图片关联，含 role（pattern_original/fabric_display/detail/ai_effect/unclassified）、sort_order、is_primary、legacy_product_image_id、软删除 deleted_at。
 
 业务表只保存资产 ID 与 object key，不保存永久签名 URL 或新 Base64 图片。
 
@@ -42,6 +42,13 @@
     npm.cmd run migrate:image-assets -- --apply --domain=company --batch-size=100
     npm.cmd run migrate:image-assets -- --apply --domain=product --batch-size=100
 
+旧产品图片角色迁移先单独执行 dry-run，再 apply：
+
+    npm.cmd run migrate:product-image-roles -- --dry-run
+    npm.cmd run migrate:product-image-roles -- --apply
+
+该迁移以每批 100 个产品处理：已有花型原图保持不变；旧 `gallery`/`swatch` 统一标记为 `unclassified`；没有角色的首张旧图设为 `pattern_original`，其余设为 `unclassified`。输出仅包含数量，不包含本地路径、COS key 或签名 URL。
+
 迁移默认 dry-run；--apply 才写库；--after-id 断点续跑；--report 路径拒绝越界。重跑跳过已完成 legacy ID 并按 sha256 去重。批量上传使用 scripts/upload-product-images.mjs（走鉴权资产 API，不直接写 COS/DB，不打印密码或 token）。
 
 ## 回收与清理
@@ -69,7 +76,7 @@ UPLOAD_SESSION_EXPIRED、IMAGE_CONTENT_INVALID、IMAGE_LIMIT_EXCEEDED、ASSET_NO
 
 ## 回退与上线顺序
 
-回退方式是在包含新旧读取能力的新版本中关闭对应业务开关，不删除新表、不回滚数据。上线顺序：先部署基础设施（业务开关全关）并验证 COS CORS/签名/处理/同源内容，再启用公司资产并迁移公司图片，再启用产品资产并验证共享删除，迁移先 dry-run 再分域 apply。旧字段与旧文件在整个观察期内保留。
+回退方式是在包含新旧读取能力的新版本中关闭对应业务开关，不删除新表、不回滚数据。角色迁移只修改 `role/sort_order/is_primary/origin_type`，回退时继续通过兼容映射读取，不删除旧图片。上线顺序：先部署基础设施（业务开关全关）并验证 COS CORS/签名/处理/同源内容，再执行角色 dry-run/apply，启用公司资产并迁移公司图片，最后启用产品资产并验证共享删除。旧字段与旧文件在整个观察期内保留。
 
 ## 非目标
 

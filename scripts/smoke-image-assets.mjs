@@ -135,6 +135,29 @@ async function seedBuiltServerLegacyCompanyImages(baseUrl, token, sources) {
   assert.equal(company.alipay_qr, sources.alipay_qr);
 }
 
+async function assertBuiltServerLegacyProductRoles(baseUrl, token, fixturePath) {
+  const form = new FormData();
+  form.append('itemNo', 'SMOKE-LEGACY-1');
+  form.append('productName', 'Legacy role smoke');
+  form.append('composition', 'cotton');
+  form.append('weight', '120');
+  form.append('width', '150');
+  form.append('image_files', new Blob([fs.readFileSync(fixturePath)], { type: 'image/png' }), 'pattern.png');
+  const created = await fetch(`${baseUrl}/api/products`, {
+    method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form,
+  });
+  assert.equal(created.status, 200);
+  const { id } = await created.json();
+  const loaded = await fetch(`${baseUrl}/api/products/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+  assert.equal(loaded.status, 200);
+  const product = await loaded.json();
+  assert.deepEqual(product.images.map(({ role, sortOrder, isPrimary }) => ({ role, sortOrder, isPrimary })), [
+    { role: 'pattern_original', sortOrder: 0, isPrimary: true },
+  ]);
+  assert.match(product.images[0].contentUrl, new RegExp(`^/api/products/${id}/images/\\d+$`));
+  assert.doesNotMatch(JSON.stringify(product.images), /local_path|cos_key|uploads[\\/]/i);
+}
+
 const password = 'test-only-image-assets-password';
 await withSmokeProcessLifecycle({
   createTempDir() {
@@ -245,6 +268,7 @@ await withSmokeProcessLifecycle({
 
     await seedBuiltServerLegacyCompanyImages(baseUrl, login.token, setup.fixtureSources);
     await assertBuiltServerCompanyImageRoutes(baseUrl, login.token);
+    await assertBuiltServerLegacyProductRoles(baseUrl, login.token, setup.fixtureSources.brand_logo);
   },
   stopChild,
   async removeTempDir(tempDir) {

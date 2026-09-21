@@ -29,6 +29,7 @@ import { exceptImageAssetApi, mountProductRouteAssembly } from './server/appAsse
 import { MySqlProductRepository } from './server/products/mysqlRepository';
 import { ProductService } from './server/products/service';
 import type { ProductRouteRuntime } from './server/products/routes';
+import { mapLegacyProductImages } from './server/products/legacyCompatibility';
 
 // Load environment variables
 dotenv.config();
@@ -1586,15 +1587,15 @@ app.get('/api/products', async (req, res) => {
     if (!useMySQLFallback) {
       const pool = await getMySQLPool();
       const [productRows] = await pool.query<RowDataPacket[]>('SELECT * FROM products ORDER BY updated_at DESC');
-      const [imageRows] = await pool.query<RowDataPacket[]>('SELECT id, product_id, sort_order FROM product_images ORDER BY sort_order');
+      const [imageRows] = await pool.query<RowDataPacket[]>('SELECT id, product_id, sort_order, role, is_primary FROM product_images ORDER BY sort_order, id');
       const imageMap = new Map<number, any[]>();
       for (const row of imageRows) {
         if (!imageMap.has(row.product_id)) imageMap.set(row.product_id, []);
-        imageMap.get(row.product_id)!.push({ id: row.id, sort_order: row.sort_order });
+        imageMap.get(row.product_id)!.push(row);
       }
       const products = productRows.map((p: any) => ({
         ...p,
-        images: imageMap.get(p.id) || [],
+        images: mapLegacyProductImages(p.id, imageMap.get(p.id) || []),
         image_count: (imageMap.get(p.id) || []).length,
       }));
       return res.json(products);
@@ -1603,11 +1604,11 @@ app.get('/api/products', async (req, res) => {
     const imageMap = new Map<number, any[]>();
     for (const img of local.product_images) {
       if (!imageMap.has(img.product_id)) imageMap.set(img.product_id, []);
-      imageMap.get(img.product_id)!.push({ id: img.id, sort_order: img.sort_order });
+      imageMap.get(img.product_id)!.push(img);
     }
     const products = local.products.map((p: any) => ({
       ...p,
-      images: imageMap.get(p.id) || [],
+      images: mapLegacyProductImages(p.id, imageMap.get(p.id) || []),
       image_count: (imageMap.get(p.id) || []).length,
     }));
     products.sort((a: any, b: any) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime());
@@ -1626,13 +1627,13 @@ app.get('/api/products/:id', async (req, res) => {
       const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM products WHERE id = ?', [id]);
       if (rows.length === 0) return res.status(404).json({ error: 'Not found' });
       const [imgs] = await pool.query<RowDataPacket[]>('SELECT * FROM product_images WHERE product_id = ? ORDER BY sort_order', [id]);
-      return res.json({ ...rows[0], images: imgs });
+      return res.json({ ...rows[0], images: mapLegacyProductImages(id, imgs as any[]) });
     }
     const local = loadLocalDB();
     const product = local.products.find((p: any) => p.id == id);
     if (!product) return res.status(404).json({ error: 'Not found' });
     const images = local.product_images.filter((i: any) => i.product_id == id).sort((a: any, b: any) => a.sort_order - b.sort_order);
-    res.json({ ...product, images });
+    res.json({ ...product, images: mapLegacyProductImages(id, images) });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
@@ -1722,8 +1723,8 @@ app.post('/api/products', upload.any(), validateRasterUploads, async (req, res) 
           }
         }
         await pool.query(
-          'INSERT INTO product_images (product_id, sort_order, cos_key, thumbnail_cos_key, local_path, thumbnail_local_path) VALUES (?, ?, ?, ?, ?, ?)',
-          [productId, i, cosKey || '', thumbKey || '', localPath, thumbLocalPath]
+          'INSERT INTO product_images (product_id, sort_order, role, is_primary, origin_type, cos_key, thumbnail_cos_key, local_path, thumbnail_local_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          [productId, i === 0 ? 0 : i - 1, i === 0 ? 'pattern_original' : 'unclassified', i === 0 ? 1 : 0, 'legacy', cosKey || '', thumbKey || '', localPath, thumbLocalPath]
         );
       }
       return res.json({ id: productId, success: true });
@@ -1742,7 +1743,8 @@ app.post('/api/products', upload.any(), validateRasterUploads, async (req, res) 
       const cosKey = await uploadToCOS(file);
       const imgId = local.product_images.length > 0 ? Math.max(...local.product_images.map((x: any) => x.id)) + 1 : 1;
       local.product_images.push({
-        id: imgId, product_id: newId, sort_order: i,
+        id: imgId, product_id: newId, sort_order: i === 0 ? 0 : i - 1,
+        role: i === 0 ? 'pattern_original' : 'unclassified', is_primary: i === 0, origin_type: 'legacy',
         cos_key: cosKey || '', local_path: cosKey ? '' : file.path,
         thumbnail_cos_key: '', thumbnail_local_path: ''
       });
@@ -1777,14 +1779,14 @@ app.put('/api/products/:id', upload.any(), validateRasterUploads, async (req, re
       );
 
       // Get current max sort_order
-      const [orderRows] = await pool.query<RowDataPacket[]>('SELECT COALESCE(MAX(sort_order), -1) as maxOrd FROM product_images WHERE product_id = ?', [productId]);
+      const [orderRows] = await pool.query<RowDataPacket[]>("SELECT COALESCE(MAX(sort_order), -1) as maxOrd FROM product_images WHERE product_id = ? AND role = 'unclassified'", [productId]);
       let order = (orderRows[0].maxOrd || 0) + 1;
 
       for (const file of files) {
         const cosKey = await uploadToCOS(file);
         const imgBuf = fs.readFileSync(file.path);
         await pool.query(
-          'INSERT INTO product_images (product_id, sort_order, cos_key, local_path) VALUES (?, ?, ?, ?)',
+          "INSERT INTO product_images (product_id, sort_order, role, is_primary, origin_type, cos_key, local_path) VALUES (?, ?, 'unclassified', 0, 'legacy', ?, ?)",
           [productId, order++, cosKey || '', cosKey ? '' : file.path]
         );
         if (!cosKey) retainedPaths.add(file.path);
@@ -1813,7 +1815,7 @@ app.put('/api/products/:id', upload.any(), validateRasterUploads, async (req, re
       const cosKey = await uploadToCOS(file);
       const imgId = local.product_images.length > 0 ? Math.max(...local.product_images.map((x: any) => x.id)) + 1 : 1;
       local.product_images.push({
-        id: imgId, product_id: productId, sort_order: order++,
+        id: imgId, product_id: productId, sort_order: order++, role: 'unclassified', is_primary: false, origin_type: 'legacy',
         cos_key: cosKey || '', local_path: cosKey ? '' : file.path,
         thumbnail_cos_key: '', thumbnail_local_path: ''
       });
@@ -2226,8 +2228,8 @@ app.post('/api/products/import', upload.single('file'), async (req, res, next) =
           // Insert image records sequentially (correct sort_order)
           for (const r of uploadResults) {
             await pool.query(
-              'INSERT INTO product_images (product_id, sort_order, cos_key, thumbnail_cos_key, local_path, thumbnail_local_path) VALUES (?,?,?,?,?,?)',
-              [productId, r.i, r.cosKey, r.thumbKey, r.localPath, r.thumbLocalPath]
+              'INSERT INTO product_images (product_id, sort_order, role, is_primary, origin_type, cos_key, thumbnail_cos_key, local_path, thumbnail_local_path) VALUES (?,?,?,?,?,?,?,?,?)',
+              [productId, r.i === 0 ? 0 : r.i - 1, r.i === 0 ? 'pattern_original' : 'unclassified', r.i === 0 ? 1 : 0, 'legacy', r.cosKey, r.thumbKey, r.localPath, r.thumbLocalPath]
             );
           }
           importedCount++;
@@ -2267,7 +2269,8 @@ app.post('/api/products/import', upload.single('file'), async (req, res, next) =
           fs.mkdirSync(path.dirname(localPath), { recursive: true });
           fs.writeFileSync(localPath, rowImgs[i].buffer);
           local.product_images.push({
-            id: maxImgId, product_id: maxProdId, sort_order: i,
+            id: maxImgId, product_id: maxProdId, sort_order: i === 0 ? 0 : i - 1,
+            role: i === 0 ? 'pattern_original' : 'unclassified', is_primary: i === 0, origin_type: 'legacy',
             cos_key: '', local_path: localPath,
             thumbnail_cos_key: '', thumbnail_local_path: ''
           });
