@@ -1,4 +1,11 @@
-import type { ProductImageLayoutItem, ProductWriteInput } from './types';
+import type {
+  PatternTag,
+  PatternTagBatchInput,
+  PatternTagStatus,
+  PatternTagUpdate,
+  ProductImageLayoutItem,
+  ProductWriteInput,
+} from './types';
 
 export interface ProductRecord {
   id: number;
@@ -17,4 +24,8 @@ export interface ProductRepository {
   replaceImageLayout(productId: number, layout: ProductImageLayoutItem[]): Promise<void>;
   deleteProductImage(productId: number, assetId: string): Promise<void>;
   deleteProduct(productId: number): Promise<boolean>;
+  searchPatternTags(query: string, status: PatternTagStatus): Promise<PatternTag[]>;
+  createPatternTag(name: string, normalizedName: string, principalId: string): Promise<PatternTag>;
+  updatePatternTag(tagId: number, update: PatternTagUpdate, principalId: string): Promise<PatternTag | null>;
+  applyPatternTagBatch(input: PatternTagBatchInput, principalId: string): Promise<void>;
 }

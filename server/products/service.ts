@@ -1,6 +1,13 @@
 import type { ProductRecord, ProductRepository } from './repository';
-import type { ProductImageLayoutItem, ProductWriteInput } from './types';
-import { MAX_PRODUCT_PATTERN_TAGS, validateImageLayout } from './validation';
+import type {
+  PatternTag,
+  PatternTagBatchInput,
+  PatternTagStatus,
+  PatternTagUpdate,
+  ProductImageLayoutItem,
+  ProductWriteInput,
+} from './types';
+import { MAX_PRODUCT_PATTERN_TAGS, normalizePatternTagName, validateImageLayout } from './validation';
 
 export class ProductService {
   constructor(private readonly products: ProductRepository) {}
@@ -22,6 +29,40 @@ export class ProductService {
 
   deleteProduct(productId: number): Promise<boolean> {
     return this.products.deleteProduct(productId);
+  }
+
+  searchPatternTags(query = '', status: PatternTagStatus = 'active'): Promise<PatternTag[]> {
+    if (status !== 'active' && status !== 'archived') throw new Error('Invalid pattern tag status');
+    const trimmed = query.trim();
+    if (trimmed.length > 32) throw new Error('Pattern tag search must contain at most 32 characters');
+    return this.products.searchPatternTags(trimmed, status);
+  }
+
+  async createPatternTag(name: string, principalId: string): Promise<PatternTag> {
+    const displayName = patternTagDisplayName(name);
+    return await this.products.createPatternTag(displayName, normalizePatternTagName(displayName), principalId);
+  }
+
+  async updatePatternTag(tagId: number, update: PatternTagUpdate, principalId: string): Promise<PatternTag | null> {
+    if (!Number.isSafeInteger(tagId) || tagId <= 0) throw new Error('Invalid pattern tag ID');
+    if (update.name === undefined && update.status === undefined) throw new Error('Pattern tag update is empty');
+    if (update.status !== undefined && update.status !== 'active' && update.status !== 'archived') {
+      throw new Error('Invalid pattern tag status');
+    }
+    const validated: PatternTagUpdate = { status: update.status };
+    if (update.name !== undefined) {
+      validated.name = patternTagDisplayName(update.name);
+      validated.normalizedName = normalizePatternTagName(validated.name);
+    }
+    return await this.products.updatePatternTag(tagId, validated, principalId);
+  }
+
+  async applyPatternTagBatch(input: PatternTagBatchInput, principalId: string): Promise<void> {
+    const productIds = uniquePositiveIds(input.productIds, 'productIds', 100);
+    const tagIds = uniquePositiveIds(input.tagIds, 'tagIds', MAX_PRODUCT_PATTERN_TAGS);
+    if (input.operation !== 'add' && input.operation !== 'remove') throw new Error('Invalid pattern tag batch operation');
+    if (productIds.length === 0 || tagIds.length === 0) throw new Error('Pattern tag batch selections must not be empty');
+    await this.products.applyPatternTagBatch({ productIds, tagIds, operation: input.operation }, principalId);
   }
 }
 
@@ -52,4 +93,20 @@ function boundedText(value: string, field: string, minimum: number, maximum: num
     throw new Error(`${field} must contain ${minimum}-${maximum} characters`);
   }
   return trimmed;
+}
+
+function patternTagDisplayName(value: string): string {
+  if (typeof value !== 'string') throw new Error('Pattern tag name must be a string');
+  const trimmed = value.trim();
+  if (trimmed.length < 1 || trimmed.length > 32) throw new Error('Pattern tag name must contain 1-32 characters');
+  return trimmed;
+}
+
+function uniquePositiveIds(values: number[], field: string, maximum: number): number[] {
+  if (!Array.isArray(values)) throw new Error(`${field} must be an array`);
+  if (values.length > maximum) throw new Error(`${field} may contain at most ${maximum} IDs`);
+  if (values.some((id) => !Number.isSafeInteger(id) || id <= 0)) throw new Error(`${field} contains an invalid ID`);
+  const unique = [...new Set(values)];
+  if (unique.length !== values.length) throw new Error(`${field} must not contain duplicate IDs`);
+  return unique.sort((left, right) => left - right);
 }

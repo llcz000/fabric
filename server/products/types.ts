@@ -85,3 +85,15 @@ export interface ProductListFilter {
   limit: number;
   offset: number;
 }
+
+export interface PatternTagUpdate {
+  name?: string;
+  normalizedName?: string;
+  status?: PatternTagStatus;
+}
+
+export interface PatternTagBatchInput {
+  productIds: number[];
+  operation: 'add' | 'remove';
+  tagIds: number[];
+}

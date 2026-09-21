@@ -17,12 +17,26 @@ class RecordingConnection {
   tagLinks: Row[] = [];
   assetStatuses = new Map<string, Row>();
   tagStatuses = new Map<number, Row>();
+  batchProductRows: Row[] = [];
+  batchTagLinks: Row[] = [];
+  duplicateTagInsert = false;
+  existingTagRow: Row | null = null;
   failSqlPattern: string | null = null;
 
   async query(sql: string, params: unknown[] = []): Promise<[unknown, unknown]> {
     this.statements.push({ sql, params });
     if (this.failSqlPattern && sql.includes(this.failSqlPattern)) throw new Error('injected transaction failure');
     if (sql.includes('INSERT INTO products ')) return [{ insertId: 7, affectedRows: 1 }, []];
+    if (sql.includes('INSERT INTO pattern_tags') && this.duplicateTagInsert) {
+      const error = new Error('duplicate') as Error & { code?: string };
+      error.code = 'ER_DUP_ENTRY';
+      throw error;
+    }
+    if (sql.includes('SELECT * FROM pattern_tags WHERE normalized_name = ?')) {
+      return [this.existingTagRow ? [this.existingTagRow] : [], []];
+    }
+    if (sql.includes('SELECT id FROM products WHERE id IN')) return [this.batchProductRows, []];
+    if (sql.includes('SELECT product_id, tag_id FROM product_pattern_tags')) return [this.batchTagLinks, []];
     if (sql.includes('SELECT * FROM products WHERE id = ? FOR UPDATE')) return [this.productRows, []];
     if (sql.includes('FROM product_image_assets') && sql.includes('FOR UPDATE')) return [this.imageLinks, []];
     if (sql.includes('FROM product_pattern_tags') && sql.includes('FOR UPDATE')) return [this.tagLinks, []];
@@ -98,6 +112,56 @@ test('layout replacement increments new references and recycles removed referenc
   assert.match(sql, /ref_count = ref_count \+ 1/);
   assert.match(sql, /status = 'recycled'/);
   assert.deepEqual(connection.transactions, ['BEGIN', 'COMMIT', 'RELEASE']);
+});
+
+test('create pattern tag reuses the normalized duplicate after a unique-key race', async () => {
+  const connection = new RecordingConnection();
+  connection.duplicateTagInsert = true;
+  connection.existingTagRow = {
+    id: 3, name: 'Floral', normalized_name: 'floral', status: 'active', created_by: 'admin-1',
+    created_at: new Date('2026-09-21T00:00:00Z'), updated_at: new Date('2026-09-21T00:00:00Z'),
+  };
+  const repository = new MySqlProductRepository(connection);
+
+  const tag = await repository.createPatternTag('ＦＬＯＲＡＬ', 'floral', 'admin-2');
+
+  assert.equal(tag.id, 3);
+  assert.equal(tag.name, 'Floral');
+});
+
+test('batch add rejects the whole transaction when one product would exceed twelve tags', async () => {
+  const connection = new RecordingConnection();
+  connection.batchProductRows = [{ id: 1 }, { id: 2 }];
+  connection.tagStatuses.set(99, { id: 99, status: 'active' });
+  connection.batchTagLinks = [
+    ...Array.from({ length: 12 }, (_, index) => ({ product_id: 1, tag_id: index + 1 })),
+    { product_id: 2, tag_id: 1 },
+  ];
+  const repository = new MySqlProductRepository(connection);
+
+  await assert.rejects(repository.applyPatternTagBatch({
+    productIds: [1, 2], operation: 'add', tagIds: [99],
+  }, 'admin-1'), /12 pattern tags/);
+
+  assert.deepEqual(connection.transactions, ['BEGIN', 'ROLLBACK', 'RELEASE']);
+  assert.equal(connection.statements.some((statement) => statement.sql.includes('INSERT INTO product_pattern_tags') && statement.params[1] === 99), false);
+});
+
+test('editing may retain an archived tag but cannot attach it to another product', async () => {
+  const retained = preparedConnection({ ...input, patternTagIds: [8] });
+  retained.tagLinks = [{ tag_id: 8 }];
+  retained.tagStatuses.set(8, { id: 8, status: 'archived' });
+  await new MySqlProductRepository(retained).updateProduct(7, { ...input, patternTagIds: [8] }, 'admin-1');
+  assert.deepEqual(retained.transactions, ['BEGIN', 'COMMIT', 'RELEASE']);
+
+  const newlyAttached = preparedConnection({ ...input, patternTagIds: [8] });
+  newlyAttached.tagLinks = [];
+  newlyAttached.tagStatuses.set(8, { id: 8, status: 'archived' });
+  await assert.rejects(
+    new MySqlProductRepository(newlyAttached).updateProduct(7, { ...input, patternTagIds: [8] }, 'admin-1'),
+    /Archived pattern tag/,
+  );
+  assert.deepEqual(newlyAttached.transactions, ['BEGIN', 'ROLLBACK', 'RELEASE']);
 });
 
 function preparedConnection(value: ProductWriteInput): RecordingConnection {

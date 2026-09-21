@@ -8,6 +8,7 @@ import type { ProductImageLayoutItem, ProductWriteInput } from './types';
 class CapturingRepository implements ProductRepository {
   readonly creates: Array<{ input: ProductWriteInput; principalId: string }> = [];
   readonly updates: Array<{ productId: number; input: ProductWriteInput; principalId: string }> = [];
+  createdTagNames: string[] = [];
 
   async createProduct(input: ProductWriteInput, principalId: string): Promise<ProductRecord> {
     this.creates.push({ input, principalId });
@@ -22,6 +23,17 @@ class CapturingRepository implements ProductRepository {
   async replaceImageLayout(_productId: number, _layout: ProductImageLayoutItem[]): Promise<void> {}
   async deleteProductImage(_productId: number, _assetId: string): Promise<void> {}
   async deleteProduct(_productId: number): Promise<boolean> { return true; }
+
+  async searchPatternTags() { return []; }
+  async createPatternTag(name: string) {
+    this.createdTagNames.push(name);
+    return {
+      id: 3, name: 'Floral', normalizedName: 'floral', status: 'active' as const,
+      createdBy: 'admin-1', createdAt: new Date(0), updatedAt: new Date(0),
+    };
+  }
+  async updatePatternTag() { return null; }
+  async applyPatternTagBatch() {}
 }
 const validInput: ProductWriteInput = {
   itemNo: ' G-001 ',
@@ -70,6 +82,25 @@ test('save rejects invalid layout before opening a repository transaction', asyn
   }, 'admin-1'), /one pattern_original/);
 
   assert.equal(repository.creates.length, 0);
+});
+
+test('create pattern tag trims the display name before repository creation', async () => {
+  const repository = new CapturingRepository();
+  const service = new ProductService(repository);
+
+  const created = await service.createPatternTag('  Floral  ', 'admin-1');
+
+  assert.equal(created.normalizedName, 'floral');
+  assert.deepEqual(repository.createdTagNames, ['Floral']);
+});
+
+test('create pattern tag rejects names that normalize to empty', async () => {
+  const repository = new CapturingRepository();
+  const service = new ProductService(repository);
+
+  await assert.rejects(service.createPatternTag('　　', 'admin-1'), /1-32/);
+
+  assert.equal(repository.createdTagNames.length, 0);
 });
 
 function record(id: number, input: ProductWriteInput): ProductRecord {

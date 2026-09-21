@@ -1,11 +1,19 @@
 import { ImageAssetError } from '../image-assets/errors';
 import type { AssetTransaction } from '../image-assets/repository';
 import type { ProductRecord, ProductRepository } from './repository';
-import type { ProductImageLayoutItem, ProductWriteInput } from './types';
-import { validateImageLayout } from './validation';
+import type {
+  PatternTag,
+  PatternTagBatchInput,
+  PatternTagStatus,
+  PatternTagUpdate,
+  ProductImageLayoutItem,
+  ProductWriteInput,
+} from './types';
+import { MAX_PRODUCT_PATTERN_TAGS, validateImageLayout } from './validation';
 
 interface ProductPool {
   getConnection(): Promise<AssetTransaction>;
+  query(sql: string, params?: unknown[]): Promise<[unknown, unknown]>;
 }
 
 type Row = Record<string, unknown>;
@@ -117,6 +125,111 @@ export class MySqlProductRepository implements ProductRepository {
       await connection.query('DELETE FROM products WHERE id = ?', [productId]);
       for (const assetId of assetIds) await this.decrementReference(connection, assetId);
       return true;
+    });
+  }
+
+  async searchPatternTags(query: string, status: PatternTagStatus): Promise<PatternTag[]> {
+    const escaped = escapeLike(query);
+    const found = rows(await this.pool.query(
+      `SELECT * FROM pattern_tags
+       WHERE status = ? AND (? = '' OR name LIKE ? ESCAPE '\\\\')
+       ORDER BY name, id LIMIT 100`,
+      [status, query, `%${escaped}%`],
+    ));
+    return found.map(mapPatternTag);
+  }
+
+  createPatternTag(name: string, normalizedName: string, principalId: string): Promise<PatternTag> {
+    return this.inTransaction(async (connection) => {
+      const now = new Date();
+      try {
+        const inserted = result(await connection.query(
+          'INSERT INTO pattern_tags (name, normalized_name, status, created_by, created_at, updated_at) VALUES (?, ?, \'active\', ?, ?, ?)',
+          [name, normalizedName, principalId, now, now],
+        ));
+        const id = Number(inserted.insertId);
+        if (!Number.isSafeInteger(id) || id <= 0) throw new Error('Pattern tag insert did not return an ID');
+        return { id, name, normalizedName, status: 'active', createdBy: principalId, createdAt: now, updatedAt: now };
+      } catch (error) {
+        if (!isDuplicateEntry(error)) throw error;
+        const found = rows(await connection.query(
+          'SELECT * FROM pattern_tags WHERE normalized_name = ? LIMIT 1',
+          [normalizedName],
+        ));
+        if (!found[0]) throw error;
+        return mapPatternTag(found[0]);
+      }
+    });
+  }
+
+  updatePatternTag(tagId: number, update: PatternTagUpdate, _principalId: string): Promise<PatternTag | null> {
+    return this.inTransaction(async (connection) => {
+      const found = rows(await connection.query('SELECT * FROM pattern_tags WHERE id = ? FOR UPDATE', [tagId]));
+      if (!found[0]) return null;
+      const current = mapPatternTag(found[0]);
+      const name = update.name ?? current.name;
+      const normalizedName = update.normalizedName ?? current.normalizedName;
+      const status = update.status ?? current.status;
+      const updatedAt = new Date();
+      try {
+        await connection.query(
+          'UPDATE pattern_tags SET name = ?, normalized_name = ?, status = ?, updated_at = ? WHERE id = ?',
+          [name, normalizedName, status, updatedAt, tagId],
+        );
+      } catch (error) {
+        if (isDuplicateEntry(error)) throw new Error('Pattern tag name already exists');
+        throw error;
+      }
+      return { ...current, name, normalizedName, status, updatedAt };
+    });
+  }
+
+  async applyPatternTagBatch(input: PatternTagBatchInput, principalId: string): Promise<void> {
+    const productIds = [...input.productIds].sort((left, right) => left - right);
+    const tagIds = [...input.tagIds].sort((left, right) => left - right);
+    await this.inTransaction(async (connection) => {
+      const products = rows(await connection.query(
+        `SELECT id FROM products WHERE id IN (${placeholders(productIds)}) ORDER BY id FOR UPDATE`,
+        productIds,
+      ));
+      if (products.length !== productIds.length) throw new Error('Product selection contains a missing product');
+      const tags = rows(await connection.query(
+        `SELECT id, status FROM pattern_tags WHERE id IN (${placeholders(tagIds)}) ORDER BY id FOR UPDATE`,
+        tagIds,
+      ));
+      if (tags.length !== tagIds.length) throw new Error('Pattern tag selection contains a missing tag');
+      if (input.operation === 'add' && tags.some((tag) => tag.status !== 'active')) {
+        throw new Error('Archived pattern tag cannot be attached');
+      }
+      const current = rows(await connection.query(
+        `SELECT product_id, tag_id FROM product_pattern_tags
+         WHERE product_id IN (${placeholders(productIds)}) ORDER BY product_id, tag_id FOR UPDATE`,
+        productIds,
+      ));
+      const byProduct = new Map<number, Set<number>>(productIds.map((productId) => [productId, new Set()]));
+      for (const row of current) byProduct.get(Number(row.product_id))?.add(Number(row.tag_id));
+      for (const productId of productIds) {
+        const resulting = new Set(byProduct.get(productId));
+        for (const tagId of tagIds) {
+          if (input.operation === 'add') resulting.add(tagId);
+          else resulting.delete(tagId);
+        }
+        if (resulting.size > MAX_PRODUCT_PATTERN_TAGS) {
+          throw new Error(`A product may have at most ${MAX_PRODUCT_PATTERN_TAGS} pattern tags`);
+        }
+      }
+      for (const productId of productIds) {
+        for (const tagId of tagIds) {
+          if (input.operation === 'add') {
+            await connection.query(
+              'INSERT IGNORE INTO product_pattern_tags (product_id, tag_id, created_by) VALUES (?, ?, ?)',
+              [productId, tagId, principalId],
+            );
+          } else {
+            await connection.query('DELETE FROM product_pattern_tags WHERE product_id = ? AND tag_id = ?', [productId, tagId]);
+          }
+        }
+      }
     });
   }
 
@@ -297,4 +410,24 @@ function result(value: [unknown, unknown]): Row {
 function date(value: unknown): Date {
   const parsed = value instanceof Date ? value : new Date(String(value));
   return Number.isNaN(parsed.getTime()) ? new Date(0) : parsed;
+}
+
+function mapPatternTag(row: Row): PatternTag {
+  return {
+    id: Number(row.id),
+    name: String(row.name),
+    normalizedName: String(row.normalized_name),
+    status: row.status as PatternTagStatus,
+    createdBy: String(row.created_by),
+    createdAt: date(row.created_at),
+    updatedAt: date(row.updated_at),
+  };
+}
+
+function isDuplicateEntry(error: unknown): boolean {
+  return error instanceof Error && (error as Error & { code?: string }).code === 'ER_DUP_ENTRY';
+}
+
+function escapeLike(value: string): string {
+  return value.replace(/[\\%_]/g, (character) => `\\${character}`);
 }
