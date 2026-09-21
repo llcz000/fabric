@@ -50,13 +50,20 @@ test('listProducts requests the paginated endpoint and maps snake_case rows to p
   const requestedUrls: string[] = [];
   const apiFetch: typeof fetch = async (input) => {
     requestedUrls.push(String(input));
-    return jsonResponse([productRow({
+    return jsonResponse({ items: [productRow({
       images: [{
         assetId: 'asset-1', sortOrder: 0, role: 'pattern_original', isPrimary: true,
         thumbnailUrl: 'https://cos.example/signed-thumb', expiresAt: '2026-08-22T01:00:00.000Z',
       }],
       image_count: 1,
-    })]);
+      created_at: undefined,
+      updated_at: undefined,
+      createdAt: '2026-09-21T00:00:00.000Z',
+      updatedAt: '2026-09-21T01:00:00.000Z',
+      patternTags: [{ id: 2, name: '碎花', status: 'active' }],
+      reviewStatus: 'needs_attention',
+      openIssueCount: 1,
+    })], total: 1, limit: 20, offset: 40 });
   };
 
   const products = await listProducts(apiFetch, { limit: 20, offset: 40 });
@@ -64,6 +71,9 @@ test('listProducts requests the paginated endpoint and maps snake_case rows to p
   assert.equal(products.length, 1);
   assert.equal(products[0].id, '9');
   assert.equal(products[0].itemNo, 'A-001');
+  assert.equal(products[0].createdAt, '2026-09-21T00:00:00.000Z');
+  assert.equal(products[0].reviewStatus, 'needs_attention');
+  assert.deepEqual(products[0].patternTags, [{ id: 2, name: '碎花', status: 'active' }]);
   const image = products[0].images![0];
   assert.equal(image.source, 'asset');
   assert.equal(image.assetId, 'asset-1');
@@ -77,17 +87,17 @@ test('listProducts defaults to limit 50 and caps limit at 100', async () => {
   const requestedUrls: string[] = [];
   const apiFetch: typeof fetch = async (input) => {
     requestedUrls.push(String(input));
-    return jsonResponse([]);
+    return jsonResponse({ items: [], total: 0, limit: 50, offset: 0 });
   };
   await listProducts(apiFetch);
   await listProducts(apiFetch, { limit: 1000, offset: 0 });
   assert.deepEqual(requestedUrls, ['/api/products?limit=50&offset=0', '/api/products?limit=100&offset=0']);
 });
 
-test('describeProduct maps full descriptors with thumbnail+display and orders primary first', async () => {
+test('describeProduct maps categorized descriptors and degrades unknown roles to unclassified', async () => {
   const apiFetch: typeof fetch = async () => jsonResponse(productRow({
     images: [
-      { assetId: 'asset-2', sortOrder: 1, role: 'gallery', isPrimary: false, thumbnailUrl: 'https://cos.example/t2', displayUrl: 'https://cos.example/d2', expiresAt: '2026-08-22T01:00:00.000Z' },
+      { assetId: 'asset-2', sortOrder: 1, role: 'mystery', isPrimary: false, thumbnailUrl: 'https://cos.example/t2', displayUrl: 'https://cos.example/d2', expiresAt: '2026-08-22T01:00:00.000Z' },
       { assetId: 'asset-1', sortOrder: 0, role: 'pattern_original', isPrimary: true, thumbnailUrl: 'https://cos.example/t1', displayUrl: 'https://cos.example/d1', expiresAt: '2026-08-22T01:00:00.000Z' },
     ],
     image_count: 2,
@@ -102,7 +112,7 @@ test('describeProduct maps full descriptors with thumbnail+display and orders pr
   assert.equal(images[0].thumbnailUrl, 'https://cos.example/t1');
   assert.equal(images[0].displayUrl, 'https://cos.example/d1');
   assert.equal(images[1].assetId, 'asset-2');
-  assert.equal(images[1].role, 'gallery');
+  assert.equal(images[1].role, 'unclassified');
   assert.equal(images[1].displayUrl, 'https://cos.example/d2');
 });
 
@@ -161,7 +171,7 @@ test('listProducts falls back to the X-Request-Id header when the body omits it'
   );
 });
 
-test('saveProduct creates with ordered imageAssetIds (first is primary)', async () => {
+test('compatibility saveProduct translates ordered imageAssetIds to the strict aggregate contract', async () => {
   const bodies: unknown[] = [];
   const requests: { url: string; method: string; contentType: string }[] = [];
   const apiFetch: typeof fetch = async (input, init: RequestInit = {}) => {
@@ -177,7 +187,12 @@ test('saveProduct creates with ordered imageAssetIds (first is primary)', async 
   assert.deepEqual(requests, [{ url: '/api/products', method: 'POST', contentType: 'application/json' }]);
   assert.deepEqual(bodies[0], {
     itemNo: 'A-002', productName: 'New', composition: '', weight: '', width: '',
-    imageAssetIds: ['asset-1', 'asset-2', 'asset-3'],
+    patternTagIds: [],
+    images: [
+      { assetId: 'asset-1', role: 'pattern_original', sortOrder: 0 },
+      { assetId: 'asset-2', role: 'unclassified', sortOrder: 0 },
+      { assetId: 'asset-3', role: 'unclassified', sortOrder: 1 },
+    ],
   });
 });
 

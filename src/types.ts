@@ -119,10 +119,61 @@ export interface ProductItem {
   createdAt: string;
   updatedAt: string;
   images?: ProductImageDescriptor[];
+  patternTags?: PatternTagSummary[];
+  reviewStatus?: ProductReviewStatus;
+  openIssueCount?: number;
+  categoryCounts?: ProductCategoryCounts;
 }
 
 export type ProductImageSource = 'asset' | 'legacy';
-export type ProductImageRole = 'pattern_original' | 'gallery' | 'swatch' | 'legacy';
+export type ProductImageRole = 'pattern_original' | 'fabric_display' | 'detail' | 'ai_effect' | 'unclassified' | 'legacy';
+export type ProductReviewStatus = 'reviewed' | 'needs_attention';
+
+export interface PatternTagSummary {
+  id: number;
+  name: string;
+  status?: 'active' | 'archived';
+}
+
+export interface ProductCategoryCounts {
+  patternOriginal: number;
+  fabricDisplay: number;
+  detail: number;
+  aiEffect: number;
+  unclassified: number;
+}
+
+export interface ProductLibraryItem extends ProductItem {
+  patternTags: PatternTagSummary[];
+  reviewStatus: ProductReviewStatus;
+  openIssueCount: number;
+  categoryCounts: ProductCategoryCounts;
+}
+
+export interface ProductIssue {
+  id: number;
+  productId: number;
+  code: string;
+  severity: 'info' | 'warning' | 'error';
+  fieldName: string;
+  message: string;
+  sourceRef: string;
+  status: 'open' | 'resolved' | 'ignored';
+  resolutionNote?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProductDetail extends ProductLibraryItem {
+  issues: ProductIssue[];
+}
+
+export interface ProductPage {
+  items: ProductLibraryItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
 
 /**
  * Runtime image descriptor mapped from a server product response. Descriptors

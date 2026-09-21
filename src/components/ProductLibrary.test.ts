@@ -18,7 +18,7 @@ test('product thumbnails render as buttons that identify the selected lightbox i
       assetId: 'asset-pattern', thumbnailUrl: '/thumb-pattern', displayUrl: '/display-pattern',
     },
     {
-      source: 'asset', role: 'gallery', sortOrder: 1, isPrimary: false,
+      source: 'asset', role: 'detail', sortOrder: 1, isPrimary: false,
       assetId: 'asset-gallery', thumbnailUrl: '/thumb-gallery', displayUrl: '/display-gallery',
     },
   ];

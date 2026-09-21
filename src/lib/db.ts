@@ -55,6 +55,9 @@ function toMetadata(product: ProductItem): ProductItem {
     imageCount: product.imageCount,
     createdAt: product.createdAt,
     updatedAt: product.updatedAt,
+    patternTags: product.patternTags ?? [],
+    reviewStatus: product.reviewStatus ?? 'reviewed',
+    openIssueCount: product.openIssueCount ?? 0,
   };
 }
 

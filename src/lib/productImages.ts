@@ -20,7 +20,7 @@ export { ImageAssetClientError };
 
 const DEFAULT_LIST_LIMIT = 50;
 const MAX_LIST_LIMIT = 100;
-const ASSET_ROLES = new Set<ProductImageRole>(['pattern_original', 'gallery', 'swatch']);
+const ASSET_ROLES = new Set<ProductImageRole>(['pattern_original', 'fabric_display', 'detail', 'ai_effect', 'unclassified']);
 
 export interface ListProductsOptions {
   limit?: number;
@@ -35,6 +35,8 @@ export interface SaveProductInput {
   weight: string;
   width: string;
   imageAssetIds?: string[];
+  patternTagIds?: number[];
+  images?: Array<{ assetId: string; role: Exclude<ProductImageRole, 'legacy'>; sortOrder: number }>;
 }
 
 export interface SaveProductWithFilesOptions {
@@ -52,6 +54,10 @@ interface ServerProductRow extends Record<string, unknown> {
   created_at?: string;
   updated_at?: string;
   images?: unknown[];
+}
+
+interface ServerProductPage {
+  items?: ServerProductRow[];
 }
 
 interface ServerImageRow extends Record<string, unknown> {
@@ -74,10 +80,11 @@ export function listProducts(
 ): Promise<ProductItem[]> {
   const limit = clampLimit(options.limit);
   const offset = Math.max(0, Math.floor(options.offset ?? 0));
-  return requestJson<ServerProductRow[]>(
+  return requestJson<ServerProductRow[] | ServerProductPage>(
     apiFetch,
     `/api/products?limit=${limit}&offset=${offset}`,
-  ).then((rows) => {
+  ).then((response) => {
+    const rows = Array.isArray(response) ? response : response.items;
     return (Array.isArray(rows) ? rows : []).map((row) => mapProductRow(row));
   });
 }
@@ -96,7 +103,8 @@ export async function saveProduct(apiFetch: typeof fetch, input: SaveProductInpu
     composition: input.composition,
     weight: input.weight,
     width: input.width,
-    imageAssetIds: input.imageAssetIds ?? [],
+    patternTagIds: input.patternTagIds ?? [],
+    images: input.images ?? legacyAssetIdsToLayout(input.imageAssetIds ?? []),
   };
   const row = await requestJson<ServerProductRow>(apiFetch, url, {
     method: isEdit ? 'PUT' : 'POST',
@@ -169,7 +177,7 @@ export async function detachProductImage(
     `/api/products/${encodeURIComponent(productId)}/images/${encodeURIComponent(assetId)}`,
     { method: 'DELETE' },
   );
-  return result.image_count ?? 0;
+  return result.image_count ?? (result as { imageCount?: number }).imageCount ?? 0;
 }
 
 export async function deleteProductById(apiFetch: typeof fetch, productId: string): Promise<void> {
@@ -241,9 +249,18 @@ function mapProductRow(row: ServerProductRow): ProductItem {
     weight: String(row.weight ?? ''),
     width: String(row.width ?? ''),
     imageCount: Number(row.image_count ?? images.length ?? 0),
-    createdAt: String(row.created_at ?? ''),
-    updatedAt: String(row.updated_at ?? ''),
+    createdAt: String(row.created_at ?? row.createdAt ?? ''),
+    updatedAt: String(row.updated_at ?? row.updatedAt ?? ''),
     images,
+    patternTags: Array.isArray(row.patternTags) ? row.patternTags.flatMap((value) => {
+      if (!value || typeof value !== 'object') return [];
+      const tag = value as Record<string, unknown>;
+      const id = Number(tag.id);
+      if (!Number.isSafeInteger(id) || id <= 0) return [];
+      return [{ id, name: String(tag.name ?? ''), status: tag.status === 'archived' ? 'archived' as const : 'active' as const }];
+    }) : [],
+    reviewStatus: row.reviewStatus === 'needs_attention' ? 'needs_attention' : 'reviewed',
+    openIssueCount: Number(row.openIssueCount ?? 0),
   };
 }
 
@@ -251,7 +268,7 @@ function mapImageRow(productId: number, image: ServerImageRow): ProductImageDesc
   if (typeof image.assetId === 'string') {
     return {
       source: 'asset',
-      role: ASSET_ROLES.has(image.role as ProductImageRole) ? (image.role as ProductImageRole) : 'gallery',
+      role: ASSET_ROLES.has(image.role as ProductImageRole) ? (image.role as ProductImageRole) : 'unclassified',
       sortOrder: Number(image.sortOrder ?? 0),
       isPrimary: image.isPrimary === true,
       assetId: image.assetId,
@@ -294,6 +311,34 @@ function clampLimit(limit: number | undefined): number {
   if (!Number.isFinite(value) || value <= 0) return DEFAULT_LIST_LIMIT;
   return Math.min(value, MAX_LIST_LIMIT);
 }
+
+function legacyAssetIdsToLayout(assetIds: string[]): Array<{ assetId: string; role: Exclude<ProductImageRole, 'legacy'>; sortOrder: number }> {
+  return assetIds.map((assetId, index) => ({
+    assetId,
+    role: index === 0 ? 'pattern_original' : 'unclassified',
+    sortOrder: index === 0 ? 0 : index - 1,
+  }));
+}
+
+export {
+  applyPatternTagBatch,
+  attachProductImages,
+  createPatternTag,
+  deleteProductImage,
+  getProduct,
+  ignoreProductIssue,
+  listPatternTags,
+  patchImageLayout,
+  reopenProductIssue,
+  updatePatternTag,
+} from './products';
+export type {
+  PatternTagBatchInput,
+  PatternTagListOptions,
+  ProductImageLayoutInput,
+  ProductListOptions,
+  ProductWriteInput,
+} from './products';
 
 async function requestJson<T>(apiFetch: typeof fetch, input: string, init?: RequestInit): Promise<T> {
   const response = await apiFetch(input, init);

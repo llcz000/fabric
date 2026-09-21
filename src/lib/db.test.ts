@@ -164,6 +164,9 @@ test('putProduct persists only metadata (no base64, thumbnail, full, or images)'
     base64: 'aGVsbG8=',
     thumbnail: 'data:image/jpeg;base64,aGVsbG8=',
     full: 'data:image/jpeg;base64,aGVsbG8=',
+    patternTags: [{ id: 2, name: '碎花', status: 'active' }],
+    reviewStatus: 'needs_attention',
+    openIssueCount: 2,
   } as unknown as ProductItem, db as unknown as IDBFactory);
   const stored = db.store('products')!.records.get('1') as Record<string, unknown>;
   assert.equal(stored.itemNo, 'A-001');
@@ -171,6 +174,9 @@ test('putProduct persists only metadata (no base64, thumbnail, full, or images)'
   assert.ok(!('base64' in stored));
   assert.ok(!('thumbnail' in stored));
   assert.ok(!('full' in stored));
+  assert.deepEqual(stored.patternTags, [{ id: 2, name: '碎花', status: 'active' }]);
+  assert.equal(stored.reviewStatus, 'needs_attention');
+  assert.equal(stored.openIssueCount, 2);
 });
 
 test('deleteProduct removes only the products record', async () => {
