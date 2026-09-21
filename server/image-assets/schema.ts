@@ -1,3 +1,5 @@
+import { initializeProductDomainSchema } from '../products/schema';
+
 export interface SqlConnection {
   query(sql: string, params?: unknown[]): Promise<[unknown, unknown]>;
 }
@@ -121,4 +123,6 @@ export async function initializeImageAssetSchema(connection: SqlConnection): Pro
       CONSTRAINT fk_product_image_assets_legacy FOREIGN KEY (legacy_product_image_id) REFERENCES product_images(id) ON DELETE SET NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `);
+
+  await initializeProductDomainSchema(connection);
 }

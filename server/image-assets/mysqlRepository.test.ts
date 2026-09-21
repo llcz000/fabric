@@ -116,7 +116,7 @@ function sql(connection: RecordingConnection): string {
   return connection.statements.map((statement) => statement.sql).join('\n');
 }
 
-test('schema initialization creates only the six additive image asset tables with required unique keys', async () => {
+test('schema initialization creates image and delegated product domain tables with required unique keys', async () => {
   const connection = new RecordingConnection();
 
   await initializeImageAssetSchema(connection);
@@ -130,6 +130,9 @@ test('schema initialization creates only the six additive image asset tables wit
     'image_processing_jobs',
     'company_image_assets',
     'product_image_assets',
+    'pattern_tags',
+    'product_pattern_tags',
+    'product_issues',
   ]);
   assert.match(recordedSql, /UNIQUE KEY uq_image_assets_sha256 \(sha256\)/);
   assert.match(recordedSql, /UNIQUE KEY uq_asset_variant \(asset_id, variant\)/);
@@ -138,6 +141,8 @@ test('schema initialization creates only the six additive image asset tables wit
   assert.match(recordedSql, /UNIQUE KEY uq_company_role \(company_id, role\)/);
   assert.match(recordedSql, /UNIQUE KEY uq_product_asset \(product_id, asset_id\)/);
   assert.match(recordedSql, /UNIQUE KEY uq_legacy_product_image \(legacy_product_image_id\)/);
+  assert.match(recordedSql, /UNIQUE KEY uq_pattern_tags_normalized_name \(normalized_name\)/);
+  assert.match(recordedSql, /UNIQUE KEY uq_product_issue_fact \(product_id, code, field_name, source_ref\)/);
 });
 
 test('upload session record and repository creator inputs use the same string identity', async () => {
