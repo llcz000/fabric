@@ -21,6 +21,7 @@ export interface ProductTableProps {
   onSelectionChange(ids: Set<string>): void;
   onOpen(product: ProductLibraryItem, assetId?: string): void;
   onEdit(product: ProductLibraryItem): void;
+  onDelete(product: ProductLibraryItem): void;
   onPageChange(offset: number): void;
 }
 
@@ -45,7 +46,7 @@ export function ProductTable(props: ProductTableProps) {
           <td className="p-3"><div className="flex flex-wrap gap-1">{tags.map((tag) => <span key={tag.id} className="rounded bg-sky-50 px-2 py-1 text-xs text-sky-700">{tag.name}</span>)}{product.patternTags.length > 3 && <span className="text-xs text-slate-500">+{product.patternTags.length - 3}</span>}</div></td>
           <td className="p-3 text-xs text-slate-600">原图 {product.categoryCounts.patternOriginal} · 展示 {product.categoryCounts.fabricDisplay} · 细节 {product.categoryCounts.detail} · AI {product.categoryCounts.aiEffect}</td>
           <td className="p-3"><span className={product.reviewStatus === 'reviewed' ? 'text-emerald-600' : 'text-amber-600'}>{product.reviewStatus === 'reviewed' ? '已审核' : `待处理 ${product.openIssueCount}`}</span></td>
-          <td className="p-3"><button type="button" onClick={() => props.onEdit(product)} className="text-sky-700">编辑</button></td>
+          <td className="p-3"><div className="flex gap-2"><button type="button" onClick={() => props.onEdit(product)} className="text-sky-700">编辑</button><button type="button" onClick={() => props.onDelete(product)} className="text-red-600">删除</button></div></td>
         </tr>;
       })}</tbody></table></div>
       <footer className="flex items-center justify-between border-t border-slate-100 p-3 text-sm"><span>共 {total} 条</span><div className="flex gap-2">

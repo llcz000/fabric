@@ -12,6 +12,7 @@ import {
   type ProductRouteService,
 } from './routes';
 import type { ProductDetail, ProductPage } from './types';
+import { ImageAssetError } from '../image-assets/errors';
 
 const emptyPage: ProductPage = { items: [], total: 0, limit: 50, offset: 0 };
 
@@ -179,6 +180,21 @@ test('unexpected service failures return a retryable safe server error', async (
         requestId: 'db-failure',
         retryable: true,
       },
+    });
+  });
+});
+
+test('asset readiness errors keep their stable code for editor retry handling', async () => {
+  await withServer(service({
+    async attachProductImages() { throw new ImageAssetError('ASSET_NOT_READY', 409, true, 'Asset is not ready'); },
+  }), async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/products/7/images`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Request-Id': 'asset-processing' },
+      body: JSON.stringify({ role: 'detail', assetIds: ['processing-asset'] }),
+    });
+    assert.equal(response.status, 409);
+    assert.deepEqual(await response.json(), {
+      error: { code: 'ASSET_NOT_READY', message: 'Asset is not ready', requestId: 'asset-processing', retryable: true },
     });
   });
 });

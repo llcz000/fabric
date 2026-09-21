@@ -352,11 +352,9 @@ function notFound(): ProductError {
   return new ProductError('PRODUCT_NOT_FOUND', 404, false, 'Product was not found');
 }
 
-function normalizeError(error: unknown): ProductError {
+function normalizeError(error: unknown): ProductError | ImageAssetError {
   if (error instanceof ProductError) return error;
-  if (error instanceof ImageAssetError) {
-    return new ProductError(error.code === 'ASSET_NOT_FOUND' ? 'PRODUCT_NOT_FOUND' : 'PRODUCT_CONFLICT', error.statusCode, error.retryable, error.message);
-  }
+  if (error instanceof ImageAssetError) return error;
   if (isBodyLimitError(error)) return new ProductError('PRODUCT_INVALID', 413, false, 'Product request exceeds the limit');
   if (isBodyParserClientError(error)) return invalidRequest();
   return new ProductError('PRODUCT_FAILED', 500, true, 'Product request failed');

@@ -7,13 +7,13 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
-import { ProductItem, ProductImageDescriptor, type PatternTagSummary, type ProductDetail, type ProductLibraryItem } from '../types';
+import { ProductItem, ProductImageDescriptor, type PatternTagSummary, type ProductDetail, type ProductIssue, type ProductLibraryItem } from '../types';
 import {
   Plus, Upload, Download, Trash2, Edit3, X, ChevronLeft,
   ChevronRight, Image, Package, CheckSquare, Square, Filter,
 } from 'lucide-react';
 import {
-  getAllProducts, putProduct, deleteProduct, replaceAllProducts,
+  getAllProducts, putProduct, deleteProduct as deleteCachedProduct, replaceAllProducts,
 } from '../lib/db';
 import { ImageAssetClientError, fetchAssetBlob, uploadImageAsset } from '../lib/imageAssets';
 import {
@@ -22,8 +22,11 @@ import {
 } from '../lib/productImages';
 import {
   getProduct,
+  deleteProduct as deleteProductApi,
+  ignoreProductIssue,
   listPatternTags,
   listProducts as listProductPage,
+  reopenProductIssue,
   saveProduct as saveProductAggregate,
   type ProductListOptions,
 } from '../lib/products';
@@ -179,6 +182,7 @@ export default function ProductLibrary() {
   const [loading, setLoading] = useState(true);
   const [viewer, setViewer] = useState<{ product: ProductDetail; assetId?: string } | null>(null);
   const [editingId, setEditingId] = useState<string | undefined>();
+  const [editingIssues, setEditingIssues] = useState<ProductIssue[]>([]);
   const [editor, setEditor] = useState<ProductEditorState>({ open: false, saving: false, draft: emptyEditorDraft() });
   const [message, setMessage] = useState<string>();
 
@@ -210,12 +214,14 @@ export default function ProductLibrary() {
   const openEditor = async (product?: ProductLibraryItem) => {
     if (!product) {
       setEditingId(undefined);
+      setEditingIssues([]);
       setEditor({ open: true, saving: false, draft: emptyEditorDraft() });
       return;
     }
     try {
       const detail = await getProduct(authFetch, product.id);
       setEditingId(product.id);
+      setEditingIssues(detail.issues);
       setEditor({
         open: true, saving: false,
         draft: {
@@ -242,7 +248,9 @@ export default function ProductLibrary() {
   const uploadForRole = async (role: ProductEditorDraft['images'][number]['role'], files: FileList) => {
     const uploaded: ProductEditorDraft['images'] = [];
     try {
-      for (const file of Array.from(files)) {
+      const available = Math.max(0, 20 - editor.draft.images.length);
+      if (available === 0 || (role === 'pattern_original' && editor.draft.images.some((image) => image.role === role))) return;
+      for (const file of Array.from(files).slice(0, role === 'pattern_original' ? 1 : available)) {
         const asset = await uploadImageAsset(file, 'product_image', { apiFetch: authFetch });
         uploaded.push({ assetId: asset.id, role, sortOrder: editor.draft.images.filter((image) => image.role === role).length + uploaded.length });
       }
@@ -267,15 +275,34 @@ export default function ProductLibrary() {
       await load();
     } catch (error) { setMessage(formatImageError(error)); }
   };
+  const removeProduct = async (product: ProductLibraryItem) => {
+    if (!window.confirm(`确认删除产品 ${product.itemNo || product.id}？`)) return;
+    try {
+      await deleteProductApi(authFetch, product.id);
+      await deleteCachedProduct(product.id).catch(() => undefined);
+      setSelectedIds((ids) => { const next = new Set(ids); next.delete(product.id); return next; });
+      await load();
+    } catch (error) { setMessage(formatImageError(error)); }
+  };
+  const changeIssueStatus = async (issue: ProductIssue, action: 'ignore' | 'reopen') => {
+    if (!editingId) return;
+    try {
+      if (action === 'ignore') await ignoreProductIssue(authFetch, editingId, issue.id);
+      else await reopenProductIssue(authFetch, editingId, issue.id);
+      const detail = await getProduct(authFetch, editingId);
+      setEditingIssues(detail.issues);
+      await load();
+    } catch (error) { setMessage(formatImageError(error)); }
+  };
 
   return <div className="space-y-4">
     <header className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-xl font-bold">产品库</h1><p className="text-sm text-slate-500">四类图片、花型分类和异常审核</p></div><button type="button" onClick={() => void openEditor()} className="rounded-lg bg-sky-600 px-4 py-2 text-white">新增产品</button></header>
     {message && <div className="rounded bg-amber-50 p-2 text-sm text-amber-800">{message}</div>}
     <ProductFilters value={query} availableTags={tags} onChange={setQuery} />
     {selectedIds.size > 0 && tags[0] && <div className="flex gap-2 text-sm"><span>已选 {selectedIds.size} 项</span><button type="button" onClick={() => void batchTags('add', tags[0].id)}>批量添加“{tags[0].name}”</button><button type="button" onClick={() => void batchTags('remove', tags[0].id)}>批量移除“{tags[0].name}”</button></div>}
-    {loading ? <div className="p-12 text-center text-slate-400">加载中…</div> : <ProductTable items={items} total={total} limit={query.limit ?? 50} offset={query.offset ?? 0} selectedIds={selectedIds} onSelectionChange={setSelectedIds} onOpen={(product, assetId) => void openProduct(product, assetId)} onEdit={(product) => void openEditor(product)} onPageChange={(offset) => setQuery((value) => ({ ...value, offset }))} />}
+    {loading ? <div className="p-12 text-center text-slate-400">加载中…</div> : <ProductTable items={items} total={total} limit={query.limit ?? 50} offset={query.offset ?? 0} selectedIds={selectedIds} onSelectionChange={setSelectedIds} onOpen={(product, assetId) => void openProduct(product, assetId)} onEdit={(product) => void openEditor(product)} onDelete={(product) => void removeProduct(product)} onPageChange={(offset) => setQuery((value) => ({ ...value, offset }))} />}
     {viewer && <div className="fixed inset-0 z-40 overflow-auto bg-black/80 p-6"><button type="button" className="mb-3 text-white" onClick={() => setViewer(null)}>关闭</button><ProductImageViewer product={viewer.product} initialAssetId={viewer.assetId} onClose={() => setViewer(null)} /></div>}
-    <ProductEditor state={editor} availableTags={tags} onChange={(draft) => setEditor((state) => reduceEditorState(state, { type: 'set-draft', draft }))} onSave={(draft) => void saveDraft(draft)} onClose={() => setEditor((state) => ({ ...state, open: false }))} onUpload={(role, files) => void uploadForRole(role, files)} onReplace={(assetId, role, files) => void replaceImage(assetId, role, files)} />
+    <ProductEditor state={editor} availableTags={tags} issues={editingIssues} onChange={(draft) => setEditor((state) => reduceEditorState(state, { type: 'set-draft', draft }))} onSave={(draft) => void saveDraft(draft)} onClose={() => setEditor((state) => ({ ...state, open: false }))} onUpload={(role, files) => void uploadForRole(role, files)} onReplace={(assetId, role, files) => void replaceImage(assetId, role, files)} onIgnoreIssue={(issue) => void changeIssueStatus(issue, 'ignore')} onReopenIssue={(issue) => void changeIssueStatus(issue, 'reopen')} />
   </div>;
 }
 
@@ -445,7 +472,7 @@ function LegacyProductLibrary() {
       if (/^[0-9]+$/.test(deleteTarget.id)) {
         await deleteProductById(authFetch, deleteTarget.id);
       }
-      await deleteProduct(deleteTarget.id);
+      await deleteCachedProduct(deleteTarget.id);
       setSelectedIds(prev => { const n = new Set(prev); n.delete(deleteTarget.id); return n; });
       showToast('已删除');
       setDeleteTarget(null);
@@ -481,7 +508,7 @@ function LegacyProductLibrary() {
       }
 
       for (const id of ids) {
-        try { await deleteProduct(id); } catch { }
+        try { await deleteCachedProduct(id); } catch { }
       }
       setSelectedIds(new Set());
       showToast('已删除 ' + (serverIds.length > 0 ? serverDeleted : ids.length) + ' 条记录');

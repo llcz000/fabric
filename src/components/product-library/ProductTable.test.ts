@@ -18,12 +18,13 @@ test('table leads with pattern thumbnail, caps visible tags, and uses server tot
     ],
   } as ProductLibraryItem;
   const markup = renderToStaticMarkup(React.createElement(ProductTable, {
-    items: [product], total: 51, limit: 50, offset: 0, selectedIds: new Set<string>(), onSelectionChange() {}, onOpen() {}, onEdit() {}, onPageChange() {},
+    items: [product], total: 51, limit: 50, offset: 0, selectedIds: new Set<string>(), onSelectionChange() {}, onOpen() {}, onEdit() {}, onDelete() {}, onPageChange() {},
   }));
   assert.match(markup, /src="\/pattern"/);
   assert.doesNotMatch(markup, /src="\/detail"/);
   assert.match(markup, /\+1/);
   assert.match(markup, /下一页/);
+  assert.match(markup, />删除</);
 });
 
 test('batch tag removal sends only the selected tag difference', async () => {
