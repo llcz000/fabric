@@ -7,7 +7,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
-import { ProductItem, ProductImageDescriptor } from '../types';
+import { ProductItem, ProductImageDescriptor, type PatternTagSummary, type ProductDetail, type ProductLibraryItem } from '../types';
 import {
   Plus, Upload, Download, Trash2, Edit3, X, ChevronLeft,
   ChevronRight, Image, Package, CheckSquare, Square, Filter,
@@ -15,11 +15,22 @@ import {
 import {
   getAllProducts, putProduct, deleteProduct, replaceAllProducts,
 } from '../lib/db';
-import { ImageAssetClientError, fetchAssetBlob } from '../lib/imageAssets';
+import { ImageAssetClientError, fetchAssetBlob, uploadImageAsset } from '../lib/imageAssets';
 import {
   listProducts, describeProduct, saveProductWithFiles, detachProductImage, deleteProductById,
   createProductRefreshTracker, shouldRefreshProductImages, shouldRefreshOnImageError,
 } from '../lib/productImages';
+import {
+  getProduct,
+  listPatternTags,
+  listProducts as listProductPage,
+  saveProduct as saveProductAggregate,
+  type ProductListOptions,
+} from '../lib/products';
+import { ProductFilters } from './product-library/ProductFilters';
+import { applySelectedProductTags, ProductTable } from './product-library/ProductTable';
+import { ProductImageViewer } from './product-library/ProductImageViewer';
+import { ProductEditor, reduceEditorState, type ProductEditorDraft, type ProductEditorState } from './product-library/ProductEditor';
 
 // ── Helpers ──────────────────────────────────────────
 
@@ -115,9 +126,9 @@ export const ThumbnailCell = memo(({ productId, images, onExpired }: {
         <button
           key={t.assetId ?? t.legacyImageId ?? i}
           type="button"
-          data-lightbox-index={i}
+          data-lightbox-asset-id={t.assetId ?? String(t.legacyImageId ?? '')}
           aria-label={'查看花型原图 ' + (i + 1)}
-          onClick={() => window.dispatchEvent(new CustomEvent('open-lightbox', { detail: { productId, index: i } }))}
+          onClick={() => window.dispatchEvent(new CustomEvent('open-lightbox', { detail: { productId, assetId: t.assetId ?? String(t.legacyImageId ?? '') } }))}
           className="block p-0 border-0 bg-transparent cursor-pointer shrink-0"
         >
           <DescriptorImage
@@ -151,7 +162,124 @@ const PendingPreview = memo(({ files, onRemove }: { files: { file: File; url: st
 
 // ── Main Component ────────────────────────────────────
 
+function emptyEditorDraft(): ProductEditorDraft {
+  return {
+    fields: { itemNo: '', productName: '', composition: '', weight: '', width: '' },
+    patternTagIds: [],
+    images: [],
+  };
+}
+
 export default function ProductLibrary() {
+  const [query, setQuery] = useState<ProductListOptions>({ tagIds: [], limit: 50, offset: 0 });
+  const [items, setItems] = useState<ProductLibraryItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [tags, setTags] = useState<PatternTagSummary[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(true);
+  const [viewer, setViewer] = useState<{ product: ProductDetail; assetId?: string } | null>(null);
+  const [editingId, setEditingId] = useState<string | undefined>();
+  const [editor, setEditor] = useState<ProductEditorState>({ open: false, saving: false, draft: emptyEditorDraft() });
+  const [message, setMessage] = useState<string>();
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const page = await listProductPage(authFetch, query);
+      setItems(page.items);
+      setTotal(page.total);
+      await replaceAllProducts(page.items).catch(() => undefined);
+    } catch (error) {
+      setMessage(formatImageError(error));
+      const cached = await getAllProducts().catch(() => []);
+      setItems(cached.map((item) => ({
+        ...item,
+        patternTags: item.patternTags ?? [], reviewStatus: item.reviewStatus ?? 'reviewed', openIssueCount: item.openIssueCount ?? 0,
+        categoryCounts: item.categoryCounts ?? { patternOriginal: 0, fabricDisplay: 0, detail: 0, aiEffect: 0, unclassified: 0 },
+      })));
+    } finally { setLoading(false); }
+  }, [query]);
+
+  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void listPatternTags(authFetch).then(setTags).catch(() => setTags([])); }, []);
+
+  const openProduct = async (product: ProductLibraryItem, assetId?: string) => {
+    try { setViewer({ product: await getProduct(authFetch, product.id), assetId }); }
+    catch (error) { setMessage(formatImageError(error)); }
+  };
+  const openEditor = async (product?: ProductLibraryItem) => {
+    if (!product) {
+      setEditingId(undefined);
+      setEditor({ open: true, saving: false, draft: emptyEditorDraft() });
+      return;
+    }
+    try {
+      const detail = await getProduct(authFetch, product.id);
+      setEditingId(product.id);
+      setEditor({
+        open: true, saving: false,
+        draft: {
+          fields: { itemNo: detail.itemNo, productName: detail.productName, composition: detail.composition, weight: detail.weight, width: detail.width },
+          patternTagIds: detail.patternTags.map((tag) => tag.id),
+          images: (detail.images ?? []).flatMap((image) => image.assetId && image.role !== 'legacy'
+            ? [{ assetId: image.assetId, role: image.role, sortOrder: image.sortOrder }]
+            : []),
+        },
+      });
+    } catch (error) { setMessage(formatImageError(error)); }
+  };
+  const saveDraft = async (draft: ProductEditorDraft) => {
+    setEditor((state) => reduceEditorState(state, { type: 'save-started' }));
+    try {
+      await saveProductAggregate(authFetch, { id: editingId, ...draft.fields, patternTagIds: draft.patternTagIds, images: draft.images });
+      setEditor((state) => reduceEditorState(state, { type: 'save-succeeded' }));
+      await load();
+    } catch (error) {
+      const clientError = error instanceof ImageAssetClientError ? error : new ImageAssetClientError({ code: 'PRODUCT_FAILED', message: formatImageError(error), retryable: true });
+      setEditor((state) => reduceEditorState(state, { type: 'save-failed', error: clientError }));
+    }
+  };
+  const uploadForRole = async (role: ProductEditorDraft['images'][number]['role'], files: FileList) => {
+    const uploaded: ProductEditorDraft['images'] = [];
+    try {
+      for (const file of Array.from(files)) {
+        const asset = await uploadImageAsset(file, 'product_image', { apiFetch: authFetch });
+        uploaded.push({ assetId: asset.id, role, sortOrder: editor.draft.images.filter((image) => image.role === role).length + uploaded.length });
+      }
+      setEditor((state) => reduceEditorState(state, { type: 'set-draft', draft: { ...state.draft, images: [...state.draft.images, ...uploaded] } }));
+    } catch (error) { setMessage(formatImageError(error)); }
+  };
+  const replaceImage = async (assetId: string, role: ProductEditorDraft['images'][number]['role'], files: FileList) => {
+    const file = files.item(0);
+    if (!file) return;
+    try {
+      const asset = await uploadImageAsset(file, 'product_image', { apiFetch: authFetch });
+      setEditor((state) => reduceEditorState(state, {
+        type: 'set-draft',
+        draft: { ...state.draft, images: state.draft.images.map((image) => image.assetId === assetId ? { ...image, assetId: asset.id, role } : image) },
+      }));
+    } catch (error) { setMessage(formatImageError(error)); }
+  };
+  const batchTags = async (operation: 'add' | 'remove', tagId: number) => {
+    if (!selectedIds.size) return;
+    try {
+      await applySelectedProductTags(authFetch, [...selectedIds], operation, [tagId]);
+      await load();
+    } catch (error) { setMessage(formatImageError(error)); }
+  };
+
+  return <div className="space-y-4">
+    <header className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-xl font-bold">产品库</h1><p className="text-sm text-slate-500">四类图片、花型分类和异常审核</p></div><button type="button" onClick={() => void openEditor()} className="rounded-lg bg-sky-600 px-4 py-2 text-white">新增产品</button></header>
+    {message && <div className="rounded bg-amber-50 p-2 text-sm text-amber-800">{message}</div>}
+    <ProductFilters value={query} availableTags={tags} onChange={setQuery} />
+    {selectedIds.size > 0 && tags[0] && <div className="flex gap-2 text-sm"><span>已选 {selectedIds.size} 项</span><button type="button" onClick={() => void batchTags('add', tags[0].id)}>批量添加“{tags[0].name}”</button><button type="button" onClick={() => void batchTags('remove', tags[0].id)}>批量移除“{tags[0].name}”</button></div>}
+    {loading ? <div className="p-12 text-center text-slate-400">加载中…</div> : <ProductTable items={items} total={total} limit={query.limit ?? 50} offset={query.offset ?? 0} selectedIds={selectedIds} onSelectionChange={setSelectedIds} onOpen={(product, assetId) => void openProduct(product, assetId)} onEdit={(product) => void openEditor(product)} onPageChange={(offset) => setQuery((value) => ({ ...value, offset }))} />}
+    {viewer && <div className="fixed inset-0 z-40 overflow-auto bg-black/80 p-6"><button type="button" className="mb-3 text-white" onClick={() => setViewer(null)}>关闭</button><ProductImageViewer product={viewer.product} initialAssetId={viewer.assetId} onClose={() => setViewer(null)} /></div>}
+    <ProductEditor state={editor} availableTags={tags} onChange={(draft) => setEditor((state) => reduceEditorState(state, { type: 'set-draft', draft }))} onSave={(draft) => void saveDraft(draft)} onClose={() => setEditor((state) => ({ ...state, open: false }))} onUpload={(role, files) => void uploadForRole(role, files)} onReplace={(assetId, role, files) => void replaceImage(assetId, role, files)} />
+  </div>;
+}
+
+function LegacyProductLibrary() {
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -224,13 +352,14 @@ export default function ProductLibrary() {
 
   useEffect(() => {
     const handler = async (ev: Event) => {
-      const { productId, index } = (ev as CustomEvent).detail;
+      const { productId, assetId } = (ev as CustomEvent).detail;
       try {
         const detail = await describeProduct(authFetch, String(productId));
         const imgs = detail.images ?? [];
         setLightboxImages(imgs);
         setLightboxProductId(String(productId));
-        setLightboxIndex(Math.min(Math.max(0, index), Math.max(0, imgs.length - 1)));
+        const index = imgs.findIndex((image) => (image.assetId ?? String(image.legacyImageId ?? '')) === String(assetId));
+        setLightboxIndex(index >= 0 ? index : 0);
       } catch { /* leave lightbox closed */ }
     };
     window.addEventListener('open-lightbox', handler);

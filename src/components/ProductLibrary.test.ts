@@ -30,10 +30,8 @@ test('product thumbnails render as buttons that identify the selected lightbox i
 
   assert.equal((markup.match(/<button/g) ?? []).length, 2);
   assert.match(markup, /data-product-id="17"/);
-  assert.match(markup, /data-lightbox-index="0"/);
-  assert.match(markup, /data-lightbox-index="1"/);
-  assert.match(markup, /aria-label="查看花型原图 1"/);
-  assert.match(markup, /aria-label="查看花型原图 2"/);
+  assert.match(markup, /data-lightbox-asset-id="asset-pattern"/);
+  assert.match(markup, /data-lightbox-asset-id="asset-gallery"/);
 
   const renderThumbnailCell = (ThumbnailCell as unknown as {
     type: (props: { productId: string; images: ProductImageDescriptor[] }) => React.ReactElement<{ children?: React.ReactNode }>;
@@ -43,10 +41,10 @@ test('product thumbnails render as buttons that identify the selected lightbox i
   assert.equal(typeof buttons[1].props.onClick, 'function');
 
   const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
-  let opened: CustomEvent<{ productId: string; index: number }> | undefined;
+  let opened: CustomEvent<{ productId: string; assetId: string }> | undefined;
   Object.defineProperty(globalThis, 'window', {
     configurable: true,
-    value: { dispatchEvent: (event: CustomEvent<{ productId: string; index: number }>) => { opened = event; return true; } },
+    value: { dispatchEvent: (event: CustomEvent<{ productId: string; assetId: string }>) => { opened = event; return true; } },
   });
   try {
     buttons[1].props.onClick!();
@@ -55,5 +53,5 @@ test('product thumbnails render as buttons that identify the selected lightbox i
     else delete (globalThis as { window?: unknown }).window;
   }
   assert.equal(opened?.type, 'open-lightbox');
-  assert.deepEqual(opened?.detail, { productId: '17', index: 1 });
+  assert.deepEqual(opened?.detail, { productId: '17', assetId: 'asset-gallery' });
 });
