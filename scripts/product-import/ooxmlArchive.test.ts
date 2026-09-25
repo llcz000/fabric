@@ -45,3 +45,14 @@ test('archive rejects unsafe and duplicate ZIP entry names', async () => {
 test('invalid XML is rejected instead of partially parsed', async () => {
   await assert.rejects(readWorksheetCells('<worksheet><sheetData>', []), /XML/i);
 });
+
+test('processEntries streams selected media in one archive pass', async () => {
+  const tempRoot = await mkdtemp(path.join(tmpdir(), 'fabric-wps-fixture-'));
+  try {
+    const fixture = await createWpsFixture(tempRoot, { includeProductRows: true });
+    const archive = await OoxmlArchive.open(fixture);
+    const seen: string[] = [];
+    await archive.processEntries(['xl/media/image1.png', 'xl/media/image2.jpg'], 1024, async (name, body) => { seen.push(`${name}:${body.length}`); });
+    assert.deepEqual(seen, ['xl/media/image1.png:3', 'xl/media/image2.jpg:3']);
+  } finally { await rm(tempRoot, { recursive: true, force: true }); }
+});

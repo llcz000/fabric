@@ -73,6 +73,44 @@ export class OoxmlArchive {
   async *stream(name: string, maxBytes = 256 * 1024 * 1024): AsyncIterable<Buffer> {
     yield await this.readBuffer(name, maxBytes);
   }
+
+  async processEntries(names: Iterable<string>, maxBytes: number, handler: (name: string, body: Buffer) => Promise<void>): Promise<void> {
+    if (!Number.isSafeInteger(maxBytes) || maxBytes < 0) throw new Error('Invalid entry byte limit');
+    const requested = new Set(names);
+    for (const name of requested) {
+      assertSafeEntryName(name);
+      const info = this.entries.find((entry) => entry.name === name);
+      if (!info) throw new Error(`OOXML entry not found: ${name}`);
+      if (info.uncompressedSize > maxBytes) throw new Error(`OOXML entry byte limit exceeded: ${name}`);
+    }
+    let callbackError: unknown;
+    let processing = Promise.resolve();
+    const unzip = new Unzip((file) => {
+      if (!requested.has(file.name) || callbackError) return;
+      const chunks: Buffer[] = [];
+      let total = 0;
+      file.ondata = (error, chunk, final) => {
+        if (error) { callbackError = error; return; }
+        total += chunk.byteLength;
+        if (total > maxBytes) { file.terminate(); callbackError = new Error(`OOXML entry byte limit exceeded: ${file.name}`); return; }
+        chunks.push(Buffer.from(chunk));
+        if (final) {
+          const body = Buffer.concat(chunks, total);
+          processing = processing.then(() => handler(file.name, body));
+        }
+      };
+      file.start();
+    });
+    unzip.register(UnzipInflate);
+    for await (const chunk of createReadStream(this.filePath, { highWaterMark: 16 * 1024 })) {
+      if (callbackError) throw callbackError;
+      unzip.push(new Uint8Array(chunk as Buffer), false);
+      await processing;
+    }
+    unzip.push(new Uint8Array(0), true);
+    await processing;
+    if (callbackError) throw callbackError;
+  }
 }
 
 async function scanZip(filePath: string, onFile: (file: UnzipFile) => void): Promise<void> {
@@ -93,4 +131,3 @@ async function scanZip(filePath: string, onFile: (file: UnzipFile) => void): Pro
     throw error instanceof Error ? error : new Error('Unable to read OOXML archive');
   }
 }
-

@@ -1,4 +1,6 @@
 import path from 'node:path';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 
 import dotenv from 'dotenv';
 import mysql from 'mysql2/promise';
@@ -63,10 +65,17 @@ export async function runProductImport(args: ImportProductsArgs): Promise<void> 
 }
 
 async function inspectPlanMedia(plan: ImportPlan, archive: OoxmlArchive): Promise<void> {
-  for (const product of plan.products) for (const image of product.images) {
-    try { product.issues.push(...(await materializeImportImage(await archive.readBuffer(image.mediaEntry, 100 * 1024 * 1024), `${plan.sheet}!${image.cell}`)).issues); }
-    catch { product.issues.push({ code: 'IMAGE_REFERENCE_MISSING', fieldName: 'images', message: '图片无法解析', sourceRef: `${plan.sheet}!${image.cell}`, severity: 'warning' }); }
-  }
+  const references = new Map<string, Array<{ product: ImportPlan['products'][number]; cell: string }>>();
+  for (const product of plan.products) for (const image of product.images) references.set(image.mediaEntry, [...(references.get(image.mediaEntry) ?? []), { product, cell: image.cell }]);
+  await archive.processEntries(references.keys(), 100 * 1024 * 1024, async (entry, body) => {
+    const targets = references.get(entry) ?? [];
+    try {
+      const inspected = await materializeImportImage(body, `${plan.sheet}!${targets[0]?.cell ?? entry}`);
+      for (const target of targets) target.product.issues.push(...inspected.issues.map((issue) => ({ ...issue, sourceRef: `${plan.sheet}!${target.cell}` })));
+    } catch {
+      for (const target of targets) target.product.issues.push({ code: 'IMAGE_REFERENCE_MISSING', fieldName: 'images', message: '图片无法解析', sourceRef: `${plan.sheet}!${target.cell}`, severity: 'warning' });
+    }
+  });
 }
 
 async function applyLocal(plan: ImportPlan, filePath: string): Promise<void> {
@@ -74,22 +83,37 @@ async function applyLocal(plan: ImportPlan, filePath: string): Promise<void> {
   const adapter = new LocalCompatImportAdapter(process.cwd());
   const batch: ProductImportBatch = { id: Number.parseInt(plan.fileSha256.slice(0, 8), 16), fileSha256: plan.fileSha256, sheetName: plan.sheet, status: 'running', createdBy: principalId() };
   let succeeded = 0; let failed = 0; let skipped = 0;
-  for (const product of plan.products) {
-    const images: Parameters<LocalCompatImportAdapter['applyProduct']>[2] = [];
-    for (const planned of product.images) {
-      try { images.push({ planned, materialized: await materializeImportImage(await archive.readBuffer(planned.mediaEntry, 100 * 1024 * 1024), `${plan.sheet}!${planned.cell}`) }); }
-      catch { product.issues.push({ code: 'IMAGE_REFERENCE_MISSING', fieldName: 'images', message: '图片无法解析或导入', sourceRef: `${plan.sheet}!${planned.cell}`, severity: 'warning' }); }
+  const tempRoot = await mkdtemp(path.join(tmpdir(), 'fabric-product-import-'));
+  try {
+    const staged = new Map<string, { file: string; materialized: Omit<Awaited<ReturnType<typeof materializeImportImage>>, 'body'> }>();
+    const entries = new Set(plan.products.flatMap((product) => product.images.map((image) => image.mediaEntry)));
+    await archive.processEntries(entries, 100 * 1024 * 1024, async (entry, body) => {
+      try {
+        const materialized = await materializeImportImage(body, entry);
+        const file = path.join(tempRoot, `${materialized.sha256}.${materialized.extension}`);
+        await writeFile(file, materialized.body);
+        const { body: _body, ...metadata } = materialized;
+        staged.set(entry, { file, materialized: metadata });
+      } catch { /* converted to a visible product issue below */ }
+    });
+    for (const product of plan.products) {
+      const images: Parameters<LocalCompatImportAdapter['applyProduct']>[2] = [];
+      for (const planned of product.images) {
+        const saved = staged.get(planned.mediaEntry);
+        if (saved) images.push({ planned, materialized: { ...saved.materialized, body: await readFile(saved.file) } });
+        else product.issues.push({ code: 'IMAGE_REFERENCE_MISSING', fieldName: 'images', message: '图片无法解析或导入', sourceRef: `${plan.sheet}!${planned.cell}`, severity: 'warning' });
+      }
+      if (!images.some((image) => image.planned.role === 'pattern_original') && !product.issues.some((issue) => issue.code === 'MISSING_PATTERN_ORIGINAL')) product.issues.push({ code: 'MISSING_PATTERN_ORIGINAL', fieldName: 'images', message: '缺少花型原图', sourceRef: `${plan.sheet}!${product.sources[0]?.rowNumber ?? 0}`, severity: 'warning' });
+      try {
+        const result = await adapter.applyProduct(batch, product, images);
+        result.status === 'applied' ? succeeded += 1 : skipped += 1;
+        safeLog({ batch: batch.id, planKey: product.planKey, productId: result.productId, stage: result.status });
+      } catch { failed += 1; safeLog({ batch: batch.id, planKey: product.planKey, stage: 'failed', code: 'IMPORT_PRODUCT_FAILED' }); }
     }
-    if (!images.some((image) => image.planned.role === 'pattern_original') && !product.issues.some((issue) => issue.code === 'MISSING_PATTERN_ORIGINAL')) product.issues.push({ code: 'MISSING_PATTERN_ORIGINAL', fieldName: 'images', message: '缺少花型原图', sourceRef: `${plan.sheet}!${product.sources[0]?.rowNumber ?? 0}`, severity: 'warning' });
-    try {
-      const result = await adapter.applyProduct(batch, product, images);
-      result.status === 'applied' ? succeeded += 1 : skipped += 1;
-      safeLog({ batch: batch.id, planKey: product.planKey, productId: result.productId, stage: result.status });
-    } catch { failed += 1; safeLog({ batch: batch.id, planKey: product.planKey, stage: 'failed', code: 'IMPORT_PRODUCT_FAILED' }); }
-  }
-  const status = failed ? 'partial' : 'completed';
-  await adapter.finishBatch(batch.id, status);
-  safeLog({ batch: batch.id, stage: 'apply-complete', succeeded, failed, skipped, status });
+    const status = failed ? 'partial' : 'completed';
+    await adapter.finishBatch(batch.id, status);
+    safeLog({ batch: batch.id, stage: 'apply-complete', succeeded, failed, skipped, status });
+  } finally { await rm(tempRoot, { recursive: true, force: true }); }
 }
 
 async function applyMySql(plan: ImportPlan, filePath: string, resumeBatch?: number): Promise<void> {
@@ -100,11 +124,24 @@ async function applyMySql(plan: ImportPlan, filePath: string, resumeBatch?: numb
     const repository = new MySqlProductImportRepository(pool as never);
     const batch = await repository.beginOrResumeBatch({ fileSha256: plan.fileSha256, sourceFile: plan.sourceFile, sheetName: plan.sheet, createdBy: principalId() });
     if (resumeBatch !== undefined && batch.id !== resumeBatch) throw new Error('Resume batch does not match this workbook and sheet');
-    const archive = await OoxmlArchive.open(filePath);
     const assetIngestor = new AssetIngestor(runtime);
+    const archive = await OoxmlArchive.open(filePath);
+    const ingested = new Map<string, Awaited<ReturnType<AssetIngestor['ingest']>> & { originMetadata: Record<string, string | number>; issues: Awaited<ReturnType<typeof materializeImportImage>>['issues'] }>();
+    const failed = new Set<string>();
+    const entryCells = new Map<string, string>();
+    for (const product of plan.products) for (const image of product.images) if (!entryCells.has(image.mediaEntry)) entryCells.set(image.mediaEntry, image.cell);
+    await archive.processEntries(entryCells.keys(), 100 * 1024 * 1024, async (entry, body) => {
+      try {
+        const cell = entryCells.get(entry) ?? entry;
+        const materialized = await materializeImportImage(body, `${plan.sheet}!${cell}`);
+        ingested.set(entry, { ...(await assetIngestor.ingest(materialized, `${plan.sheet}-${cell}.${materialized.extension}`, principalId())), originMetadata: materialized.originMetadata, issues: materialized.issues });
+      } catch { failed.add(entry); }
+    });
     const service = new ProductImportService(repository, { async ingest(image, actor) {
-      const materialized = await materializeImportImage(await archive.readBuffer(image.mediaEntry, 100 * 1024 * 1024), `${plan.sheet}!${image.cell}`);
-      return { ...(await assetIngestor.ingest(materialized, `${plan.sheet}-${image.cell}.${materialized.extension}`, actor)), originMetadata: materialized.originMetadata, issues: materialized.issues };
+      void actor;
+      const result = ingested.get(image.mediaEntry);
+      if (!result || failed.has(image.mediaEntry)) throw Object.assign(new Error('Image was not ingested'), { code: 'IMAGE_REFERENCE_MISSING' });
+      return result;
     } });
     const summary = await service.applyPlan(batch, plan.products, principalId());
     safeLog({ batch: batch.id, stage: 'apply-complete', ...summary });
