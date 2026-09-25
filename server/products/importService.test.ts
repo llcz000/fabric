@@ -10,6 +10,8 @@ class FakeRepository implements ProductImportRepository {
   readonly failures: string[] = [];
   completed = new Set<number>();
   failPlanOnce = new Set<string>();
+  rollbackBlockers: Array<{ productId: number; reason: 'modified' | 'order_reference' | 'other_batch' }> = [];
+  rolledBack = false;
   async beginOrResumeBatch(): Promise<ProductImportBatch> { return batch; }
   async getSourceResult(_batchId: number, _sheet: string, row: number) { return this.completed.has(row) ? { productId: 7, status: 'applied' as const } : null; }
   async applyImportedProduct(input: AtomicImportedProduct) {
@@ -20,8 +22,9 @@ class FakeRepository implements ProductImportRepository {
   }
   async recordProductFailure(_batchId: number, planKey: string) { this.failures.push(planKey); }
   async finishBatch() {}
-  async listRollbackBlockers() { return []; }
-  async markBatchRolledBack() {}
+  async listRollbackBlockers() { return this.rollbackBlockers; }
+  async rollbackBatch() { if (this.rollbackBlockers.length) return this.rollbackBlockers; this.rolledBack = true; return []; }
+  async markBatchRolledBack() { this.rolledBack = true; }
 }
 
 const batch: ProductImportBatch = { id: 12, fileSha256: 'a'.repeat(64), sheetName: '新', status: 'running', createdBy: 'admin' };
@@ -54,3 +57,20 @@ test('one product failure marks partial and later products continue', async () =
   assert.deepEqual(repository.applied.map((item) => item.planKey), ['good-1', 'good-2']);
 });
 
+test('one image failure keeps product metadata and records visible image issues', async () => {
+  const repository = new FakeRepository();
+  const service = new ProductImportService(repository, { async ingest() { throw Object.assign(new Error('bad image'), { code: 'IMAGE_DECODE_FAILED' }); } });
+  const result = await service.applyProduct(batch, product('G1', 2), 'admin');
+  assert.equal(result.status, 'applied');
+  assert.equal(repository.applied[0].images.length, 0);
+  assert.equal(repository.applied[0].issues.some((issue) => issue.code === 'IMAGE_REFERENCE_MISSING'), true);
+  assert.equal(repository.applied[0].issues.some((issue) => issue.code === 'MISSING_PATTERN_ORIGINAL'), true);
+});
+
+test('rollback refuses the whole batch when any product is blocked', async () => {
+  const repository = new FakeRepository();
+  repository.rollbackBlockers = [{ productId: 8, reason: 'modified' }, { productId: 9, reason: 'order_reference' }];
+  const service = new ProductImportService(repository, { async ingest(image) { return { assetId: image.dispImgId }; } });
+  await assert.rejects(service.rollbackBatch(12), /ROLLBACK_BLOCKED/);
+  assert.equal(repository.rolledBack, false);
+});

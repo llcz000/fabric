@@ -37,6 +37,6 @@ export interface ProductImportRepository {
   recordProductFailure(batchId: number, planKey: string, code: string): Promise<void>;
   finishBatch(batchId: number, summary: ImportBatchSummary): Promise<void>;
   listRollbackBlockers(batchId: number): Promise<RollbackBlocker[]>;
+  rollbackBatch(batchId: number): Promise<RollbackBlocker[]>;
   markBatchRolledBack(batchId: number): Promise<void>;
 }
-

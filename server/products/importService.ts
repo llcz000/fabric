@@ -18,9 +18,16 @@ export class ProductImportService {
       const importedImages: AtomicImportedProduct['images'] = [];
       const issues = [...product.issues];
       for (const image of product.images) {
-        const ingested = await this.images.ingest(image, principalId);
-        importedImages.push({ assetId: ingested.assetId, role: image.role, sortOrder: image.sortOrder, sourceRef: `${product.sources[0]?.sheet ?? batch.sheetName}!${image.cell}`, originMetadata: ingested.originMetadata });
-        if (ingested.issues) issues.push(...ingested.issues);
+        try {
+          const ingested = await this.images.ingest(image, principalId);
+          importedImages.push({ assetId: ingested.assetId, role: image.role, sortOrder: importedImages.filter((item) => item.role === image.role).length, sourceRef: `${product.sources[0]?.sheet ?? batch.sheetName}!${image.cell}`, originMetadata: ingested.originMetadata });
+          if (ingested.issues) issues.push(...ingested.issues);
+        } catch {
+          issues.push({ code: 'IMAGE_REFERENCE_MISSING', fieldName: 'images', message: '图片无法解析或导入', sourceRef: `${product.sources[0]?.sheet ?? batch.sheetName}!${image.cell}`, severity: 'warning' });
+        }
+      }
+      if (!importedImages.some((image) => image.role === 'pattern_original') && !issues.some((issue) => issue.code === 'MISSING_PATTERN_ORIGINAL')) {
+        issues.push({ code: 'MISSING_PATTERN_ORIGINAL', fieldName: 'images', message: '缺少花型原图', sourceRef: `${product.sources[0]?.sheet ?? batch.sheetName}!${product.sources[0]?.rowNumber ?? 0}`, severity: 'warning' });
       }
       const created = await this.repository.applyImportedProduct({
         batchId: batch.id, planKey: product.planKey, fields: product.fields, patternTagIds: [],
@@ -46,6 +53,14 @@ export class ProductImportService {
     await this.repository.finishBatch(batch.id, summary);
     return summary;
   }
+
+  async rollbackBatch(batchId: number): Promise<void> {
+    const blockers = await this.repository.rollbackBatch(batchId);
+    if (blockers.length) {
+      const error = Object.assign(new Error(`ROLLBACK_BLOCKED: ${blockers.map((item) => `${item.productId}:${item.reason}`).join(',')}`), { code: 'ROLLBACK_BLOCKED', blockers });
+      throw error;
+    }
+  }
 }
 
 function stableErrorCode(error: unknown): string {
@@ -54,4 +69,3 @@ function stableErrorCode(error: unknown): string {
   }
   return 'IMPORT_PRODUCT_FAILED';
 }
-

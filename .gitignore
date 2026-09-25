@@ -14,6 +14,8 @@ database_fallback.json
 template_config.json
 uploads/
 template/
+.local/import-reports/
+.local/import-backups/
 backup_converted.json
 面料单据数据库备份*.json
 YB-*.json

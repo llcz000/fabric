@@ -88,8 +88,64 @@ export class MySqlProductImportRepository implements ProductImportRepository {
     await this.pool.query('UPDATE product_import_batches SET status = ?, stats_json = ?, updated_at = NOW() WHERE id = ?', [summary.status, JSON.stringify(summary), batchId]);
   }
 
-  async listRollbackBlockers(_batchId: number): Promise<RollbackBlocker[]> { return []; }
+  async listRollbackBlockers(batchId: number): Promise<RollbackBlocker[]> {
+    const imported = uniqueImportedProducts(rows(await this.pool.query(
+      `SELECT DISTINCT p.id, p.item_no, p.updated_at, s.imported_product_updated_at
+       FROM product_import_sources s JOIN products p ON p.id = s.product_id WHERE s.batch_id = ?`,
+      [batchId],
+    )));
+    return await this.findRollbackBlockers(this.pool, batchId, imported);
+  }
+
+  async rollbackBatch(batchId: number): Promise<RollbackBlocker[]> {
+    const connection = await this.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const imported = uniqueImportedProducts(rows(await connection.query(
+        `SELECT p.id, p.item_no, p.updated_at, s.imported_product_updated_at
+         FROM product_import_sources s JOIN products p ON p.id = s.product_id
+         WHERE s.batch_id = ? FOR UPDATE`,
+        [batchId],
+      )));
+      const blockers = await this.findRollbackBlockers(connection, batchId, imported);
+      if (blockers.length) { await connection.rollback(); return blockers; }
+      for (const product of imported) {
+        const productId = Number(product.id);
+        const links = rows(await connection.query('SELECT asset_id FROM product_image_assets WHERE product_id = ? AND deleted_at IS NULL FOR UPDATE', [productId]));
+        const assetIds = links.map((link) => String(link.asset_id));
+        if (assetIds.length) await connection.query(`SELECT id FROM image_assets WHERE id IN (${assetIds.map(() => '?').join(',')}) ORDER BY id FOR UPDATE`, assetIds);
+        await connection.query('DELETE FROM products WHERE id = ?', [productId]);
+        for (const assetId of assetIds) await connection.query('UPDATE image_assets SET ref_count = GREATEST(ref_count - 1, 0) WHERE id = ?', [assetId]);
+      }
+      await connection.query("UPDATE product_import_sources SET status = 'rolled_back', updated_at = NOW() WHERE batch_id = ?", [batchId]);
+      await connection.query("UPDATE product_import_batches SET status = 'rolled_back', updated_at = NOW() WHERE id = ?", [batchId]);
+      await connection.commit();
+      return [];
+    } catch (error) { await connection.rollback(); throw error; }
+    finally { connection.release(); }
+  }
+
   async markBatchRolledBack(batchId: number): Promise<void> { await this.pool.query("UPDATE product_import_batches SET status = 'rolled_back', updated_at = NOW() WHERE id = ?", [batchId]); }
+
+  private async findRollbackBlockers(queryable: { query(sql: string, params?: unknown[]): Promise<[unknown, unknown]> }, batchId: number, imported: Row[]): Promise<RollbackBlocker[]> {
+    const blockers: RollbackBlocker[] = [];
+    const ids = imported.map((product) => Number(product.id)).filter((id) => Number.isSafeInteger(id) && id > 0);
+    for (const product of imported) {
+      const productId = Number(product.id);
+      if (date(product.updated_at).getTime() !== date(product.imported_product_updated_at).getTime()) blockers.push({ productId, reason: 'modified' });
+    }
+    if (!ids.length) return blockers;
+    const otherSources = rows(await queryable.query(
+      `SELECT DISTINCT product_id FROM product_import_sources WHERE product_id IN (${ids.map(() => '?').join(',')}) AND batch_id <> ? AND status = 'applied'`,
+      [...ids, batchId],
+    ));
+    for (const row of otherSources) blockers.push({ productId: Number(row.product_id), reason: 'other_batch' });
+    const itemNos = imported.map((product) => String(product.item_no));
+    const ordered = rows(await queryable.query(`SELECT DISTINCT product_no FROM order_items WHERE product_no IN (${itemNos.map(() => '?').join(',')})`, itemNos));
+    const orderedNos = new Set(ordered.map((row) => String(row.product_no)));
+    for (const product of imported) if (orderedNos.has(String(product.item_no))) blockers.push({ productId: Number(product.id), reason: 'order_reference' });
+    return uniqueBlockers(blockers);
+  }
 }
 
 export function validateImportSourcePayload(value: unknown): Record<string, string> {
@@ -105,3 +161,6 @@ export function validateImportSourcePayload(value: unknown): Record<string, stri
 function rows(value: [unknown, unknown]): Row[] { return Array.isArray(value[0]) ? value[0] as Row[] : []; }
 function result(value: [unknown, unknown]): { insertId?: number } { return value[0] as { insertId?: number }; }
 function mapBatch(row: Row): ProductImportBatch { return { id: Number(row.id), fileSha256: String(row.file_sha256), sheetName: String(row.sheet_name), status: String(row.status) as ProductImportBatch['status'], createdBy: String(row.created_by) }; }
+function date(value: unknown): Date { return value instanceof Date ? value : new Date(String(value)); }
+function uniqueBlockers(blockers: RollbackBlocker[]): RollbackBlocker[] { const seen = new Set<string>(); return blockers.filter((item) => { const key = `${item.productId}:${item.reason}`; if (seen.has(key)) return false; seen.add(key); return true; }); }
+function uniqueImportedProducts(products: Row[]): Row[] { const seen = new Set<number>(); return products.filter((product) => { const id = Number(product.id); if (seen.has(id)) return false; seen.add(id); return true; }); }
