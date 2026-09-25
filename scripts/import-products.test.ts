@@ -17,3 +17,7 @@ test('rollback mode accepts only a positive batch id', () => {
   assert.throws(() => parseImportArgs(['--rollback-batch', '0']), /batch/i);
 });
 
+test('local data root is accepted only with explicit compatibility mode', () => {
+  assert.throws(() => parseImportArgs(['--file', 'book.xlsm', '--sheet', '新', '--apply', '--local-data-root', 'D:/fabric']), /allow-local-compat/);
+  assert.equal(parseImportArgs(['--file', 'book.xlsm', '--sheet', '新', '--apply', '--allow-local-compat', '--local-data-root', 'D:/fabric']).localDataRoot, 'D:/fabric');
+});

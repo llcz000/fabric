@@ -133,6 +133,8 @@ test('schema initialization creates image and delegated product domain tables wi
     'pattern_tags',
     'product_pattern_tags',
     'product_issues',
+    'product_import_batches',
+    'product_import_sources',
   ]);
   assert.match(recordedSql, /UNIQUE KEY uq_image_assets_sha256 \(sha256\)/);
   assert.match(recordedSql, /UNIQUE KEY uq_asset_variant \(asset_id, variant\)/);
@@ -143,6 +145,8 @@ test('schema initialization creates image and delegated product domain tables wi
   assert.match(recordedSql, /UNIQUE KEY uq_legacy_product_image \(legacy_product_image_id\)/);
   assert.match(recordedSql, /UNIQUE KEY uq_pattern_tags_normalized_name \(normalized_name\)/);
   assert.match(recordedSql, /UNIQUE KEY uq_product_issue_fact \(product_id, code, field_name, source_ref\)/);
+  assert.match(recordedSql, /UNIQUE KEY uq_import_batch_file_sheet \(file_sha256, sheet_name\)/);
+  assert.match(recordedSql, /UNIQUE KEY uq_import_source_row \(batch_id, source_sheet, source_row\)/);
 });
 
 test('upload session record and repository creator inputs use the same string identity', async () => {

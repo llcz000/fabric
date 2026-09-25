@@ -11,6 +11,7 @@ coverage/
 
 # Runtime data and generated files
 database_fallback.json
+product_import_state.json
 template_config.json
 uploads/
 template/

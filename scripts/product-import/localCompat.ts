@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import type { ProductImportBatch } from '../../server/products/importTypes';
@@ -30,6 +30,27 @@ export class LocalCompatImportAdapter {
     if (existing && product.sources.every((source) => existing.sources.some((saved) => saved.sourceSheet === source.sheet && saved.sourceRow === source.rowNumber && saved.fingerprint === source.fingerprint))) {
       return { productId: existing.productId, status: 'skipped' };
     }
+    const claimedIds = new Set(Object.values(state.products).map((saved) => saved.productId));
+    const recoverable = database.products.filter((candidate) => {
+      const id = Number(candidate.id);
+      if (claimedIds.has(id)) return false;
+      if (candidate.import_plan_key === product.planKey) return true;
+      return Array.isArray(candidate.issues)
+        && candidate.item_no === product.fields.itemNo
+        && candidate.product_name === product.fields.productName
+        && candidate.composition === product.fields.composition
+        && candidate.weight === product.fields.weight
+        && candidate.width === product.fields.width;
+    });
+    if (recoverable.length === 1) {
+      const recovered = recoverable[0];
+      const productId = Number(recovered.id);
+      const recoveredImages = database.product_images.filter((image) => Number(image.product_id) === productId).map((image) => ({ id: Number(image.id), role: image.role as PlannedImage['role'], localPath: String(image.local_path) }));
+      state.batches[String(batch.id)] = { id: batch.id, fileSha256: batch.fileSha256, sheetName: batch.sheetName, status: 'running' };
+      state.products[product.planKey] = savedProduct(productId, product, recoveredImages, product.issues, String(recovered.updated_at ?? new Date().toISOString()));
+      await atomicJson(this.statePath, state);
+      return { productId, status: 'skipped' };
+    }
     const productId = nextNumericId(database.products);
     const now = new Date().toISOString();
     const savedImages: SavedImportProduct['images'] = [];
@@ -46,18 +67,21 @@ export class LocalCompatImportAdapter {
       savedImages.push({ id: imageId, role: image.planned.role, localPath: target });
     }
     const issues = [...product.issues, ...images.flatMap((image) => image.materialized.issues)];
+    const categoryCounts = {
+      patternOriginal: savedImages.filter((image) => image.role === 'pattern_original').length,
+      fabricDisplay: 0, detail: 0, aiEffect: 0,
+      unclassified: savedImages.filter((image) => image.role === 'unclassified').length,
+    };
     database.products.push({
       id: productId, item_no: product.fields.itemNo, product_name: product.fields.productName,
       composition: product.fields.composition, weight: product.fields.weight, width: product.fields.width,
       image_count: savedImages.length, review_status: issues.length ? 'needs_attention' : 'reviewed', open_issue_count: issues.length,
-      pattern_tags: [], created_at: now, updated_at: now,
+      reviewStatus: issues.length ? 'needs_attention' : 'reviewed', openIssueCount: issues.length,
+      pattern_tags: [], patternTags: [], categoryCounts, issues, created_at: now, updated_at: now,
+      import_plan_key: product.planKey, import_batch_id: batch.id,
     });
     state.batches[String(batch.id)] = { id: batch.id, fileSha256: batch.fileSha256, sheetName: batch.sheetName, status: 'running' };
-    state.products[product.planKey] = {
-      productId, planKey: product.planKey,
-      sources: product.sources.map((source) => ({ sourceSheet: source.sheet, sourceRow: source.rowNumber, fingerprint: source.fingerprint })),
-      images: savedImages, issues, updatedAt: now,
-    };
+    state.products[product.planKey] = savedProduct(productId, product, savedImages, issues, now);
     await atomicJson(this.databasePath, database);
     await atomicJson(this.statePath, state);
     return { productId, status: 'applied' };
@@ -73,6 +97,19 @@ export class LocalCompatImportAdapter {
 }
 
 async function readJson<T>(file: string): Promise<T | null> { try { return JSON.parse(await readFile(file, 'utf8')) as T; } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null; throw error; } }
-async function atomicJson(file: string, value: unknown): Promise<void> { const temp = `${file}.${randomUUID()}.tmp`; await mkdir(path.dirname(file), { recursive: true }); await writeFile(temp, `${JSON.stringify(value, null, 2)}\n`, { encoding: 'utf8', flag: 'wx' }); await rename(temp, file); }
+async function atomicJson(file: string, value: unknown): Promise<void> {
+  const temp = `${file}.${randomUUID()}.tmp`;
+  await mkdir(path.dirname(file), { recursive: true });
+  await writeFile(temp, `${JSON.stringify(value, null, 2)}\n`, { encoding: 'utf8', flag: 'wx' });
+  try {
+    for (let attempt = 0; ; attempt += 1) {
+      try { await rename(temp, file); return; }
+      catch (error) { if (attempt >= 4 || !['EPERM', 'EBUSY', 'EACCES'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error; await new Promise((resolve) => setTimeout(resolve, 100 * (attempt + 1))); }
+    }
+  } catch (error) { await rm(temp, { force: true }).catch(() => undefined); throw error; }
+}
 async function writeIfMissing(file: string, body: Buffer): Promise<void> { try { await writeFile(file, body, { flag: 'wx' }); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error; } }
 function nextNumericId(rows: Array<Record<string, unknown>>): number { return rows.reduce((maximum, row) => Math.max(maximum, Number(row.id) || 0), 0) + 1; }
+function savedProduct(productId: number, product: PlannedProduct, images: SavedImportProduct['images'], issues: PlannedIssue[], updatedAt: string): SavedImportProduct {
+  return { productId, planKey: product.planKey, sources: product.sources.map((source) => ({ sourceSheet: source.sheet, sourceRow: source.rowNumber, fingerprint: source.fingerprint })), images, issues, updatedAt };
+}

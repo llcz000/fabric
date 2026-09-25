@@ -18,12 +18,12 @@ import { OoxmlArchive } from './product-import/ooxmlArchive';
 import { writeDryRunReport } from './product-import/report';
 import { readWpsProductWorkbook } from './product-import/wpsWorkbook';
 
-export type ImportProductsArgs = { mode: 'dry-run' | 'apply' | 'rollback'; file?: string; sheet?: string; reportDir: string; resumeBatch?: number; rollbackBatch?: number; allowLocalCompat: boolean; };
+export type ImportProductsArgs = { mode: 'dry-run' | 'apply' | 'rollback'; file?: string; sheet?: string; reportDir: string; resumeBatch?: number; rollbackBatch?: number; allowLocalCompat: boolean; localDataRoot?: string; };
 
 export function parseImportArgs(argv: string[]): ImportProductsArgs {
   const values = new Map<string, string>();
   const flags = new Set<string>();
-  const valueFlags = new Set(['--file', '--sheet', '--report-dir', '--resume-batch', '--rollback-batch']);
+  const valueFlags = new Set(['--file', '--sheet', '--report-dir', '--resume-batch', '--rollback-batch', '--local-data-root']);
   const booleanFlags = new Set(['--dry-run', '--apply', '--allow-local-compat']);
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -37,14 +37,16 @@ export function parseImportArgs(argv: string[]): ImportProductsArgs {
   if (modes !== 1) throw new Error('Select exactly one mode: --dry-run, --apply, or --rollback-batch');
   const reportDir = values.get('--report-dir') ?? '.local/import-reports';
   const allowLocalCompat = flags.has('--allow-local-compat');
-  if (values.has('--rollback-batch')) return { mode: 'rollback', rollbackBatch: positiveInteger(values.get('--rollback-batch'), 'rollback batch'), reportDir, allowLocalCompat };
+  const localDataRoot = values.get('--local-data-root');
+  if (localDataRoot && !allowLocalCompat) throw new Error('--local-data-root requires --allow-local-compat');
+  if (values.has('--rollback-batch')) return { mode: 'rollback', rollbackBatch: positiveInteger(values.get('--rollback-batch'), 'rollback batch'), reportDir, allowLocalCompat, ...(localDataRoot ? { localDataRoot } : {}) };
   const file = values.get('--file'); const sheet = values.get('--sheet');
   if (!file) throw new Error('--file is required');
   if (!sheet) throw new Error('--sheet is required');
   if (!/\.xlsm?$/i.test(file) && !/\.xlsx$/i.test(file)) throw new Error('--file must be an .xlsm or .xlsx workbook');
-  if (flags.has('--dry-run')) return { mode: 'dry-run', file, sheet, reportDir, allowLocalCompat };
+  if (flags.has('--dry-run')) return { mode: 'dry-run', file, sheet, reportDir, allowLocalCompat, ...(localDataRoot ? { localDataRoot } : {}) };
   const resume = values.has('--resume-batch') ? positiveInteger(values.get('--resume-batch'), 'resume batch') : undefined;
-  return { mode: 'apply', file, sheet, reportDir, allowLocalCompat, ...(resume ? { resumeBatch: resume } : {}) };
+  return { mode: 'apply', file, sheet, reportDir, allowLocalCompat, ...(resume ? { resumeBatch: resume } : {}), ...(localDataRoot ? { localDataRoot } : {}) };
 }
 
 export async function runProductImport(args: ImportProductsArgs): Promise<void> {
@@ -58,7 +60,7 @@ export async function runProductImport(args: ImportProductsArgs): Promise<void> 
     safeLog({ stage: 'dry-run-complete', products: plan.products.length, sourceRows: workbook.rows.length, report: path.basename(report.jsonPath) });
     return;
   }
-  if (args.allowLocalCompat) await applyLocal(plan, filePath);
+  if (args.allowLocalCompat) await applyLocal(plan, filePath, args.localDataRoot);
   else await applyMySql(plan, filePath, args.resumeBatch);
   const report = await writeDryRunReport(plan, args.reportDir);
   safeLog({ stage: 'apply-report', report: path.basename(report.jsonPath) });
@@ -78,9 +80,9 @@ async function inspectPlanMedia(plan: ImportPlan, archive: OoxmlArchive): Promis
   });
 }
 
-async function applyLocal(plan: ImportPlan, filePath: string): Promise<void> {
+async function applyLocal(plan: ImportPlan, filePath: string, localDataRoot?: string): Promise<void> {
   const archive = await OoxmlArchive.open(filePath);
-  const adapter = new LocalCompatImportAdapter(process.cwd());
+  const adapter = new LocalCompatImportAdapter(localDataRoot ? path.resolve(localDataRoot) : process.cwd());
   const batch: ProductImportBatch = { id: Number.parseInt(plan.fileSha256.slice(0, 8), 16), fileSha256: plan.fileSha256, sheetName: plan.sheet, status: 'running', createdBy: principalId() };
   let succeeded = 0; let failed = 0; let skipped = 0;
   const tempRoot = await mkdtemp(path.join(tmpdir(), 'fabric-product-import-'));
@@ -168,4 +170,4 @@ function positiveInteger(value: string | undefined, label: string): number { con
 function safeLog(value: Record<string, unknown>): void { process.stdout.write(`${JSON.stringify(value)}\n`); }
 
 const invoked = process.argv[1] != null && /import-products\.(?:ts|js)$/.test(process.argv[1]);
-if (invoked) { dotenv.config(); void runProductImport(parseImportArgs(process.argv.slice(2))).catch((error) => { process.stderr.write(`${JSON.stringify({ stage: 'failed', code: error && typeof error === 'object' && 'code' in error ? String(error.code) : 'IMPORT_FAILED', message: error instanceof Error ? error.message : 'Import failed' })}\n`); process.exitCode = 1; }); }
+if (invoked) { dotenv.config({ path: process.env.DOTENV_CONFIG_PATH || undefined }); void runProductImport(parseImportArgs(process.argv.slice(2))).catch((error) => { process.stderr.write(`${JSON.stringify({ stage: 'failed', code: error && typeof error === 'object' && 'code' in error ? String(error.code) : 'IMPORT_FAILED', message: error instanceof Error ? error.message : 'Import failed' })}\n`); process.exitCode = 1; }); }
