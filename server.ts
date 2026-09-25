@@ -577,9 +577,7 @@ async function getMySQLPool(): Promise<mysql.Pool> {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    if (imageAssetRuntime.enabled) {
-      await initializeImageAssetSchema(conn);
-    }
+    await initializeImageAssetSchema(conn);
 
     // Inventory entries table
     await conn.query(`
