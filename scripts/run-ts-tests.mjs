@@ -65,6 +65,7 @@ try {
       bundle: true,
       platform: 'node',
       format: 'cjs',
+      external: ['sharp'],
       outfile: outputPath,
       sourcemap: false,
     });

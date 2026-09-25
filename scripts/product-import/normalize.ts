@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import path from 'node:path';
 
 import type { ImportImageReference, ImportSourceRow, WpsProductWorkbook } from './wpsWorkbook';
 export type { WpsProductWorkbook } from './wpsWorkbook';
@@ -23,6 +24,7 @@ export interface PlannedProduct {
   issues: PlannedIssue[];
 }
 export interface ImportPlan {
+  sourceFile: string;
   fileSha256: string;
   sheet: string;
   products: PlannedProduct[];
@@ -47,7 +49,7 @@ export function normalizeImportPlan(workbook: WpsProductWorkbook): ImportPlan {
       product.issues.push(issue('CONFLICTING_PRODUCT_DATA', 'itemNo', '同一货号存在冲突的产品数据', product.sources[0]));
     }
   }
-  return { fileSha256: workbook.fileSha256, sheet: workbook.sheet, products };
+  return { sourceFile: path.basename(workbook.filePath), fileSha256: workbook.fileSha256, sheet: workbook.sheet, products };
 }
 
 export function sourceFingerprint(fileSha256: string, sheet: string, row: ImportSourceRow): string {
