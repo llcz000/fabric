@@ -67,4 +67,45 @@ export async function initializeProductDomainSchema(connection: ProductSchemaCon
       CONSTRAINT fk_product_issues_image FOREIGN KEY (product_image_asset_id) REFERENCES product_image_assets(id) ON DELETE SET NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `);
+
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS product_import_batches (
+      id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      file_sha256 CHAR(64) NOT NULL,
+      source_file VARCHAR(255) NOT NULL,
+      sheet_name VARCHAR(128) NOT NULL,
+      status VARCHAR(16) NOT NULL DEFAULT 'running',
+      checkpoint_json JSON NULL,
+      stats_json JSON NULL,
+      last_error_code VARCHAR(64) NULL,
+      created_by VARCHAR(255) NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_import_batch_file_sheet (file_sha256, sheet_name),
+      KEY idx_import_batches_status_updated (status, updated_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS product_import_sources (
+      id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      batch_id BIGINT UNSIGNED NOT NULL,
+      product_id INT NULL,
+      plan_key CHAR(64) NOT NULL,
+      source_sheet VARCHAR(128) NOT NULL,
+      source_row INT UNSIGNED NOT NULL,
+      source_fingerprint CHAR(64) NOT NULL,
+      source_payload JSON NOT NULL,
+      status VARCHAR(16) NOT NULL,
+      error_code VARCHAR(64) NULL,
+      imported_product_updated_at DATETIME NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_import_source_row (batch_id, source_sheet, source_row),
+      KEY idx_import_sources_product (product_id),
+      KEY idx_import_sources_fingerprint (source_fingerprint),
+      CONSTRAINT fk_import_sources_batch FOREIGN KEY (batch_id) REFERENCES product_import_batches(id) ON DELETE RESTRICT,
+      CONSTRAINT fk_import_sources_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
 }

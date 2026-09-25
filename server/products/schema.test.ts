@@ -25,6 +25,10 @@ test('schema adds product tags issues image origins and legacy roles without des
   assert.match(recorded, /CREATE TABLE IF NOT EXISTS pattern_tags/);
   assert.match(recorded, /CREATE TABLE IF NOT EXISTS product_pattern_tags/);
   assert.match(recorded, /CREATE TABLE IF NOT EXISTS product_issues/);
+  assert.match(recorded, /CREATE TABLE IF NOT EXISTS product_import_batches/);
+  assert.match(recorded, /CREATE TABLE IF NOT EXISTS product_import_sources/);
+  assert.match(recorded, /UNIQUE KEY uq_import_batch_file_sheet \(file_sha256, sheet_name\)/);
+  assert.match(recorded, /UNIQUE KEY uq_import_source_row \(batch_id, source_sheet, source_row\)/);
   assert.match(recorded, /ALTER TABLE product_image_assets[\s\S]*origin_type/);
   assert.match(recorded, /ALTER TABLE product_images[\s\S]*is_primary/);
   assert.match(recorded, /UNIQUE KEY uq_pattern_tags_normalized_name \(normalized_name\)/);
