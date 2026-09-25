@@ -79,6 +79,29 @@ export function readRelationships(xml: string): Map<string, string> {
   return relationships;
 }
 
+export function readCellImageRelationships(cellImagesXml: string, relationshipXml: string): Map<string, string> {
+  const relationships = readRelationships(relationshipXml);
+  const result = new Map<string, string>();
+  let insideCellImage = false;
+  let imageId = '';
+  let relationshipId = '';
+  parseXml(cellImagesXml, {
+    open(tag) {
+      const name = localName(tag);
+      if (name === 'cellImage') { insideCellImage = true; imageId = ''; relationshipId = ''; }
+      if (!insideCellImage) return;
+      if (name === 'cNvPr') imageId = attribute(tag, 'name');
+      if (name === 'blip') relationshipId = attribute(tag, 'r:embed') || attribute(tag, 'embed');
+    },
+    close(name) {
+      if (name !== 'cellImage') return;
+      if (imageId && relationshipId && relationships.has(relationshipId)) result.set(imageId, relationships.get(relationshipId)!);
+      insideCellImage = false;
+    },
+  });
+  return result;
+}
+
 export function readWorkbookMap(workbookXml: string, relationshipXml: string): Map<string, string> {
   const relationships = readRelationships(relationshipXml);
   const sheets = new Map<string, string>();
@@ -121,4 +144,3 @@ function integerAttribute(tag: SaxesTag, name: string): number {
   if (!Number.isSafeInteger(value) || value < 1) throw new Error(`Invalid XML integer attribute: ${name}`);
   return value;
 }
-
