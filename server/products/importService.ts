@@ -20,6 +20,17 @@ export class ProductImportService {
       for (const image of product.images) {
         try {
           const ingested = await this.images.ingest(image, principalId);
+          if (importedImages.some((item) => item.assetId === ingested.assetId)) {
+            issues.push({
+              code: 'DUPLICATE_IMAGE_REFERENCE',
+              fieldName: 'images',
+              message: '多个源图片单元格指向同一图片，已保留首次引用',
+              sourceRef: `${product.sources[0]?.sheet ?? batch.sheetName}!${image.cell}`,
+              severity: 'info',
+            });
+            if (ingested.issues) issues.push(...ingested.issues);
+            continue;
+          }
           importedImages.push({ assetId: ingested.assetId, role: image.role, sortOrder: importedImages.filter((item) => item.role === image.role).length, sourceRef: `${product.sources[0]?.sheet ?? batch.sheetName}!${image.cell}`, originMetadata: ingested.originMetadata });
           if (ingested.issues) issues.push(...ingested.issues);
         } catch {

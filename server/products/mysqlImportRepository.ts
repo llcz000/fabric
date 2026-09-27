@@ -85,6 +85,13 @@ export class MySqlProductImportRepository implements ProductImportRepository {
   }
 
   async finishBatch(batchId: number, summary: ImportBatchSummary): Promise<void> {
+    if (summary.failed === 0) {
+      await this.pool.query(
+        "UPDATE product_import_batches SET status = ?, stats_json = ?, last_error_code = NULL, checkpoint_json = JSON_REMOVE(COALESCE(checkpoint_json, JSON_OBJECT()), '$.lastFailedPlanKey'), updated_at = NOW() WHERE id = ?",
+        [summary.status, JSON.stringify(summary), batchId],
+      );
+      return;
+    }
     await this.pool.query('UPDATE product_import_batches SET status = ?, stats_json = ?, updated_at = NOW() WHERE id = ?', [summary.status, JSON.stringify(summary), batchId]);
   }
 

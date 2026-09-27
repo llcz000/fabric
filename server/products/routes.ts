@@ -61,9 +61,9 @@ const productListQuery = z.object({
   issueCodes: z.string().transform((value) => value === '' ? [] : value.split(',')).pipe(z.array(z.enum([
     'MISSING_PRODUCT_NAME', 'MISSING_COMPOSITION', 'MISSING_WEIGHT', 'MISSING_WIDTH',
     'DUPLICATE_ITEM_NO', 'CONFLICTING_PRODUCT_DATA', 'MISSING_PATTERN_ORIGINAL',
-    'IMAGE_UNCLASSIFIED', 'IMAGE_REFERENCE_MISSING', 'IMAGE_FORMAT_CONVERTED',
+    'IMAGE_UNCLASSIFIED', 'IMAGE_REFERENCE_MISSING', 'DUPLICATE_IMAGE_REFERENCE', 'IMAGE_FORMAT_CONVERTED',
     'IMAGE_RESIZED', 'IMAGE_LIMIT_EXCEEDED', 'UNMAPPED_SOURCE_DATA',
-  ])).max(13)).optional().default([]),
+  ])).max(14)).optional().default([]),
   imageState: z.enum(['missing_pattern', 'has_unclassified', 'complete']).optional(),
   batchId: optionalPositiveInteger(),
   duplicateItemNo: z.enum(['true', 'false']).transform((value) => value === 'true').optional(),

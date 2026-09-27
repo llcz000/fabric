@@ -67,6 +67,18 @@ test('one image failure keeps product metadata and records visible image issues'
   assert.equal(repository.applied[0].issues.some((issue) => issue.code === 'MISSING_PATTERN_ORIGINAL'), true);
 });
 
+test('duplicate source images that dedupe to one asset keep the first image and record an issue', async () => {
+  const repository = new FakeRepository();
+  const planned = product('G1', 2);
+  planned.images.push({ cell: 'G2', dispImgId: 'img-duplicate', mediaEntry: 'xl/media/duplicate.png', role: 'unclassified', sortOrder: 0 });
+  const service = new ProductImportService(repository, { async ingest() { return { assetId: 'asset-same' }; } });
+  const result = await service.applyProduct(batch, planned, 'admin');
+  assert.equal(result.status, 'applied');
+  assert.equal(repository.applied[0].images.length, 1);
+  assert.equal(repository.applied[0].images[0].role, 'pattern_original');
+  assert.equal(repository.applied[0].issues.some((issue) => issue.code === 'DUPLICATE_IMAGE_REFERENCE'), true);
+});
+
 test('rollback refuses the whole batch when any product is blocked', async () => {
   const repository = new FakeRepository();
   repository.rollbackBlockers = [{ productId: 8, reason: 'modified' }, { productId: 9, reason: 'order_reference' }];

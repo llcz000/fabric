@@ -36,3 +36,20 @@ test('imported product fields assets sources and issues commit in one transactio
   assert.equal(statements.some((sql) => sql.includes('INSERT INTO product_import_sources')), true);
   assert.equal(statements.some((sql) => sql.includes('INSERT INTO product_issues')), true);
 });
+
+
+test('completed import clears stale batch failure checkpoint and error code', async () => {
+  const calls: Array<{ sql: string; params?: unknown[] }> = [];
+  const pool = {
+    async getConnection() { throw new Error('not used'); },
+    async query(sql: string, params?: unknown[]) {
+      calls.push({ sql, params });
+      return [{ affectedRows: 1 }, []] as [unknown, unknown];
+    },
+  };
+  const repository = new MySqlProductImportRepository(pool);
+  await repository.finishBatch(12, { succeeded: 3, failed: 0, skipped: 1208, status: 'completed' });
+  assert.match(calls[0].sql, /last_error_code = NULL/);
+  assert.match(calls[0].sql, /JSON_REMOVE/);
+  assert.deepEqual(calls[0].params, ['completed', JSON.stringify({ succeeded: 3, failed: 0, skipped: 1208, status: 'completed' }), 12]);
+});

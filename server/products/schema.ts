@@ -2,20 +2,14 @@ export interface ProductSchemaConnection {
   query(sql: string, params?: unknown[]): Promise<[unknown, unknown]>;
 }
 export async function initializeProductDomainSchema(connection: ProductSchemaConnection): Promise<void> {
-  await connection.query(`
-    ALTER TABLE product_image_assets
-      ADD COLUMN IF NOT EXISTS origin_type VARCHAR(32) NOT NULL DEFAULT 'upload',
-      ADD COLUMN IF NOT EXISTS origin_metadata JSON NULL,
-      ADD KEY IF NOT EXISTS idx_product_image_assets_role_order (product_id, role, sort_order, deleted_at);
-  `);
+  await addColumnIfMissing(connection, 'product_image_assets', 'origin_type', "VARCHAR(32) NOT NULL DEFAULT 'upload'");
+  await addColumnIfMissing(connection, 'product_image_assets', 'origin_metadata', 'JSON NULL');
+  await addIndexIfMissing(connection, 'product_image_assets', 'idx_product_image_assets_role_order', '(product_id, role, sort_order, deleted_at)');
 
-  await connection.query(`
-    ALTER TABLE product_images
-      ADD COLUMN IF NOT EXISTS role VARCHAR(32) NOT NULL DEFAULT 'unclassified',
-      ADD COLUMN IF NOT EXISTS is_primary TINYINT(1) NOT NULL DEFAULT 0,
-      ADD COLUMN IF NOT EXISTS origin_type VARCHAR(32) NOT NULL DEFAULT 'legacy',
-      ADD COLUMN IF NOT EXISTS origin_metadata JSON NULL;
-  `);
+  await addColumnIfMissing(connection, 'product_images', 'role', "VARCHAR(32) NOT NULL DEFAULT 'unclassified'");
+  await addColumnIfMissing(connection, 'product_images', 'is_primary', 'TINYINT(1) NOT NULL DEFAULT 0');
+  await addColumnIfMissing(connection, 'product_images', 'origin_type', "VARCHAR(32) NOT NULL DEFAULT 'legacy'");
+  await addColumnIfMissing(connection, 'product_images', 'origin_metadata', 'JSON NULL');
 
   await connection.query(`
     CREATE TABLE IF NOT EXISTS pattern_tags (
@@ -108,4 +102,24 @@ export async function initializeProductDomainSchema(connection: ProductSchemaCon
       CONSTRAINT fk_import_sources_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `);
+}
+
+async function addColumnIfMissing(connection: ProductSchemaConnection, table: string, column: string, definition: string): Promise<void> {
+  const [rows] = await connection.query(
+    `SELECT 1 AS present FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ? LIMIT 1`,
+    [table, column],
+  );
+  if (Array.isArray(rows) && rows.length > 0) return;
+  await connection.query(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+}
+
+async function addIndexIfMissing(connection: ProductSchemaConnection, table: string, index: string, columns: string): Promise<void> {
+  const [rows] = await connection.query(
+    `SELECT 1 AS present FROM information_schema.STATISTICS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ? LIMIT 1`,
+    [table, index],
+  );
+  if (Array.isArray(rows) && rows.length > 0) return;
+  await connection.query(`ALTER TABLE ${table} ADD INDEX ${index} ${columns}`);
 }

@@ -5,9 +5,21 @@ import { initializeProductDomainSchema } from './schema';
 
 class RecordingConnection {
   readonly statements: string[] = [];
+  constructor(
+    private readonly existingColumns = new Set<string>(),
+    private readonly existingIndexes = new Set<string>(),
+  ) {}
 
-  async query(sql: string): Promise<[unknown, unknown]> {
+  async query(sql: string, params: unknown[] = []): Promise<[unknown, unknown]> {
     this.statements.push(sql);
+    if (/information_schema\.COLUMNS/i.test(sql)) {
+      const key = `${String(params[0])}.${String(params[1])}`;
+      return [this.existingColumns.has(key) ? [{ present: 1 }] : [], []];
+    }
+    if (/information_schema\.STATISTICS/i.test(sql)) {
+      const key = `${String(params[0])}.${String(params[1])}`;
+      return [this.existingIndexes.has(key) ? [{ present: 1 }] : [], []];
+    }
     return [{ affectedRows: 0 }, []];
   }
 }
@@ -34,4 +46,35 @@ test('schema adds product tags issues image origins and legacy roles without des
   assert.match(recorded, /UNIQUE KEY uq_pattern_tags_normalized_name \(normalized_name\)/);
   assert.match(recorded, /PRIMARY KEY \(product_id, tag_id\)/);
   assert.doesNotMatch(recorded, /DROP TABLE|DROP COLUMN|TRUNCATE/i);
+});
+
+test('schema uses MySQL 8 metadata checks instead of unsupported ADD IF NOT EXISTS syntax', async () => {
+  const connection = new RecordingConnection();
+
+  await initializeProductDomainSchema(connection);
+
+  const recorded = sql(connection);
+  assert.match(recorded, /information_schema\.COLUMNS/i);
+  assert.match(recorded, /information_schema\.STATISTICS/i);
+  assert.doesNotMatch(recorded, /ADD\s+(?:COLUMN|KEY|INDEX)\s+IF\s+NOT\s+EXISTS/i);
+});
+
+test('schema resumes safely when the product migration is partially complete', async () => {
+  const connection = new RecordingConnection(
+    new Set([
+      'product_image_assets.origin_type',
+      'product_image_assets.origin_metadata',
+      'product_images.role',
+      'product_images.is_primary',
+      'product_images.origin_type',
+      'product_images.origin_metadata',
+    ]),
+    new Set(['product_image_assets.idx_product_image_assets_role_order']),
+  );
+
+  await initializeProductDomainSchema(connection);
+
+  const alterations = connection.statements.filter((statement) => /^\s*ALTER TABLE/i.test(statement));
+  assert.deepEqual(alterations, []);
+  assert.match(sql(connection), /CREATE TABLE IF NOT EXISTS product_import_sources/);
 });
