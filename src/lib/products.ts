@@ -138,6 +138,18 @@ export async function reopenProductIssue(apiFetch: typeof fetch, productId: stri
   await requestJson(apiFetch, `/api/products/${encodeURIComponent(productId)}/issues/${issueId}/reopen`, json('POST', {}));
 }
 
+export async function setProductReviewStatus(
+  apiFetch: typeof fetch,
+  productId: string,
+  status: Exclude<ProductReviewStatus, 'needs_attention'>,
+): Promise<ProductDetail> {
+  return mapProductDetail(await requestJson<ServerRow>(
+    apiFetch,
+    '/api/products/' + encodeURIComponent(productId) + '/review',
+    json('POST', { status }),
+  ));
+}
+
 export async function applyPatternTagBatch(apiFetch: typeof fetch, input: PatternTagBatchInput): Promise<void> {
   await requestJson(apiFetch, '/api/products/batch-pattern-tags', json('POST', input));
 }
@@ -176,7 +188,11 @@ function mapProduct(row: ServerRow): ProductLibraryItem {
     updatedAt: text(row.updatedAt ?? row.updated_at),
     images,
     patternTags: mapTags(row.patternTags),
-    reviewStatus: row.reviewStatus === 'needs_attention' ? 'needs_attention' : 'reviewed',
+    reviewStatus: row.reviewStatus === 'needs_attention'
+      ? 'needs_attention'
+      : row.reviewStatus === 'reviewed'
+        ? 'reviewed'
+        : 'pending_manual_confirmation',
     openIssueCount: number(row.openIssueCount),
     categoryCounts: mapCategoryCounts(row.categoryCounts),
   };

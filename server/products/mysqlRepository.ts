@@ -14,6 +14,7 @@ import type {
   ProductIssue,
   ProductIssueCode,
   ProductListFilter,
+  ProductManualReviewStatus,
   ProductPage,
   ProductSummary,
   ProductWriteInput,
@@ -85,7 +86,7 @@ export class MySqlProductRepository implements ProductRepository {
       await this.reconcileIssues(connection, productId, input, layout);
       const updatedAt = new Date();
       await connection.query(
-        'UPDATE products SET item_no = ?, product_name = ?, composition = ?, weight = ?, width = ?, image_count = ?, updated_at = ? WHERE id = ?',
+        "UPDATE products SET item_no = ?, product_name = ?, composition = ?, weight = ?, width = ?, image_count = ?, review_status = 'pending_manual_confirmation', reviewed_by = NULL, reviewed_at = NULL, updated_at = ? WHERE id = ?",
         [input.itemNo, input.productName, input.composition, input.weight, input.width, layout.length, updatedAt, productId],
       );
       return {
@@ -122,6 +123,7 @@ export class MySqlProductRepository implements ProductRepository {
       await this.lockAssets(connection, [...requestedIds].sort(), new Set(assetIds));
       await this.applyImageLayout(connection, productId, { existing, layout });
       await this.reconcileIssues(connection, productId, productInput(product), layout);
+      await this.markPendingManualReview(connection, productId);
       return true;
     });
   }
@@ -134,6 +136,7 @@ export class MySqlProductRepository implements ProductRepository {
       const imageState = await this.lockImageState(connection, productId, layout, true);
       await this.applyImageLayout(connection, productId, imageState);
       await this.reconcileIssues(connection, productId, productInput(product), layout);
+      await this.markPendingManualReview(connection, productId);
     });
   }
 
@@ -149,7 +152,7 @@ export class MySqlProductRepository implements ProductRepository {
       await this.decrementReference(connection, assetId);
       const remaining = existing.filter((row) => row.id !== target.id);
       await this.resequenceExisting(connection, remaining);
-      await connection.query('UPDATE products SET image_count = ?, updated_at = NOW() WHERE id = ?', [remaining.length, productId]);
+      await connection.query("UPDATE products SET image_count = ?, review_status = 'pending_manual_confirmation', reviewed_by = NULL, reviewed_at = NULL, updated_at = NOW() WHERE id = ?", [remaining.length, productId]);
       await this.reconcileIssues(connection, productId, productInput(product), remaining.map(mapLockedLayout));
     });
   }
@@ -268,6 +271,7 @@ export class MySqlProductRepository implements ProductRepository {
             await connection.query('DELETE FROM product_pattern_tags WHERE product_id = ? AND tag_id = ?', [productId, tagId]);
           }
         }
+        await this.markPendingManualReview(connection, productId);
       }
     });
   }
@@ -318,6 +322,29 @@ export class MySqlProductRepository implements ProductRepository {
       })),
       issues: issueRows.map(mapProductIssue),
     };
+  }
+
+  setReviewStatus(productId: number, status: ProductManualReviewStatus, principalId: string): Promise<boolean> {
+    return this.inTransaction(async (connection) => {
+      const product = await this.lockProduct(connection, productId);
+      if (!product) return false;
+      if (status === 'reviewed') {
+        const openIssues = rows(await connection.query(
+          "SELECT COUNT(*) AS open_issue_count FROM product_issues WHERE product_id = ? AND status = 'open'",
+          [productId],
+        ));
+        if (Number(openIssues[0]?.open_issue_count ?? 0) > 0) {
+          throw new ProductError('PRODUCT_CONFLICT', 409, false, 'Resolve open product issues before confirming review');
+        }
+        await connection.query(
+          "UPDATE products SET review_status = 'reviewed', reviewed_by = ?, reviewed_at = NOW() WHERE id = ?",
+          [principalId, productId],
+        );
+      } else {
+        await this.markPendingManualReview(connection, productId);
+      }
+      return true;
+    });
   }
 
   ignoreIssue(productId: number, issueId: number, principalId: string, note?: string): Promise<boolean> {
@@ -378,7 +405,7 @@ export class MySqlProductRepository implements ProductRepository {
         },
         primaryAssetId: image?.primary_asset_id ? String(image.primary_asset_id) : undefined,
         patternTags: tagsByProduct.get(id) ?? [],
-        reviewStatus: openIssueCount > 0 ? 'needs_attention' : 'reviewed',
+        reviewStatus: openIssueCount > 0 ? 'needs_attention' : manualReviewStatus(row.review_status),
         openIssueCount,
       };
     });
@@ -408,8 +435,16 @@ export class MySqlProductRepository implements ProductRepository {
           [issueId],
         );
       }
+      await this.markPendingManualReview(connection, productId);
       return true;
     });
+  }
+
+  private async markPendingManualReview(connection: AssetTransaction, productId: number): Promise<void> {
+    await connection.query(
+      "UPDATE products SET review_status = 'pending_manual_confirmation', reviewed_by = NULL, reviewed_at = NULL WHERE id = ?",
+      [productId],
+    );
   }
 
   private async reconcileIssues(
@@ -675,6 +710,10 @@ function buildMatchedProducts(filter: ProductListFilter): { sql: string; params:
     params.push(like, like, like, like);
   }
   if (filter.reviewStatus === 'reviewed') {
+    where.push("p.review_status = 'reviewed'");
+    where.push("NOT EXISTS (SELECT 1 FROM product_issues review_issues WHERE review_issues.product_id = p.id AND review_issues.status = 'open')");
+  } else if (filter.reviewStatus === 'pending_manual_confirmation') {
+    where.push("p.review_status = 'pending_manual_confirmation'");
     where.push("NOT EXISTS (SELECT 1 FROM product_issues review_issues WHERE review_issues.product_id = p.id AND review_issues.status = 'open')");
   } else if (filter.reviewStatus === 'needs_attention') {
     where.push("EXISTS (SELECT 1 FROM product_issues review_issues WHERE review_issues.product_id = p.id AND review_issues.status = 'open')");
@@ -702,6 +741,10 @@ function buildMatchedProducts(filter: ProductListFilter): { sql: string; params:
     sql: `SELECT p.id FROM products p ${joins.join('\n')} WHERE ${where.join(' AND ')} GROUP BY p.id${having}`,
     params,
   };
+}
+
+function manualReviewStatus(value: unknown): ProductManualReviewStatus {
+  return value === 'reviewed' ? 'reviewed' : 'pending_manual_confirmation';
 }
 
 function mapProduct(row: Row): ProductRecord {

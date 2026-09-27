@@ -18,13 +18,28 @@ test('table leads with pattern thumbnail, caps visible tags, and uses server tot
     ],
   } as ProductLibraryItem;
   const markup = renderToStaticMarkup(React.createElement(ProductTable, {
-    items: [product], total: 51, limit: 50, offset: 0, selectedIds: new Set<string>(), onSelectionChange() {}, onOpen() {}, onEdit() {}, onDelete() {}, onPageChange() {},
+    items: [product], total: 51, limit: 50, offset: 0, selectedIds: new Set<string>(), onSelectionChange() {}, onOpen() {}, onEdit() {}, onDelete() {}, onReviewStatusChange() {}, onPageChange() {},
   }));
   assert.match(markup, /src="\/pattern"/);
   assert.doesNotMatch(markup, /src="\/detail"/);
   assert.match(markup, /\+1/);
   assert.match(markup, /下一页/);
   assert.match(markup, />删除</);
+});
+
+test('pending manual review exposes an explicit confirmation action', () => {
+  const product = {
+    id: '8', itemNo: 'G-8', productName: 'Pending', composition: '', weight: '', width: '', imageCount: 0,
+    createdAt: '', updatedAt: '', reviewStatus: 'pending_manual_confirmation', openIssueCount: 0,
+    categoryCounts: { patternOriginal: 0, fabricDisplay: 0, detail: 0, aiEffect: 0, unclassified: 0 },
+    patternTags: [], images: [],
+  } as ProductLibraryItem;
+  const markup = renderToStaticMarkup(React.createElement(ProductTable, {
+    items: [product], total: 1, limit: 50, offset: 0, selectedIds: new Set<string>(),
+    onSelectionChange() {}, onOpen() {}, onEdit() {}, onDelete() {}, onReviewStatusChange() {}, onPageChange() {},
+  }));
+  assert.match(markup, /待人工确认/);
+  assert.match(markup, /确认已审核/);
 });
 
 test('batch tag removal sends only the selected tag difference', async () => {

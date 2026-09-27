@@ -74,7 +74,7 @@ export function ProductFilters({ value, availableTags, onChange }: ProductFilter
           onChange={(event) => update({ type: 'set-review', reviewStatus: event.target.value as ProductListOptions['reviewStatus'] || undefined })}
           className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
         >
-          <option value="">全部状态</option><option value="reviewed">已审核</option><option value="needs_attention">待处理</option>
+          <option value="">全部状态</option><option value="pending_manual_confirmation">待人工确认</option><option value="reviewed">已审核</option><option value="needs_attention">待处理</option>
         </select>
         <select
           aria-label="图片状态"

@@ -10,6 +10,7 @@ import {
   patchImageLayout,
   reopenProductIssue,
   saveProduct,
+  setProductReviewStatus,
 } from './products';
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -95,6 +96,7 @@ test('layout issue batch-tag and tag-search clients use dedicated endpoints', as
   await patchImageLayout(apiFetch, '7', [{ assetId: 'a', role: 'detail', sortOrder: 0 }]);
   await ignoreProductIssue(apiFetch, '7', 9, '已确认');
   await reopenProductIssue(apiFetch, '7', 9);
+  await setProductReviewStatus(apiFetch, '7', 'reviewed');
   await applyPatternTagBatch(apiFetch, { productIds: [7, 8], operation: 'add', tagIds: [2] });
   await listPatternTags(apiFetch, { q: '碎花', status: 'active' });
 
@@ -102,6 +104,7 @@ test('layout issue batch-tag and tag-search clients use dedicated endpoints', as
     { url: '/api/products/7/image-layout', method: 'PATCH' },
     { url: '/api/products/7/issues/9/ignore', method: 'POST' },
     { url: '/api/products/7/issues/9/reopen', method: 'POST' },
+    { url: '/api/products/7/review', method: 'POST' },
     { url: '/api/products/batch-pattern-tags', method: 'POST' },
     { url: '/api/product-pattern-tags?q=%E7%A2%8E%E8%8A%B1&status=active', method: 'GET' },
   ]);

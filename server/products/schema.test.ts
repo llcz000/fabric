@@ -43,6 +43,10 @@ test('schema adds product tags issues image origins and legacy roles without des
   assert.match(recorded, /UNIQUE KEY uq_import_source_row \(batch_id, source_sheet, source_row\)/);
   assert.match(recorded, /ALTER TABLE product_image_assets[\s\S]*origin_type/);
   assert.match(recorded, /ALTER TABLE product_images[\s\S]*is_primary/);
+  assert.match(recorded, /ALTER TABLE products ADD COLUMN review_status/);
+  assert.match(recorded, /ALTER TABLE products ADD COLUMN reviewed_by/);
+  assert.match(recorded, /ALTER TABLE products ADD COLUMN reviewed_at/);
+  assert.match(recorded, /idx_products_review_status_updated/);
   assert.match(recorded, /UNIQUE KEY uq_pattern_tags_normalized_name \(normalized_name\)/);
   assert.match(recorded, /PRIMARY KEY \(product_id, tag_id\)/);
   assert.doesNotMatch(recorded, /DROP TABLE|DROP COLUMN|TRUNCATE/i);
@@ -68,8 +72,11 @@ test('schema resumes safely when the product migration is partially complete', a
       'product_images.is_primary',
       'product_images.origin_type',
       'product_images.origin_metadata',
+      'products.review_status',
+      'products.reviewed_by',
+      'products.reviewed_at',
     ]),
-    new Set(['product_image_assets.idx_product_image_assets_role_order']),
+    new Set(['product_image_assets.idx_product_image_assets_role_order', 'products.idx_products_review_status_updated']),
   );
 
   await initializeProductDomainSchema(connection);

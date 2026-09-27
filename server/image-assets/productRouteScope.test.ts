@@ -26,6 +26,7 @@ test('valid product image paths remain in scope', () => {
   assert.equal(isProductImageRequest(request('DELETE', '/123/images/asset_1')), true);
   assert.equal(isProductImageRequest(request('POST', '/123/images')), true);
   assert.equal(isProductImageRequest(request('PATCH', '/123/image-layout')), true);
+  assert.equal(isProductImageRequest(request('POST', '/123/review')), true);
   assert.equal(isProductImageRequest(request('POST', '/123/issues/7/ignore')), true);
   assert.equal(isProductImageRequest(request('POST', '/123/issues/7/reopen')), true);
   assert.equal(isProductImageRequest(request('POST', '/batch-pattern-tags')), true);

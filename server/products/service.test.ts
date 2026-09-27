@@ -44,6 +44,7 @@ class CapturingRepository implements ProductRepository {
     return { items: [], total: 0, limit: filter.limit, offset: filter.offset };
   }
   async getProductDetail() { return null; }
+  async setReviewStatus() { return true; }
   async ignoreIssue() { return false; }
   async reopenIssue() { return false; }
 }
@@ -103,6 +104,13 @@ test('attach validates categorized asset IDs before opening the repository trans
   await assert.rejects(service.attachProductImages(7, 'detail', ['valid', 'bad id'], 'admin-1'), /invalid assetId/);
 
   assert.deepEqual(repository.attachedImages, []);
+});
+
+test('manual review accepts only pending or reviewed states', async () => {
+  const repository = new CapturingRepository();
+  const service = new ProductService(repository);
+  assert.equal(await service.setReviewStatus(7, 'reviewed', 'admin-1'), true);
+  assert.throws(() => service.setReviewStatus(7, 'needs_attention' as never, 'admin-1'), /Invalid manual review status/);
 });
 
 test('create pattern tag trims the display name before repository creation', async () => {

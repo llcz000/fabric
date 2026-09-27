@@ -189,6 +189,39 @@ test('editing may retain an archived tag but cannot attach it to another product
   assert.deepEqual(newlyAttached.transactions, ['BEGIN', 'ROLLBACK', 'RELEASE']);
 });
 
+test('manual review confirmation requires no open issues and stores reviewer audit', async () => {
+  const blocked = new RecordingConnection();
+  blocked.listIssueSummaryRows = [{ open_issue_count: 1 }];
+  await assert.rejects(
+    new MySqlProductRepository(blocked).setReviewStatus(7, 'reviewed', 'admin-1'),
+    { code: 'PRODUCT_CONFLICT' },
+  );
+  assert.deepEqual(blocked.transactions, ['BEGIN', 'ROLLBACK', 'RELEASE']);
+
+  const clean = new RecordingConnection();
+  assert.equal(await new MySqlProductRepository(clean).setReviewStatus(7, 'reviewed', 'admin-1'), true);
+  const update = clean.statements.find((statement) => statement.sql.includes("review_status = 'reviewed'"));
+  assert.deepEqual(update?.params, ['admin-1', 7]);
+  assert.deepEqual(clean.transactions, ['BEGIN', 'COMMIT', 'RELEASE']);
+});
+
+test('editing product content resets a previous review to pending manual confirmation', async () => {
+  const connection = preparedConnection(input);
+  await new MySqlProductRepository(connection).updateProduct(7, input, 'admin-1');
+  const update = connection.statements.find((statement) => statement.sql.includes('UPDATE products SET item_no'));
+  assert.match(update?.sql ?? '', /review_status = 'pending_manual_confirmation'/);
+});
+
+test('pending manual review filter excludes open issues and matches persisted status', async () => {
+  const connection = new RecordingConnection();
+  await new MySqlProductRepository(connection).listProducts({
+    tagIds: [], tagMode: 'all', reviewStatus: 'pending_manual_confirmation', issueCodes: [], limit: 50, offset: 0,
+  });
+  const sql = connection.statements[0]?.sql ?? '';
+  assert.match(sql, /p\.review_status = 'pending_manual_confirmation'/);
+  assert.match(sql, /NOT EXISTS.*product_issues/s);
+});
+
 test('tag all-mode and keyword filtering happen before stable pagination', async () => {
   const connection = new RecordingConnection();
   connection.listTotal = 2;
@@ -210,8 +243,8 @@ test('product page enriches two products with three batch queries and no per-pro
   const connection = new RecordingConnection();
   connection.listTotal = 2;
   connection.listProductRows = [
-    { id: 8, item_no: 'B', product_name: 'Blue', composition: 'Cotton', weight: '120', width: '150', image_count: 1, created_at: new Date(0), updated_at: new Date(2) },
-    { id: 7, item_no: 'A', product_name: 'Amber', composition: 'Linen', weight: '110', width: '145', image_count: 0, created_at: new Date(0), updated_at: new Date(1) },
+    { id: 8, item_no: 'B', product_name: 'Blue', composition: 'Cotton', weight: '120', width: '150', image_count: 1, review_status: 'pending_manual_confirmation', created_at: new Date(0), updated_at: new Date(2) },
+    { id: 7, item_no: 'A', product_name: 'Amber', composition: 'Linen', weight: '110', width: '145', image_count: 0, review_status: 'reviewed', created_at: new Date(0), updated_at: new Date(1) },
   ];
   connection.listImageSummaryRows = [
     { product_id: 8, pattern_count: 1, fabric_display_count: 0, detail_count: 0, ai_effect_count: 0, unclassified_count: 0, primary_asset_id: 'asset-8' },
@@ -228,6 +261,7 @@ test('product page enriches two products with three batch queries and no per-pro
   assert.equal(connection.statements.length, 5);
   assert.equal(page.items[0].categoryCounts.patternOriginal, 1);
   assert.deepEqual(page.items[0].patternTags, [{ id: 2, name: '碎花', status: 'active' }]);
+  assert.equal(page.items[0].reviewStatus, 'pending_manual_confirmation');
   assert.equal(page.items[1].reviewStatus, 'needs_attention');
   assert.equal(page.items[1].openIssueCount, 2);
 });

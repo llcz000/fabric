@@ -32,4 +32,5 @@ test('filters expose issue-code selection for imported anomalies', () => {
   assert.match(markup, /aria-label="异常类型"/);
   assert.match(markup, /缺少产品名称/);
   assert.match(markup, /图片引用缺失/);
+  assert.match(markup, /待人工确认/);
 });

@@ -127,7 +127,7 @@ export interface ProductItem {
 
 export type ProductImageSource = 'asset' | 'legacy';
 export type ProductImageRole = 'pattern_original' | 'fabric_display' | 'detail' | 'ai_effect' | 'unclassified' | 'legacy';
-export type ProductReviewStatus = 'reviewed' | 'needs_attention';
+export type ProductReviewStatus = 'pending_manual_confirmation' | 'reviewed' | 'needs_attention';
 
 export interface PatternTagSummary {
   id: number;

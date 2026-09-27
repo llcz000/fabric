@@ -28,6 +28,7 @@ import {
   listProducts as listProductPage,
   reopenProductIssue,
   saveProduct as saveProductAggregate,
+  setProductReviewStatus,
   type ProductListOptions,
 } from '../lib/products';
 import { ProductFilters } from './product-library/ProductFilters';
@@ -198,7 +199,7 @@ export default function ProductLibrary() {
       const cached = await getAllProducts().catch(() => []);
       setItems(cached.map((item) => ({
         ...item,
-        patternTags: item.patternTags ?? [], reviewStatus: item.reviewStatus ?? 'reviewed', openIssueCount: item.openIssueCount ?? 0,
+        patternTags: item.patternTags ?? [], reviewStatus: item.reviewStatus ?? 'pending_manual_confirmation', openIssueCount: item.openIssueCount ?? 0,
         categoryCounts: item.categoryCounts ?? { patternOriginal: 0, fabricDisplay: 0, detail: 0, aiEffect: 0, unclassified: 0 },
       })));
     } finally { setLoading(false); }
@@ -284,6 +285,14 @@ export default function ProductLibrary() {
       await load();
     } catch (error) { setMessage(formatImageError(error)); }
   };
+  const changeReviewStatus = async (product: ProductLibraryItem, status: 'pending_manual_confirmation' | 'reviewed') => {
+    try {
+      await setProductReviewStatus(authFetch, product.id, status);
+      setMessage(status === 'reviewed' ? '已确认 ' + (product.itemNo || product.id) + ' 审核完成' : '已将 ' + (product.itemNo || product.id) + ' 撤回待人工确认');
+      await load();
+    } catch (error) { setMessage(formatImageError(error)); }
+  };
+
   const changeIssueStatus = async (issue: ProductIssue, action: 'ignore' | 'reopen') => {
     if (!editingId) return;
     try {
@@ -300,7 +309,7 @@ export default function ProductLibrary() {
     {message && <div className="rounded bg-amber-50 p-2 text-sm text-amber-800">{message}</div>}
     <ProductFilters value={query} availableTags={tags} onChange={setQuery} />
     {selectedIds.size > 0 && tags[0] && <div className="flex gap-2 text-sm"><span>已选 {selectedIds.size} 项</span><button type="button" onClick={() => void batchTags('add', tags[0].id)}>批量添加“{tags[0].name}”</button><button type="button" onClick={() => void batchTags('remove', tags[0].id)}>批量移除“{tags[0].name}”</button></div>}
-    {loading ? <div className="p-12 text-center text-slate-400">加载中…</div> : <ProductTable items={items} total={total} limit={query.limit ?? 50} offset={query.offset ?? 0} selectedIds={selectedIds} onSelectionChange={setSelectedIds} onOpen={(product, assetId) => void openProduct(product, assetId)} onEdit={(product) => void openEditor(product)} onDelete={(product) => void removeProduct(product)} onPageChange={(offset) => setQuery((value) => ({ ...value, offset }))} />}
+    {loading ? <div className="p-12 text-center text-slate-400">加载中…</div> : <ProductTable items={items} total={total} limit={query.limit ?? 50} offset={query.offset ?? 0} selectedIds={selectedIds} onSelectionChange={setSelectedIds} onOpen={(product, assetId) => void openProduct(product, assetId)} onEdit={(product) => void openEditor(product)} onDelete={(product) => void removeProduct(product)} onReviewStatusChange={(product, status) => void changeReviewStatus(product, status)} onPageChange={(offset) => setQuery((value) => ({ ...value, offset }))} />}
     {viewer && <div className="fixed inset-0 z-40 overflow-auto bg-black/80 p-6"><button type="button" className="mb-3 text-white" onClick={() => setViewer(null)}>关闭</button><ProductImageViewer product={viewer.product} initialAssetId={viewer.assetId} onClose={() => setViewer(null)} /></div>}
     <ProductEditor state={editor} availableTags={tags} issues={editingIssues} onChange={(draft) => setEditor((state) => reduceEditorState(state, { type: 'set-draft', draft }))} onSave={(draft) => void saveDraft(draft)} onClose={() => setEditor((state) => ({ ...state, open: false }))} onUpload={(role, files) => void uploadForRole(role, files)} onReplace={(assetId, role, files) => void replaceImage(assetId, role, files)} onIgnoreIssue={(issue) => void changeIssueStatus(issue, 'ignore')} onReopenIssue={(issue) => void changeIssueStatus(issue, 'reopen')} />
   </div>;

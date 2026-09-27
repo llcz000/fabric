@@ -9,6 +9,7 @@ import type {
   ProductImageLayoutDraft,
   ProductImageRole,
   ProductListFilter,
+  ProductManualReviewStatus,
   ProductPage,
   ProductWriteInput,
 } from './types';
@@ -89,6 +90,12 @@ export class ProductService {
   getProductDetail(productId: number): Promise<ProductDetail | null> {
     requirePositiveId(productId, 'productId');
     return this.products.getProductDetail(productId);
+  }
+
+  setReviewStatus(productId: number, status: ProductManualReviewStatus, principalId: string): Promise<boolean> {
+    requirePositiveId(productId, 'productId');
+    if (status !== 'pending_manual_confirmation' && status !== 'reviewed') throw invalidProduct('Invalid manual review status');
+    return this.products.setReviewStatus(productId, status, principalId);
   }
 
   ignoreIssue(productId: number, issueId: number, principalId: string, note?: string): Promise<boolean> {

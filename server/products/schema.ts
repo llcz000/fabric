@@ -11,6 +11,11 @@ export async function initializeProductDomainSchema(connection: ProductSchemaCon
   await addColumnIfMissing(connection, 'product_images', 'origin_type', "VARCHAR(32) NOT NULL DEFAULT 'legacy'");
   await addColumnIfMissing(connection, 'product_images', 'origin_metadata', 'JSON NULL');
 
+  await addColumnIfMissing(connection, 'products', 'review_status', "VARCHAR(32) NOT NULL DEFAULT 'pending_manual_confirmation'");
+  await addColumnIfMissing(connection, 'products', 'reviewed_by', 'VARCHAR(255) NULL');
+  await addColumnIfMissing(connection, 'products', 'reviewed_at', 'DATETIME NULL');
+  await addIndexIfMissing(connection, 'products', 'idx_products_review_status_updated', '(review_status, updated_at, id)');
+
   await connection.query(`
     CREATE TABLE IF NOT EXISTS pattern_tags (
       id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

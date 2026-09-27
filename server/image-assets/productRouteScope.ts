@@ -28,6 +28,7 @@ function isProductImageRoute(method: string, requestPath: string): boolean {
   if (/^\/[^/]+\/thumbnails$/.test(requestPath)) return method === 'GET';
   if (/^\/[^/]+\/images$/.test(requestPath)) return method === 'POST';
   if (/^\/[^/]+\/image-layout$/.test(requestPath)) return method === 'PATCH';
+  if (/^\/[^/]+\/review$/.test(requestPath)) return method === 'POST';
   if (/^\/[^/]+\/issues\/[^/]+\/(ignore|reopen)$/.test(requestPath)) return method === 'POST';
 
   const image = /^\/([^/]+)\/images\/([^/]+)$/.exec(requestPath);

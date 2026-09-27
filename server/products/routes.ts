@@ -43,6 +43,7 @@ const batchTags = z.object({
   tagIds: z.array(z.number().int().positive().safe()).min(1).max(12),
 }).strict();
 const issueAction = z.object({ note: z.string().max(1_000).optional() }).strict();
+const reviewAction = z.object({ status: z.enum(['pending_manual_confirmation', 'reviewed']) }).strict();
 const strictEmpty = z.object({}).strict();
 const tagCreate = z.object({ name: z.string().min(1).max(32) }).strict();
 const tagUpdate = z.object({
@@ -57,7 +58,7 @@ const productListQuery = z.object({
   q: z.string().max(255).optional(),
   tagIds: csvPositiveIds(12).optional().default([]),
   tagMode: z.literal('all').optional().default('all'),
-  reviewStatus: z.enum(['reviewed', 'needs_attention']).optional(),
+  reviewStatus: z.enum(['pending_manual_confirmation', 'reviewed', 'needs_attention']).optional(),
   issueCodes: z.string().transform((value) => value === '' ? [] : value.split(',')).pipe(z.array(z.enum([
     'MISSING_PRODUCT_NAME', 'MISSING_COMPOSITION', 'MISSING_WEIGHT', 'MISSING_WIDTH',
     'DUPLICATE_ITEM_NO', 'CONFLICTING_PRODUCT_DATA', 'MISSING_PATTERN_ORIGINAL',
@@ -83,6 +84,7 @@ export type ProductRouteService = Pick<ProductService,
   | 'applyPatternTagBatch'
   | 'listProducts'
   | 'getProductDetail'
+  | 'setReviewStatus'
   | 'ignoreIssue'
   | 'reopenIssue'
 >;
@@ -174,6 +176,16 @@ export function createProductRouter(runtime: ProductRouteRuntime): express.Route
     parse(strictEmpty, req.query);
     const productId = parseId(req.params.id);
     await runtime.service.deleteProductImage(productId, parse(assetId, req.params.assetId));
+    res.json(await productDetailResponse(requireFound(await runtime.service.getProductDetail(productId)), runtime));
+  }));
+
+  router.post('/:id/review', asyncRoute(async (req, res, next) => {
+    if (!available(runtime)) return next();
+    requireJson(req);
+    parse(strictEmpty, req.query);
+    const productId = parseId(req.params.id);
+    const input = parse(reviewAction, req.body);
+    if (!await runtime.service.setReviewStatus(productId, input.status, runtime.principalId)) throw notFound();
     res.json(await productDetailResponse(requireFound(await runtime.service.getProductDetail(productId)), runtime));
   }));
 

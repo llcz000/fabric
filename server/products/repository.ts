@@ -6,6 +6,7 @@ import type {
   ProductImageLayoutItem,
   ProductDetail,
   ProductListFilter,
+  ProductManualReviewStatus,
   ProductPage,
   ProductWriteInput,
 } from './types';
@@ -34,6 +35,7 @@ export interface ProductRepository {
   applyPatternTagBatch(input: PatternTagBatchInput, principalId: string): Promise<void>;
   listProducts(filter: ProductListFilter): Promise<ProductPage>;
   getProductDetail(productId: number): Promise<ProductDetail | null>;
+  setReviewStatus(productId: number, status: ProductManualReviewStatus, principalId: string): Promise<boolean>;
   ignoreIssue(productId: number, issueId: number, principalId: string, note?: string): Promise<boolean>;
   reopenIssue(productId: number, issueId: number, principalId: string): Promise<boolean>;
 }

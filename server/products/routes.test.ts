@@ -29,6 +29,7 @@ function service(overrides: Partial<ProductRouteService> = {}): ProductRouteServ
     async applyPatternTagBatch() {},
     async listProducts() { return emptyPage; },
     async getProductDetail() { return null; },
+    async setReviewStatus() { return false; },
     async ignoreIssue() { return false; },
     async reopenIssue() { return false; },
     ...overrides,
@@ -63,7 +64,7 @@ test('list parses combined filters and returns a page envelope', async () => {
       return expected;
     },
   }), async (baseUrl) => {
-    const response = await fetch(`${baseUrl}/api/products?q=floral&tagIds=2,5&tagMode=all&reviewStatus=needs_attention&issueCodes=MISSING_WIDTH,IMAGE_UNCLASSIFIED&imageState=has_unclassified&batchId=9&duplicateItemNo=true&limit=50&offset=0`);
+    const response = await fetch(`${baseUrl}/api/products?q=floral&tagIds=2,5&tagMode=all&reviewStatus=pending_manual_confirmation&issueCodes=MISSING_WIDTH,IMAGE_UNCLASSIFIED&imageState=has_unclassified&batchId=9&duplicateItemNo=true&limit=50&offset=0`);
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), expected);
   });
@@ -72,7 +73,7 @@ test('list parses combined filters and returns a page envelope', async () => {
     q: 'floral',
     tagIds: [2, 5],
     tagMode: 'all',
-    reviewStatus: 'needs_attention',
+    reviewStatus: 'pending_manual_confirmation',
     issueCodes: ['MISSING_WIDTH', 'IMAGE_UNCLASSIFIED'],
     imageState: 'has_unclassified',
     batchId: 9,
@@ -182,6 +183,31 @@ test('unexpected service failures return a retryable safe server error', async (
       },
     });
   });
+});
+
+test('manual review route records explicit human confirmation status', async () => {
+  let received: unknown;
+  const detail: ProductDetail = {
+    id: 7, itemNo: 'G-007', productName: 'Floral', composition: '', weight: '', width: '', imageCount: 0,
+    createdAt: new Date(0), updatedAt: new Date(0),
+    categoryCounts: { patternOriginal: 0, fabricDisplay: 0, detail: 0, aiEffect: 0, unclassified: 0 },
+    patternTags: [], reviewStatus: 'reviewed', openIssueCount: 0, images: [], issues: [],
+  };
+  await withServer(service({
+    async setReviewStatus(productId, status, principalId) {
+      received = { productId, status, principalId };
+      return true;
+    },
+    async getProductDetail() { return detail; },
+  }), async (baseUrl) => {
+    const response = await fetch(baseUrl + '/api/products/7/review', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'reviewed' }),
+    });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).reviewStatus, 'reviewed');
+  });
+  assert.deepEqual(received, { productId: 7, status: 'reviewed', principalId: 'admin-1' });
 });
 
 test('asset readiness errors keep their stable code for editor retry handling', async () => {

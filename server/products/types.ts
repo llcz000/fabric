@@ -7,7 +7,8 @@ export const PRODUCT_IMAGE_ROLES = [
 ] as const;
 
 export type ProductImageRole = typeof PRODUCT_IMAGE_ROLES[number];
-export type ProductReviewStatus = 'reviewed' | 'needs_attention';
+export type ProductManualReviewStatus = 'pending_manual_confirmation' | 'reviewed';
+export type ProductReviewStatus = ProductManualReviewStatus | 'needs_attention';
 export type ProductIssueStatus = 'open' | 'resolved' | 'ignored';
 export type PatternTagStatus = 'active' | 'archived';
 export type ProductImageOriginType = 'upload' | 'excel_import' | 'ai_generated' | 'legacy';
