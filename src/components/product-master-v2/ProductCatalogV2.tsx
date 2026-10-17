@@ -160,14 +160,14 @@ export function CatalogDeleteConfirmation({product,onCancel,onConfirm}:{
 }
 interface ViewerState{type:'pattern'|'product';item:CatalogProduct}
 export interface ProductCatalogV2Props{
- apiFetch:typeof fetch;canManage?:boolean;
+ apiFetch:typeof fetch;canManage?:boolean;allowExport?:boolean;
  resolveImages?:CatalogImageResolver;
  onCreate?():void;
  onEdit?(product:CatalogProduct):void;
  onDeleteRequest?(product:CatalogProduct):void;
 }
 /** P4 isolated component: deliberately not mounted over legacy ProductLibrary. */
-export function ProductCatalogV2({apiFetch,canManage=false,onCreate,onEdit,onDeleteRequest,resolveImages}:ProductCatalogV2Props){
+export function ProductCatalogV2({apiFetch,canManage=false,allowExport=true,onCreate,onEdit,onDeleteRequest,resolveImages}:ProductCatalogV2Props){
  const imageResolver=useCallback<CatalogImageResolver>((ids,variant,signal)=>resolveImages?resolveImages(ids,variant,signal):resolveImageUrls(apiFetch,ids,variant,signal),[apiFetch,resolveImages]);
  const [filters,setFilters]=useState<CatalogFilters>({...emptyCatalogFilters});
  const [page,setPage]=useState<CatalogPage|null>(null),[busy,setBusy]=useState(false);
@@ -234,7 +234,7 @@ export function ProductCatalogV2({apiFetch,canManage=false,onCreate,onEdit,onDel
   <div className="flex flex-wrap items-center justify-between gap-2">
    <div><h1 className="text-xl font-semibold tracking-tight">产品库</h1>
     <p className="mt-1 text-xs text-[#737686]">管理印花配色与面料组合，产品编号由系统生成</p></div>
-   <CatalogExportButton apiFetch={apiFetch} listUrl={buildCatalogUrl("/api/v2/products",filters)} filename="产品资料.xlsx"/>
+   {allowExport?<CatalogExportButton apiFetch={apiFetch} listUrl={buildCatalogUrl("/api/v2/products",filters)} filename="产品资料.xlsx"/>:null}
    {canManage&&onCreate?<button type="button" onClick={onCreate}
     className="inline-flex items-center gap-1 rounded-lg bg-[#346ef6] px-3 py-2 text-xs font-medium text-white hover:bg-[#275ee0]">
     <Plus size={16}/>新增产品</button>:null}

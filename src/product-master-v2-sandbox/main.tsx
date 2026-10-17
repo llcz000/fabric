@@ -5,14 +5,17 @@ import {createSandboxSession,type SandboxPrincipal} from './sandboxSession';
 import {PatternLibraryV2} from '../components/product-master-v2/PatternLibraryV2';
 import {FabricWorkspaceV2} from '../components/product-master-v2/FabricImportV2';
 import {ProductCatalogV2} from '../components/product-master-v2/ProductCatalogV2';
+import {sandboxPages,type SandboxPage,SandboxCardsReadOnly,SandboxSessionsReadOnly,
+ SandboxDocumentsReadOnly,SandboxStatsReadOnly} from './readOnlyPages';
 
 const EMPTY_IMAGES=async()=>new Map<string,string>();
-type Page='patterns'|'fabrics'|'products';
 
 function SandboxCatalog({origin}:{origin:string}){
  const session=useMemo(()=>createSandboxSession(origin,fetch),[origin]);
  const [actor,setActor]=useState<SandboxPrincipal|null>(null);
- const [page,setPage]=useState<Page>('products');
+ const [page,setPage]=useState<SandboxPage>('products');
+ const [documentProduct,setDocumentProduct]=useState('');
+ const openProductDocuments=(name:string)=>{setDocumentProduct(name);setPage('documents');};
  const [username,setUsername]=useState('');
  const [password,setPassword]=useState('');
  const [busy,setBusy]=useState(false);
@@ -58,15 +61,19 @@ function SandboxCatalog({origin}:{origin:string}){
      <button onClick={()=>void logout()} className="rounded border px-3 py-2 text-sm">退出沙箱</button>
     </header>
     <nav aria-label="V2 沙箱只读目录" className="flex gap-2 overflow-x-auto border-b bg-white px-4 py-3">
-     {([['patterns','花型库'],['fabrics','面料库'],['products','产品库']] as const).map(([id,label])=>
-      <button key={id} onClick={()=>setPage(id)} aria-current={page===id?'page':undefined}
-       className={'rounded px-3 py-2 text-sm '+(page===id?'bg-blue-100 text-blue-800':'bg-slate-100')}>{label}</button>)}
+     {sandboxPages.map(({id,title})=>
+      <button key={id} onClick={()=>{setDocumentProduct('');setPage(id);}} aria-current={page===id?'page':undefined}
+       className={'rounded px-3 py-2 text-sm '+(page===id?'bg-blue-100 text-blue-800':'bg-slate-100')}>{title}</button>)}
     </nav>
     <main className="mx-auto max-w-[1480px] p-3" data-sandbox-view={page}>
-     {page==='patterns'?<PatternLibraryV2 apiFetch={apiFetch} canManage={false}
+     {page==='patterns'?<PatternLibraryV2 apiFetch={apiFetch} canManage={false} allowExport={false}
       resolvePatternImages={EMPTY_IMAGES}/>:
-      page==='fabrics'?<FabricWorkspaceV2 apiFetch={apiFetch} canManage={false} isAdmin={false}/>:
-      <ProductCatalogV2 apiFetch={apiFetch} canManage={false} resolveImages={EMPTY_IMAGES}/>}
+      page==='fabrics'?<FabricWorkspaceV2 apiFetch={apiFetch} canManage={false} isAdmin={false} allowExport={false}/>:
+      page==='products'?<ProductCatalogV2 apiFetch={apiFetch} canManage={false} allowExport={false} resolveImages={EMPTY_IMAGES}/>:
+      page==='cards'?<SandboxCardsReadOnly apiFetch={apiFetch}/>:
+      page==='sessions'?<SandboxSessionsReadOnly apiFetch={apiFetch}/>:
+      page==='documents'?<SandboxDocumentsReadOnly key={documentProduct} apiFetch={apiFetch} productName={documentProduct}/>:
+      <SandboxStatsReadOnly apiFetch={apiFetch} onProduct={openProductDocuments}/>}
     </main>
    </>}
  </div>;

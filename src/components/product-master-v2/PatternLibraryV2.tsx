@@ -296,11 +296,11 @@ export function PatternColorwayEditor({
  </div>;
 }
 export interface PatternLibraryV2Props{
- apiFetch:typeof fetch;canManage?:boolean;onCreateMaster?():void;
+ apiFetch:typeof fetch;canManage?:boolean;allowExport?:boolean;onCreateMaster?():void;
  onUploadPatternImage?(file:File):Promise<string>;
  resolvePatternImages?(ids:string[],variant:'thumbnail'|'display'|'original',signal?:AbortSignal):Promise<Map<string,string>>;
 }
-export function PatternLibraryV2({apiFetch,canManage=false,onCreateMaster,onUploadPatternImage,resolvePatternImages}:PatternLibraryV2Props){
+export function PatternLibraryV2({apiFetch,canManage=false,allowExport=true,onCreateMaster,onUploadPatternImage,resolvePatternImages}:PatternLibraryV2Props){
  const imageResolver=useCallback((ids:string[],variant:'thumbnail'|'display'|'original',signal?:AbortSignal)=>resolvePatternImages?resolvePatternImages(ids,variant,signal):resolveImageUrls(apiFetch,ids,variant,signal),[apiFetch,resolvePatternImages]);
  const [filters,setFilters]=useState<PatternFilters>({...initialPatternFilters});
  const [page,setPage]=useState<PatternPage|null>(null),[loading,setLoading]=useState(false);
@@ -441,7 +441,7 @@ export function PatternLibraryV2({apiFetch,canManage=false,onCreateMaster,onUplo
  return <section aria-label="V2 花型库" className="flex min-h-[520px] flex-col gap-3 bg-[#faf8ff] p-3 text-[#191b24] sm:p-5">
   <header className="flex items-center justify-between gap-3">
    <h1 className="text-xl font-semibold">花型库</h1>
-   <CatalogExportButton apiFetch={apiFetch} listUrl={buildPatternUrl("/api/v2/pattern-catalog",filters)} filename="花型资料.xlsx"/>
+   {allowExport?<CatalogExportButton apiFetch={apiFetch} listUrl={buildPatternUrl("/api/v2/pattern-catalog",filters)} filename="花型资料.xlsx"/>:null}
    {canManage&&onCreateMaster?<button onClick={onCreateMaster} type="button"
     className="rounded bg-[#346ef6] px-3 py-2 text-xs text-white">新增母版</button>:null}
   </header>

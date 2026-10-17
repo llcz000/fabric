@@ -12,6 +12,19 @@
 
 Vite专属 scripts/vite-v2-sandbox.config.ts 须显式 FABRIC_V2_SANDBOX_FRONTEND=I_ACKNOWLEDGE_SANDBOX，仅绑定127.0.0.1:4455与严格端口，只代理 /api/v2 到127.0.0.1:3456的独立沙箱后端。默认npm run build不包含此页面。单独编译只写到被Git忽略的 tmp/v2-sandbox-frontend-dist；GitHub CI运行守卫测试与单独编译，但绝不上传这一沙箱UI产物或部署。
 
+## 2026-10-17 新增四个只读业务页面
+
+原版沙箱只覆盖花型/面料/产品，本轮在同一独立V2登录会话基础上增加色卡库、客户选样单查询、三类单据查询和经营大盘四个GET-only页面。所有读取使用真实V2 API合同，服务端继续校验当前账号及相应的订单owner或选样单grant，而不是本地mock。
+
+- 色卡库：请求 /api/v2/sample-cards，搜索分页并展示编号、面料、启用及需重印状态；复用严格的色卡数据合同，禁制卡/导出/撤销/重印确认。
+- 客户选样：必须输入合法正整数sessionId后才请求 /api/v2/customer-samples/sessions/:sessionId；服务端拒绝未获grant，前端严格校验返回的ID、产品明细、色卡来源、分页，拒绝超长/注入/异常数据，不提供扫码与修改。
+- 单据查询：复用业务已有的createDocumentSearchController，同时调用 /api/v2/documents及/matching-totals，显示当前账号范围内单据、数量及匹配明细合计，含品名过滤和分页；没有编辑/打印/导出。
+- 经营大盘：复用loadDocumentStats GET接口和响应结构校验，显示当前账号统计、Top5品名及最近四单；排名点击联动前述只读单据筛选，最近单据仅文字展示。
+
+四页由独立 readOnlyPages.tsx 提供，连同原三个目录形成7个只读sandbox tab。**7个tab不等于批准P4的正式七页业务功能**：真实UI编辑/媒体/三单据打印及Excel导入、正式App导航与上线仍有单独Gate。原花型/面料/产品组件新增allowExport=false可选能力，在本沙箱隐藏下载按钮，其它模块仍按原默认行为显示按钮。沙箱数据只在独立服务器和显式登录许可后可读，不使用旧App会话或本机mock，不访问真实MySQL/COS。
+
+新增 readOnlyData.test.ts (4项)：色卡真实GET参数、选样ID和路径校验、损坏/重复资料拒绝及分页边界；readOnlyPages.test.ts (3项)：导航唯一7项、复用组件默认/沙箱禁导出对照、四新增只读页面无修改按钮。新增测试进入默认npm run test:unit和GitHub CI。
+
 ## 本轮可复现离线验证
 
 1. 运行 node scripts/run-ts-tests.mjs src/product-master-v2-sandbox/sandboxSession.test.ts ：覆盖loopback/API限制、验证/me、会话安全、401撤销与并发注销等6项。

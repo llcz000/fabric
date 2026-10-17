@@ -42,3 +42,19 @@ test('opted-in Vite sandbox uses loopback-only proxy, isolated build and no lega
   else process.env.FABRIC_V2_SANDBOX_FRONTEND=prev;
  }
 });
+
+test('the seven read-only tabs cannot import mock review clients or appear in the old App',()=>{
+ const entry=readFileSync(resolve(root,'src/product-master-v2-sandbox/main.tsx'),'utf8');
+ const tab=readFileSync(resolve(root,'src/product-master-v2-sandbox/readOnlyPages.tsx'),'utf8');
+ const model=readFileSync(resolve(root,'src/product-master-v2-sandbox/readOnlyData.ts'),'utf8');
+ assert.match(entry,/sandboxPages\.map/);
+ for(const name of ['SandboxCardsReadOnly','SandboxSessionsReadOnly','SandboxDocumentsReadOnly','SandboxStatsReadOnly'])
+  assert.match(entry,new RegExp('<'+name+'\\b'));
+ for(const text of [entry,tab,model]){
+  assert.doesNotMatch(text,/mockApi|MockApi|ReviewFetch|localStorage|sessionStorage/);
+ }
+ assert.match(tab,/createDocumentSearchController/);
+ assert.match(tab,/loadDocumentStats/);
+ assert.match(model,/fetchSampleCardPage/);
+ assert.match(model,/\/api\/v2\/customer-samples\/sessions\//);
+});
