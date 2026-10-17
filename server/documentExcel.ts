@@ -2,7 +2,6 @@ import ExcelJS from 'exceljs';
 
 import type { CompanyImageRole } from './image-assets/types';
 import { buildBackendDocumentPrintModel } from './documentPrintAdapter';
-import type {DocumentPrintModel} from '../src/lib/documentPrintModel';
 
 export interface DocumentWorkbookInput {
   order: Record<string, unknown>;
@@ -21,14 +20,6 @@ const THIN_BORDER: Partial<ExcelJS.Borders> = {
 export function buildDocumentWorkbook(input: DocumentWorkbookInput): ExcelJS.Workbook {
   const { order, items, company, images = {} } = input;
   const model = buildBackendDocumentPrintModel(order, items, company);
-  return buildDocumentWorkbookFromModel(model,images);
-}
-
-/** Shared model renders identical headings/rows/totals in preview and XLSX. */
-export function buildDocumentWorkbookFromModel(
- model:DocumentPrintModel,
- images:DocumentWorkbookInput['images']={}
-):ExcelJS.Workbook{
   const columns = model.columns;
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('打印单据');
@@ -93,9 +84,9 @@ export function buildDocumentWorkbookFromModel(
   const footerRow = termsRow + 1;
   const qrStartColumn = Math.max(3, lastColumn - 3);
   sheet.mergeCells(footerRow, 1, footerRow, qrStartColumn - 1);
-  styledCell(sheet.getCell(footerRow, 1), `${model.signatureLabels?.issuer??'开单人签字'}：${model.signature.issuer}`, 11, false, 'left');
+  styledCell(sheet.getCell(footerRow, 1), `开单人签字：${model.signature.issuer}`, 11, false, 'left');
   sheet.mergeCells(footerRow + 1, 1, footerRow + 1, qrStartColumn - 1);
-  styledCell(sheet.getCell(footerRow + 1, 1), `${model.signatureLabels?.receiver??'收货人签字'}：${model.signature.receiver}    电话：${model.signature.phone}`, 11, false, 'left');
+  styledCell(sheet.getCell(footerRow + 1, 1), `收货人签字：${model.signature.receiver}    电话：${model.signature.phone}`, 11, false, 'left');
   for (let rowNumber = footerRow; rowNumber <= footerRow + 3; rowNumber++) sheet.getRow(rowNumber).height = 20;
 
   addCompanyImage(workbook, sheet, images.brand_logo, { col: 0.15, row: 0.2 }, { width: 105, height: 34 });

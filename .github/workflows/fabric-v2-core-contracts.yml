@@ -1,13 +1,11 @@
-# Code-only V2 baseline. Does not mount V2 routes, change DB or deploy.
+# Existing legacy app stays untouched. Third batch adds isolated V2 business
+# workbench build and tests; no database/COS/production deploy step.
 name: Fabric V2 core contracts (no deploy)
 on:
   push:
-    branches:
-      - master
-      - codex/fabric-v2-phase1-core-merge-20261017
+    branches: [master, codex/fabric-v2-phase1-core-merge-20261017, codex/fabric-v2-batch3-business-20261017]
   pull_request:
-    branches:
-      - master
+    branches: [master]
 permissions:
   contents: read
 jobs:
@@ -26,7 +24,15 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund
-      - name: Run all unit contracts
+      - name: All existing and third-batch business unit contracts
         run: npm run test:unit
       - name: Build unchanged legacy app
         run: npm run build
+      - name: Build opt-in seven-page V2 writable workbench (not deployed)
+        env:
+          FABRIC_V2_WRITE_FRONTEND: I_ACKNOWLEDGE_V2_WRITE_SANDBOX
+        run: node node_modules/vite/bin/vite.js build --config scripts/vite-v2-workbench.config.ts
+      - name: Assert production bundle excludes V2 write workbench
+        run: |
+          test ! -e dist/product-master-v2-workbench.html
+          test -e tmp/v2-workbench-frontend-dist/product-master-v2-workbench.html
