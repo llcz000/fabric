@@ -99,7 +99,7 @@ export function validateV2DocumentEdit(value:unknown):EditDocument {
  return {items,removeIds:v.removeIds as string[],...(v.deposit!==undefined?{deposit:v.deposit as number}: {}),...header};
 }
 function array(value:unknown):Row[]{if(!Array.isArray(value))throw Error('Database rows unavailable');return value as Row[];}
-async function freshWriter(db:TxConn,actor:AppPrincipal):Promise<AppPrincipal>{
+export async function freshWriter(db:TxConn,actor:AppPrincipal):Promise<AppPrincipal>{
  // Locks serialize role changes, session revocation and this write. The
  // bearer was also verified by HTTP middleware before reaching this service.
  if(!actor||!/^[1-9][0-9]*$/.test(actor.userId)||!/^[1-9][0-9]*$/.test(actor.sessionId))

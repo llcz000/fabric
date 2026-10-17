@@ -30,6 +30,32 @@ export default function V2DocumentPrintView({
  const [loading,setLoading]=useState(true);
  const [exporting,setExporting]=useState(false);
  const sheetRef=useRef<HTMLDivElement|null>(null);
+ const [companyImageUrls,setCompanyImageUrls]=useState<Record<string,string>>({});
+ const [imagesLoading,setImagesLoading]=useState(false);
+ useEffect(()=>{
+  const urls=model?.companyImages??{};
+  const entries=Object.entries(urls).filter((entry):entry is [string,string]=>typeof entry[1]==='string');
+  if(!entries.length){setCompanyImageUrls({});return;}
+  let cancelled=false;
+  const abort=new AbortController();
+  const borrowed:string[]=[];
+  setImagesLoading(true);
+  void Promise.all(entries.map(async([role,url])=>{
+   try{
+    const response=await apiFetch(url,{signal:abort.signal,headers:{Accept:'image/png'}});
+    if(!response.ok||!(response.headers.get('content-type')??'').startsWith('image/png'))return null;
+    const blob=await response.blob();
+    if(blob.size>4*1024*1024||!blob.size)return null;
+    const imageUrl=URL.createObjectURL(blob);
+    borrowed.push(imageUrl);
+    return [role,imageUrl] as const;
+   }catch{return null;}
+  })).then(values=>{
+   if(!cancelled)setCompanyImageUrls(Object.fromEntries(values.filter(x=>x!==null)));
+  }).finally(()=>{if(!cancelled)setImagesLoading(false);});
+  return ()=>{cancelled=true;abort.abort();for(const url of borrowed)URL.revokeObjectURL(url);};
+ },[apiFetch,documentId,model]);
+
  const offerDownload=(blob:Blob,name:string)=>{
   const url=URL.createObjectURL(blob);
   try{
@@ -45,7 +71,7 @@ export default function V2DocumentPrintView({
   finally{setExporting(false);}
  };
  const downloadPng=async()=>{
-  if(!model||exporting||!sheetRef.current)return;
+  if(!model||exporting||imagesLoading||!sheetRef.current)return;
   setError('');setExporting(true);
   try{
    const canvas=await html2canvas(sheetRef.current,{scale:2,backgroundColor:'#ffffff',useCORS:false,allowTaint:false,logging:false});
@@ -105,7 +131,9 @@ export default function V2DocumentPrintView({
   {model&&<div className="overflow-x-auto">
    <div ref={sheetRef} data-v2-print-sheet="true" className="mx-auto w-[240mm] min-h-[140mm] bg-white p-8 text-slate-900">
     <header className="border-b-2 border-slate-900 pb-3 text-right">
-     <h3 className="text-lg font-bold">{model.companyName}</h3>
+     {companyImageUrls.brand_logo?<img alt="公司Logo" src={companyImageUrls.brand_logo} className="float-left max-h-14 max-w-44 object-contain"/>:
+       model.brandName&&<span className="float-left text-sm">{model.brandName}</span>}
+      <h3 className="text-lg font-bold">{model.companyName}</h3>
      {model.companyLines.map((line,i)=><p key={i} className="text-xs">{line}</p>)}
     </header>
     <h2 className="my-4 text-center text-xl font-bold">{model.title}</h2>
@@ -120,8 +148,12 @@ export default function V2DocumentPrintView({
     <div className="mt-3 space-y-1">{model.summaries.map((s,i)=><div key={i} className="flex justify-between gap-4 text-xs font-medium">
      <span>{s.left}</span><span>{s.right??''}</span></div>)}</div>
     <p className="mt-3 border border-slate-200 p-2 text-xs">备注条款：{model.terms}</p>
-    <footer className="mt-3 text-xs">开单人签字：{model.signature.issuer}　收货人签字：{model.signature.receiver}　电话：{model.signature.phone}
+    <footer className="mt-3 text-xs">{model.signatureLabels?.issuer??'开单人签字'}：{model.signature.issuer}　{model.signatureLabels?.receiver??'收货人签字'}：{model.signature.receiver}　电话：{model.signature.phone}
      {model.signature.receiverAddress&&<p>收货地址：{model.signature.receiverAddress}</p>}
+      <div className="mt-3 flex gap-8">
+       {companyImageUrls.wechat_qr&&<figure><img alt="微信收款码" src={companyImageUrls.wechat_qr} className="h-20 w-20 object-contain"/><figcaption>微信收款</figcaption></figure>}
+       {companyImageUrls.alipay_qr&&<figure><img alt="支付宝收款码" src={companyImageUrls.alipay_qr} className="h-20 w-20 object-contain"/><figcaption>支付宝收款</figcaption></figure>}
+      </div>
     </footer>
    </div>
   </div>}

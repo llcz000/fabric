@@ -93,9 +93,9 @@ export function buildDocumentWorkbookFromModel(
   const footerRow = termsRow + 1;
   const qrStartColumn = Math.max(3, lastColumn - 3);
   sheet.mergeCells(footerRow, 1, footerRow, qrStartColumn - 1);
-  styledCell(sheet.getCell(footerRow, 1), `开单人签字：${model.signature.issuer}`, 11, false, 'left');
+  styledCell(sheet.getCell(footerRow, 1), `${model.signatureLabels?.issuer??'开单人签字'}：${model.signature.issuer}`, 11, false, 'left');
   sheet.mergeCells(footerRow + 1, 1, footerRow + 1, qrStartColumn - 1);
-  styledCell(sheet.getCell(footerRow + 1, 1), `收货人签字：${model.signature.receiver}    电话：${model.signature.phone}`, 11, false, 'left');
+  styledCell(sheet.getCell(footerRow + 1, 1), `${model.signatureLabels?.receiver??'收货人签字'}：${model.signature.receiver}    电话：${model.signature.phone}`, 11, false, 'left');
   for (let rowNumber = footerRow; rowNumber <= footerRow + 3; rowNumber++) sheet.getRow(rowNumber).height = 20;
 
   addCompanyImage(workbook, sheet, images.brand_logo, { col: 0.15, row: 0.2 }, { width: 105, height: 34 });
