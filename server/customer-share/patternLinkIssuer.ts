@@ -22,6 +22,11 @@ export interface PatternShareLinkPool{
 const ID=/^[1-9][0-9]{0,19}$/;
 const MAX_ID=18446744073709551615n;
 const DOMAIN='fabric:pattern-share:stable-token:v1\0';
+function publicIPv4(host:string){
+ if(isIP(host)!==4)return false;
+ const [a,b,c]=host.split('.').map(Number);
+ return a!==0&&a!==10&&a!==127&&a<224&&!(a===100&&b>=64&&b<=127)&&!(a===169&&b===254)&&!(a===172&&b>=16&&b<=31)&&!(a===192&&(b===168||b===0||b===2))&&!(a===198&&(b===18||b===19||b===51&&c===100))&&!(a===203&&b===0&&c===113);
+}
 const denied=()=>new Error('Pattern link unavailable');
 function id(value:unknown):value is string{
  return typeof value==='string'&&ID.test(value)&&BigInt(value)<=MAX_ID;
@@ -52,11 +57,11 @@ export function formatPatternShareUrl(base:unknown,token:unknown):string{
  try{
   if(typeof base!=='string'||!isPatternLinkToken(token))throw denied();
   const url=new URL(base);
-  // Only exact canonical HTTPS, a DNS hostname and origin-only path. The
+  // Exact canonical HTTPS with a DNS host or routable IPv4 and origin-only path. The
   // public origin must come from audited SERVER config, never client headers.
   if(url.protocol!=='https:'||url.origin!==base||url.username||url.password||
    url.pathname!=='/'||url.search||url.hash||!url.hostname.includes('.')||
-   isIP(url.hostname)!==0||url.hostname==='localhost')throw denied();
+   (isIP(url.hostname)!==0&&!publicIPv4(url.hostname))||url.hostname==='localhost')throw denied();
   return base+'/p/'+token;
  }catch{throw denied();}
 }

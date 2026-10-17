@@ -23,6 +23,7 @@ import {createV2InventoryRouter} from './v2Inventory';
 import {createFrontendStaticRouter} from '../frontendStatic';
 import {companyExportImage} from '../order-v2/companyExportImage';
 import {verifyV2DocumentAuditSchema} from '../order-v2/documentAuditSchema';
+import {createPatternShareRuntime} from '../customer-share/patternShareRuntime';
 
 export async function createV2ProductionRouter(pool:Pool,target:V2ProductionTarget,output?:V2DocumentOutputDependencies){
  const db=createPinnedV2Database(pool,target);
@@ -55,6 +56,9 @@ export async function startV2ProductionServer(){
   const assets=createImageAssetRuntime({env:{...process.env,COMPANY_IMAGE_ASSETS_ENABLED:'true',PRODUCT_IMAGE_ASSETS_ENABLED:'true'},mysqlPool:db});
   if(!assets.service||!assets.worker)throw Error('V2 media unavailable');
   const extras=Router(),authenticate=requireV2Principal(db);
+  const sharing=await createPatternShareRuntime(db,db,target,assets.service,process.env);
+  routes.get('/pattern-sharing',authenticate,(_req,res)=>{res.set('Cache-Control','no-store').json({enabled:Boolean(sharing)});});
+  if(sharing){routes.use(sharing.privateRouter);extras.use('/api/public/patterns',sharing.publicRouter);}
   extras.use('/api/image-assets',authenticate,createImageAssetRouter(assets,(_req,res)=>'v2:'+(res.locals.principal as AppPrincipal).userId));
   const loadCompany=async()=>{
    const [data]=await db.query('SELECT * FROM company_config WHERE id=1 LIMIT 1');
@@ -83,7 +87,7 @@ export async function startV2ProductionServer(){
   extras.use('/api/company',company);
   extras.use('/api/inventory',createV2InventoryRouter(db));
   const app=createV2ProductionHttpApp(routes,async()=>{await db.query('SELECT 1');return true;},extras);
-  app.use(createFrontendStaticRouter(path.join(process.cwd(),'dist')));
+  app.use(createFrontendStaticRouter(path.join(process.cwd(),'dist'),{allowPatternShare:Boolean(sharing)}));
   app.use((error:unknown,_req:express.Request,res:express.Response,_next:express.NextFunction)=>{
    if(res.headersSent){res.end();return;}
    const status=error&&typeof error==='object'?(error as {status?:unknown}).status:undefined;

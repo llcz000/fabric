@@ -17,6 +17,11 @@ const master:PatternMasterItem={
   colorTags:n%2?[{id:'9',name:'藏蓝',isArchived:false}]:[{id:'10',name:'米白',isArchived:false}]
  }))
 };
+test('B1 share action is explicit opt-in beside existing pattern edit without customer/private details',()=>{
+ const html=renderToStaticMarkup(React.createElement(PatternMasterRows,{items:[master],thumbnailUrls:new Map(),onPreview:()=>{},onEdit:()=>{},onShare:()=>{}}));
+ assert(html.includes('分享花型 G017'));assert(html.includes('编辑花型及配色 G017'));
+ const hidden=renderToStaticMarkup(React.createElement(PatternMasterRows,{items:[master],thumbnailUrls:new Map(),onPreview:()=>{},onEdit:()=>{}}));assert(!hidden.includes('分享花型 G017'));
+});
 test('P4-2 master-and-version filtering resets page but does not clear independent filters',()=>{
  const a={...initialPatternFilters,number:'G017-',colorwayNo:'2',offset:40};
  const b=reducePatternFilters(a,{type:'number',value:'G018'});

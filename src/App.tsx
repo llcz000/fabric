@@ -19,6 +19,7 @@ const DocumentEditor = lazy(() => import('./components/DocumentEditor'));
 const DocumentPreview = lazy(() => import('./components/DocumentPreview'));
 const CompanyProfileEditor = lazy(() => import('./components/CompanyProfileEditor'));
 const V2App = lazy(() => import('./components/product-master-v2/V2App'));
+const PublicPatternPage = lazy(() => import('./components/customer-share/PublicPatternPage'));
 const StatsDashboard = lazy(() => import('./components/StatsDashboard'));
 const ProductLibrary = lazy(() => import('./components/ProductLibrary'));
 const InventoryManager = lazy(() => import('./components/InventoryManager'));
@@ -899,6 +900,11 @@ function LegacyApp() {
 
 /** Server owns the active runtime; URL parameters and legacy bearer tokens cannot opt into V2. */
 export default function App(){
+ const token=typeof window!=='undefined'?/^\/p\/([A-Za-z0-9_-]{43})$/.exec(window.location.pathname)?.[1]:undefined;
+ if(token)return <ErrorBoundary><Suspense fallback={<p role="status">正在读取公开花型…</p>}><PublicPatternPage token={token}/></Suspense></ErrorBoundary>;
+ return <RuntimeApp/>;
+}
+function RuntimeApp(){
  const [mode,setMode]=useState<'loading'|'legacy'|'v2'|'error'>('loading'),[retry,setRetry]=useState(0);
  useEffect(()=>{const abort=new AbortController();fetch('/api/runtime',{signal:abort.signal,cache:'no-store'}).then(async response=>{
   if(!response.ok)throw Error('Runtime unavailable');const value=await response.json();

@@ -40,6 +40,14 @@ export async function verifyPatternLinkSchemaContract(pool:PatternLinkMetadataPo
   throw Error('B1 share sandbox database name required');
  if(typeof expectedServerUuid!=='string'||!UUID.test(expectedServerUuid))
   throw Error('B1 share expected server identity required');
+ return inspectPatternLinkMetadata(pool,expectedDatabase,expectedServerUuid);
+}
+/** Explicit runtime gate for an independently configured/pinned target. Does not execute DDL. */
+export async function verifyPatternLinkRuntimeSchema(pool:PatternLinkMetadataPool,target:{database:string;serverUuid:string}):Promise<void>{
+ if(!target||!(/^[A-Za-z0-9_]{1,64}$/).test(target.database)||!UUID.test(target.serverUuid))throw Error('B1 explicit runtime database identity required');
+ return inspectPatternLinkMetadata(pool,target.database,target.serverUuid);
+}
+async function inspectPatternLinkMetadata(pool:PatternLinkMetadataPool,expectedDatabase:string,expectedServerUuid:string):Promise<void>{
  if(!pool||typeof pool.getConnection!=='function')throw fail('metadata pool');
  const connection=await pool.getConnection();
  try{
@@ -100,7 +108,7 @@ export async function verifyPatternLinkSchemaContract(pool:PatternLinkMetadataPo
   if(fks.length!==1||fk.length!==1||fk[0].COLUMN_NAME!=='master_id'||
     fk[0].REFERENCED_TABLE_NAME!=='pattern_masters'||
     fk[0].REFERENCED_COLUMN_NAME!=='id'||Number(fk[0].ORDINAL_POSITION)!==1||
-    fk[0].DELETE_RULE!=='RESTRICT'||fk[0].UPDATE_RULE!=='RESTRICT')
+    fk[0].DELETE_RULE!=='RESTRICT'||!['RESTRICT','NO ACTION'].includes(String(fk[0].UPDATE_RULE)))
    throw fail('foreign key fk_pattern_share_master');
  }finally{
   connection.release();

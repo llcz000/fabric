@@ -123,11 +123,12 @@ test('authentication and malformed input never insert and rollback atomically',a
 test('only HTTPS canonical public origin is accepted for shareable URL; no attacker URL fields',()=>{
  const token=deriveStablePatternLinkToken('42',SECRET);
  assert.equal(formatPatternShareUrl('https://share.example.test',token),'https://share.example.test/p/'+token);
+ assert.equal(formatPatternShareUrl('https://124.223.97.60',token),'https://124.223.97.60/p/'+token);
  for(const base of ['http://share.example.test','https://share.example.test/','https://share.example.test/path',
   'https://share.example.test?x=1','https://user:pass@share.example.test',
   'https://share.example.test@evil.example/path','file:///etc/passwd',
   'https://share.example.test#fragment','https://127.0.0.1','https://localhost',
-  'https://share.example.test:443','HTTPS://share.example.test']){
+  'https://share.example.test:443','HTTPS://share.example.test','https://10.1.2.3','https://192.168.1.1','https://172.16.0.1','https://169.254.1.1','https://0.0.0.0']){
   assert.throws(()=>formatPatternShareUrl(base,token),/Pattern link/);
  }
 });

@@ -133,7 +133,10 @@ test('B1 rejects dropped, prefix, non-unique, wrongly ordered or duplicate token
  const reordered=fixture();reordered.metadata.indexes.find(x=>x.INDEX_NAME==='uq_pattern_share_master')!.COLUMN_NAME='token_hash';
  await rejected(reordered,/index/i);
 });
-test('B1 requires exactly one RESTRICT FK to same parent PK and rejects cascade/no-action',async()=>{
+test('B1 accepts the MySQL InnoDB default NO ACTION update rule from its own approved DDL',async()=>{
+ const db=fixture();db.metadata.fks[0].UPDATE_RULE='NO ACTION';await verifyPatternLinkSchemaContract(db.pool,db.expectedDatabase,db.expectedUUID);
+});
+test('B1 requires exactly one RESTRICT delete FK to same parent PK and rejects cascade/relaxed delete',async()=>{
  for(const [field,value] of [
   ['DELETE_RULE','CASCADE'],['DELETE_RULE','NO ACTION'],['UPDATE_RULE','CASCADE'],
   ['COLUMN_NAME','token_hash'],['REFERENCED_TABLE_NAME','other_masters'],

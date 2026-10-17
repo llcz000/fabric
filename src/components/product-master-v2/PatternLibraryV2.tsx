@@ -17,9 +17,10 @@ function chunks<T>(items:T[],size:number):T[][]{
  const result:T[][]=[];for(let i=0;i<items.length;i+=size)result.push(items.slice(i,i+size));
  return result;
 }
-export function PatternMasterRows({items,thumbnailUrls,onPreview,onEdit,canManage=false}:{
+export function PatternMasterRows({items,thumbnailUrls,onPreview,onEdit,onShare,canManage=false}:{
  items:PatternMasterItem[];thumbnailUrls:Map<string,string>;
  onPreview(version:PatternVersionItem):void;onEdit(master:PatternMasterItem):void;canManage?:boolean;
+ onShare?(master:PatternMasterItem):void;
 }){
  return <div role="table" aria-label="花型母版列表" className={box+' overflow-x-auto'}>
   <div role="row" className="flex min-w-[640px] gap-3 border-b border-[#c3c6d7] bg-[#fbfcfd] px-3 py-2 text-xs text-[#434655]">
@@ -52,6 +53,7 @@ export function PatternMasterRows({items,thumbnailUrls,onPreview,onEdit,canManag
     <button type="button" aria-label={'编辑花型及配色 '+master.masterNo} onClick={()=>onEdit(master)}
      className="inline-flex items-center gap-1 rounded p-2 text-[#0053da] hover:bg-[#eef1fd]"
      title={canManage?'编辑花型及配色':'查看花型及配色'}><Edit3 size={15}/></button>
+    {onShare&&<button type="button" className="rounded px-1 py-2 text-xs text-[#0053da]" aria-label={'分享花型 '+master.masterNo} onClick={()=>onShare(master)}>分享</button>}
    </div>
   </div>)}
   {!items.length?<p className="py-16 text-center text-sm text-[#737686]">没有匹配的花型，可调整或清空筛选条件。</p>:null}
@@ -297,10 +299,11 @@ export function PatternColorwayEditor({
 }
 export interface PatternLibraryV2Props{
  apiFetch:typeof fetch;canManage?:boolean;allowExport?:boolean;onCreateMaster?():void;onEditorStateChange?(active:boolean):void;
+ onShareMaster?(master:PatternMasterItem):void;
  onUploadPatternImage?(file:File):Promise<string>;
  resolvePatternImages?(ids:string[],variant:'thumbnail'|'display'|'original',signal?:AbortSignal):Promise<Map<string,string>>;
 }
-export function PatternLibraryV2({apiFetch,canManage=false,allowExport=true,onCreateMaster,onEditorStateChange,onUploadPatternImage,resolvePatternImages}:PatternLibraryV2Props){
+export function PatternLibraryV2({apiFetch,canManage=false,allowExport=true,onCreateMaster,onEditorStateChange,onUploadPatternImage,resolvePatternImages,onShareMaster}:PatternLibraryV2Props){
  const imageResolver=useCallback((ids:string[],variant:'thumbnail'|'display'|'original',signal?:AbortSignal)=>resolvePatternImages?resolvePatternImages(ids,variant,signal):resolveImageUrls(apiFetch,ids,variant,signal),[apiFetch,resolvePatternImages]);
  const [filters,setFilters]=useState<PatternFilters>({...initialPatternFilters});
  const [page,setPage]=useState<PatternPage|null>(null),[loading,setLoading]=useState(false);
@@ -471,7 +474,7 @@ export function PatternLibraryV2({apiFetch,canManage=false,allowExport=true,onCr
   {loading?<p role="status" className="p-3 text-sm text-slate-500">正在加载花型…</p>:null}
   {error?<p role="alert" className="p-3 text-sm text-rose-700">{error}
    <button type="button" onClick={()=>setRetry(n=>n+1)} className="ml-2 underline">重试</button></p>:null}
-  {!loading&&!error&&page?<><PatternMasterRows items={page.items} thumbnailUrls={thumbs}
+  {!loading&&!error&&page?<><PatternMasterRows items={page.items} thumbnailUrls={thumbs} onShare={onShareMaster}
    onPreview={setPreview} onEdit={openEdit} canManage={canManage}/>
    <footer className="flex items-center justify-between gap-2 text-xs text-slate-600">
     <span>共 {page.total} 个花型 · 每页 {page.limit} 个</span>
