@@ -5,6 +5,7 @@
 更新：2026-10-17。本模块唯一业务基线为[需求v1.50](product-master-v2-requirements.md)。本表是V2唯一当前状态，不是过程日志；旧测试数字仅对原时点有效。当前源码已包含本会话AC-84增量，不能直接继承此前929项全量结果。
 
 ## 当前结论
+**2026-10-17 GitHub Ubuntu 构建成功（仅审查制品，生产No-Go）**：草稿PR #1 的远端Actions run **38996817370（run #4）** 全部成功：GitHub Ubuntu24/Node24 运行npm ci、1103项单测（1102通过/1跳过）、四组TypeScript、Git已跟踪文档闭包/文档导航、前后端build和制品上传。已实际下载并校验artifact **12086584571**（258700字节压缩、19个文件，含server.cjs/index.html及前端资源；无map/env/key），ZIP SHA-256为55f0b389c9302c6aaf260bcc1f6ac9ac21087f874010070d2ac99a20d48b20dc。GitHub PR使用合并测试SHA 8178cd7d90b16b38203d5bdb95ce35e84b3ac3fa 命名制品，**不是用于线上发布的审定源SHA**。主master未合并；仍无真实部署、P1–P7业务签收和DB迁移回滚；首轮npm ci的29条依赖风险（5 critical）待核实并处置。链接见GitHub Actions https://github.com/llcz000/fabric/actions/runs/38996817370。
 **2026-10-17 GitHub Linux 远端 CI 首轮实测与修复（未上线）**：GitHub PR #1 的 Actions run 38996348748 在 Ubuntu 24.04 完成真实 npm ci、1103项单测（1102通过/1跳过）、后端/前端/工具/B1-B3四组 TS 和 CI 安全测试；在文档检查因被 Git 忽略的 .agents/skills/fabric-ui-design/SKILL.md 不在远端检出而失败，构建与制品步骤因此跳过。隔离审查分支现已精确暂存该公开项目技能，新增 Git 索引文档链接闭包检查及反向缺文件回归，专项4/4通过、文档85份/602链接通过，完整本地1103项与构建再次通过。修复后 GitHub 远端是否全绿必须以新 run 为准。首轮 npm ci 另观察到29项依赖安全告警（13中/11高/5严重），未自动升级；须在生产发布安全复核中分类处置。正式 P1–P7 与生产部署仍 No-Go。
 
 

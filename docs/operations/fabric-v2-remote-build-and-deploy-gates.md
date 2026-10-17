@@ -29,6 +29,8 @@
 当前 GitHub 工作流**刻意没有** deploy job、生产 Secret、workflow_dispatch、SSH、PM2 指令或数据库初始化；后续不得仅添加一次 SSH 远端命令就称作安全自动部署。
 
 ## 当前明确的阻断
+**远端实际成功证据（2026-10-17）**：修复Git未跟踪UI技能后，草稿PR #1的Actions run [38996817370](https://github.com/llcz000/fabric/actions/runs/38996817370)全部完成（success）；包括1103项测试、四组类型检查、文档校验、Vite/esbuild构建和GitHub artifact上传。制品ID 12086584571，ZIP为258700字节/19个文件，哈希SHA-256为55f0b389c9302c6aaf260bcc1f6ac9ac21087f874010070d2ac99a20d48b20dc，文件检验未见sourcemap/.env/密钥。注意该制品绑定PR测试合并SHA 8178cd7d90b16b38203d5bdb95ce35e84b3ac3fa，只用于审查，**绝不据此自动部署生产**；另需审定真实发布Git SHA、生产环境门禁与可回滚部署设计。下方早期首次失败记录保留，反映实际修复链路。
+
 
 **2026-10-17 CI 验证记录（需继续复核）**：首次 GitHub PR #1 Linux run 38996348748 的 npm ci、1103项单测和四组 TypeScript 检查全部通过，文档导航因 Git 忽略的 .agents/skills/fabric-ui-design/SKILL.md 不在 checkout 内而失败，构建及制品步骤跳过。现已在审查分支精确增补该项目 UI 技能，CI 预检增加对“文档相对链接的目标是否已被 Git 追踪”的验证；本地单测/构建与新增4项契约测试通过，远端最终运行结论仍以新日志为准。首轮 npm ci 输出 **29 项依赖漏洞警告（13 moderate、11 high、5 critical）**，并非本轮修复范围；正式发布前须对依赖来源、影响范围、实际暴露面与升级/缓解路线人工核查，不得把“CI 绿灯”当作漏洞风险已消除。
 
