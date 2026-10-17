@@ -1,6 +1,7 @@
 import React,{useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import {SampleSelectionWorkspaceV2} from './SampleSelectionWorkspaceV2';
 import {SampleOperationsPanel} from './SampleOperationsPanel';
+import {CardPhotoInput} from './CardPhotoInput';
 import {createSampleOperationsClient,type SampleSessionDirectory,type SampleSessionSummary} from './sampleOperationsModel';
 import {selectionAccessRevoked} from './sampleSelectionClient';
 const button='rounded border border-slate-300 bg-white px-3 py-2 text-sm disabled:opacity-40';
@@ -43,7 +44,7 @@ function Directory({apiFetch,onRegisterLeaveGuard}:{apiFetch:typeof fetch;onRegi
 }
 function Session({session,apiFetch,onBack,onRegisterLeaveGuard}:{session:SampleSessionSummary;apiFetch:typeof fetch;onBack:()=>void;onRegisterLeaveGuard?:RegisterSampleLeaveGuard}){
  const api=useMemo(()=>createSampleOperationsClient(apiFetch),[apiFetch]);
- const [tab,setTab]=useState<'selection'|'shipments'|'followups'>('selection'),[revision,setRevision]=useState(0),[token,setToken]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[revoked,setRevoked]=useState(false);
+ const [tab,setTab]=useState<'selection'|'shipments'|'followups'>('selection'),[revision,setRevision]=useState(0),[token,setToken]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[revoked,setRevoked]=useState(false),[photoBusy,setPhotoBusy]=useState(false);
  const accessRevoked=useCallback(()=>setRevoked(true),[]);
  const scope=useRef(new AbortController()),pending=useRef(false),dirty=useRef(false),operationBusy=useRef(false);
  useEffect(()=>{const controller=new AbortController();scope.current=controller;return()=>controller.abort();},[]);
@@ -51,13 +52,13 @@ function Session({session,apiFetch,onBack,onRegisterLeaveGuard}:{session:SampleS
  useEffect(()=>{onRegisterLeaveGuard?.(canLeave);return()=>onRegisterLeaveGuard?.(null);},[canLeave,onRegisterLeaveGuard]);
  const leave=(action:()=>void)=>{if(canLeave())action();};
  async function scan(event:React.FormEvent){
-  event.preventDefault();if(pending.current||session.status!=='open')return;pending.current=true;setBusy(true);setError('');setNotice('');const controller=scope.current;
+  event.preventDefault();if(pending.current||photoBusy||session.status!=='open')return;pending.current=true;setBusy(true);setError('');setNotice('');const controller=scope.current;
   try{const result=await api.scan(session.id,token.trim(),controller.signal);if(!controller.signal.aborted){setToken('');setRevision(n=>n+1);setNotice('已加入 '+result.addedProductIds.length+' 款；重复产品保持原选择。');}}
   catch(cause){if(!controller.signal.aborted){if(selectionAccessRevoked(cause))setRevoked(true);setError(selectionAccessRevoked(cause)?'访问权限已失效，请返回列表':(cause as {status?:number}).status?'色卡不可用或当前没有可选产品，请核对后重试':cause instanceof Error?cause.message:'扫码失败');}}
   finally{pending.current=false;if(!controller.signal.aborted)setBusy(false);}
  }
  if(revoked)return <section className="space-y-4 p-6"><p role="alert">访问权限已失效，请返回列表</p><button className={button} onClick={onBack}>返回客户选样</button></section>;
  return <section className="space-y-4 p-4 sm:p-6" aria-label="客户选样业务"><header className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-xl font-semibold">{session.customerReference} · 选样单</h2><button className={button} disabled={busy} onClick={()=>leave(onBack)}>返回客户选样</button></header><nav className="flex gap-2" aria-label="选样业务分类">{([['selection','选样明细'],['shipments','寄样记录'],['followups','客户跟进']] as const).map(([id,label])=><button key={id} role="tab" aria-selected={tab===id} className={button+(tab===id?' font-semibold text-blue-700':'')} disabled={busy} onClick={()=>leave(()=>{setTab(id);setError('');setNotice('');})}>{label}</button>)}</nav>
-  {tab==='selection'?<>{session.status==='open'&&<form className="flex flex-wrap items-end gap-2 rounded-xl border bg-white p-4" onSubmit={scan} aria-label="扫码加入选样"><label className="flex flex-col gap-1 text-sm">扫描或输入色卡编码<input className={field} autoComplete="off" maxLength={128} value={token} onChange={e=>setToken(e.target.value)} disabled={busy}/></label><button className={button} disabled={busy||!token.trim()}>{busy?'正在加入…':'扫码加入'}</button></form>}{error&&<p role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}<SampleSelectionWorkspaceV2 key={revision} sessionId={session.id} apiFetch={apiFetch} onAccessRevoked={accessRevoked}/></>:<SampleOperationsPanel key={tab} sessionId={session.id} apiFetch={apiFetch} kind={tab} onDirtyChange={value=>{dirty.current=value;}} onBusyChange={value=>{operationBusy.current=value;}} onAccessRevoked={accessRevoked}/>}
+  {tab==='selection'?<>{session.status==='open'&&<form className="flex flex-wrap items-end gap-2 rounded-xl border bg-white p-4" onSubmit={scan} aria-label="扫码加入选样"><CardPhotoInput disabled={busy} onBusyChange={setPhotoBusy} onDecoded={value=>{setToken(value);setError('');setNotice('已识别色卡，请点击扫码加入');}}/><label className="flex flex-col gap-1 text-sm">扫描或输入色卡编码<input className={field} autoComplete="off" maxLength={128} value={token} onChange={e=>setToken(e.target.value)} disabled={busy||photoBusy}/></label><button className={button} disabled={busy||photoBusy||!token.trim()}>{busy?'正在加入…':'扫码加入'}</button></form>}{error&&<p role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}<SampleSelectionWorkspaceV2 key={revision} sessionId={session.id} apiFetch={apiFetch} onAccessRevoked={accessRevoked}/></>:<SampleOperationsPanel key={tab} sessionId={session.id} apiFetch={apiFetch} kind={tab} onDirtyChange={value=>{dirty.current=value;}} onBusyChange={value=>{operationBusy.current=value;}} onAccessRevoked={accessRevoked}/>}
  </section>;
 }
