@@ -33,7 +33,7 @@
 
 ## 剩余问题与待验证实验
 
-云防火墙443开放/公网TLS、续期实测、人工七页UAT、固定产物恢复只读、正式迁移/切换/切后验收仍分别记录。已签发IP证书但公网端口未通时恢复旧HTTP服务，不能宣称HTTPS上线。剩余ExcelJS传递uuid moderate风险按实际v4调用范围留证，不使用force降级掩盖审计。未派发ACP编码任务，没有ACP提速数字。
+固定产物独立恢复后端/只读proxy的9项检查通过且业务表CHECKSUM不变；IP证书续期dry-run和reload hook通过。云防火墙443未通时暂时保留HTTP，用户放通后20:26实际公网默认信任链验证HTTPS健康200/mysql，恢复并复测HTTP308，同时保留ACME探针200。COS追加HTTPS精确来源并真实读回，不改变私有桶或对象。人工七页UAT、正式迁移/切换/切后验收仍开放；HTTPS当前仍为旧应用。剩余ExcelJS传递uuid moderate风险按实际v4调用范围留证，不使用force降级掩盖审计。未派发ACP编码任务，没有ACP提速数字。
 
 ## 闭环
 
