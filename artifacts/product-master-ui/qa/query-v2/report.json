@@ -1,0 +1,30 @@
+{
+  "url": "http://127.0.0.1:52985/product-master-v2-review.html?view=documents",
+  "checks": [
+    "sales sees own 28 documents",
+    "server next page",
+    "criteria must match the same line; split-line false match excluded",
+    "new search resets page",
+    "expanded rows show matching lines only",
+    "saved preview uses corrected V2 route and whole saved document",
+    "editor loads the same document via actual V2 resource URL",
+    "failed paired request clears old private rows",
+    "deposit disables settlement filter",
+    "deposit has no settlement mark",
+    "admin scope includes other owner",
+    "retained component resets page size and preserves access to rows 21-29 on role/API change",
+    "admin can query another owner customer",
+    "role switch clears prior scope",
+    "390px page has no outer horizontal overflow",
+    "no browser runtime errors"
+  ],
+  "screens": [
+    "desktop-matching.png",
+    "desktop-details.png",
+    "mobile-query.png",
+    "mobile-results.png"
+  ],
+  "realMySQL": false,
+  "formalApp": false,
+  "userUIAccepted": false
+}

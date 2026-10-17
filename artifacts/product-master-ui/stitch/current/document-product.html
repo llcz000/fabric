@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+
+<html class="h-full" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>单据｜共用产品选择 - Fabric Textile Pattern Engineering System</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:ital,wght@0,300..900;1,300..900&amp;family=Public+Sans:ital,wght@0,300..900;1,300..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "on-error-container": "#93000a",
+            "on-tertiary": "#ffffff",
+            "on-secondary-fixed-variant": "#31447b",
+            "on-surface-variant": "#434655",
+            "surface-container-highest": "#e2e1ee",
+            "on-secondary": "#ffffff",
+            "error-container": "#ffdad6",
+            "on-tertiary-container": "#fffbff",
+            "surface-container-low": "#f3f2ff",
+            "error": "#ba1a1a",
+            "surface-container-high": "#e7e7f4",
+            "secondary-container": "#acbffe",
+            "on-surface": "#191b24",
+            "primary-container": "#306bf3",
+            "tertiary-fixed": "#ffdbcd",
+            "outline": "#737686",
+            "on-tertiary-fixed-variant": "#7d2d00",
+            "secondary-fixed": "#dbe1ff",
+            "primary-fixed": "#dbe1ff",
+            "primary-fixed-dim": "#b4c5ff",
+            "on-primary-fixed-variant": "#003ea7",
+            "inverse-on-surface": "#f0f0fc",
+            "secondary-fixed-dim": "#b3c5ff",
+            "inverse-surface": "#2e3039",
+            "surface-variant": "#e2e1ee",
+            "on-primary": "#ffffff",
+            "on-secondary-fixed": "#00174a",
+            "surface-dim": "#d9d9e5",
+            "tertiary-container": "#c64f0a",
+            "outline-variant": "#c3c6d7",
+            "on-background": "#191b24",
+            "surface-tint": "#0053da",
+            "on-tertiary-fixed": "#360f00",
+            "on-secondary-container": "#394c84",
+            "tertiary-fixed-dim": "#ffb596",
+            "tertiary": "#a03c00",
+            "background": "#faf8ff",
+            "secondary": "#495c94",
+            "surface-bright": "#faf8ff",
+            "surface": "#faf8ff",
+            "inverse-primary": "#b4c5ff",
+            "on-error": "#ffffff",
+            "surface-container-lowest": "#ffffff",
+            "surface-container": "#ededf9",
+            "on-primary-container": "#fefcff",
+            "on-primary-fixed": "#00174b",
+            "primary": "#0051d5"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.125rem",
+            "lg": "0.25rem",
+            "xl": "0.5rem",
+            "full": "0.75rem"
+          },
+          "spacing": {
+            "margin": "1.5rem",
+            "space-xl": "1.5rem",
+            "space-xxs": "0.125rem",
+            "space-xs": "0.25rem",
+            "space-sm": "0.5rem",
+            "gutter": "0.5rem",
+            "gutter-table": "0.5rem",
+            "space-md": "0.75rem",
+            "space-lg": "1rem"
+          },
+          "fontFamily": {
+            "caption": ["Hanken Grotesk", "sans-serif"],
+            "body-md": ["Hanken Grotesk", "sans-serif"],
+            "headline-sm": ["Hanken Grotesk", "sans-serif"],
+            "label-md": ["Public Sans", "sans-serif"],
+            "headline-md": ["Hanken Grotesk", "sans-serif"],
+            "headline-lg": ["Hanken Grotesk", "sans-serif"],
+            "body-sm": ["Hanken Grotesk", "sans-serif"],
+            "body-lg": ["Hanken Grotesk", "sans-serif"],
+            "label-sm": ["Public Sans", "sans-serif"]
+          },
+          "fontSize": {
+            "caption": ["11px", { "lineHeight": "14px", "fontWeight": "400" }],
+            "body-md": ["13px", { "lineHeight": "18px", "fontWeight": "400" }],
+            "headline-sm": ["15px", { "lineHeight": "20px", "fontWeight": "600" }],
+            "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500" }],
+            "headline-md": ["18px", { "lineHeight": "24px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+            "headline-lg": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.015em", "fontWeight": "600" }],
+            "body-sm": ["12px", { "lineHeight": "16px", "fontWeight": "400" }],
+            "body-lg": ["14px", { "lineHeight": "20px", "fontWeight": "500" }],
+            "label-sm": ["11px", { "lineHeight": "14px", "letterSpacing": "0.03em", "fontWeight": "400" }]
+          }
+        }
+      }
+    };
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+      font-size: 18px;
+      line-height: 1;
+      display: inline-block;
+      vertical-align: middle;
+    }
+    .material-symbols-outlined.filled {
+      font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+    }
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+  </style>
+</head>
+<body class="bg-[#f8f9ff] text-on-surface antialiased font-body-md text-body-md min-h-screen relative overflow-x-hidden select-none">
+<!-- ==================== 1. 全局顶部导航 (TopNavBar) ==================== -->
+<header class="bg-surface-container-lowest text-on-surface docked full-width top-0 sticky z-30 border-b border-outline-variant">
+<div class="flex justify-between items-center w-full px-space-xl max-w-[1440px] mx-auto h-12">
+<!-- Left: Logo & Search -->
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-2">
+<span class="text-headline-md font-headline-md font-bold tracking-tight text-on-surface">Fabric</span>
+<span class="text-caption font-label-md px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant tracking-wider font-semibold">ENTERPRISE</span>
+</div>
+<!-- Search bar on left -->
+<div class="relative w-64 hidden md:block">
+<span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-outline text-[16px]">search</span>
+<input class="w-full h-7 pl-8 pr-3 text-caption font-body-sm bg-surface-container-low border border-outline-variant rounded-lg text-on-surface placeholder:text-outline focus:outline-none focus:border-primary-container focus:ring-1 focus:ring-primary-container" placeholder="全局检索花型 / 面料 / 单据..." type="text"/>
+</div>
+</div>
+<!-- Center: Navigation Links -->
+<nav class="hidden md:flex items-center gap-6 h-full">
+<a class="text-on-surface-variant hover:text-on-surface font-body-md text-body-md py-3 px-2 inline-flex items-center transition-colors" href="#">花型库</a>
+<a class="text-on-surface-variant hover:text-on-surface font-body-md text-body-md py-3 px-2 inline-flex items-center transition-colors" href="#">面料库</a>
+<a class="text-on-surface-variant hover:text-on-surface font-body-md text-body-md py-3 px-2 inline-flex items-center transition-colors" href="#">产品库</a>
+<a class="border-b-2 border-primary text-primary font-body-lg text-body-lg py-3 px-2 inline-flex items-center font-semibold" href="#">单据中心/样布码单</a>
+</nav>
+<!-- Right: Action Buttons & User -->
+<div class="flex items-center gap-3">
+<button class="h-7 px-2.5 text-caption font-label-md border border-outline-variant hover:bg-surface-container rounded-lg text-on-surface transition-colors">导入数据</button>
+<button class="h-7 px-2.5 text-caption font-label-md bg-primary-container text-on-primary-container hover:bg-primary rounded-lg transition-colors flex items-center gap-1">
+<span class="material-symbols-outlined text-[15px]">add</span>
+<span>新建花型</span>
+</button>
+<div class="h-4 w-[1px] bg-outline-variant mx-1"></div>
+<button class="w-7 h-7 flex items-center justify-center text-outline hover:text-on-surface rounded hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="w-7 h-7 flex items-center justify-center text-outline hover:text-on-surface rounded hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<div class="flex items-center gap-2 pl-1 cursor-pointer">
+<div class="w-7 h-7 rounded-full bg-secondary text-on-secondary flex items-center justify-center text-caption font-label-md font-bold">管</div>
+<span class="text-caption font-label-md text-on-surface font-medium hidden sm:inline">管理员</span>
+</div>
+</div>
+</div>
+</header>
+<!-- ==================== 2. 底层单据工作台 (Background Page) ==================== -->
+<main class="max-w-[1440px] mx-auto px-space-xl py-4 space-y-4 filter blur-[1px] pointer-events-none select-none">
+<!-- 单据头部工具栏 -->
+<div class="flex items-center justify-between bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-2.5 shadow-none">
+<div class="flex items-center gap-3">
+<span class="text-caption font-body-sm text-outline">单据管理 / 样布码单 /</span>
+<h1 class="text-headline-sm font-headline-sm text-on-surface tracking-tight">样布码单编辑（YB-20260328-001）</h1>
+<span class="px-2 py-0.5 rounded text-caption font-label-sm bg-secondary-fixed text-on-secondary-fixed-variant font-medium">草稿编制中</span>
+</div>
+<div class="flex items-center gap-2.5">
+<button class="h-7 px-3.5 text-caption font-label-md border border-outline-variant text-on-surface-variant hover:bg-surface-container-low rounded-lg transition-colors">取消</button>
+<button class="h-7 px-4 text-caption font-label-md bg-primary-container text-on-primary-container rounded-lg font-medium hover:bg-primary transition-colors flex items-center gap-1.5 shadow-none">
+<span class="material-symbols-outlined text-[16px]">save</span>
+<span>保存单据</span>
+</button>
+</div>
+</div>
+<!-- 单据基础属性条（紧凑卡片） -->
+<div class="grid grid-cols-4 gap-4 bg-surface-container-lowest border border-outline-variant rounded-lg p-3.5 text-caption">
+<div class="flex flex-col gap-1 border-r border-outline-variant/60 pr-3">
+<span class="text-outline text-caption">客户名称</span>
+<span class="font-semibold text-body-md text-on-surface truncate">杭州丝路服饰有限公司</span>
+</div>
+<div class="flex flex-col gap-1 border-r border-outline-variant/60 pr-3">
+<span class="text-outline text-caption">单据日期</span>
+<span class="font-medium text-body-md text-on-surface">2026-03-28</span>
+</div>
+<div class="flex flex-col gap-1 border-r border-outline-variant/60 pr-3">
+<span class="text-outline text-caption">业务员</span>
+<div class="flex items-center gap-1.5">
+<span class="font-medium text-body-md text-on-surface">王经理</span>
+<span class="text-caption font-label-sm text-secondary bg-surface-container px-1 rounded">本人经办</span>
+</div>
+</div>
+<div class="flex flex-col gap-1">
+<span class="text-outline text-caption">单据类型 / 状态</span>
+<span class="font-medium text-body-md text-on-surface">常规样布领用 / 编辑中</span>
+</div>
+</div>
+<!-- 单据明细区 -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden">
+<!-- 明细操作栏 -->
+<div class="flex items-center justify-between px-4 py-2.5 border-b border-outline-variant bg-surface-container-low/40">
+<div class="flex items-center gap-2">
+<span class="font-headline-sm text-body-lg text-on-surface font-semibold">明细列表</span>
+<span class="text-caption font-body-sm text-outline">（共 1 行）</span>
+</div>
+<div class="flex items-center gap-2">
+<button class="h-7 px-2.5 text-caption font-label-md border border-outline-variant bg-white text-on-surface-variant rounded-lg flex items-center gap-1">
+<span class="material-symbols-outlined text-[15px] text-tertiary">admin_panel_settings</span>
+<span>手工录入</span>
+<span class="text-[10px] text-outline ml-0.5">管理员</span>
+</button>
+<button class="h-7 px-3 text-caption font-label-md bg-primary-container text-on-primary-container rounded-lg font-medium flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">add</span>
+<span>+ 选择产品添加</span>
+</button>
+</div>
+</div>
+<!-- 紧凑明细表格 -->
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse text-body-sm">
+<thead>
+<tr class="bg-surface-container-low/70 border-b border-outline-variant text-caption text-on-surface-variant font-label-md uppercase tracking-wider">
+<th class="py-2 px-3 text-center w-10">序号</th>
+<th class="py-2 px-3 w-32">货号</th>
+<th class="py-2 px-3 w-32">品名</th>
+<th class="py-2 px-3 w-28">配色</th>
+<th class="py-2 px-3 w-28">成分</th>
+<th class="py-2 px-3 w-24">克重</th>
+<th class="py-2 px-3 w-24">门幅</th>
+<th class="py-2 px-3 w-28 text-right">米数(m) *</th>
+<th class="py-2 px-3 w-28 text-right">单价(元) *</th>
+<th class="py-2 px-3 w-28 text-right">金额(元)</th>
+<th class="py-2 px-3">备注 *</th>
+<th class="py-2 px-3 text-center w-28">操作</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/60">
+<tr class="hover:bg-surface-container-low/30 transition-colors">
+<td class="py-2.5 px-3 text-center text-outline text-caption">1</td>
+<td class="py-2.5 px-3 font-mono font-medium text-on-surface">
+<span class="bg-surface-container px-1.5 py-0.5 rounded text-caption border border-outline-variant/50">1234-1-S24</span>
+</td>
+<td class="py-2.5 px-3 font-medium text-on-surface">示例面料02</td>
+<td class="py-2.5 px-3"><span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-surface-container text-on-surface font-mono text-caption font-semibold border border-outline-variant/60">1</span></td>
+<td class="py-2.5 px-3 text-on-surface-variant">100%真丝</td>
+<td class="py-2.5 px-3 text-on-surface-variant">16 mm</td>
+<td class="py-2.5 px-3 text-on-surface-variant">140 cm</td>
+<td class="py-2.5 px-3 text-right">
+<input class="w-20 h-7 text-right px-2 border border-outline-variant rounded bg-white text-on-surface font-mono text-body-sm focus:border-primary-container focus:outline-none" type="text" value="50.0"/>
+</td>
+<td class="py-2.5 px-3 text-right">
+<input class="w-20 h-7 text-right px-2 border border-outline-variant rounded bg-white text-on-surface font-mono text-body-sm focus:border-primary-container focus:outline-none" type="text" value="85.00"/>
+</td>
+<td class="py-2.5 px-3 text-right font-mono font-semibold text-on-surface">4,250.00</td>
+<td class="py-2.5 px-3">
+<input class="w-full h-7 px-2 border border-outline-variant rounded bg-white text-on-surface text-body-sm focus:border-primary-container focus:outline-none" type="text" value="2026春款样衣打样"/>
+</td>
+<td class="py-2.5 px-3 text-center">
+<div class="flex items-center justify-center gap-2">
+<button class="text-primary hover:underline text-caption">更换产品</button>
+<span class="text-outline-variant">|</span>
+<button class="text-error hover:underline text-caption">删除明细</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- 表格底部汇总 -->
+<div class="p-3 bg-surface-container-low/30 border-t border-outline-variant flex justify-end items-center gap-6 text-caption">
+<span class="text-outline">总计米数: <strong class="text-on-surface font-mono text-body-md ml-1">50.0 m</strong></span>
+<span class="text-outline">总计金额: <strong class="text-primary font-mono text-body-lg ml-1 font-bold">¥ 4,250.00</strong></span>
+</div>
+</div>
+</main>
+<!-- ==================== 3. 遮罩层与居中弹窗 (Modal Dialog) ==================== -->
+<div class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background-color: rgba(15, 23, 42, 0.38);">
+<!-- 模态主容器：严谨 980px 宽度卡片 -->
+<div class="w-full max-w-[980px] bg-white rounded-lg border border-outline-variant flex flex-col overflow-hidden text-on-surface" style="box-shadow: 0 20px 25px -5px rgba(15, 23, 42, 0.12), 0 8px 10px -6px rgba(15, 23, 42, 0.06);">
+<!-- 模态头部 (Header) -->
+<div class="flex items-center justify-between px-5 py-3 border-b border-outline-variant bg-surface-container-lowest">
+<div class="flex items-baseline gap-2.5">
+<h2 class="text-headline-sm font-headline-sm font-semibold text-on-surface tracking-tight">选择产品</h2>
+<span class="text-caption font-body-sm text-outline">产品资料自动带入，业务字段在单据内填写</span>
+</div>
+<button aria-label="关闭" class="w-7 h-7 flex items-center justify-center rounded text-outline hover:text-on-surface hover:bg-surface-container transition-colors" type="button">
+<span class="material-symbols-outlined text-[19px]">close</span>
+</button>
+</div>
+<!-- 搜索与筛选工具栏 (整齐横排，无冗余门幅/克重筛选) -->
+<div class="px-5 py-2.5 bg-surface-container-low/30 border-b border-outline-variant flex items-center gap-3">
+<!-- 货号输入框 -->
+<div class="relative flex-1 max-w-[240px]">
+<span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-outline text-[16px]">qr_code_2</span>
+<input class="w-full h-8 pl-8 pr-2.5 text-caption font-body-sm bg-white border border-outline-variant rounded text-on-surface placeholder:text-outline focus:outline-none focus:border-primary-container focus:ring-1 focus:ring-primary-container" placeholder="请输入货号 (如 1234-1-S24)" type="text"/>
+</div>
+<!-- 品名输入框 -->
+<div class="relative flex-1 max-w-[240px]">
+<span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-outline text-[16px]">tag</span>
+<input class="w-full h-8 pl-8 pr-2.5 text-caption font-body-sm bg-white border border-outline-variant rounded text-on-surface placeholder:text-outline focus:outline-none focus:border-primary-container focus:ring-1 focus:ring-primary-container" placeholder="请输入品名" type="text"/>
+</div>
+<!-- 题材下拉筛选 -->
+<div class="relative w-36">
+<select class="w-full h-8 px-2.5 text-caption font-body-sm bg-white border border-outline-variant rounded text-on-surface focus:outline-none focus:border-primary-container focus:ring-1 focus:ring-primary-container appearance-none pr-7 cursor-pointer">
+<option>题材: 全部</option>
+<option>几何纹理</option>
+<option>花卉植物</option>
+<option>抽象工笔</option>
+</select>
+<span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-outline text-[16px] pointer-events-none">expand_more</span>
+</div>
+<!-- 颜色标签下拉筛选 -->
+<div class="relative w-40">
+<select class="w-full h-8 px-2.5 text-caption font-body-sm bg-white border border-outline-variant rounded text-on-surface focus:outline-none focus:border-primary-container focus:ring-1 focus:ring-primary-container appearance-none pr-7 cursor-pointer">
+<option>颜色标签: 全部</option>
+<option>藏蓝系列</option>
+<option>米白系列</option>
+<option>高明度暖红</option>
+</select>
+<span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-outline text-[16px] pointer-events-none">expand_more</span>
+</div>
+<!-- 重置与检索辅助按钮 -->
+<div class="flex items-center gap-1.5 ml-auto">
+<button class="h-8 px-3 text-caption font-label-md bg-white border border-outline-variant text-on-surface-variant rounded hover:bg-surface-container transition-colors">重置</button>
+<button class="h-8 px-3.5 text-caption font-label-md bg-primary-container text-on-primary-container rounded hover:bg-primary transition-colors flex items-center gap-1">
+<span class="material-symbols-outlined text-[15px]">search</span>
+<span>查询</span>
+</button>
+</div>
+</div>
+<!-- 产品候选列表表格 (严格符合指定数据) -->
+<div class="max-h-[380px] overflow-y-auto">
+<table class="w-full text-left border-collapse text-body-sm">
+<thead class="sticky top-0 z-10 bg-surface-container-low border-b border-outline-variant">
+<tr class="text-caption font-label-md text-on-surface-variant tracking-wide">
+<th class="py-2 px-4 w-20 text-center">花型图</th>
+<th class="py-2 px-3 w-40">货号</th>
+<th class="py-2 px-3 w-36">品名</th>
+<th class="py-2 px-3 w-32">配色</th>
+<th class="py-2 px-3 w-36">成分</th>
+<th class="py-2 px-3 w-28">克重</th>
+<th class="py-2 px-3 w-28">门幅/cm</th>
+<th class="py-2 px-4 text-center w-24">操作</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/60 font-body-sm">
+<!-- 行 1: 1234-NV-S24 -->
+<tr class="hover:bg-[#f2f6ff] transition-colors group"><td class="py-2 px-4 text-center"><div class="w-11 h-11 mx-auto rounded border border-outline-variant/80 bg-surface-container flex flex-col items-center justify-center text-outline group-hover:border-primary-container/60 transition-colors"><span class="material-symbols-outlined text-[18px]">texture</span><span class="text-[9px] scale-90 leading-none mt-0.5 text-outline">待上传</span></div></td><td class="py-2.5 px-3"><div class="flex items-center gap-1.5"><span class="font-mono font-semibold text-on-surface">1234-1-S24</span><span class="w-1.5 h-1.5 rounded-full bg-primary inline-block"></span></div></td><td class="py-2.5 px-3 font-medium text-on-surface">示例面料02</td><td class="py-2.5 px-3"><span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-surface-container text-on-surface font-mono text-caption font-semibold border border-outline-variant/60">1</span></td><td class="py-2.5 px-3 text-on-surface-variant">100%真丝</td><td class="py-2.5 px-3 text-on-surface-variant font-mono">16 mm</td><td class="py-2.5 px-3 text-on-surface-variant font-mono">140</td><td class="py-2.5 px-4 text-center"><button class="h-7 px-3 text-caption font-label-md bg-primary-container text-on-primary-container hover:bg-primary rounded transition-colors inline-flex items-center gap-1" type="button"><span>选用</span></button></td></tr>
+<!-- 行 2: 1234-IV-S23 -->
+<tr class="hover:bg-[#f2f6ff] transition-colors group"><td class="py-2 px-4 text-center"><div class="w-11 h-11 mx-auto rounded border border-outline-variant/80 bg-surface-container flex flex-col items-center justify-center text-outline group-hover:border-primary-container/60 transition-colors"><span class="material-symbols-outlined text-[18px]">texture</span><span class="text-[9px] scale-90 leading-none mt-0.5 text-outline">待上传</span></div></td><td class="py-2.5 px-3 font-mono font-semibold text-on-surface">1234-2-S23</td><td class="py-2.5 px-3 font-medium text-on-surface">示例面料01</td><td class="py-2.5 px-3"><span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-surface-container text-on-surface font-mono text-caption font-semibold border border-outline-variant/60">2</span></td><td class="py-2.5 px-3 text-on-surface-variant">100%涤纶</td><td class="py-2.5 px-3 text-on-surface-variant font-mono">120 gsm</td><td class="py-2.5 px-3 text-on-surface-variant font-mono">150</td><td class="py-2.5 px-4 text-center"><button class="h-7 px-3 text-caption font-label-md bg-white border border-primary text-primary hover:bg-surface-container-low rounded transition-colors inline-flex items-center gap-1" type="button"><span>选用</span></button></td></tr>
+<!-- 行 3: 5678-RD-S25 -->
+<tr class="hover:bg-[#f2f6ff] transition-colors group"><td class="py-2 px-4 text-center"><div class="w-11 h-11 mx-auto rounded border border-outline-variant/80 bg-surface-container flex flex-col items-center justify-center text-outline group-hover:border-primary-container/60 transition-colors"><span class="material-symbols-outlined text-[18px]">texture</span><span class="text-[9px] scale-90 leading-none mt-0.5 text-outline">待上传</span></div></td><td class="py-2.5 px-3 font-mono font-semibold text-on-surface">5678-1-S25</td><td class="py-2.5 px-3 font-medium text-on-surface">示例面料03</td><td class="py-2.5 px-3"><span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-surface-container text-on-surface font-mono text-caption font-semibold border border-outline-variant/60">1</span></td><td class="py-2.5 px-3 text-on-surface-variant">95%涤纶 5%氨纶</td><td class="py-2.5 px-3 text-on-surface-variant font-mono">180 gsm</td><td class="py-2.5 px-3 text-on-surface-variant font-mono">150</td><td class="py-2.5 px-4 text-center"><button class="h-7 px-3 text-caption font-label-md bg-white border border-primary text-primary hover:bg-surface-container-low rounded transition-colors inline-flex items-center gap-1" type="button"><span>选用</span></button></td></tr>
+<!-- 行 4: 1234-NV-S26 (空规格展示) -->
+<tr class="hover:bg-[#f2f6ff] transition-colors group"><td class="py-2 px-4 text-center"><div class="w-11 h-11 mx-auto rounded border border-outline-variant/80 bg-surface-container flex flex-col items-center justify-center text-outline group-hover:border-primary-container/60 transition-colors"><span class="material-symbols-outlined text-[18px]">texture</span><span class="text-[9px] scale-90 leading-none mt-0.5 text-outline">待上传</span></div></td><td class="py-2.5 px-3 font-mono font-semibold text-on-surface">1234-1-S26</td><td class="py-2.5 px-3 font-medium text-on-surface">示例面料04</td><td class="py-2.5 px-3"><span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-surface-container text-on-surface font-mono text-caption font-semibold border border-outline-variant/60">1</span></td><td class="py-2.5 px-3 text-outline font-mono">—</td><td class="py-2.5 px-3 text-outline font-mono">—</td><td class="py-2.5 px-3 text-outline font-mono">—</td><td class="py-2.5 px-4 text-center"><button class="h-7 px-3 text-caption font-label-md bg-white border border-primary text-primary hover:bg-surface-container-low rounded transition-colors inline-flex items-center gap-1" type="button"><span>选用</span></button></td></tr>
+</tbody>
+</table>
+</div>
+<!-- 模态底部工具与分页栏 (Footer) -->
+<div class="px-5 py-3 bg-surface-container-low/40 border-t border-outline-variant flex items-center justify-between">
+<!-- 左侧状态统计 -->
+<div class="flex items-center gap-2 text-caption text-outline">
+<span>共 <strong class="text-on-surface font-mono font-semibold">4</strong> 个有效产品（已过滤停用）</span>
+<span>·</span>
+<span>每页 10 条</span>
+</div>
+<!-- 右侧紧凑分页器与关闭 -->
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-1">
+<button class="w-7 h-7 flex items-center justify-center rounded border border-outline-variant/70 text-outline-variant bg-white/60 cursor-not-allowed" disabled="">
+<span class="material-symbols-outlined text-[16px]">chevron_left</span>
+</button>
+<span class="w-7 h-7 flex items-center justify-center rounded text-caption font-label-md bg-primary-container text-on-primary-container font-semibold">1</span>
+<button class="w-7 h-7 flex items-center justify-center rounded border border-outline-variant/70 text-outline-variant bg-white/60 cursor-not-allowed" disabled="">
+<span class="material-symbols-outlined text-[16px]">chevron_right</span>
+</button>
+</div>
+<div class="h-4 w-[1px] bg-outline-variant"></div>
+<button class="h-7 px-3 text-caption font-label-md border border-outline-variant text-on-surface-variant hover:bg-surface-container bg-white rounded transition-colors" type="button">
+            取消关闭
+          </button>
+</div>
+</div>
+</div>
+</div>
+</body></html>

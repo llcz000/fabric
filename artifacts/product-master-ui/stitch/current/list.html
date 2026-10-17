@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+
+<html class="h-full" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Fabric - 花型库</title>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "secondary": "#1d4ed8",
+            "on-background": "#0b1c30",
+            "on-secondary": "#ffffff",
+            "primary": "#004ac6",
+            "on-primary": "#ffffff",
+            "tertiary-container": "#0074a6",
+            "inverse-on-surface": "#eaf1ff",
+            "surface-container-highest": "#d3e4fe",
+            "outline": "#737686",
+            "outline-variant": "#c3c6d7",
+            "error": "#ba1a1a",
+            "surface": "#f8f9ff",
+            "on-secondary-fixed-variant": "#0039b5",
+            "surface-container-low": "#eff4ff",
+            "tertiary": "#005a82",
+            "on-secondary-fixed": "#001551",
+            "on-surface-variant": "#434655",
+            "on-surface": "#0b1c30",
+            "on-tertiary-fixed": "#001e2f",
+            "secondary-fixed": "#dce1ff",
+            "primary-fixed": "#dbe1ff",
+            "on-tertiary-fixed-variant": "#004c6e",
+            "surface-tint": "#0053db",
+            "on-error-container": "#93000a",
+            "surface-container": "#e5eeff",
+            "on-tertiary-container": "#e4f2ff",
+            "on-primary-fixed-variant": "#003ea8",
+            "tertiary-fixed-dim": "#89ceff",
+            "on-primary-fixed": "#00174b",
+            "secondary-fixed-dim": "#b7c4ff",
+            "surface-dim": "#cbdbf5",
+            "on-tertiary": "#ffffff",
+            "surface-container-high": "#dce9ff",
+            "surface-container-lowest": "#ffffff",
+            "inverse-surface": "#213145",
+            "surface-variant": "#d3e4fe",
+            "secondary-container": "#4069f2",
+            "on-secondary-container": "#fffbff",
+            "primary-container": "#2563eb",
+            "on-error": "#ffffff",
+            "surface-bright": "#f8f9ff",
+            "tertiary-fixed": "#c9e6ff",
+            "on-primary-container": "#eeefff",
+            "primary-fixed-dim": "#b4c5ff",
+            "inverse-primary": "#b4c5ff",
+            "error-container": "#ffdad6",
+            "background": "#f8f9ff"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.125rem",
+            "lg": "0.25rem",
+            "xl": "0.5rem",
+            "full": "0.75rem"
+          },
+          "spacing": {
+            "gutter": "0.5rem",
+            "space-sm": "0.5rem",
+            "space-xs": "0.25rem",
+            "space-xl": "1.5rem",
+            "margin": "1.5rem",
+            "space-xxs": "0.125rem",
+            "gutter-table": "0.5rem",
+            "space-lg": "1rem",
+            "space-md": "0.75rem"
+          },
+          "fontFamily": {
+            "headline-md": ["Hanken Grotesk"],
+            "body-md": ["Hanken Grotesk"],
+            "label-md": ["JetBrains Mono"],
+            "headline-lg": ["Hanken Grotesk"],
+            "headline-sm": ["Hanken Grotesk"],
+            "label-sm": ["JetBrains Mono"],
+            "caption": ["Hanken Grotesk"],
+            "body-sm": ["Hanken Grotesk"],
+            "body-lg": ["Hanken Grotesk"]
+          },
+          "fontSize": {
+            "headline-md": ["18px", { "lineHeight": "24px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+            "body-md": ["13px", { "lineHeight": "18px", "fontWeight": "400" }],
+            "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500" }],
+            "headline-lg": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.015em", "fontWeight": "600" }],
+            "headline-sm": ["15px", { "lineHeight": "20px", "fontWeight": "600" }],
+            "label-sm": ["11px", { "lineHeight": "14px", "letterSpacing": "0.03em", "fontWeight": "400" }],
+            "caption": ["11px", { "lineHeight": "14px", "fontWeight": "400" }],
+            "body-sm": ["12px", { "lineHeight": "16px", "fontWeight": "400" }],
+            "body-lg": ["14px", { "lineHeight": "20px", "fontWeight": "500" }]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+      font-size: 18px;
+      line-height: 1;
+      display: inline-block;
+      vertical-align: middle;
+    }
+    .checkered-pattern {
+      background-color: #f8fafc;
+      background-image:
+        linear-gradient(45deg, #f1f5f9 25%, transparent 25%),
+        linear-gradient(-45deg, #f1f5f9 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #f1f5f9 75%),
+        linear-gradient(-45deg, transparent 75%, #f1f5f9 75%);
+      background-size: 8px 8px;
+      background-position: 0 0, 0 4px, 4px -4px, -4px 0px;
+    }
+  </style>
+</head>
+<body class="bg-[#f8fafc] text-on-surface antialiased min-h-screen flex flex-col font-body-md text-body-md selection:bg-surface-container-highest">
+<!-- 顶部导航 TopNavBar (52px高度, 规范要求) -->
+<header class="bg-surface-container-lowest border-b border-outline-variant sticky top-0 z-40 h-[52px]">
+<div class="max-w-[1440px] mx-auto px-6 h-full flex items-center justify-between">
+<!-- 左侧：品牌 Logo + 主菜单 -->
+<div class="flex items-center space-x-8 h-full">
+<span class="text-headline-md font-headline-md font-bold tracking-tight text-on-surface">Fabric</span>
+<nav class="flex items-center space-x-6 h-full">
+<!-- 花型库 (激活态: 细蓝底边) -->
+<a class="border-b-2 border-primary text-primary font-body-lg text-body-lg h-full inline-flex items-center px-1 font-semibold" href="#">
+            花型库
+          </a>
+<!-- 面料库 -->
+<a class="text-on-surface-variant hover:text-on-surface font-body-md text-body-md h-full inline-flex items-center px-1 transition-colors" href="#">
+            面料库
+          </a>
+<!-- 产品库 -->
+<a class="text-on-surface-variant hover:text-on-surface font-body-md text-body-md h-full inline-flex items-center px-1 transition-colors" href="#">
+            产品库
+          </a>
+</nav>
+</div>
+<!-- 右侧：管理员头像与名称 -->
+<div class="flex items-center space-x-2.5">
+<div class="w-7 h-7 rounded-full bg-[#e2e8f0] flex items-center justify-center text-[#475569] font-label-md text-label-sm font-semibold border border-outline-variant/60">
+          管
+        </div>
+<span class="text-body-sm font-body-sm font-medium text-on-surface">管理员</span>
+</div>
+</div>
+</header>
+<!-- 主内容区 (最大宽度 1400px 居中) -->
+<main class="w-full max-w-[1400px] mx-auto px-6 pt-5 pb-8 flex-1 flex flex-col">
+<!-- 顶部操作栏 -->
+<div class="flex items-center justify-between mb-4">
+<h1 class="text-headline-lg font-headline-lg text-on-surface tracking-tight">花型库</h1>
+<!-- 克制蓝色主动作按钮 (高度 30px, 规范 28-32px) -->
+<button class="inline-flex items-center justify-center px-3 h-[30px] rounded-lg bg-primary hover:bg-[#1d4ed8] active:bg-[#1e40af] text-on-primary font-body-sm text-body-sm font-medium transition-colors" type="button">
+<span class="mr-1 text-base leading-none font-semibold">+</span> 新增母版
+      </button>
+</div>
+<!-- 单行紧凑筛选栏 (高约 38px, 白底圆角细边框) -->
+<div class="h-[38px] bg-surface-container-lowest border border-outline-variant rounded-lg px-3 mb-4 flex items-center justify-between text-body-sm font-body-sm">
+<div class="flex items-center space-x-3">
+<!-- 编号搜索框 -->
+<div class="relative flex items-center">
+<input class="w-48 h-[26px] text-body-sm font-body-sm bg-transparent border-0 p-0 text-on-surface placeholder:text-outline focus:ring-0 focus:outline-none" placeholder="搜索编号..." type="text"/>
+</div>
+<div class="h-3.5 w-[1px] bg-outline-variant"></div>
+<!-- 题材下拉选择框 -->
+<div class="relative flex items-center">
+<select class="h-[26px] pl-1 pr-6 py-0 bg-transparent border-0 text-body-sm font-body-sm text-on-surface font-medium cursor-pointer focus:ring-0 focus:outline-none appearance-none">
+<option>题材: 全部</option>
+<option>题材: 花卉/植物</option>
+<option>题材: 几何</option>
+<option>题材: 植物</option>
+<option>题材: 波点</option>
+</select>
+<span class="material-symbols-outlined text-outline pointer-events-none -ml-4" data-icon="arrow_drop_down" style="font-size: 14px;">arrow_drop_down</span>
+</div>
+<div class="h-3.5 w-[1px] bg-outline-variant"></div>
+<!-- 原图颜色筛选框 -->
+<div class="relative flex items-center"><select class="h-[26px] pl-1 pr-6 py-0 bg-transparent border-0 text-body-sm font-body-sm text-on-surface font-medium cursor-pointer focus:ring-0 focus:outline-none appearance-none">
+<option>颜色标签: 全部</option>
+<option>藏蓝</option>
+<option>米白</option>
+<option>红色</option>
+<option>绿色</option>
+<option>蓝色</option>
+</select>
+<span class="material-symbols-outlined text-outline pointer-events-none -ml-4" data-icon="arrow_drop_down" style="font-size: 14px;">arrow_drop_down</span></div>
+</div>
+<!-- 右侧：复选框「包含停用」 -->
+<label class="flex items-center space-x-1.5 cursor-pointer text-on-surface-variant hover:text-on-surface select-none">
+<input class="w-3.5 h-3.5 rounded-DEFAULT border-outline text-primary focus:ring-primary focus:ring-offset-0" type="checkbox"/>
+<span class="text-caption font-caption text-on-surface-variant">包含停用</span>
+</label>
+</div>
+<!-- 花型列表：白底卡片容器 -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-lg flex-1 flex flex-col overflow-hidden">
+<!-- 表头栏 -->
+<div class="flex items-center h-9 border-b border-outline-variant bg-[#fbfcfd] px-4 text-on-surface-variant text-caption font-caption font-medium select-none">
+<div class="w-[160px] flex-shrink-0">母版</div>
+<div class="flex-1">配色版本</div>
+<div class="w-[64px] flex-shrink-0 text-center">操作</div>
+</div>
+<!-- 数据行列表 (无横向滚动条，整齐排布) -->
+<div class="divide-y divide-outline-variant/70"><!-- 第 1 行：母版 1234 (3种配色) --><div class="flex items-center px-4 py-3 min-h-[114px] hover:bg-[#fcfdff] transition-colors"><div class="w-[160px] flex-shrink-0 pr-4"><div class="text-body-lg font-label-md font-semibold text-on-surface tracking-tight">1234</div><div class="mt-1"><span class="inline-block px-1.5 py-0.5 rounded-DEFAULT bg-[#f1f5f9] text-[#475569] text-caption font-caption font-normal border border-[#e2e8f0]">花卉/植物</span></div></div><div class="flex-1 flex items-start gap-2"><div class="w-[132px] flex-shrink-0 flex flex-col items-center p-1 rounded-DEFAULT group"><div class="w-[80px] h-[80px] rounded-DEFAULT border border-dashed border-[#cbd5e1] bg-[#f8fafc] p-1 flex flex-col items-center justify-center text-[#94a3b8]"><span class="material-symbols-outlined text-[24px] text-[#94a3b8] mb-1">image</span><span class="text-[11px] font-caption text-[#94a3b8]">待上传</span></div><div class="w-full mt-1.5 text-center px-0.5"><div class="text-[12px] font-label-md text-on-surface font-medium truncate" title="1234-1">1234-1</div></div></div><div class="w-[132px] flex-shrink-0 flex flex-col items-center p-1 rounded-DEFAULT group"><div class="w-[80px] h-[80px] rounded-DEFAULT border border-dashed border-[#cbd5e1] bg-[#f8fafc] p-1 flex flex-col items-center justify-center text-[#94a3b8]"><span class="material-symbols-outlined text-[24px] text-[#94a3b8] mb-1">image</span><span class="text-[11px] font-caption text-[#94a3b8]">待上传</span></div><div class="w-full mt-1.5 text-center px-0.5"><div class="text-[12px] font-label-md text-on-surface font-medium truncate" title="1234-2">1234-2</div></div></div><div class="w-[132px] flex-shrink-0 flex flex-col items-center p-1 rounded-DEFAULT group"><div class="w-[80px] h-[80px] rounded-DEFAULT border border-dashed border-[#cbd5e1] bg-[#f8fafc] p-1 flex flex-col items-center justify-center text-[#94a3b8]"><span class="material-symbols-outlined text-[24px] text-[#94a3b8] mb-1">image</span><span class="text-[11px] font-caption text-[#94a3b8]">待上传</span></div><div class="w-full mt-1.5 text-center px-0.5"><div class="text-[12px] font-label-md text-on-surface font-medium truncate" title="1234-3">1234-3</div></div></div></div><div class="w-[64px] flex-shrink-0 flex items-center justify-center space-x-1"><button class="w-6 h-6 rounded-DEFAULT flex items-center justify-center text-[#64748b] hover:text-on-surface hover:bg-[#f1f5f9] transition-colors" title="编辑" type="button"><span class="material-symbols-outlined" data-icon="edit" style="font-size: 16px;">edit</span></button><button class="w-6 h-6 rounded-DEFAULT flex items-center justify-center text-[#64748b] hover:text-on-surface hover:bg-[#f1f5f9] transition-colors" title="更多" type="button"><span class="material-symbols-outlined" data-icon="more_horiz" style="font-size: 16px;">more_horiz</span></button></div></div><!-- 第 2 行：母版 5678 (4种配色) --><div class="flex items-center px-4 py-3 min-h-[114px] hover:bg-[#fcfdff] transition-colors"><div class="w-[160px] flex-shrink-0 pr-4"><div class="text-body-lg font-label-md font-semibold text-on-surface tracking-tight">5678</div><div class="mt-1"><span class="inline-block px-1.5 py-0.5 rounded-DEFAULT bg-[#f1f5f9] text-[#475569] text-caption font-caption font-normal border border-[#e2e8f0]">几何</span></div></div><div class="flex-1 flex items-start gap-2"><div class="w-[132px] flex-shrink-0 flex flex-col items-center p-1 rounded-DEFAULT group"><div class="w-[80px] h-[80px] rounded-DEFAULT border border-dashed border-[#cbd5e1] bg-[#f8fafc] p-1 flex flex-col items-center justify-center text-[#94a3b8]"><span class="material-symbols-outlined text-[24px] text-[#94a3b8] mb-1">image</span><span class="text-[11px] font-caption text-[#94a3b8]">待上传</span></div><div class="w-full mt-1.5 text-center px-0.5"><div class="text-[12px] font-label-md text-on-surface font-medium truncate" title="5678-1">5678-1</div></div></div><div class="w-[132px] flex-shrink-0 flex flex-col items-center p-1 rounded-DEFAULT group"><div class="w-[80px] h-[80px] rounded-DEFAULT border border-dashed border-[#cbd5e1] bg-[#f8fafc] p-1 flex flex-col items-center justify-center text-[#94a3b8]"><span class="material-symbols-outlined text-[24px] text-[#94a3b8] mb-1">image</span><span class="text-[11px] font-caption text-[#94a3b8]">待上传</span></div><div class="w-full mt-1.5 text-center px-0.5"><div class="text-[12px] font-label-md text-on-surface font-medium truncate" title="5678-2">5678-2</div></div></div><div class="w-[132px] flex-shrink-0 flex flex-col items-center p-1 rounded-DEFAULT group"><div class="w-[80px] h-[80px] rounded-DEFAULT border border-dashed border-[#cbd5e1] bg-[#f8fafc] p-1 flex flex-col items-center justify-center text-[#94a3b8]"><span class="material-symbols-outlined text-[24px] text-[#94a3b8] mb-1">image</span><span class="text-[11px] font-caption text-[#94a3b8]">待上传</span></div><div class="w-full mt-1.5 text-center px-0.5"><div class="text-[12px] font-label-md text-on-surface font-medium truncate" title="5678-3">5678-3</div></div></div><div class="w-[132px] flex-shrink-0 flex flex-col items-center p-1 rounded-DEFAULT group"><div class="w-[80px] h-[80px] rounded-DEFAULT border border-dashed border-[#cbd5e1] bg-[#f8fafc] p-1 flex flex-col items-center justify-center text-[#94a3b8]"><span class="material-symbols-outlined text-[24px] text-[#94a3b8] mb-1">image</span><span class="text-[11px] font-caption text-[#94a3b8]">待上传</span></div><div class="w-full mt-1.5 text-center px-0.5"><div class="text-[12px] font-label-md text-on-surface font-medium truncate" title="5678-4">5678-4</div></div></div></div><div class="w-[64px] flex-shrink-0 flex items-center justify-center space-x-1"><button class="w-6 h-6 rounded-DEFAULT flex items-center justify-center text-[#64748b] hover:text-on-surface hover:bg-[#f1f5f9] transition-colors" title="编辑" type="button"><span class="material-symbols-outlined" data-icon="edit" style="font-size: 16px;">edit</span></button><button class="w-6 h-6 rounded-DEFAULT flex items-center justify-center text-[#64748b] hover:text-on-surface hover:bg-[#f1f5f9] transition-colors" title="更多" type="button"><span class="material-symbols-outlined" data-icon="more_horiz" style="font-size: 16px;">more_horiz</span></button></div></div><!-- 第 3 行：母版 8890 (2种配色) --><div class="flex items-center px-4 py-3 min-h-[114px] hover:bg-[#fcfdff] transition-colors"><div class="w-[160px] flex-shrink-0 pr-4"><div class="text-body-lg font-label-md font-semibold text-on-surface tracking-tight">8890</div><div class="mt-1"><span class="inline-block px-1.5 py-0.5 rounded-DEFAULT bg-[#f1f5f9] text-[#475569] text-caption font-caption font-normal border border-[#e2e8f0]">植物</span></div></div><div class="flex-1 flex items-start gap-2"><div class="w-[132px] flex-shrink-0 flex flex-col items-center p-1 rounded-DEFAULT group"><div class="w-[80px] h-[80px] rounded-DEFAULT border border-dashed border-[#cbd5e1] bg-[#f8fafc] p-1 flex flex-col items-center justify-center text-[#94a3b8]"><span class="material-symbols-outlined text-[24px] text-[#94a3b8] mb-1">image</span><span class="text-[11px] font-caption text-[#94a3b8]">待上传</span></div><div class="w-full mt-1.5 text-center px-0.5"><div class="text-[12px] font-label-md text-on-surface font-medium truncate" title="8890-1">8890-1</div></div></div><div class="w-[132px] flex-shrink-0 flex flex-col items-center p-1 rounded-DEFAULT group"><div class="w-[80px] h-[80px] rounded-DEFAULT border border-dashed border-[#cbd5e1] bg-[#f8fafc] p-1 flex flex-col items-center justify-center text-[#94a3b8]"><span class="material-symbols-outlined text-[24px] text-[#94a3b8] mb-1">image</span><span class="text-[11px] font-caption text-[#94a3b8]">待上传</span></div><div class="w-full mt-1.5 text-center px-0.5"><div class="text-[12px] font-label-md text-on-surface font-medium truncate" title="8890-2">8890-2</div></div></div></div><div class="w-[64px] flex-shrink-0 flex items-center justify-center space-x-1"><button class="w-6 h-6 rounded-DEFAULT flex items-center justify-center text-[#64748b] hover:text-on-surface hover:bg-[#f1f5f9] transition-colors" title="编辑" type="button"><span class="material-symbols-outlined" data-icon="edit" style="font-size: 16px;">edit</span></button><button class="w-6 h-6 rounded-DEFAULT flex items-center justify-center text-[#64748b] hover:text-on-surface hover:bg-[#f1f5f9] transition-colors" title="更多" type="button"><span class="material-symbols-outlined" data-icon="more_horiz" style="font-size: 16px;">more_horiz</span></button></div></div></div>
+<!-- 底部信息与分页栏 (紧凑简洁) -->
+<div class="mt-auto border-t border-outline-variant bg-[#fbfcfd] px-4 py-2 flex items-center justify-between text-body-sm font-body-sm text-on-surface-variant">
+<div>共 3 个母版，9 个配色版本</div>
+<div class="flex items-center space-x-2 font-label-sm text-label-sm">
+<span>1 / 1 页</span>
+<div class="flex items-center space-x-1">
+<button class="w-6 h-6 rounded-DEFAULT border border-outline-variant flex items-center justify-center text-outline disabled:opacity-40 cursor-not-allowed bg-white" disabled="" type="button">
+<span class="material-symbols-outlined" data-icon="chevron_left" style="font-size: 15px;">chevron_left</span>
+</button>
+<button class="w-6 h-6 rounded-DEFAULT border border-outline-variant flex items-center justify-center text-outline disabled:opacity-40 cursor-not-allowed bg-white" disabled="" type="button">
+<span class="material-symbols-outlined" data-icon="chevron_right" style="font-size: 15px;">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- 纯大图 Lightbox 弹层预览 (无冗余字段，支持ESC与点击遮罩关闭) -->
+<div class="fixed inset-0 z-50 hidden items-center justify-center bg-[#0f172a]/40 backdrop-blur-[2px] transition-opacity" id="lightbox-modal">
+<div class="bg-surface-container-lowest border border-outline-variant rounded-lg p-3 max-w-[540px] w-full shadow-lg relative mx-4">
+<!-- 顶部条 -->
+<div class="flex items-center justify-between pb-2 mb-2 border-b border-outline-variant">
+<span class="font-label-md text-label-md font-semibold text-on-surface" id="lightbox-title">配色预览</span>
+<button class="w-6 h-6 rounded-DEFAULT flex items-center justify-center text-outline hover:text-on-surface hover:bg-[#f1f5f9] transition-colors" onclick="closeLightbox()" type="button">
+<span class="material-symbols-outlined" data-icon="close" style="font-size: 18px;">close</span>
+</button>
+</div>
+<!-- 大图展示区域 -->
+<div class="w-full aspect-square bg-[#f8fafc] border border-outline-variant rounded-DEFAULT flex items-center justify-center p-6 relative overflow-hidden">
+<div class="w-full h-full border border-dashed border-[#cbd5e1] rounded-DEFAULT flex flex-col items-center justify-center text-[#64748b]">
+<span class="material-symbols-outlined text-[#94a3b8] mb-2" data-icon="texture" style="font-size: 48px;">texture</span>
+<div class="text-body-sm font-label-md text-on-surface font-medium" id="lightbox-desc">织物花型高精度原图</div>
+<div class="text-caption font-caption text-[#94a3b8] mt-1">1:1 工艺循环标准样照</div>
+</div>
+</div>
+</div>
+</div>
+<script>
+    function openLightbox(title, desc) {
+      const modal = document.getElementById('lightbox-modal');
+      const titleElem = document.getElementById('lightbox-title');
+      const descElem = document.getElementById('lightbox-desc');
+      if (modal && titleElem && descElem) {
+        titleElem.textContent = title;
+        descElem.textContent = desc || title;
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+      }
+    }
+
+    function closeLightbox() {
+      const modal = document.getElementById('lightbox-modal');
+      if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      }
+    }
+
+    // 点击背景或按 Esc 键关闭
+    document.getElementById('lightbox-modal').addEventListener('click', function(e) {
+      if (e.target === this) {
+        closeLightbox();
+      }
+    });
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        closeLightbox();
+      }
+    });
+  </script>
+</body></html>

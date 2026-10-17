@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { DocumentData, DocType } from '../types';
-import { TrendingUp, FileText, BarChart3, Package, Sparkles, Receipt, ArrowUpRight } from 'lucide-react';
+import { BarChart3, Package, Sparkles, Receipt, ArrowUpRight } from 'lucide-react';
 
 interface StatsDashboardProps {
   documents: DocumentData[];
@@ -17,9 +17,6 @@ export default function StatsDashboard({ documents, onViewDoc }: StatsDashboardP
   const sampleDocs = documents.filter(d => d.type === DocType.SAMPLE);
   const salesDocs = documents.filter(d => d.type === DocType.SALES);
   const depositDocs = documents.filter(d => d.type === DocType.DEPOSIT);
-
-  const totalMeters = documents.reduce((sum, d) => sum + d.totalMeters, 0);
-  const totalAmount = documents.reduce((sum, d) => sum + d.totalAmount, 0);
 
   const sampleMeters = sampleDocs.reduce((sum, d) => sum + d.totalMeters, 0);
   const salesMeters = salesDocs.reduce((sum, d) => sum + d.totalMeters, 0);
@@ -46,7 +43,7 @@ export default function StatsDashboard({ documents, onViewDoc }: StatsDashboardP
 
   // Recent 4 documents
   const recentDocs = [...documents]
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt))
     .slice(0, 4);
 
   return (
@@ -97,12 +94,6 @@ export default function StatsDashboard({ documents, onViewDoc }: StatsDashboardP
               <span className="text-xs text-slate-400 block font-medium">样品货值</span>
               <span className="text-lg font-extrabold text-slate-700">¥{sampleAmount.toFixed(1)}</span>
             </div>
-            <div>
-              <span className="text-xs text-slate-400 block font-medium">平均单价</span>
-              <span className="text-lg font-extrabold text-slate-700">
-                ¥{sampleMeters > 0 ? (sampleAmount / sampleMeters).toFixed(1) : '0.0'}/米
-              </span>
-            </div>
           </div>
         </div>
 
@@ -133,12 +124,6 @@ export default function StatsDashboard({ documents, onViewDoc }: StatsDashboardP
               <span className="text-xs text-slate-400 block font-medium">成交金额</span>
               <span className="text-lg font-extrabold text-rose-600">¥{salesAmount.toLocaleString('en-US', {maximumFractionDigits:0})}</span>
             </div>
-            <div>
-              <span className="text-xs text-slate-400 block font-medium">平均单价</span>
-              <span className="text-lg font-extrabold text-slate-700">
-                ¥{salesMeters > 0 ? (salesAmount / salesMeters).toFixed(1) : '0.0'}/米
-              </span>
-            </div>
           </div>
         </div>
 
@@ -165,7 +150,7 @@ export default function StatsDashboard({ documents, onViewDoc }: StatsDashboardP
               <span className="text-lg font-extrabold text-amber-600">{depositMeters.toFixed(1)} 米</span>
             </div>
             <div>
-              <span className="text-xs text-slate-400 block font-medium">定金金额</span>
+              <span className="text-xs text-slate-400 block font-medium">合同金额</span>
               <span className="text-lg font-extrabold text-rose-600">¥{depositAmount.toLocaleString('en-US', {maximumFractionDigits:0})}</span>
             </div>
           </div>

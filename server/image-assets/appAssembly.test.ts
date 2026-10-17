@@ -35,6 +35,7 @@ function runtime(enabled: boolean, state: ProductState): ProductRouteRuntime {
     async applyPatternTagBatch() {},
     async listProducts(filter) { return { items: [], total: state.products.size, limit: filter.limit, offset: filter.offset }; },
     async getProductDetail() { return null; },
+    async setReviewStatus() { return false; },
     async ignoreIssue() { return false; },
     async reopenIssue() { return false; },
   } : null;

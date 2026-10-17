@@ -1,0 +1,22 @@
+{
+  "extends": "../tsconfig.json",
+  "include": [
+    "../server/customer-samples/fulfillmentSchema.ts",
+    "../server/customer-samples/fulfillmentSchemaContract.ts",
+    "../server/customer-samples/fulfillmentSchemaContract.test.ts",
+    "../server/customer-samples/fulfillmentService.ts",
+    "../server/customer-samples/fulfillmentRead.ts",
+    "../server/customer-samples/fulfillmentRoutes.ts",
+    "../server/customer-samples/fulfillmentService.test.ts",
+    "../server/customer-samples/fulfillmentRead.test.ts",
+    "../server/customer-samples/fulfillmentRoutes.test.ts",
+    "../server/customer-share/publicPatternRoutes.ts",
+    "../server/customer-share/publicPatternRoutes.test.ts"
+  ],
+  "exclude": [
+    "../node_modules",
+    "../dist",
+    "../agent",
+    "../.agents"
+  ]
+}

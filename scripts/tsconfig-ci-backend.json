@@ -1,0 +1,14 @@
+{
+  "extends": "../tsconfig.json",
+  "include": [
+    "../server/**/*.ts",
+    "../server.ts"
+  ],
+  "exclude": [
+    "../node_modules",
+    "../dist",
+    "../agent",
+    "../.agents",
+    "../tmp"
+  ]
+}

@@ -1,4 +1,8 @@
+> 历史设计/实施计划（2026-10-09核对）：本文不是当前已交付清单，状态见 [设计索引](../../decisions/README.md)。执行前重新核对源码、剩余任务和授权范围。
+
 # Fabric DMS Multi-User Order and Product Permissions Implementation Plan
+
+> 文档定位：中间过程｜主要读者：当前任务的开发/评审、Agent。用途：查实现/计划、历史证据和未完成Gate；不是业务新需求。
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
