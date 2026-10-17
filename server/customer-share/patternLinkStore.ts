@@ -28,8 +28,10 @@ export type PatternLinkDecisionVerifier = (reference: Readonly<PatternLinkRefere
  * exact database target/current server identity before injecting a real pool.
  * This module neither verifies those gates nor creates/changes any tables.
  * Do not enable a public route from this contract or pass client decisions.
- * Public switch, issuance, validity/expiry, revocation UX, authorization rules
- * and safe image preview still require their own approval/integration gates.
+ * A separate opt-in deterministic issuer contract now exists, but its target
+ * schema, unique keys, secret custody, signed URL origin, authorization policy,
+ * mounted issuance route and safe image preview need independent approval and
+ * real environment gates. No business manual-revoke UI is provided.
  */
 const LOOKUP_SQL = `SELECT link.token_hash AS token_hash,
   CAST(link.master_id AS CHAR) AS pattern_master_id,
@@ -83,4 +85,50 @@ export async function resolvePatternLink(
   } catch {
     return null;
   }
+}
+
+
+/**
+ * B1 public-display status is distinct from a permission to read published
+ * content. A valid unchanged token must display "暂不可用" while its master
+ * is disabled, then work again after re-enablement. Never relax the existing
+ * resolvePatternLink(): media/actual published data still require activity.
+ *
+ * An inactive result requires an EXTRA trusted, explicit unavailableVerified
+ * decision in addition to authorization; publicationVerified must be false.
+ * This hook is a server integration seam, not proof that a real policy exists.
+ */
+export interface PatternLinkPresentation extends PatternLinkReference {
+  readonly available: boolean;
+}
+export async function resolvePatternLinkPresentation(
+  pool:PatternLinkReadPool,
+  token:unknown,
+  verifyServerDecision?:PatternLinkDecisionVerifier,
+):Promise<PatternLinkPresentation|null>{
+  try{
+    if(typeof verifyServerDecision!=='function'||!isPatternLinkToken(token))return null;
+    const digest=hashPatternLinkToken(token);
+    const [rows]=await pool.query(LOOKUP_SQL,[digest]);
+    // Exact row identity and cardinality, including deleted/unknown parent rows.
+    if(!Array.isArray(rows)||rows.length!==1)return null;
+    const row:unknown=rows[0];
+    if(!record(row)||!['token_hash','pattern_master_id','link_status',
+       'revoked_at','parent_is_active'].every(key=>Object.hasOwn(row,key)))return null;
+    if(row.token_hash!==digest||row.link_status!=='active'||row.revoked_at!==null||
+       row.parent_is_active!==0&&row.parent_is_active!==1)return null;
+    const id=row.pattern_master_id;
+    if(typeof id!=='string'||id.length>20||!/^[1-9][0-9]*$/.test(id)||
+       BigInt(id)>18446744073709551615n)return null;
+    const decision=await verifyServerDecision(Object.freeze({patternMasterId:id}));
+    if(!record(decision)||decision.authorizationVerified!==true)return null;
+    if(row.parent_is_active===1){
+      if(decision.publicationVerified!==true)return null;
+      return Object.freeze({patternMasterId:id,available:true});
+    }
+    // Availability is not an authorization: only an explicit server
+    // recognition of a disabled (not withdrawn) master may reveal this state.
+    if(decision.publicationVerified!==false||decision.unavailableVerified!==true)return null;
+    return Object.freeze({patternMasterId:id,available:false});
+  }catch{return null;}
 }

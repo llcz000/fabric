@@ -1,5 +1,5 @@
 import {Router} from 'express';
-import {resolvePatternLink,type PatternLinkReadPool,type PatternLinkDecisionVerifier} from './patternLinkStore';
+import {resolvePatternLinkPresentation,type PatternLinkReadPool,type PatternLinkDecisionVerifier} from './patternLinkStore';
 import {projectPublicPattern,type PatternCandidate} from './publicPatternProjection';
 
 /** B1 isolated public JSON endpoint; deliberately NOT mounted by legacy server.
@@ -26,16 +26,19 @@ export function createPublicPatternRouter(deps:PublicPatternDependencies):Router
  router.get('/:token',async(req,res)=>{
   if(Object.keys(req.query).length){res.status(404).json({error:'Pattern unavailable'});return;}
   try{
-   const reference=await resolvePatternLink(deps.pool,req.params.token,deps.verifyServerDecision);
-   if(!reference){res.status(404).json({error:'Pattern unavailable'});return;}
-   const candidate=await deps.loadCandidate(reference.patternMasterId);
-   // Verify BOTH the live link and the publication decision again after
-   // loading candidate data. A changed/inactive link must not use stale
-   // content from the first lookup. A future real deployment still requires
-   // an atomic DB publication/read strategy and separately guarded media.
-   const stillValid=await resolvePatternLink(deps.pool,req.params.token,deps.verifyServerDecision);
-   if(!stillValid||stillValid.patternMasterId!==reference.patternMasterId){
+   const first=await resolvePatternLinkPresentation(deps.pool,req.params.token,deps.verifyServerDecision);
+   if(!first){res.status(404).json({error:'Pattern unavailable'});return;}
+   // Never load an unpublished master. Inactive links must still be
+   // rechecked after authorization before showing "temporarily unavailable".
+   const candidate=first.available?await deps.loadCandidate(first.patternMasterId):null;
+   // Suppress previously approved content if the master was disabled during
+   // candidate loading. Repeated reads are not an atomic publication snapshot.
+   const current=await resolvePatternLinkPresentation(deps.pool,req.params.token,deps.verifyServerDecision);
+   if(!current||current.patternMasterId!==first.patternMasterId){
     res.status(404).json({error:'Pattern unavailable'});return;
+   }
+   if(!first.available||!current.available){
+    res.json({available:false,message:'暂不可用'});return;
    }
    const pattern=candidate?projectPublicPattern(candidate):null;
    if(!pattern||!pattern.colorways.length){
