@@ -1,4 +1,5 @@
 import React,{useEffect,useRef,useState} from 'react';
+import {ChevronRight,ChevronDown,Pencil,FileSearch,Copy,Trash2} from 'lucide-react';
 import type {CompanyProfile} from '../../types';
 import V2DocumentWorkspace from './V2DocumentWorkspace';
 import V2DocumentPrintView from './V2DocumentPrintView';
@@ -30,22 +31,21 @@ export function DocumentSearchResults({state,expanded,onToggle,onEdit,onPreview,
   {state.page.items.length===0?<p className="rounded-lg border bg-white p-6 text-sm text-slate-600">没有符合条件的单据，可清除筛选后重试。</p>:
   <div className="overflow-x-auto rounded-xl border border-[#c3c6d7] bg-white">
    <table className="w-full min-w-[1050px] text-left text-sm">
-    <thead className="bg-[#f3f4fa] text-xs text-[#434655]"><tr>{['单据编号 / 类型','开单日期','客户','整单米数','整单匹数','整单金额','结清状态','操作'].map(label=><th key={label} className="px-4 py-3 font-semibold">{label}</th>)}</tr></thead>
+    <thead className="bg-[#f3f4fa] text-xs text-[#434655]"><tr>{['','开单日期','单据编号','类型','客户','整单米数','整单匹数','整单金额','结清状态','操作'].map(label=><th key={label} className="px-3 py-2 font-semibold">{label}</th>)}</tr></thead>
     <tbody>{state.page.items.map(item=><React.Fragment key={item.id}>
      <tr className="border-t border-[#ededf9] align-top hover:bg-[#f8f9ff]">
-      <td className="px-4 py-3"><strong className="block font-medium">{item.orderNo}</strong><span className="text-xs text-slate-500">{names[item.type]}</span></td>
-      <td className="px-4 py-3 whitespace-nowrap">{item.date}</td><td className="max-w-[200px] break-words px-4 py-3">{item.receivingUnit||'—'}</td>
-      <td className="px-4 py-3 tabular-nums">{money(item.totalMeters)}</td><td className="px-4 py-3 tabular-nums">{item.type==='deposit'?'—':item.totalPieces}</td>
+      <td className="w-9 px-2 py-2"><button type="button" className="rounded p-1 hover:bg-blue-50" aria-label={expanded===item.id?'收起命中明细':'展开命中明细'} title={expanded===item.id?'收起命中明细':'展开命中明细'} aria-expanded={expanded===item.id} onClick={()=>onToggle(item.id)}>{expanded===item.id?<ChevronDown size={16}/>:<ChevronRight size={16}/>}</button></td>
+      <td className="px-3 py-2 whitespace-nowrap">{item.date}</td><td className="px-3 py-2 font-medium">{item.orderNo}</td><td className="px-3 py-2 whitespace-nowrap">{names[item.type]}</td><td className="max-w-[180px] break-words px-3 py-2">{item.receivingUnit||'—'}</td>
+      <td className="px-3 py-2 tabular-nums">{money(item.totalMeters)}{item.type==='bulk'&&(item.deductionMeters??0)>0&&<span className="block whitespace-nowrap text-xs text-amber-700">扣损 {money(item.deductionMeters!)} 米</span>}</td><td className="px-3 py-2 tabular-nums">{item.type==='deposit'?'—':item.totalPieces}</td>
       <td className="px-4 py-3 tabular-nums">¥ {money(item.totalAmount)}{item.type==='deposit'&&<span className="block text-xs text-slate-500">合同金额</span>}</td>
       <td className="px-4 py-3">{item.type==='deposit'?'不适用':item.settled?'已结清':'未结清'}</td>
       <td className="px-4 py-3"><div className="flex flex-wrap gap-x-3 gap-y-2 text-xs text-[#0053da]">
-       <button type="button" aria-expanded={expanded===item.id} onClick={()=>onToggle(item.id)}>{expanded===item.id?'收起命中明细':'展开命中明细'}</button>
-       <button type="button" onClick={()=>onEdit(item.id)}>编辑单据</button><button type="button" onClick={()=>onPreview(item.id)}>预览 / Excel</button>
-        {onCopy&&<button type="button" onClick={()=>onCopy(item.id,item.orderNo)}>复制为新单</button>}
-        {onDelete&&<button type="button" onClick={()=>onDelete(item.id,item.orderNo)}>确认删除</button>}
+       <button type="button" className="rounded p-1 hover:bg-blue-50" aria-label="编辑单据" title="编辑单据" onClick={()=>onEdit(item.id)}><Pencil size={16}/></button><button type="button" className="rounded p-1 hover:bg-blue-50" aria-label="预览 / Excel" title="预览 / Excel" onClick={()=>onPreview(item.id)}><FileSearch size={16}/></button>
+        {onCopy&&<button type="button" className="rounded p-1 hover:bg-blue-50" aria-label="复制为新单" title="复制为新单" onClick={()=>onCopy(item.id,item.orderNo)}><Copy size={16}/></button>}
+        {onDelete&&<button type="button" className="rounded p-1 text-rose-700 hover:bg-rose-50" aria-label="确认删除" title="确认删除" onClick={()=>onDelete(item.id,item.orderNo)}><Trash2 size={16}/></button>}
       </div></td>
      </tr>
-     {expanded===item.id&&<tr><td colSpan={8} className="border-t bg-[#f8f9ff] p-4">{renderDetails?.(item.id)}</td></tr>}
+     {expanded===item.id&&<tr><td colSpan={10} className="border-t bg-[#f8f9ff] px-3 py-1">{renderDetails?.(item.id)}</td></tr>}
     </React.Fragment>)}</tbody>
    </table>
   </div>}
@@ -68,7 +68,6 @@ function MatchingDetails({apiFetch,orderId,filters,onDenied}:{apiFetch:typeof fe
  if(error)return <div role="alert" className="text-sm text-rose-800">{error} <button type="button" className={button} onClick={()=>setRetry(v=>v+1)}>重试明细</button></div>;
  if(!page)return null;
  return <section aria-label="命中明细">
-  <p className="mb-2 text-xs text-slate-500">仅展示同一条明细同时满足货号、色号、品名条件的记录 · 共 {page.total} 行</p>
   <table className="w-full text-left text-xs"><thead><tr>{['货号','色号','品名','米数','匹数','金额'].map(label=><th key={label} className="p-2">{label}</th>)}</tr></thead>
    <tbody>{page.items.map(item=><tr key={item.id} className="border-t border-slate-200"><td className="p-2">{item.productNo||'—'}</td><td className="p-2">{item.colorNo||'—'}</td><td className="p-2">{item.productName||'—'}</td><td className="p-2">{money(item.meters)}</td><td className="p-2">{item.pieces||'—'}</td><td className="p-2">¥ {money(item.amount)}</td></tr>)}</tbody>
   </table>

@@ -1,4 +1,5 @@
-import {SalesPieceInputs} from './SalesPieceInputs';
+import {DocumentItemsTable} from './DocumentItemsTable';
+import {documentDraftTotals} from './documentDraftTotals';
 import React,{useEffect,useState} from 'react';
 import {DocType,type CompanyProfile,type DocumentData,type DocItem} from '../../types';
 import type {DocumentRecord} from '../../../server/order-v2/documents';
@@ -7,9 +8,9 @@ import V2DocumentPrintView from './V2DocumentPrintView';
 import {applySelectedProductToDraft} from './selection';
 import {fromV2DocumentRecord,toV2CreatePayload,toV2EditPayload} from './documentAdapter';
 import {documentResourceUrl} from './documentSearchModel';
-import {calculateDocumentPayment} from '../../../server/order-v2/calculations';
 
-/** Standalone V2-only editing entry point. Not mounted by legacy App.tsx. */
+
+/** V2 persistence with the published document editing hierarchy. */
 export interface V2DocumentWorkspaceProps{
  apiFetch:typeof fetch;
  role:'admin'|'sales';
@@ -127,7 +128,7 @@ export default function V2DocumentWorkspace({apiFetch,role,companyProfile,docume
    if(draft.type!==DocType.SAMPLE){
     if(!/^(0|[1-9]\d*)(?:\.\d{1,2})?$/.test(depositText.trim()))throw Error('定金须为有效非负数字，最多两位小数');
     deposit=Number(depositText.trim());
-    try{calculateDocumentPayment(draft.type,draft.totalAmount??0,deposit);}catch{throw Error(draft.type===DocType.DEPOSIT?'定金比例须在0～100之间，最多两位小数':'定金金额超出支持范围');}
+    documentDraftTotals(draft,depositText);
    }
    const paymentDraft={...draft,deposit};
    const payload=isEdit?toV2EditPayload(paymentDraft,role,removed):toV2CreatePayload(paymentDraft,role);
@@ -146,13 +147,10 @@ export default function V2DocumentWorkspace({apiFetch,role,companyProfile,docume
  };
  const input='w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-sky-600';
  const canEdit=!(loading||saving);
- const canManual=(item:DraftItem)=>role==='admin'&&item.v2SourceKind==='manual';
- const headerFields:[keyof DocumentData,string][]=[
-  ['docNo','单据编号'],['date','开单日期'],['customerName','客户/收货单位'],
-  ['styleNo','款式号'],['issuer','开单人'],['receiver','收货人'],
-  ['bottomPhone','收货联系电话'],['receiverAddress','收货地址'],
-  ['companyName','公司名称'],['companyAddress','公司地址'],['companyPhone','公司电话']
- ];
+ const headerFields:[keyof DocumentData,string][]=[['customerName','客户/收货单位'],['date','开单日期'],['docNo','单据编号']];
+ const contactFields:[keyof DocumentData,string][]=[['issuer','开单人'],['receiver','收货人'],['bottomPhone','收货联系电话'],['receiverAddress','收货地址']];
+ let totals:ReturnType<typeof documentDraftTotals>|null=null,totalError='';
+ try{totals=documentDraftTotals(draft,depositText);}catch{totalError='请检查米数、分匹、单价、扣损或定金输入，汇总将在有效后更新';}
  if(previewOpen&&savedId)return <V2DocumentPrintView apiFetch={apiFetch} documentId={savedId}
   onBack={()=>setPreviewOpen(false)}/>;
  return <section className="mx-auto max-w-7xl space-y-5 rounded-2xl bg-white p-4 sm:p-6" aria-label="V2单据编辑工作区">
@@ -169,9 +167,9 @@ export default function V2DocumentWorkspace({apiFetch,role,companyProfile,docume
   {numberError&&<p role="alert" className="text-sm text-rose-700">{numberError} <button type="button" onClick={()=>{setAutoNumber(true);setNumberRevision(n=>n+1);}}>重新获取编号</button></p>}
   {initialDraft&&!savedId&&<p className="text-sm text-slate-600">正在新建副本。未关联产品的历史明细需重新选品；保存时使用当前产品资料，原单据保留。</p>}
   {!loading&&<>
-   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+   <section className="rounded-xl border border-slate-100 p-4"><h3 className="mb-3 border-l-4 border-sky-500 pl-3 text-sm font-semibold">基本信息</h3><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
     {!savedId&&<label className="text-xs font-semibold">单据类型
-     <select className={input} value={draft.type} onChange={e=>{
+     <select disabled={!canEdit} className={input} value={draft.type} onChange={e=>{
       const type=e.target.value as DocType;
       if(draft.items.length>0){setError('请先清除当前明细再切换单据类型');return;}
       setDraft(before=>({...before,type,deposit:0,settled:false,terms:type===DocType.DEPOSIT?companyProfile.depositTerms:companyProfile.defaultTerms}));setDepositText('0');
@@ -191,10 +189,7 @@ export default function V2DocumentWorkspace({apiFetch,role,companyProfile,docume
     {draft.type!==DocType.DEPOSIT&&<label className="flex items-center gap-2 text-sm">
      <input type="checkbox" checked={Boolean(draft.settled)} disabled={!canEdit}
       onChange={e=>change('settled',e.target.checked)}/>已结清</label>}
-    <label className="sm:col-span-2 lg:col-span-3 text-xs font-semibold">单据展示条款（来自开单设置）
-     <textarea className={input} rows={3} maxLength={12000} readOnly
-      value={draft.type===DocType.DEPOSIT?companyProfile.depositTerms:companyProfile.defaultTerms}/></label>
-   </div>
+   </div></section>
    <div className="flex items-center justify-between gap-3">
     <h3 className="font-semibold">产品明细（{draft.items.length}）</h3>
     <div className="flex gap-2"><button type="button" className="rounded border px-3 py-2 text-sm" disabled={!canEdit||!draft.items.length} onClick={()=>{
@@ -203,48 +198,23 @@ export default function V2DocumentWorkspace({apiFetch,role,companyProfile,docume
      className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">从产品库添加</button>
     </div>
    </div>
-   <div className="space-y-3">
-    {draft.items.map(row=>{
-     const item=row as DraftItem&{rollNo?:string;deductionMeters?:number;composition?:string;weight?:string;width?:string};
-     const editable=canManual(item);
-     return <article key={item.id} className="rounded-xl border border-slate-200 p-4">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-       <p className="text-sm font-semibold">{item.itemNo||'待选择产品'} · {item.productName||'—'} · 配色{item.colorNo||'—'}</p>
-       <div className="flex gap-2">
-        <button type="button" disabled={!canEdit} className="rounded border px-3 py-1 text-xs"
-         onClick={()=>openPicker(item.id,'replace')}>更换产品</button>
-        <button type="button" disabled={!canEdit} className="rounded border border-rose-200 px-3 py-1 text-xs text-rose-700"
-         onClick={()=>removeItem(item.id)}>删除明细</button>
-       </div>
-      </div>
-      <p className="mb-2 text-xs text-slate-500">
-       {item.v2SourceKind==='catalog'?'关联产品库｜资料只读':item.v2SourceKind==='manual'?'管理员手工录入':'历史资料｜不可修改主数据'}
-      </p>
-      {editable&&<div className="mb-3 grid gap-3 sm:grid-cols-3">
-       {([['itemNo','手工货号'],['productName','品名'],['colorNo','色号'],['composition','成分'],['weight','克重'],['width','门幅']] as const).map(([key,label])=>
-        <label key={key} className="text-xs">{label}<input className={input} value={String(item[key]??'')}
-         onChange={e=>updateItem(item.id,{[key]:e.target.value})}/></label>)}
-      </div>}
-      {draft.type===DocType.SALES&&<SalesPieceInputs value={item.rollNo??''} grossMeters={item.meters} disabled={!canEdit}
-       onChange={patch=>updateItem(item.id,patch)}/>}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-       {([['meters','米数'],['price','单价']] as const).map(([key,label])=>
-        <label key={key} className="text-xs">{label}<input className={input} type="number" min="0" step="0.01"
-         disabled={!canEdit} readOnly={draft.type===DocType.SALES&&key==='meters'} value={item[key]} onChange={e=>updateItem(item.id,{[key]:Number(e.target.value)})}/></label>)}
-       {draft.type===DocType.SALES&&<>
-        <label className="text-xs">扣损米数<input className={input} type="number" step="0.01" min="0"
-         disabled={!canEdit} value={item.deductionMeters??0} onChange={e=>updateItem(item.id,{deductionMeters:Number(e.target.value)})}/></label>
-       </>}
-       <label className="text-xs">备注<input className={input} disabled={!canEdit}
-        value={item.remark} onChange={e=>updateItem(item.id,{remark:e.target.value})}/></label>
-      </div>
-     </article>;
-    })}
-   </div>
+   <DocumentItemsTable draft={draft} role={role} disabled={!canEdit} onChange={updateItem} onReplace={id=>openPicker(id,'replace')} onRemove={removeItem}/>
+   <section aria-label="单据汇总" className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm">
+    {totals?<>{draft.type!==DocType.DEPOSIT&&<span>总匹数：<strong>{totals.totalPieces} 匹</strong></span>}<span>总计米数：<strong className="text-sky-700">{totals.totalMeters.toFixed(2)} 米</strong></span>
+     {draft.type===DocType.SALES&&totals.totalDeductionMeters>0&&<span className="text-amber-700">扣损合计：<strong>{totals.totalDeductionMeters.toFixed(2)} 米</strong></span>}
+     <span>合计金额：<strong className="text-rose-700">¥{totals.totalAmount.toFixed(2)}</strong></span>
+     {draft.type!==DocType.SAMPLE&&<span>{draft.type===DocType.DEPOSIT?'定金金额':'预收订金'}：¥{totals.depositAmount.toFixed(2)}</span>}
+     <span>应收金额：<strong>¥{totals.receivableAmount.toFixed(2)}</strong></span></>:<p role="alert" className="text-rose-700">{totalError}</p>}
+   </section>
+   <details className="rounded-xl border border-slate-100 p-4"><summary className="cursor-pointer text-sm font-semibold">单据签署与联系信息</summary><div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    {contactFields.map(([key,label])=><label key={key} className="text-xs font-semibold">{label}<input name={key} className={input} maxLength={key==='receiverAddress'?500:100} disabled={!canEdit} value={String(draft[key]??'')} onChange={event=>change(key,event.target.value)}/></label>)}
+    {([['companyName','公司名称'],['companyAddress','公司地址'],['companyPhone','公司电话']] as const).map(([key,label])=><label key={key} className="text-xs text-slate-500">{label}<input className={input} readOnly value={String(draft[key]??'')}/></label>)}
+    <label className="sm:col-span-2 lg:col-span-4 text-xs text-slate-500">单据展示条款（来自开单设置）<textarea className={input} rows={2} readOnly value={draft.type===DocType.DEPOSIT?companyProfile.depositTerms:companyProfile.defaultTerms}/></label>
+   </div></details>
    <footer className="flex flex-wrap items-center justify-between gap-3">
-    <p className="text-xs text-slate-600">金额及汇总以服务端重新计算为准，不能用页面合计覆盖数据库</p>
+    <p className="text-xs text-slate-600"></p>
     <button type="button" disabled={!canEdit} onClick={()=>void save()}
-     className="rounded-lg bg-slate-900 px-6 py-3 text-sm font-semibold text-white disabled:opacity-40">
+     className="rounded-lg bg-sky-600 px-6 py-3 text-sm font-semibold text-white disabled:opacity-40">
      {saving?'正在保存…':savedId?'保存修改':'创建单据'}
     </button>
    </footer>

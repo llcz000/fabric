@@ -6,6 +6,18 @@ import {documentResourceUrl} from './documentSearchModel';
 export function serializeV2PrintJson(model:DocumentPrintModel):string{
  return JSON.stringify(model,null,2);
 }
+export function DocumentPrintTable({model}:{model:DocumentPrintModel}){
+ const leftSpan=Math.max(1,Math.floor(model.columns.length/2)),rightSpan=model.columns.length-leftSpan;
+ return <table className="w-full table-fixed border-collapse text-[10px]" aria-label="单据明细及汇总">
+  <colgroup>{model.columns.map(c=><col key={c.key} style={{width:(c.webFraction/model.columns.reduce((sum,col)=>sum+col.webFraction,0)*100)+'%'}}/>)}</colgroup>
+  <thead><tr>{model.columns.map(c=><th key={c.key} className="border border-slate-500 px-1 py-1">{c.label}</th>)}</tr></thead>
+  <tbody>{model.rows.map((row,i)=><tr key={i}>{row.map((value,j)=><td key={j} className="break-words border border-slate-300 px-1 py-2 text-center">{value}</td>)}</tr>)}</tbody>
+  <tfoot className="table-row-group">{model.summaries.map((s,i)=><tr key={i} className="bg-slate-50 font-medium">
+   <td colSpan={s.right&&rightSpan>0?leftSpan:model.columns.length} className="break-words border border-slate-500 px-2 py-2 text-left">{s.left}{rightSpan===0&&s.right?'　'+s.right:''}</td>
+   {s.right&&rightSpan>0&&<td colSpan={rightSpan} className="break-words border border-slate-500 px-2 py-2 text-left">{s.right}</td>}
+  </tr>)}</tfoot>
+ </table>;
+}
 
 /** Isolated V2 preview: authenticated print-model and XLSX only, never legacy /api/export_template. */
 export interface V2DocumentPrintViewProps{
@@ -105,25 +117,19 @@ export default function V2DocumentPrintView({
   {loading&&<p role="status">正在读取打印资料…</p>}
   {error&&<p role="alert" className="text-sm text-rose-700">{error}</p>}
   {model&&<div className="overflow-x-auto">
-   <div ref={sheetRef} data-v2-print-sheet="true" className="mx-auto w-[240mm] min-h-[140mm] bg-white p-8 text-slate-900">
-    <header className="flex items-start justify-between gap-4 border-b-2 border-slate-900 pb-3">
+   <div ref={sheetRef} data-v2-print-sheet="true" className="mx-auto w-[240mm] min-h-[140mm] bg-white text-slate-900" style={{padding:'8mm 10mm',boxSizing:'border-box',fontFamily:'SimSun, serif'}}>
+    <header className="flex items-start justify-between gap-4 border-b-2 border-slate-900 pb-1">
      <div>{model.companyImages?.brand_logo?<img src={model.companyImages.brand_logo} alt="公司Logo" className="max-h-12 max-w-[120px] object-contain"/>:<strong className="text-lg">{model.brandName}</strong>}</div>
      <div className="text-right">
      <h3 className="text-lg font-bold">{model.companyName}</h3>
      {model.companyLines.map((line,i)=><p key={i} className="text-xs">{line}</p>)}
      </div>
     </header>
-    <h2 className="my-4 text-center text-xl font-bold">{model.title}</h2>
-    <div className="mb-3 flex justify-between text-xs">
-     <span>NO：{model.docNo}　收货单位：{model.customerName}</span><span>{model.dateText}</span>
+    <h2 className="my-1 text-center text-base font-black tracking-[0.5em]">{model.title}</h2>
+    <div className="mb-1 flex items-end justify-between gap-3 text-xs">
+     <div className="min-w-0 break-all"><p>NO：{model.docNo}</p><p>收货单位：{model.customerName}</p></div><span className="shrink-0 whitespace-nowrap">日期：{model.dateText}</span>
     </div>
-    <table className="w-full table-fixed border-collapse text-[10px]">
-     <thead><tr>{model.columns.map(c=><th key={c.key} className="border border-slate-500 px-1 py-1">{c.label}</th>)}</tr></thead>
-     <tbody>{model.rows.map((row,i)=><tr key={i}>{row.map((value,j)=><td key={j}
-      className="break-words border border-slate-300 px-1 py-2 text-center">{value}</td>)}</tr>)}</tbody>
-    </table>
-    <div className="mt-3 space-y-1">{model.summaries.map((s,i)=><div key={i} className="flex justify-between gap-4 text-xs font-medium">
-     <span>{s.left}</span><span>{s.right??''}</span></div>)}</div>
+    <DocumentPrintTable model={model}/>
     <p className="mt-3 border border-slate-200 p-2 text-xs">备注条款：{model.terms}</p>
     <div className="mt-3 flex justify-between gap-4"><footer className="text-xs">{model.signatureLabels?.issuer??'开单人签字'}：{model.signature.issuer}　{model.signatureLabels?.receiver??'收货人签字'}：{model.signature.receiver}　电话：{model.signature.phone}
      {model.signature.receiverAddress&&<p>收货地址：{model.signature.receiverAddress}</p>}

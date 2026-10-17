@@ -13,6 +13,7 @@ export function fromV2DocumentRecord(record:unknown,profile:CompanyProfile):Docu
  const items:DocItem[]=order.items.map(line=>{
   const common={id:line.id,itemNo:line.productNo,colorNo:line.colorNo,productName:line.productName,
    meters:line.meters,price:line.unitPrice,amount:line.amount,remark:line.remark,
+   composition:line.composition??'',weight:line.weight==null?'':`${line.weight}${line.snapshot?.weightUnit?' '+line.snapshot.weightUnit:''}`,width:line.widthCm==null?'':String(line.widthCm),
    v2ProductId:line.productId??undefined,v2SourceKind:line.source,v2SelectionChanged:false};
   if(type===DocType.SAMPLE)return {...common,composition:line.composition,
    weight:line.weight==null?'':`${line.weight}${line.snapshot?.weightUnit?' '+line.snapshot.weightUnit:''}`,

@@ -23,3 +23,10 @@ test('P6 V2 workspace loading for stored doc requires V2 get and does not preten
  assert(html.includes('正在读取V2单据'));
  assert(!html.includes('创建单据'));
 });
+
+test('editor restores published hierarchy with collapsed optional contacts and no invented style number',()=>{
+ const html=renderToStaticMarkup(React.createElement(V2DocumentWorkspace,{apiFetch:fetch,role:'admin',companyProfile:profile,onSaved:()=>{},onCancel:()=>{}}));
+ assert(!html.includes('款式号'));assert(!html.includes('name="styleNo"'));
+ assert.match(html,/<details[^>]*><summary[^>]*>单据签署与联系信息/);
+ assert(!/<details[^>]*\sopen/.test(html));assert(html.includes('合计金额'));assert(html.includes('总计米数'));
+});
