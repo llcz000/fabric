@@ -175,6 +175,18 @@ const tables: readonly SchemaTable[] = [
       CONSTRAINT fk_v2_product_image_asset FOREIGN KEY (asset_id) REFERENCES image_assets(id) ON DELETE RESTRICT
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   },
+  {
+    name:'v2_company_print_labels',
+    columns:['company_id','issuer_label','receiver_label'],
+    indexes:['PRIMARY'],
+    ddl: `CREATE TABLE IF NOT EXISTS v2_company_print_labels (
+      company_id INT NOT NULL PRIMARY KEY,
+      issuer_label VARCHAR(100) NOT NULL DEFAULT '开单人签字',
+      receiver_label VARCHAR(100) NOT NULL DEFAULT '收货人签字',
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      CONSTRAINT fk_v2_company_print_owner FOREIGN KEY (company_id) REFERENCES company_config(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  },
 ];
 
 /** Read-only DDL manifest for isolated MySQL 8 integration tests and migration review. */

@@ -114,6 +114,32 @@ export function createSandboxSession(origin:string,transport:typeof fetch){
    if(response.status===401&&bearer===current)clear(true);
    return response;
   },
+  /** Separate explicitly opt-in V2 workbench may write; readonly sandbox's
+   * request() remains GET-only. Restrict methods/paths and caller headers. */
+  async requestWrite(path:string,init:RequestInit={}):Promise<Response>{
+   const url=apiUrl(host,path),target=new URL(url);
+   if(!bearer||!actor)throw denied();
+   if(!(/^\/api\/v2\/(pattern-|fabric|fabrics|products|v2-products|shared-|tags|image-assets|document|company-print-settings|company|media-capabilities)/.test(target.pathname)))
+    throw invalid();
+   const method=String(init.method??'GET').toUpperCase();
+   if(!['GET','POST','PATCH','PUT','DELETE'].includes(method)||!init||typeof init!=='object'||
+      init.credentials&&init.credentials!=='omit'||init.redirect&&init.redirect!=='error')
+    throw invalid();
+   const headers=new Headers(init.headers);
+   for(const name of ['authorization','cookie','proxy-authorization','x-forwarded-for','x-forwarded-host'])
+    if(headers.has(name))throw invalid();
+   if(method==='GET'&&init.body!==undefined)throw invalid();
+   if(method!=='GET'&&!target.pathname.startsWith('/api/v2/image-assets')&&
+     init.body!==undefined&&!(typeof init.body==='string'&&
+     (headers.get('content-type')??'').toLowerCase().includes('application/json')))
+     throw invalid();
+   const current=bearer;
+   headers.set('Authorization','Bearer '+current);
+   const reply=await transport(url,{...init,method,headers,credentials:'omit',redirect:'error',
+    cache:'no-store',mode:'same-origin'});
+   if(reply.status===401&&current===bearer)clear(true);
+   return reply;
+  },
   async logout():Promise<void>{
    const current=bearer;
    clear();

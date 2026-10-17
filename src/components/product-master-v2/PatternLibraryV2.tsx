@@ -296,11 +296,11 @@ export function PatternColorwayEditor({
  </div>;
 }
 export interface PatternLibraryV2Props{
- apiFetch:typeof fetch;canManage?:boolean;allowExport?:boolean;onCreateMaster?():void;
+ apiFetch:typeof fetch;canManage?:boolean;allowExport?:boolean;onCreateMaster?():void;onEditorStateChange?(active:boolean):void;
  onUploadPatternImage?(file:File):Promise<string>;
  resolvePatternImages?(ids:string[],variant:'thumbnail'|'display'|'original',signal?:AbortSignal):Promise<Map<string,string>>;
 }
-export function PatternLibraryV2({apiFetch,canManage=false,allowExport=true,onCreateMaster,onUploadPatternImage,resolvePatternImages}:PatternLibraryV2Props){
+export function PatternLibraryV2({apiFetch,canManage=false,allowExport=true,onCreateMaster,onEditorStateChange,onUploadPatternImage,resolvePatternImages}:PatternLibraryV2Props){
  const imageResolver=useCallback((ids:string[],variant:'thumbnail'|'display'|'original',signal?:AbortSignal)=>resolvePatternImages?resolvePatternImages(ids,variant,signal):resolveImageUrls(apiFetch,ids,variant,signal),[apiFetch,resolvePatternImages]);
  const [filters,setFilters]=useState<PatternFilters>({...initialPatternFilters});
  const [page,setPage]=useState<PatternPage|null>(null),[loading,setLoading]=useState(false);
@@ -350,6 +350,7 @@ export function PatternLibraryV2({apiFetch,canManage=false,allowExport=true,onCr
   return ()=>{clearTimeout(timer);ctrl.abort();listGuard.current.cancel();};
  },[apiFetch,filters,retry,imageResolver]);
  const openEdit=async(master:PatternMasterItem)=>{
+  onEditorStateChange?.(true);
   setSelected(master);setEditingItems([]);setEditorThumbs(new Map());setEditorError('');setEditorLoading(true);
   const rev=editGuard.current.next();
   try{
@@ -490,7 +491,7 @@ export function PatternLibraryV2({apiFetch,canManage=false,allowExport=true,onCr
    <PatternColorwayEditor key={selected.id} master={selected} items={editingItems}
     nextColorwayNo={next} topics={topics} colors={colors} canManage={canManage}
     thumbnailUrls={editorThumbs} onPreview={setPreview}
-    onClose={()=>{editGuard.current.cancel();setSelected(null);}} onSaveVersion={selectedVersionSave}
+    onClose={()=>{editGuard.current.cancel();setSelected(null);onEditorStateChange?.(false);}} onSaveVersion={selectedVersionSave}
     onAdd={add} onSaveMasterTags={masterTagsSave}
     onSaveMasterColorTags={masterColorsSave} onUploadPatternImage={uploadPatternImage}
     onToggleMaster={toggleStatus} onDeleteVersion={deleteVersion}/>}</>:null}
