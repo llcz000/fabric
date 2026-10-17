@@ -19,3 +19,25 @@ test('no nested unpatched proxy-addr survives in resolved lockfile', () => {
     }
   }
 });
+
+
+test('unused old transformer experiment is not installed in production dependencies', () => {
+  assert.equal(manifest.dependencies?.['@xenova/transformers'], undefined);
+  assert.equal(lock.packages?.['']?.dependencies?.['@xenova/transformers'], undefined);
+  for (const name of ['@xenova/transformers','onnxruntime-web','onnxruntime-node','onnx-proto']) {
+    assert.equal(lock.packages?.['node_modules/'+name], undefined, 'legacy production package '+name);
+  }
+});
+
+test('COS SDK v3 eliminates deprecated request and XML chains without changing package identity', () => {
+  assert.equal(manifest.dependencies?.['cos-nodejs-sdk-v5'], '^3.0.0');
+  assert.equal(lock.packages?.['node_modules/cos-nodejs-sdk-v5']?.version, '3.0.0');
+  for (const name of ['request','fast-xml-parser','har-validator','cos-nodejs-sdk-v5/node_modules/request']) {
+    assert.equal(lock.packages?.['node_modules/'+name], undefined, 'deprecated COS chain '+name);
+  }
+  // form-data may remain in a patched version through independent packages.
+  assert.equal(lock.packages?.['node_modules/form-data']?.version,'2.5.6');
+  // Legacy SDK's vendored deprecated transport/parser dependencies are gone.
+  assert.equal(lock.packages?.['node_modules/cos-nodejs-sdk-v5']?.dependencies?.request,undefined);
+  assert.equal(lock.packages?.['node_modules/cos-nodejs-sdk-v5']?.dependencies?.['fast-xml-parser'],undefined);
+});

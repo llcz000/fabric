@@ -42,3 +42,11 @@ test('review CI verifies patched dependency baseline and publishes live read-onl
  assert.match(workflow,/report-fabric-v2-dependency-audit\.mjs/);
  assert.match(workflow,/\$result.*-gt 1/);
 });
+
+
+test('COS 3 actual SDK verification remains mandatory even if the audit report is green',()=>{
+ assert.match(workflow,/run: node --test scripts\/check-fabric-v2-cos-sdk-v3\.test\.mjs/);
+ assert.throws(()=>verifyReviewWorkflow(
+  workflow.replace('node --test scripts/check-fabric-v2-cos-sdk-v3.test.mjs','node -e "console.log(42)"'),
+ ));
+});

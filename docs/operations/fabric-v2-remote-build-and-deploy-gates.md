@@ -29,6 +29,8 @@
 当前 GitHub 工作流**刻意没有** deploy job、生产 Secret、workflow_dispatch、SSH、PM2 指令或数据库初始化；后续不得仅添加一次 SSH 远端命令就称作安全自动部署。
 
 ## 当前明确的阻断
+**2026-10-17 COS 3 / Transformers 生产依赖治理（审查分支，尚未上线）**：基于真实 npm registry 3.0.0 的包结构和 SDK 源接口，cos-nodejs-sdk-v5 从 2.15.4 升到 3.0.0，去除了对弃用的 request / 旧 fast-xml-parser 直接依赖；签名、对象读写方法仍保留，新增只在本机使用**伪凭据**且不发真实网络请求的 GET/PUT URL 签名与五方法兼容冒烟。Git 已跟踪代码无 @xenova/transformers import，旧包仅在忽略的 tmp 实验出现，已从生产依赖删除，相关过期 ONNX 运行时链随 npm 锁解析移除。新 npm audit --omit=dev --json 读取锁文件后的实测：**16项（0 critical、8 high、8 moderate）**，前一轮为28项（4 critical、11 high、13 moderate）。仍有 multer、sharp 等高危待按真实影响面处置；**0 critical 不表示部署可批准**，GitHub Linux 全新 npm ci、原有 COS 上传下载契约以及真实预发布桶和回滚需另行验证。此变更未连接真实 COS、MySQL 或生产服务器，不能替代 P1–P7 证据。CI 审查流程会运行真实安装 SDK 兼容冒烟，并在 audit 风险报告中保留剩余高危警告。
+
 **2026-10-17 依赖告警隔离治理与新CI证据**：只读npm audit --omit=dev实测旧锁文件29项（5 critical）；针对代理地址IP伪造高影响缺陷，在package.json新增精确overrides使proxy-addr由2.0.7修补至2.0.8，不修改Express对外API。新锁审计28项（4 critical/11 high/13 moderate）；剩余critical链包括cos-nodejs-sdk-v5 2.x的request/form-data/fast-xml-parser，以及@xenova/transformers的protobufjs，实际暴露面和升级兼容性待单独评审。新的GitHub审查工作流读取npm audit --omit=dev --json，以只读报告器汇总在运行日志和Job Summary中，对严重/高危输出警告，网络/JSON错误则失败；**这是风险可见性而不是发布授权**。新增锁定补丁回归2项、审计契约2项、工作流审查回归，并未运行线上迁移/部署。审查通过仍应按上线发布门禁独立核实全部残留风险。
 
 **远端实际成功证据（2026-10-17）**：修复Git未跟踪UI技能后，草稿PR #1的Actions run [38996817370](https://github.com/llcz000/fabric/actions/runs/38996817370)全部完成（success）；包括1103项测试、四组类型检查、文档校验、Vite/esbuild构建和GitHub artifact上传。制品ID 12086584571，ZIP为258700字节/19个文件，哈希SHA-256为55f0b389c9302c6aaf260bcc1f6ac9ac21087f874010070d2ac99a20d48b20dc，文件检验未见sourcemap/.env/密钥。注意该制品绑定PR测试合并SHA 8178cd7d90b16b38203d5bdb95ce35e84b3ac3fa，只用于审查，**绝不据此自动部署生产**；另需审定真实发布Git SHA、生产环境门禁与可回滚部署设计。下方早期首次失败记录保留，反映实际修复链路。

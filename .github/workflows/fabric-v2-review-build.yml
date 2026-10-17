@@ -48,6 +48,9 @@ jobs:
       - name: Verify pinned security patch and audit reporter contracts
         run: node --test scripts/check-fabric-v2-dependency-baseline.test.mjs scripts/report-fabric-v2-dependency-audit.test.mjs
 
+      - name: Verify COS 3 installed SDK constructor, Promise methods and offline signed URLs
+        run: node --test scripts/check-fabric-v2-cos-sdk-v3.test.mjs
+
       - name: Report production dependency risk (review-only, not a deploy gate)
         shell: bash
         run: |

@@ -30,6 +30,7 @@ export function verifyReviewWorkflow(text){
   assert.ok(text.includes('scripts/tsconfig-ci-'+name+'.json'),'Missing TS '+name);
  assert.ok(text.includes('scripts/tsconfig-b3-fulfillment.json'),'Missing V2 type-check');
  assert.ok(text.includes('scripts/check-fabric-v2-dependency-baseline.test.mjs'),'Missing patched runtime baseline');
+ assert.ok(text.includes('node --test scripts/check-fabric-v2-cos-sdk-v3.test.mjs'),'Missing COS 3 runtime SDK smoke');
  assert.ok(text.includes('scripts/report-fabric-v2-dependency-audit.test.mjs'),'Missing audit reporter tests');
  assert.ok(text.includes('npm audit --omit=dev --json'),'Missing live production audit');
  assert.ok(text.includes('scripts/report-fabric-v2-dependency-audit.mjs'),'Missing audited risk summary');
