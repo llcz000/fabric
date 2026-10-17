@@ -56,3 +56,10 @@ test('OUTPUT-01 browser QA script syntax stays in CI without starting browser or
   workflow.replace('node --check scripts/document-output-browser-qa.mjs','node --check scripts/no-output-qa.mjs'),
  ));
 });
+
+test('patched HTTP/image smoke is mandatory for CI review without cloud secrets',()=>{
+ assert.match(workflow,/node --test scripts\/check-fabric-v2-patched-http-image\.test\.mjs/);
+ assert.throws(()=>verifyReviewWorkflow(
+  workflow.replace('node --test scripts/check-fabric-v2-patched-http-image.test.mjs','node -e "console.log(42)"')
+ ));
+});

@@ -51,6 +51,9 @@ jobs:
       - name: Verify COS 3 installed SDK constructor, Promise methods and offline signed URLs
         run: node --test scripts/check-fabric-v2-cos-sdk-v3.test.mjs
 
+      - name: Validate patched HTTP upload and image processing compatibility
+        run: node --test scripts/check-fabric-v2-patched-http-image.test.mjs
+
       - name: Report production dependency risk (review-only, not a deploy gate)
         shell: bash
         run: |

@@ -6,6 +6,9 @@
 
 ## 当前结论
 
+**2026-10-17 HTTP/媒体/数据库依赖安全补丁列车（独立审查，生产No-Go）**：根据最新项目总状态保持旧正式App不切换；只在干净审查工作树中先于隔离tmp目录对现有package/锁文件运行无强制升级的npm audit fix --package-lock-only，审核51个包条目的版本/可选二进制清单变化（包含sharp跨平台预编译包），然后精确替换审查锁文件，正式package.json与已确认COS3/代理补丁保持不变。关键修复包括multer 2.2.0→2.4.0、sharp 0.35.3→0.35.5、mysql2 3.22.6→3.24.6、express 4.22.2→4.22.3、fflate 0.8.2→0.8.3及同主版本传递查询/解析依赖；本机独立安装新HTTP/图像依赖，真Express multipart内存文件大小限制及Sharp真实SVG转PNG/坏数据拒绝3项通过。锁文件TDD 2项从红转绿，CI新增真正npm ci后再跑已安装HTTP/图片冒烟的强制校验。本次生产范围只读npm audit从16项（0 critical/8 high/8 moderate）下降到**2项（0 critical/0 high/2 moderate）**；剩余是exceljs 4.4.0→uuid 8.3.2的审计关联，audit fix --force建议降级exceljs 3.4.0属不兼容，未执行。由于未运行真实MySQL/COS、受保护预发布/业务UI、备份恢复和P1–P7签收，**不能因审计0高危而批准上线**；Linux GitHub实际npm ci/构建结果单独核查。新增同题[复盘](../retrospectives/development/2026-10-17-http-image-security-patches.md)，计划/文档保留、暂无归档候选。
+
+
 **2026-10-17按最新总进度补OUTPUT-01浏览器Gate**：核对已有实现后未重复编码PNG/JSON按钮；新增独立浏览器验收脚本，三类型实际点击并等待下载完成，读取PNG/打印JSON实物，核对240mm预览、2倍PNG尺寸、全部显示字段/明细/汇总一致、三类型390px窄屏与桌面PNG像素相同，以及Excel404后按钮恢复且JSON导出成功。最终19项通过，打印/组件专项12/12通过、脚本语法及评审构建通过、文档导航77份/598链接通过，证据`artifacts/product-master-ui/qa/document-output/`，最终日志`tmp/document-output-browser-final.log`。仅本机演示数据，不模拟Excel成功，不接正式App/实库/COS/纸质打印，不等同DATA-01集合备份；业务输出实现无修改，不重复全量回归。独立审查分支与主工作树分别保留，不改中央ACP签收；只读调度计划因需求源变化拒绝派发，未绕过Gate。计划及同题复盘**保留**，无归档候选或清理。
 
 **2026-10-17 COS SDK 安全升级与移除闲置 Transformers（待 GitHub 全新安装验证）**：生产 cos-nodejs-sdk-v5 2.15.4 升 3.0.0，保留原API名称、GET/PUT签名和对象Promise方法；本机**隔离安装官方3.0.0**且使用伪密钥的无网络SDK冒烟2/2通过。扫描Git跟踪代码发现 @xenova/transformers 仅在 tmp 实验引用、无业务运行时代码使用，按差异白名单从依赖清单及锁移除，去除旧ONNX链。只读 npm audit --omit=dev 由28项（4 critical）降为**16项（0 critical、8 high、8 moderate）**；真实COS通信/系统回归、剩余高危和正式P1–P7门禁仍未闭合，不授权生产切换。GitHub审核CI新增SDK3真实实例无网络签名冒烟，须以远端全新npm ci运行与制品结果为最终验证。

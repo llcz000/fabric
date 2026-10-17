@@ -22,3 +22,4 @@
 | Agent读得多、隔离源码陈旧、重复全量回归 | 可恢复基线+逐文件版本核验、任务短简报、同主题更新原文、最终串行统一验证 | [协作手册](../product-master/product-master-v2-agent-context-handbook.md)、[实际协作证据](../maintenance/2026-10-15-ACP-协作闭环.md) |
 
 其他独有事故、未完成实验和历史证据在[完整分类检索](../文档分类与检索.md#复盘经验)按关键词找；不再为每轮测试数量新开一篇。同主题先更新已有复盘，通用规则维护在[开发与验证规范](../development/开发与验证规范.md)，UI规则在[UI规范](../ui-design/README.md)。
+| 审查构建仍有高危依赖、Multer/Sharp升级担心破坏上传和图像 | 先在隔离tmp评估同主版本锁文件补丁并审查跨平台二进制；再对实际新安装版本做multipart超限拒绝与图片转码冒烟，剩余ExcelJS uuid漏洞单独追踪 | [V2生产依赖补丁与兼容验收](development/2026-10-17-http-image-security-patches.md) |
