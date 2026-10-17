@@ -1,0 +1,78 @@
+# Review CI only. No environment, secrets, SSH, database access, or deployment.
+name: Fabric V2 review build (no deploy)
+
+on:
+  push:
+    branches:
+      - master
+      - codex/fabric-v2-integration-review-20261017
+  pull_request:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fabric-v2-review-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Offline verify and compile
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      CI: 'true'
+      FABRIC_TEST_CONCURRENCY: '2'
+    steps:
+      - name: Checkout immutable commit
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Node 24 with npm cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install exactly locked dependencies
+        run: npm ci
+
+      - name: Verify review-only CI contract
+        run: |
+          node scripts/check-v2-remote-ci.mjs
+          node --test scripts/check-v2-remote-ci.test.mjs
+
+      - name: Offline unit and service HTTP tests
+        run: npm run test:unit
+
+      - name: TypeScript backend shard
+        run: node --max-old-space-size=1200 node_modules/typescript/bin/tsc -p scripts/tsconfig-ci-backend.json --noEmit
+
+      - name: TypeScript frontend shard
+        run: node --max-old-space-size=1200 node_modules/typescript/bin/tsc -p scripts/tsconfig-ci-frontend.json --noEmit
+
+      - name: TypeScript tooling shard
+        run: node --max-old-space-size=1200 node_modules/typescript/bin/tsc -p scripts/tsconfig-ci-tooling.json --noEmit
+
+      - name: TypeScript V2 fulfillment and public-share boundary
+        run: node --max-old-space-size=1200 node_modules/typescript/bin/tsc -p scripts/tsconfig-b3-fulfillment.json --noEmit
+
+      - name: Documentation and code evidence links
+        run: node scripts/check-fabric-v2-doc-navigation.mjs
+
+      - name: Compile frontend and backend (never start server)
+        run: npm run build
+
+      - name: Save review build (no sourcemaps or runtime data)
+        uses: actions/upload-artifact@v4
+        with:
+          name: fabric-v2-review-build-${{ github.sha }}
+          path: |
+            dist/
+            !dist/*.map
+            !dist/**/*.map
+          if-no-files-found: error
+          retention-days: 7

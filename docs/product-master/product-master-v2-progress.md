@@ -5,6 +5,10 @@
 更新：2026-10-17。本模块唯一业务基线为[需求v1.50](product-master-v2-requirements.md)。本表是V2唯一当前状态，不是过程日志；旧测试数字仅对原时点有效。当前源码已包含本会话AC-84增量，不能直接继承此前929项全量结果。
 
 ## 当前结论
+
+**2026-10-17 远端自动构建基础设施（生产不部署）**：在上游审查分支新增 GitHub Actions .github/workflows/fabric-v2-review-build.yml，push 审查分支与 master 或 master PR 将以 Ubuntu 24.04/Node24 运行 npm ci、全量单测、四组 TypeScript、文档导航与 build；仅短期上传不含 sourcemap 的 dist 审查制品，GITHUB_TOKEN 仅 contents:read，不提供环境/SSH/数据库/COS/部署任务。增加三个持久 TS CI 分片配置和只读 CI 契约及 2 项反向安全测试；本机验证 1103 项单测（1102 通过、1设计跳过）、四组 tsc、构建、CI契约2/2与文档85份/601链接通过。**云端实际 run 尚须以 Actions 日志验收；本地绿色不是云端绿色**。服务器历史环境为远端 Ubuntu /opt/fabric/PM2，未来部署应以单独审批的制品哈希、真实DB备份/回滚与P1–P7证据为前提；本轮不触发生产部署。
+
+
 **2026-10-17 Git审查分支已提交并推送（生产仍No-Go）**：经白名单完整源代码/评审资料核对，隔离工作树`D:\\fabric-v2-release-review-20261017`在`origin/master=7e2d81d`之上以404文件、**零历史删除**形成提交`1e9a7c76241db2e577bc7515642fbc2001fcfeee`，已推送至`origin/codex/fabric-v2-integration-review-20261017`；远端`refs/heads/master`经`git ls-remote`再次证明仍为`7e2d81d`。该分支本机完整测试1103项（1102通过、1设计跳过）、分组/专项TS四组通过、构建通过、84份文档/597条本地链接和暂存差异检查通过。共享Git的旧pre-commit hook指向不存在的他项目配置，首次提交失败；核对无目标配置后仅本次提交使用钩子自身建议的`PRE_COMMIT_ALLOW_NO_CONFIG=1`，**未使用`--no-verify`、未改全局Git设置**。推送范围为**非生产审查分支**，未建立PR、未合并master、未切正式V2、未执行DDL/COS或真实环境部署/回归。原主工作树的脏文件及已暂存历史删除仍原封不动；发布预检`readyForReview=false`、`releaseAuthorized=false`，P1–P7八项真实证据与原完整单次lint资源限制仍待解决。
 
 **2026-10-17 远端最新基线的隔离集成候选（并非正式交付）**：以`origin/master=7e2d81d`创建仓库外`D:\\fabric-v2-release-review-20261017`的独立审查分支`codex/fabric-v2-integration-review-20261017`；逐文件白名单导入V2源码/方案/测试与对应Stitch证据，禁止`git add .`、主工作区强制合并及历史删除。发现远端`ProductReviewStatus`新增`pending_manual_confirmation`，保留远端类型并只增补本地`DocumentData.styleNo`；补齐候选端`server.ts`中默认`legacy`的显式切换保护挂载、两个旧图片服务测试替身的`setReviewStatus`，不启用线上拒绝/切流。B3只读四表预检进一步要求**真实CHECK_CLAUSE表达式**匹配数量大于零、客户确认值及日期顺序；针对同名弱约束观察RED→GREEN，6/6通过。远端独立工作树完成全量`npm.cmd run test:unit` **1103项（1102通过、1设计跳过、0失败）**，后端/前端/脚本分片和新增B1/B3独立`tsc --noEmit`均退出0、`npm.cmd run build`退出0、文档导航84份/597条链接通过、候选暂存差异`git diff --cached --check`为0。所有候选文件由审计清单精确暂存（404项、0删除），保留原工作区及上游商品人工审核逻辑；21份评审截图/HTML/JSON有独立哈希清单并未伪造。**单一完整lint仍受机器内存限制**，独立候选并无真实MySQL/COS/正式账号/客户H5或业务页面验收；只读发布预检继续`readyForReview=false`、`releaseAuthorized=false`，禁止把隔离审查代码/ Git审查分支误当可部署的生产版本。

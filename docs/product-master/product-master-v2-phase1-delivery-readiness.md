@@ -86,6 +86,12 @@ Git只读调查：主工作树`master`比本地`origin/master`落后3个提交�
 - 共享`.git/hooks/pre-commit`错误指向`agent-workbench\\deer-flow\\.pre-commit-config.yaml`，本仓库不存在该配置，首次commit失败。检查实际钩子文件后仅给单次提交设置预提交工具官方建议的`PRE_COMMIT_ALLOW_NO_CONFIG=1`；不使用`--no-verify`、不修改钩子/全局Git设置，独立项目测试、四组TS、构建、文档及暂存差异核验作为可重放证据。该仓库仍应在后续维护中修复本地钩子归属。
 - 即使审查分支已推送，**生产发布依然No-Go**：正式前后端切流及8项外部真实业务证据均为false；不能自动从审查分支部署，也不得对真实MySQL运行B3表DDL、修改线上COS、停用旧API。下一阶段需先通过代码审核、隔离/预发布库身份和可恢复备份、真实账号/COS/业务UI测试及回滚演练，再单独审批上线。
 
+### 2026-10-17 远端 CI 构建能力（不包含 CD）
+
+- 新增 GitHub Actions 审查用工作流 .github/workflows/fabric-v2-review-build.yml、三份 scripts/tsconfig-ci-* 配置，以及禁止生产环境、写权限和发布命令的静态契约测试。Linux Node24 仅进行 npm ci、单测、分区 TS、文档、构建与7天制品上传，明确不连接现有 MySQL、不登录 /opt/fabric、不操作 COS/PM2。
+- 本地等效测试（Windows Node24）1103 项单测=1102通过/1跳过、四组 TypeScript=0、构建=0、安全契约 2/2、文档导航85份/601链接=0。**GitHub runner 的真正远端运行结果/制品需要另行核对**，不得拿本地结果替代云端 CI；完整 lint 单进程内存瓶颈也尚未消除。
+- 当前只能自动远端**构建**，不能直接自动**部署**；真实部署须GitHub环境人工审批、可恢复备份和全量P1–P7上线证据，具体见[远端构建和部署门禁](../operations/fabric-v2-remote-build-and-deploy-gates.md)。正式入口与8项证据当前仍 No-Go。
+
 ## 可复核和责任分配
 
 交付前，研发总控负责提供：`server.ts`/ `App.tsx`双入口静态检查、真实测试与审核清单；数据库负责人提供目标库身份/备份/DDL/回滚；UI负责人完成七页人工签收；业务负责人批准试点/正式上线。对应八项外部验收由`docs/operations/`下独立证据文件支持，不允许以空表单或“已实现”替代实际记录。
