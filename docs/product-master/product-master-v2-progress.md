@@ -6,6 +6,9 @@
 
 ## 当前结论
 
+**2026-10-17 B1稳定链接SQL结构评审与同连接只读预检（未创建表）**：继独立签发/停用恢复HTTP功能后，新增 patternLinkSchema.ts 仅生成未执行的 InnoDB pattern_share_links 表DDL（64字符hex token_hash采用ASCII_BIN且唯一，master_id独立唯一，RESTRICT FK）。verifyPatternLinkSchemaContract针对受控fabric_v2_test_*沙箱目标，使用一个物理连接同时检验DATABASE()和server_uuid，并只SELECT校验父/子表InnoDB、主键类型、字符集、完整唯一键、默认值/外键。模拟元数据TDD 11/11：错库、不同服务器UUID、弱索引/字符集、CASCADE、额外FK、驱动异常均拒绝并释放连接。**无真实MySQL、未执行DDL、尚无批准的备份/恢复及密钥托管，实际H5仍未上线**；这是B1可本地验收的只读迁移前置合同，不能标记一期/二期发布门禁通过。[B1库表审核与DBA门禁](product-master-v2-b1-link-schema-review.md)。
+
+
 **2026-10-17 B1稳定花型分享链接签发与停用恢复（未挂载、非真实客户H5）**：按已确认AC-73/V2-12，补patternLinkIssuer.ts的32字节高熵受信秘钥HMAC-SHA256域隔离稳定令牌签发，按母版永久ID生成相同43字符不可猜令牌，同一受控HTTPS origin格式化为可点击URL；事务读取最新管理员/业务员有效账号和会话、锁住母版与唯一映射、仅以域隔离哈希存SQL而**不写裸令牌**，再次请求返回原链接。母版停用/重新启用无需重新分享；无法复用/异常/现有撤销数据/密钥变化一律回滚拒绝，不支持手动撤回UI。新增独立POST /patterns/:masterId/share严格Bearer与空JSON入参接口，以及对客GET的resolvePatternLinkPresentation：**被停用但有效的链接仅在服务端显式核验unavailableVerified后显示“暂不可用”**，重启后原URL恢复；随机猜测、状态异常、拒绝授权仍404，前后重复验证避免中途停用时泄露原投影。独立伪SQL事务和127.0.0.1真实HTTP测试涵盖签发→对客只读→停用→重启→旧映射异常拒绝。**未实施真实pattern_share_links数据库唯一索引/FK/元数据预检、密钥托管备份和迁移、任何生产写库或路由挂载、真实H5与受控图片签名网关**，故此仅是可离线验收的业务合同，不代表签发功能可对客户使用；一期P1–P7发布仍No-Go。已批准无手动撤回，以[唯一需求第9.1.5节](product-master-v2-requirements.md)为准。
 
 **2026-10-17 P4/P7 独立沙箱七个只读预览tab增量**：在此前独立登录+花型/面料/产品三页基础上，增加色卡库分页、选样单ID+grant权限查询、单据查询与匹配合计、经营大盘Top5筛选联动四页。仅调用隔离V2 GET与成熟React数据合同，没有mock或业务写操作；三个旧目录启用allowExport=false隐藏下载按钮，其它正式/评审组件默认行为不变。模型新增4项、React静态验收3项。**7个沙箱tab不表示P4正式七页功能已交付**，真实MySQL/COS、账号签收及生产Server/App接线尚缺。详见[隔离沙箱](product-master-v2-p7-sandbox-frontend.md)。

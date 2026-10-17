@@ -26,3 +26,10 @@
 **未完成Gates**：需要批准唯一master_id与64位小写hex ASCII token_hash（用二进制/区分大小写排序规则）的数据库唯一索引、FK及迁移/恢复备份，固定并异地备份不可随意轮换的高熵签名Key，唯一允许的受控公网HTTPS源/真实内部账号，独立发布裁决的unavailableVerified语义及服务端媒体预览二次校验；然后进行真实数据库/手机/微信业务H5联调和正式服务端路由挂载。业务已明确“不提供手动链接撤回”，不能因历史代码存在revoked_at就新增撤回UI。遗留随意变更秘钥会使已发链接与DB哈希不一致，代码选择**失败关闭、禁止秘密自动换新**；密钥轮换需额外迁移方案与审批。生产P1–P7亦仍No-Go且一期不被二期B1阻断。
 
 **生命周期判定：保留**。历史复盘记录最初B1授权/公开字段保护和本轮新增真实签发前置要求及跨期边界，未归档或删除其他文档。本项目唯一当前状态仍为[进度](../../product-master/product-master-v2-progress.md)，并未声称真实客户H5已上线。
+
+
+## 2026-10-17 B1 schema metadata readonly checkpoint（后续新增、仅离线）
+
+稳定链接签发服务及公开停用恢复已有模拟HTTP验收，但当前仍无真实MySQL已审核的pattern_share_links表结构。一旦错误库或错索引上线，可能造成同一母版重复签发、hash大小写/前缀比较不安全或失效链接错误恢复。故本轮新增只输出SQL文本的patternLinkSchema.ts与完全只读的patternLinkSchemaContract.ts：通过同一连接校验明确指定fabric_v2_test_*沙箱库和server UUID、已有父主键、InnoDB、ASCII_BIN的完整hex字段、两项唯一索引以及单个RESTRICT FK。新增11项模拟元数据TDD通过不代表真库已完成或实际业务可用。
+
+**下一步仍需** DBA审核新增表、库身份、真实备份/恢复、密钥托管、真实H5/图片授权及员工/手机UAT。生产库、真实SQL/COS、业务数据和旧App均未接触。**生命周期：保留**。现有B1复盘仍有独有安全上下文与未完成Gates，不符合归档条件；唯一当前状态仍看[进度](../../product-master/product-master-v2-progress.md)，新版[DBA预检门禁](../../product-master/product-master-v2-b1-link-schema-review.md)为运维辅助材料，不构成另一个业务规格。
