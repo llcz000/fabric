@@ -63,3 +63,11 @@ test('patched HTTP/image smoke is mandatory for CI review without cloud secrets'
   workflow.replace('node --test scripts/check-fabric-v2-patched-http-image.test.mjs','node -e "console.log(42)"')
  ));
 });
+
+test('sandbox-only frontend must never be omitted from review CI gate',()=>{
+ assert.match(workflow,/node --test scripts\/check-v2-sandbox-front-config\.test\.mjs/);
+ assert.match(workflow,/vite\.js build --config scripts\/vite-v2-sandbox\.config\.ts/);
+ assert.throws(()=>verifyReviewWorkflow(workflow.replace(
+  'node --test scripts/check-v2-sandbox-front-config.test.mjs',
+  'node -e "console.log(1)"')));
+});

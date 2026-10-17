@@ -6,6 +6,8 @@
 
 ## 当前结论
 
+**2026-10-17 P7/P4独立前端只读接线（非正式App）**：新增非默认产品主数据V2沙箱HTML/React入口，显式确认后仅在127.0.0.1:4455代理到独立V2沙箱127.0.0.1:3456。实现服务器me二次校验的V2独立账号登录、花型/面料/产品三库只读浏览和安全登出；内存会话、不持久保存、401失效、拒绝公网/旧API/写请求/跨源。6项会话测试与2项Vite端口/隔离构建安全守卫，本机沙箱UI独立编译成功。该UI没有正式7页导航和真实数据库/COS验证，主server.ts/App.tsx完全未接线；需真实账号及环境单独批准，不能替代P4/P7发布门禁。[独立浏览器沙箱](product-master-v2-p7-sandbox-frontend.md)。
+
 **2026-10-17 HTTP/媒体/数据库依赖安全补丁列车（独立审查，生产No-Go）**：根据最新项目总状态保持旧正式App不切换；只在干净审查工作树中先于隔离tmp目录对现有package/锁文件运行无强制升级的npm audit fix --package-lock-only，审核51个包条目的版本/可选二进制清单变化（包含sharp跨平台预编译包），然后精确替换审查锁文件，正式package.json与已确认COS3/代理补丁保持不变。关键修复包括multer 2.2.0→2.4.0、sharp 0.35.3→0.35.5、mysql2 3.22.6→3.24.6、express 4.22.2→4.22.3、fflate 0.8.2→0.8.3及同主版本传递查询/解析依赖；本机独立安装新HTTP/图像依赖，真Express multipart内存文件大小限制及Sharp真实SVG转PNG/坏数据拒绝3项通过。锁文件TDD 2项从红转绿，CI新增真正npm ci后再跑已安装HTTP/图片冒烟的强制校验。本次生产范围只读npm audit从16项（0 critical/8 high/8 moderate）下降到**2项（0 critical/0 high/2 moderate）**；剩余是exceljs 4.4.0→uuid 8.3.2的审计关联，audit fix --force建议降级exceljs 3.4.0属不兼容，未执行。由于未运行真实MySQL/COS、受保护预发布/业务UI、备份恢复和P1–P7签收，**不能因审计0高危而批准上线**；Linux GitHub实际npm ci/构建结果单独核查。新增同题[复盘](../retrospectives/development/2026-10-17-http-image-security-patches.md)，计划/文档保留、暂无归档候选。
 
 

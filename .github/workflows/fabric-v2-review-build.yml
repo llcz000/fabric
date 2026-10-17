@@ -88,6 +88,14 @@ jobs:
       - name: Validate OUTPUT-01 Windows browser QA syntax (no browser launch)
         run: node --check scripts/document-output-browser-qa.mjs
 
+      - name: Verify sandbox-only frontend entry and loopback proxy
+        run: node --test scripts/check-v2-sandbox-front-config.test.mjs
+
+      - name: Build sandbox frontend into ignored temp, never review artifact
+        env:
+          FABRIC_V2_SANDBOX_FRONTEND: I_ACKNOWLEDGE_SANDBOX
+        run: node node_modules/vite/bin/vite.js build --config scripts/vite-v2-sandbox.config.ts
+
       - name: Documentation and code evidence links
         run: node scripts/check-fabric-v2-doc-navigation.mjs
 
