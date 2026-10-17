@@ -1,5 +1,6 @@
 /** XLSX-only V2 Fabric preview; read-only and isolated from production routes. */
 import ExcelJS from 'exceljs';
+import {verifyFabricXlsxArchive} from './xlsxArchiveGate';
 import type {WeightUnit} from './fabrics';
 export class FabricExcelError extends Error{
  constructor(message:string){super(message);this.name='FabricExcelError';}
@@ -140,6 +141,9 @@ export async function previewFabricXlsx(input:Buffer,opts:FabricExcelOptions):Pr
   throw new FabricExcelError('XLSX格式无效或文件超过8MB');
  if(opts.defaultWeightUnit!==undefined&&opts.defaultWeightUnit!=='gsm'&&opts.defaultWeightUnit!=='mm')
   throw new FabricExcelError('克重默认单位必须为gsm或mm');
+ // Do not let ExcelJS inflate a hostile ZIP before structural bounds checks.
+ try{verifyFabricXlsxArchive(input);}
+ catch{throw new FabricExcelError('XLSX 压缩存档结构或安全限制不符合要求');}
  const book=new ExcelJS.Workbook();
  try{await book.xlsx.load(input as never);}
  catch{throw new FabricExcelError('无法读取有效的XLSX工作簿');}
@@ -190,7 +194,7 @@ export async function previewFabricXlsx(input:Buffer,opts:FabricExcelOptions):Pr
   }else if(row.action==='create'&&row.fabric){
    const old=existing.get(row.fabric.fabricNo);
    if(old){
-    row.action='skip';row.reason='品号已存在，默认跳过，只有管理员明确确认后才可更新';
+    row.action='skip';row.reason='品号已存在，默认跳过，当前登录用户明确确认后才可更新';
     row.existing=old;row.changes=differences(row.fabric,old);
    }
   }

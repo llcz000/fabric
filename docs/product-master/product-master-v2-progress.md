@@ -6,6 +6,9 @@
 
 ## 当前结论
 
+**2026-10-17 一期P5面料XLSX压缩存档安全前置门禁（真实解析路径、非实库）**：在现有previewFabricXlsx真正ExcelJS解压前加只读Zip32存档元数据检查，对文件/单条/整体标称解压字节数、压缩比和条目数设上限，限制规范路径/唯一性及本地头/中央目录一致性，拒绝Zip64、宏、外部链接/嵌入媒体、加密及畸形数据。真实ExcelJS生成的正常中文7列面料文件仍可预览，伪造zip-bomb/路径穿越/畸形包等被拦截；真实本机V2认证HTTP上传路由新增坏档案400/无面料写入测试。额外纠正旧提示“只有管理员可二次确认”，符合批准的管理员/业务员两角色均可显式确认覆盖。**声明的ZIP解压大小可伪造，生产仍需进程隔离与内存/CPU/超时上限，未有真实MySQL/账号/业务验收或正式App装配，发布继续No-Go。**[P5安全门禁说明](product-master-v2-p5-browser-and-mysql-gate.md)。
+
+
 **2026-10-17 B1稳定链接SQL结构评审与同连接只读预检（未创建表）**：继独立签发/停用恢复HTTP功能后，新增 patternLinkSchema.ts 仅生成未执行的 InnoDB pattern_share_links 表DDL（64字符hex token_hash采用ASCII_BIN且唯一，master_id独立唯一，RESTRICT FK）。verifyPatternLinkSchemaContract针对受控fabric_v2_test_*沙箱目标，使用一个物理连接同时检验DATABASE()和server_uuid，并只SELECT校验父/子表InnoDB、主键类型、字符集、完整唯一键、默认值/外键。模拟元数据TDD 11/11：错库、不同服务器UUID、弱索引/字符集、CASCADE、额外FK、驱动异常均拒绝并释放连接。**无真实MySQL、未执行DDL、尚无批准的备份/恢复及密钥托管，实际H5仍未上线**；这是B1可本地验收的只读迁移前置合同，不能标记一期/二期发布门禁通过。[B1库表审核与DBA门禁](product-master-v2-b1-link-schema-review.md)。
 
 
