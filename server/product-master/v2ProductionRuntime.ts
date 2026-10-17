@@ -19,7 +19,6 @@ import {readLegacyImage} from '../image-assets/legacySource';
 import {getAssetPolicy} from '../image-assets/policy';
 import COS from 'cos-nodejs-sdk-v5';
 import {CosStorageAdapter,type CosSdkBoundary} from '../image-assets/cosStorage';
-import {createSampleFulfillmentRouter} from '../customer-samples/fulfillmentRoutes';
 import {createV2InventoryRouter} from './v2Inventory';
 import {createFrontendStaticRouter} from '../frontendStatic';
 import {companyExportImage} from '../order-v2/companyExportImage';
@@ -32,7 +31,6 @@ export async function createV2ProductionRouter(pool:Pool,target:V2ProductionTarg
  await verifyV2DocumentSupportSchema(db);
  await verifyV2DocumentAuditSchema(db);
  const routes=createV2BusinessRoutes(db,db,output);
- routes.use('/customer-samples',createSampleFulfillmentRouter(requireV2Principal(db),db));
  return {routes,db};
 }
 

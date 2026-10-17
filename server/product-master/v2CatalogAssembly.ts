@@ -25,6 +25,8 @@ import {createMySQLSampleScanDependencies} from '../customer-samples/sampleDeps'
 import {createSampleSessionReadRouter} from '../customer-samples/sessionReadRoutes';
 import {createSampleSessionRemoveRouter} from '../customer-samples/sessionRemoveRoutes';
 import {createSampleSessionManualRouter} from '../customer-samples/sessionManualRoutes';
+import {createSampleSessionDirectoryRouter} from '../customer-samples/sessionDirectoryRoutes';
+import {createSampleFulfillmentRouter} from '../customer-samples/fulfillmentRoutes';
 
 /** Test-only preflight. Confirm the authorization query adapter and transaction
  * pool share one specific MySQL 8 sandbox before the HTTP router is reachable.
@@ -134,6 +136,8 @@ export function createV2BusinessRoutes(checkedDatabase:AccessDatabase,checkedPoo
  routes.use('/customer-samples',createSampleSessionReadRouter(checkedDatabase,checkedPool));
  routes.use('/customer-samples',createSampleSessionRemoveRouter(requireV2Principal(checkedDatabase),checkedPool));
  routes.use('/customer-samples',createSampleSessionManualRouter(requireV2Principal(checkedDatabase),checkedPool));
+ routes.use('/customer-samples',createSampleSessionDirectoryRouter(requireV2Principal(checkedDatabase),checkedPool));
+ routes.use('/customer-samples',createSampleFulfillmentRouter(requireV2Principal(checkedDatabase),checkedPool));
  routes.use(createPatternMasterRouter(checkedDatabase,checkedPool));
  routes.use(createColorwayIdentityRouter(checkedDatabase,checkedPool));
  routes.use(createSharedTagsRouter(checkedDatabase,checkedPool));

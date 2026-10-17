@@ -3,7 +3,7 @@ import type {ManualSelectionResult} from '../../../server/customer-samples/sessi
 
 /** Caller must supply the authenticated V2 fetch; never store or append raw bearer tokens. */
 export interface SelectionApi {
- load:(sessionId:string,limit:number,offset:number)=>Promise<SampleSessionPage>;
+ load:(sessionId:string,limit:number,offset:number,signal?:AbortSignal)=>Promise<SampleSessionPage>;
  remove:(sessionId:string,itemId:string)=>Promise<void>;
  addManual:(sessionId:string,cardId:string,productIds?:string[])=>Promise<ManualSelectionResult>;
 }
@@ -55,10 +55,10 @@ export function createSampleSelectionClient(
  if(!base.startsWith('/')||base.startsWith('//'))throw Error('Invalid private API base');
  const endpoint=(sessionId:string)=>base+'/sessions/'+requireId(sessionId);
  return {
-  async load(sessionId,limit,offset){
+  async load(sessionId,limit,offset,signal){
    if(!Number.isSafeInteger(limit)||limit<1||limit>100||!Number.isSafeInteger(offset)||offset<0)throw Error('Invalid pagination');
    const url=endpoint(sessionId)+'?limit='+limit+'&offset='+offset;
-   const response=await authenticatedFetch(url,{method:'GET',headers:{Accept:'application/json'},cache:'no-store'});
+   const response=await authenticatedFetch(url,{method:'GET',headers:{Accept:'application/json'},cache:'no-store',signal});
    if(!response.ok)throw new SelectionHttpError(response.status);
    return pageOf(await response.json(),sessionId);
   },

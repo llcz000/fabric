@@ -73,7 +73,7 @@ test('B2-3 actual create/list/Excel service and sales scan agree on one stable p
   const scan=await call('/scan',scanBody);assert.equal(scan.status,200);assert.deepEqual((await scan.json()).addedProductIds,['81']);
   const original=db.items[0].product_id;db.productVersions=2;
   const rescan=await call('/scan',scanBody);assert.equal(rescan.status,200);const delta=await rescan.json();assert.deepEqual(delta.addedProductIds,['82']);assert.equal(delta.selectedCardCount,1);assert.equal(db.items[0].product_id,original);
-  db.role='admin';assert.equal((await call('/export',{cardIds:['12']})).status,200);assert.equal((await call('/scan',scanBody)).status,403);
+  db.role='admin';assert.equal((await call('/export',{cardIds:['12']})).status,200);assert.equal((await call('/scan',scanBody)).status,200);
   db.role='sales';db.grant=false;assert.equal((await call('/scan',scanBody)).status,403);
   db.active=false;assert.equal((await call('/export',{cardIds:['12']})).status,401);
  }finally{await new Promise<void>((resolve,reject)=>server.close(e=>e?reject(e):resolve()));}

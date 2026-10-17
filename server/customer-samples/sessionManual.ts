@@ -23,14 +23,17 @@ const oneWrite=(value:unknown)=>{
  if(!value||typeof value!=='object'||(value as {affectedRows?:unknown}).affectedRows!==1)throw new SampleSessionManualError(409);
 };
 /** Same lock order as scanning: account -> login -> sample session -> explicit grant. */
-export async function lockSelectionAccess(tx:SampleTx,actor:AppPrincipal,sessionId:string,write:boolean){
+export async function lockSelectionIdentity(tx:SampleTx,actor:AppPrincipal){
  if(!actor||(actor.role!=='sales'&&actor.role!=='admin')||!validSelectionId(actor.userId)||!validSelectionId(actor.sessionId))throw new SampleSessionManualError(403);
- if(!validSelectionId(sessionId))throw new SampleSessionManualError(400);
  const [users]=await tx.query('SELECT id,role,is_active FROM v2_access_users WHERE id=? FOR SHARE',[actor.userId]);
  const user=selectionRows(users)[0];
  if(!user||user.role!==actor.role||Number(user.is_active)!==1)throw new SampleSessionManualError(403);
  const [login]=await tx.query('SELECT id FROM v2_access_sessions WHERE id=? AND user_id=? AND revoked_at IS NULL AND expires_at>UTC_TIMESTAMP() FOR SHARE',[actor.sessionId,actor.userId]);
  if(selectionRows(login).length!==1)throw new SampleSessionManualError(403);
+}
+export async function lockSelectionAccess(tx:SampleTx,actor:AppPrincipal,sessionId:string,write:boolean){
+ if(!validSelectionId(sessionId))throw new SampleSessionManualError(400);
+ await lockSelectionIdentity(tx,actor);
  const lock=write?'FOR UPDATE':'FOR SHARE';
  const [sessions]=await tx.query('SELECT id,status FROM customer_sample_sessions WHERE id=? '+lock,[sessionId]);
  const session=selectionRows(sessions)[0];if(!session)throw new SampleSessionManualError(404);

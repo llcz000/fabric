@@ -24,7 +24,7 @@ async function exercise(run:(base:string,db:AuthDb,state:{granted:boolean;calls:
  const app=express();app.use(express.json({limit:'8kb'}));
  app.use('/api/v2/sample-cards',createSampleCardScanRouter(db,{
   authorize:async (principal:AppPrincipal,sessionId:string)=>state.granted&&principal.userId==='2'&&sessionId==='51',
-  scan:async (input,principal)=>{state.calls++;assert.equal(principal.role,'sales');
+  scan:async (input,principal)=>{state.calls++;assert(['sales','admin'].includes(principal.role));
    if(state.failure)throw state.failure;
    return {cardId:'12',resolvedProductIds:['8','9'],addedProductIds:['9'],alreadySelectedProductIds:['8'],selectedCardCount:1};
   }
@@ -58,10 +58,12 @@ test('AC-86 client/public scanning denied; real session and server-side grant re
   assert.deepEqual(ok.data.addedProductIds,['9']);
   assert.equal(state.calls,1);
   db.role='admin';
-  assert.equal((await post(url,input,token)).status,403,'admin not implicitly allowed as salesperson');
+  assert.equal((await post(url,input,token)).status,200,'registered active admin has the same scan ability with explicit grant');
+  state.granted=false;
+  assert.equal((await post(url,input,token)).status,403,'admin cannot bypass explicit session grant');
   db.role='sales';db.active=false;
   assert.equal((await post(url,input,token)).status,401,'revoked/disabled actor denied');
-  assert.equal(state.calls,1);
+  assert.equal(state.calls,2);
  });
 });
 test('QR-05 no actor-supplied role, owner or permission may be trusted',async()=>{

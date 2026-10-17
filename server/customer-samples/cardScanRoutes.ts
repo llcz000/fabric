@@ -5,7 +5,7 @@ import {SampleScanError} from './scanRepository';
 
 /**
  * B2/B3 independent, NOT mounted in server.ts until schema and transactional
- * repository are verified. Only a server-authorized salesperson may scan.
+ * repository are verified. Both registered roles need explicit session access.
  * The service must recheck ownership in its own transaction before writes.
  */
 export interface CardScanRequest {cardToken:string;sessionId:string}
@@ -42,8 +42,9 @@ export function createSampleCardScanRouter(
  const privateCache:RequestHandler=(_req,res,next)=>{res.setHeader('Cache-Control','no-store');next();};
  router.use(privateCache);
  // No public GET fallback: an unauthenticated QR cannot expose an image page.
- const sales:RequestHandler=(_req,res,next)=>{
-  if((res.locals.principal as AppPrincipal|undefined)?.role!=='sales'){
+ const registeredRole:RequestHandler=(_req,res,next)=>{
+  const role=(res.locals.principal as AppPrincipal|undefined)?.role;
+  if(role!=='sales'&&role!=='admin'){
    res.status(403).json({error:'Forbidden'});return;
   }
   next();
@@ -52,12 +53,10 @@ export function createSampleCardScanRouter(
   if(!req.is('application/json')){res.status(400).json({error:'JSON content type required'});return;}
   next();
  };
- router.post('/scan',requireV2Principal(authDb),sales,requireJson,json({limit:'8kb'}),async (req,res)=>{
+ router.post('/scan',requireV2Principal(authDb),registeredRole,requireJson,json({limit:'8kb'}),async (req,res)=>{
   const actor=res.locals.principal as AppPrincipal|undefined;
   if(!actor){res.status(401).json({error:'Unauthorized'});return;}
-  // Admin is NOT implicitly a salesperson; any future delegated access must
-  // be explicitly approved in the Phase 2 permission matrix.
-  if(actor.role!=='sales'){res.status(403).json({error:'Forbidden'});return;}
+  if(actor.role!=='sales'&&actor.role!=='admin'){res.status(403).json({error:'Forbidden'});return;}
   const input=readBody(req.body);
   if(!input){res.status(400).json({error:'Invalid scan request'});return;}
   try{

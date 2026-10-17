@@ -1,0 +1,43 @@
+/** Explicitly destructive QA fixtures ONLY in the pinned B3 restored database. */
+import assert from 'node:assert/strict';import {randomBytes} from 'node:crypto';import {writeFile} from 'node:fs/promises';import mysql from 'mysql2/promise';import dotenv from 'dotenv';
+dotenv.config({quiet:true,override:true});
+assert.equal(process.env.FABRIC_B3_QA_ACK,'WRITE_B3_RESTORED_ONLY');assert.equal(process.env.DB_DATABASE,'fabric_v2_test_b3_20261017');
+const config={socketPath:'/var/run/mysqld/mysqld.sock',user:'root',database:process.env.DB_DATABASE,dateStrings:true};const db=await mysql.createConnection(config);
+const [[identity]]=await db.query('SELECT DATABASE() AS db,@@server_uuid AS uuid');assert.equal(identity.db,process.env.FABRIC_V2_EXPECTED_DATABASE);assert.equal(identity.uuid,process.env.FABRIC_V2_EXPECTED_UUID);
+const base='http://127.0.0.1:3004',checks=[],stamp=String(Date.now()),fixture={};let stage='login';
+const request=(path,token,method='GET',body)=>fetch(base+path,{method,headers:{...(token?{Authorization:'Bearer '+token}:{}),...(body===undefined?{}:{'Content-Type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)})});
+async function json(path,token,method='GET',body,status=200){const response=await request(path,token,method,body);assert.equal(response.status,status,method+' '+path);return response.json();}
+const url=id=>'/api/v2/customer-samples/sessions/'+id;
+const checksum=async()=>JSON.stringify((await db.query('CHECKSUM TABLE orders,order_items,products'))[0]);
+try{
+ const before=await checksum(),admin=(await json('/api/v2/access/login',null,'POST',{username:'admin',password:process.env.ADMIN_PASSWORD})).token;
+ const users=[];for(const n of [1,2]){const username='b3qa'+stamp+n,password=randomBytes(24).toString('base64url');const user=await json('/api/v2/access/members',admin,'POST',{username,password,displayName:'选样QA'+n,role:'sales'},201);const login=await json('/api/v2/access/login',null,'POST',{username,password});users.push({...user,token:login.token});}
+ stage='sessions';const a=users[0].token,b=users[1].token;
+ const own=await json('/api/v2/customer-samples/sessions',a,'POST',{customerReference:'B3选样QA'+stamp},201),other=await json('/api/v2/customer-samples/sessions',b,'POST',{customerReference:'其他客户'+stamp},201),adminSession=await json('/api/v2/customer-samples/sessions',admin,'POST',{customerReference:'B3管理员QA'+stamp},201);
+ fixture.sessionId=own.id;fixture.browserSessionId=adminSession.id;
+ assert.equal((await json('/api/v2/customer-samples/sessions',a)).total,1);assert.equal((await json('/api/v2/customer-samples/sessions',b)).total,1);
+ assert.equal((await request(url(own.id),b)).status,404);assert.equal((await request(url(own.id)+'/progress',admin)).status,404);assert.equal((await request('/api/v2/customer-samples/sessions',null)).status,401);checks.push('real sessions create own explicit grants; sales/admin cannot bypass unrelated session access');
+ stage='catalog';const master=await json('/api/v2/pattern-masters',admin,'POST',{masterNo:'B3'+stamp},201),fabric=await json('/api/v2/fabrics',admin,'POST',{fabricNo:'B3F'+stamp,fabricName:'选样寄样测试面料',weightValue:120,weightUnit:'gsm'},201),products=[];
+ for(let i=0;i<2;i++){const color=await json('/api/v2/pattern-masters/'+master.id+'/colorways',admin,'POST',{},201);products.push(await json('/api/v2/products',admin,'POST',{patternColorwayId:color.id,fabricId:fabric.id},201));}
+ const {card}=await json('/api/v2/sample-cards',admin,'POST',{masterId:master.id,fabricId:fabric.id},201);fixture.cardId=card.id;fixture.cardNo=card.cardNo;fixture.cardToken=card.qrPayload;fixture.products=products.map(p=>({id:p.id,productNo:p.productNo}));
+ stage='selection';await json(url(own.id)+'/items/manual',a,'POST',{cardId:card.id});await json('/api/v2/sample-cards/scan',admin,'POST',{sessionId:adminSession.id,cardToken:card.qrPayload});checks.push('real whole-card manual selection and registered admin scan both persist current card products');
+ const selection=await json(url(own.id),a);assert.equal(selection.total,2);assert.equal((await json(url(own.id)+'/progress',a)).pendingProducts,2);
+ const ship=items=>({sessionId:own.id,shippedAt:'2026-10-17T10:00:00.000Z',carrier:'顺丰',trackingNo:'B3-QA',items});
+ stage='shipments';await json(url(own.id)+'/shipments',a,'POST',ship([{productId:products[0].id,quantity:3}]),201);let progress=await json(url(own.id)+'/progress',a);assert.equal(progress.shippedProducts,1);assert.equal(progress.pendingProducts,1);checks.push('partial shipment leaves the unshipped selected product pending');
+ await json(url(own.id)+'/shipments',a,'POST',ship([{productId:products[1].id,quantity:1}]),201);await json(url(own.id)+'/shipments',a,'POST',ship([{productId:products[0].id,quantity:2}]),201);progress=await json(url(own.id)+'/progress',a);assert.equal(progress.pendingProducts,0);assert.equal(progress.shippedQuantity,6);assert.equal((await json(url(own.id),a)).total,2);checks.push('multiple/replacement batches preserve selection and sum actual quantities without inflating product counts');
+ const countBefore=(await json(url(own.id)+'/shipments',a)).total;
+ await json(url(own.id)+'/shipments',a,'POST',ship([{productId:products[0].id,quantity:1},{productId:'18446744073709551615',quantity:1}]),409);
+ assert.equal((await json(url(own.id)+'/shipments',a)).total,countBefore);checks.push('mixed invalid batch is all-or-nothing in real SQL');
+ stage='followup';const follow={sessionId:own.id,contactedOn:'2026-10-17',customerConfirmed:false,feedback:'颜色合适',outcome:'等待客户核对',nextAction:'电话确认',nextFollowupOn:'2026-10-18',productIds:[products[0].id]};
+ await json(url(own.id)+'/followups',a,'POST',follow,201);const history=await json(url(own.id)+'/followups',a);assert.equal(history.items[0].customerConfirmed,false);assert.equal(history.items[0].nextFollowupOn,'2026-10-18');await json(url(own.id)+'/followups',a,'POST',{...follow,nextFollowupOn:'2026-10-16'},409);checks.push('real followup preserves false confirmation, dates and product link; invalid date fails');
+ stage='remove';await request(url(own.id)+'/items/'+selection.items[0].id,a,'DELETE').then(r=>assert(r.ok));progress=await json(url(own.id)+'/progress',a);assert.equal(progress.selectedProducts,1);assert.equal(progress.shippedQuantity,6);assert.equal((await json(url(own.id)+'/shipments',a)).total,3);checks.push('selection removal preserves historical shipments/quantities');
+ await json(url(own.id)+'/items/manual',a,'POST',{cardId:card.id});assert.equal((await json(url(own.id),a)).total,2);
+ stage='concurrency';const locked=await mysql.createConnection(config);await locked.beginTransaction();await locked.query('SELECT id FROM customer_sample_sessions WHERE id=? FOR UPDATE',[own.id]);
+ let settled=false;const blocked=request(url(own.id)+'/shipments',a,'POST',ship([{productId:products[0].id,quantity:1}])).finally(()=>{settled=true;});
+ let observed=false;for(let i=0;i<30;i++){const [[wait]]=await db.query('SELECT COUNT(*) AS total FROM performance_schema.data_lock_waits w JOIN performance_schema.threads t ON t.THREAD_ID=w.REQUESTING_THREAD_ID WHERE t.PROCESSLIST_DB=?',[identity.db]);if(Number(wait.total)>0){observed=true;break;}await new Promise(r=>setTimeout(r,60));}
+ assert(observed&&!settled,'actual second physical connection must wait for the session lock');await locked.query('DELETE FROM customer_sample_session_access WHERE session_id=? AND user_id=?',[own.id,users[0].id]);await locked.commit();await locked.end();assert.equal((await blocked).status,404);
+ const [[after]]=await db.query('SELECT COUNT(*) AS total FROM sample_shipments WHERE session_id=?',[own.id]);assert.equal(Number(after.total),3);checks.push('observed real MySQL lock wait; grant revoked before lock release causes pending write to fail without insert');
+ stage='close';await db.query("UPDATE customer_sample_sessions SET status='closed' WHERE id=?",[other.id]);await json(url(other.id)+'/followups',b,'POST',{...follow,sessionId:other.id,productIds:[]},409);assert.equal((await json(url(other.id)+'/followups',b)).total,0);checks.push('closed selection allows history reads and rejects new fulfillment');
+ assert.equal(await checksum(),before);checks.push('all original document/detail/legacy-product checksums unchanged');
+ await writeFile('b3-fulfillment-qa-result.json',JSON.stringify({passed:checks.length,checks,fixture,database:identity.db,productionChanged:false},null,2));console.log(JSON.stringify({passed:checks.length,checks,fixture,database:identity.db,productionChanged:false}));
+}catch(error){console.error(JSON.stringify({stage,passed:checks.length,error:error instanceof Error?error.message:'failed'}));process.exitCode=1;}finally{await db.end();}

@@ -1,7 +1,7 @@
 import React,{useMemo} from 'react';
 import type {SampleSessionPage} from '../../../server/customer-samples/sessionRead';
 import {SampleSelectionPanel} from './SampleSelectionPanel';
-import {createSampleSelectionClient,createV2SelectionFetch} from './sampleSelectionClient';
+import {createSampleSelectionClient,createV2SelectionFetch,selectionAccessRevoked} from './sampleSelectionClient';
 import {searchManualCards} from './manualSelectionModel';
 import {resolveImageUrls} from './catalogModel';
 import type {CatalogImageResolver} from './ProductImageTabs';
@@ -17,10 +17,14 @@ export interface SampleSelectionWorkspaceV2Props{
  onRescan?:()=>Promise<void>|void;
  initialPage?:SampleSessionPage;
  resolveImages?:CatalogImageResolver;
+ onAccessRevoked?:()=>void;
 }
-export function SampleSelectionWorkspaceV2({sessionId,apiFetch,getV2SessionToken,onRescan,initialPage,resolveImages}:SampleSelectionWorkspaceV2Props){
+export function SampleSelectionWorkspaceV2({sessionId,apiFetch,getV2SessionToken,onRescan,initialPage,resolveImages,onAccessRevoked}:SampleSelectionWorkspaceV2Props){
  const privateFetch=useMemo(()=>getV2SessionToken?createV2SelectionFetch(apiFetch,getV2SessionToken):apiFetch,[apiFetch,getV2SessionToken]);
- const api=useMemo(()=>createSampleSelectionClient(privateFetch),[privateFetch]);
+ const api=useMemo(()=>{
+  const guarded:typeof fetch=async(input,init)=>{const response=await privateFetch(input,init);if(selectionAccessRevoked({status:response.status}))onAccessRevoked?.();return response;};
+  return createSampleSelectionClient(guarded);
+ },[privateFetch,onAccessRevoked]);
  const search=useMemo(()=>(filters:Parameters<typeof searchManualCards>[1],signal?:AbortSignal)=>searchManualCards(privateFetch,filters,signal),[privateFetch]);
  // Keep the established image access adapter separate from the V2-only selection transport.
  const thumbnails=useMemo(()=>(ids:string[],signal?:AbortSignal)=>resolveImages?resolveImages(ids,'thumbnail',signal):resolveImageUrls(apiFetch,ids,'thumbnail',signal),[apiFetch,resolveImages]);

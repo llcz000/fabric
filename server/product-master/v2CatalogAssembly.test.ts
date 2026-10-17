@@ -329,9 +329,9 @@ test('B2-4 unified scan parser authenticates then accepts JSON; malformed and ov
   const malformed=await post('{');assert.equal(malformed.status,400);assert(!((await malformed.text()).includes('SyntaxError')));
   assert.equal((await post(JSON.stringify({extra:'x'.repeat(10000)}))).status,413);
   db.sessionOwner='1';
-  assert.equal((await post('{')).status,403,'admin role rejected before parsing');
+  assert.equal((await post('{')).status,400,'registered admin reaches the same strict parser');
   const nonJson=await fetch(base+'/sample-cards/scan',{method:'POST',headers:{authorization:'Bearer '+sessionToken,'content-type':'text/plain'},body:'{}'});
-  assert.equal(nonJson.status,403);
+  assert.equal(nonJson.status,400);
  });
 });
 async function setup(){

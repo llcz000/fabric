@@ -20,7 +20,7 @@ test('B2-2 SQL authorization requires explicit sample-session grant; unrelated p
  assert.match(calls[1].sql,/JOIN customer_sample_session_access/);
  assert.match(calls[1].sql,/a\.can_manage=1/);
  assert.match(calls[1].sql,/s\.status='open'/);
- assert.equal(await deps.authorize({...actor,role:'admin'},'11'),false);
+ assert.equal(await deps.authorize({...actor,role:'admin'},'11'),true);
  assert.equal(await deps.authorize({...actor,userId:'7'},'0'),false);
- assert.equal(calls.length,2,'invalid actor/ID must not query customer records');
+ assert.equal(calls.length,3,'invalid actor/ID must not query customer records');
 });
