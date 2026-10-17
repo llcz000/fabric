@@ -79,6 +79,12 @@ jobs:
       - name: TypeScript V2 fulfillment and public-share boundary
         run: node --max-old-space-size=1200 node_modules/typescript/bin/tsc -p scripts/tsconfig-b3-fulfillment.json --noEmit
 
+      # The full download/pixel QA runs locally in an isolated Windows Edge
+      # profile with only synthetic review fixtures. Linux CI syntax-checks it
+      # but must NOT run Edge, bind a public server, or touch a real COS/DB.
+      - name: Validate OUTPUT-01 Windows browser QA syntax (no browser launch)
+        run: node --check scripts/document-output-browser-qa.mjs
+
       - name: Documentation and code evidence links
         run: node scripts/check-fabric-v2-doc-navigation.mjs
 

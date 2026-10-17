@@ -5,6 +5,9 @@
 更新：2026-10-17。本模块唯一业务基线为[需求v1.50](product-master-v2-requirements.md)。本表是V2唯一当前状态，不是过程日志；旧测试数字仅对原时点有效。当前源码已包含本会话AC-84增量，不能直接继承此前929项全量结果。
 
 ## 当前结论
+
+**2026-10-17按最新总进度补OUTPUT-01浏览器Gate**：核对已有实现后未重复编码PNG/JSON按钮；新增独立浏览器验收脚本，三类型实际点击并等待下载完成，读取PNG/打印JSON实物，核对240mm预览、2倍PNG尺寸、全部显示字段/明细/汇总一致、三类型390px窄屏与桌面PNG像素相同，以及Excel404后按钮恢复且JSON导出成功。最终19项通过，打印/组件专项12/12通过、脚本语法及评审构建通过、文档导航77份/598链接通过，证据`artifacts/product-master-ui/qa/document-output/`，最终日志`tmp/document-output-browser-final.log`。仅本机演示数据，不模拟Excel成功，不接正式App/实库/COS/纸质打印，不等同DATA-01集合备份；业务输出实现无修改，不重复全量回归。独立审查分支与主工作树分别保留，不改中央ACP签收；只读调度计划因需求源变化拒绝派发，未绕过Gate。计划及同题复盘**保留**，无归档候选或清理。
+
 **2026-10-17 COS SDK 安全升级与移除闲置 Transformers（待 GitHub 全新安装验证）**：生产 cos-nodejs-sdk-v5 2.15.4 升 3.0.0，保留原API名称、GET/PUT签名和对象Promise方法；本机**隔离安装官方3.0.0**且使用伪密钥的无网络SDK冒烟2/2通过。扫描Git跟踪代码发现 @xenova/transformers 仅在 tmp 实验引用、无业务运行时代码使用，按差异白名单从依赖清单及锁移除，去除旧ONNX链。只读 npm audit --omit=dev 由28项（4 critical）降为**16项（0 critical、8 high、8 moderate）**；真实COS通信/系统回归、剩余高危和正式P1–P7门禁仍未闭合，不授权生产切换。GitHub审核CI新增SDK3真实实例无网络签名冒烟，须以远端全新npm ci运行与制品结果为最终验证。
 
 **2026-10-17 生产依赖安全补丁（审查候选）**：基于 npm audit --omit=dev --json 全量核查发现29项生产依赖告警（5 critical/11 high/13 moderate），其中Express传递地址解析依赖 proxy-addr 2.0.7存在critical IP spoofing。使用项目 npm overrides 精确锁定 proxy-addr 2.0.8（新增Git锁文件差异仅小范围版本及少量可选包元数据），新增2项防倒退测试和2项审计摘要契约测试；重新审计为28项（4 critical/11 high/13 moderate），proxy-addr 不再报告。GitHub审查CI现增加运行时npm audit只读报告与无密钥告警摘要，**仍禁止部署**；COS SDK 2.x的request、fast-xml-parser、form-data以及Transformers链protobufjs严重项尚待隔离升级评审，不能npm audit fix --force或盲目换主版本。Windows本机node_modules复用旧仓库，不能以本机单测宣称新proxy运行时验证；以GitHub全新npm ci/run验证为准。生产P1–P7与真实回归仍No-Go。
@@ -95,10 +98,10 @@
 | P1-A/B/C | 原生表/计数/模式/版本 | [结构与迁移](product-master-v2-p1c2-schema-versioning.md)，有2026-10-12隔离MySQL历史证据 | 生产迁移器、锁、备份/回滚、启动 |
 | P1-D | owner/稳定行身份保护 | [历史单据技术说明](product-master-v2-p1d2-lines.md)，隔离实库演练 | 正式加法迁移、旧PUT切换及历史兼容 |
 | P1-E | 旧产品受控退出 | 未执行数据清退 | 正式切换后另行授权；保护图片、单据、库存/公司 |
-| P2 | 两角色简化规则2026-10-15确认，不再设双授权开关 | [登录/成员](product-master-v2-p2-access-foundation.md)、[旧入口门禁](product-master-v2-p2-legacy-cutover-gate.md)为旧实现/历史证据 | 按新规则取消额外角色限制；正式账户/登录UI、全接口权限及新旧原子切流 |
+| P2 | 两角色简化规则2026-10-15确认，不再设双授权开关 | 2026-10-17成员DTO及/access/me已移除旧开关；服务端两角色业务权限已按新规则本机回归；[登录/成员](product-master-v2-p2-access-foundation.md)、[旧入口门禁](product-master-v2-p2-legacy-cutover-gate.md)历史证据保留 | 正式账户/登录及成员UI、真实跨owner权限、兼容旧列迁移及新旧原子切流 |
 | P3 | 三库/标签/三类图规则确认 | [三库与实库专题](product-master-v2-p3-real-mysql-gate.md)，部分并发/查询隔离证据 | 真实COS、正式写链及网络/浏览器性能 |
 | P4 | 七页设计及颜色一次保存确认 | [三库React与浏览器](product-master-v2-p4-browser-qa.md)，本机Edge＋内存API | 正式账户/受控图片/键盘触屏/人工视觉 |
-| P5 | 仅xlsx；两角色均可导入，重复项均须二次确认 | [导入专题](product-master-v2-p5-browser-and-mysql-gate.md)按旧管理员独占更新规则实现；一次凭证及逐行事务证据保留 | 新规则的两角色更新与重复项确认整改；实库写链、冲突与正式UI |
+| P5 | 仅xlsx；两角色均可导入，重复项均须二次确认 | 两角色更新/明确差异确认已按新规则本机整改，保留并发指纹、一次凭证及逐行事务；[导入专题](product-master-v2-p5-browser-and-mysql-gate.md)记录历史/当前边界 | 实库写链与并发冲突、真实角色账号及正式UI |
 | P6 | 三单据产品关联/资料冻结，统一开单设置修改后全部单据用最新值 | [选品→保存→计算→输出](product-master-v2-p6-document-write-read.md)，独立API和部分历史实库证据，不自动覆盖本次设置更新规则 | 开单设置实时引用及三类单据多输出一致性整改/验收；正式单据/库存/媒体接线 |
 | P7 | 正式交付门槛独立 | [统一HTTP和数据库目标](product-master-v2-p7-local-http-assembly.md)，模拟状态流/空库只读 | 真实授权业务写入、并发/COS/E2E、P95≤1秒、恢复与上线 |
 
@@ -108,9 +111,9 @@
 
 | 编号 | 已确认/已实现 | UI接受 | 未完成Gate |
 |---|---|---|---|
-| B1 花型分享 | 受限公开投影、随机令牌/域隔离哈希、`patternLinkStore.ts`只读映射合同；持令牌不自动授权 | H5尚未交付 | 真实持久化/签发、公开授权与撤回、受控图片/H5和实库 |
-| B2 色卡/扫码 | 单母版+面料、稳定原码/文本xlsx、退役重建、独立供样/重印CAS；旧受权销售扫码实现；[技术说明](product-master-v2-b2-5h-scan-lock-order.md) | v1.48色卡UI已确认；模拟Edge为旧规则证据 | 新规则允许登记登录管理员/业务员扫码，不另设扫码开关；存量迁移、真库并发/回滚、正式账号/COS/实机扫码 |
-| B3 选样/人工补选 | v1.50最新资料；移除/重扫恢复；2026-10-17仅基于色卡整卡/子集补选与人工卡来源；AC-81只有寄样纯数据契约；[当前说明](product-master-v2-b3-history-ui-review.md) | 色卡搜索/展开默认全选与紧凑缩略图已于2026-10-17获用户确认；不新增授权管理按钮 | 正式App/API、现存schema及人工卡审计迁移、真MySQL、旧read/remove两角色整改、寄样持久化/跟进、手机扫码 |
+| B1 花型分享 | 受限公开投影、随机令牌/域隔离哈希、只读映射合同；2026-10-17新增未挂载公开JSON路由、加载后复核发布/撤回及安全React展示壳；持令牌不自动授权 | 正式H5尚未交付 | 真实持久化/签发/失效管理、公开授权与受控图片、正式H5和实库 |
+| B2 色卡/扫码 | 单母版+面料、稳定原码/文本xlsx、退役重建、独立供样/重印CAS；SCAN-01已允许活跃登录admin/sales并保留显式会话授权及实时复核；[技术说明](product-master-v2-b2-5h-scan-lock-order.md) | v1.48色卡UI已确认；模拟Edge与真实账号/实机证据分开 | 存量迁移、真库并发/回滚、正式双角色账号/COS/实机扫码及正式接线 |
+| B3 选样/人工补选 | v1.50最新资料；移除/重扫恢复；2026-10-17基于色卡补选与人工卡来源、read/remove双角色均已本机整改；寄样/跟进新增未执行DDL四表设计、受权事务服务及私有HTTP、只读schema契约，均未挂正式系统；[当前说明](product-master-v2-b3-history-ui-review.md) | 色卡搜索/展开默认全选与紧凑缩略图已于2026-10-17获用户确认；不新增授权管理按钮 | 正式App/API、现存schema及人工卡审计迁移、真MySQL/并发/账号、寄样及跟进业务页面/实库持久化、手机扫码 |
 
 ## 验证范围与下一步
 

@@ -35,6 +35,7 @@ export function verifyReviewWorkflow(text){
  assert.ok(text.includes('npm audit --omit=dev --json'),'Missing live production audit');
  assert.ok(text.includes('scripts/report-fabric-v2-dependency-audit.mjs'),'Missing audited risk summary');
  assert.ok(text.includes('scripts/check-fabric-v2-doc-navigation.mjs'),'Missing doc checks');
+ assert.ok(text.includes('run: node --check scripts/document-output-browser-qa.mjs'),'Missing OUTPUT-01 browser QA syntax check');
  const forbidden=[
   [/^\s*(?:environment|deployment|deploy):\s*\S*/im,'deploy job or environment'],
   [/\$\{\{\s*(?:secrets|vars)\./i,'external credentials'],

@@ -50,3 +50,9 @@ test('COS 3 actual SDK verification remains mandatory even if the audit report i
   workflow.replace('node --test scripts/check-fabric-v2-cos-sdk-v3.test.mjs','node -e "console.log(42)"'),
  ));
 });
+test('OUTPUT-01 browser QA script syntax stays in CI without starting browser or using production data',()=>{
+ assert.match(workflow,/run: node --check scripts\/document-output-browser-qa\.mjs/);
+ assert.throws(()=>verifyReviewWorkflow(
+  workflow.replace('node --check scripts/document-output-browser-qa.mjs','node --check scripts/no-output-qa.mjs'),
+ ));
+});
