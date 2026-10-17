@@ -5,6 +5,8 @@
 更新：2026-10-17。本模块唯一业务基线为[需求v1.50](product-master-v2-requirements.md)。本表是V2唯一当前状态，不是过程日志；旧测试数字仅对原时点有效。当前源码已包含本会话AC-84增量，不能直接继承此前929项全量结果。
 
 ## 当前结论
+**2026-10-17 GitHub Linux 远端 CI 首轮实测与修复（未上线）**：GitHub PR #1 的 Actions run 38996348748 在 Ubuntu 24.04 完成真实 npm ci、1103项单测（1102通过/1跳过）、后端/前端/工具/B1-B3四组 TS 和 CI 安全测试；在文档检查因被 Git 忽略的 .agents/skills/fabric-ui-design/SKILL.md 不在远端检出而失败，构建与制品步骤因此跳过。隔离审查分支现已精确暂存该公开项目技能，新增 Git 索引文档链接闭包检查及反向缺文件回归，专项4/4通过、文档85份/602链接通过，完整本地1103项与构建再次通过。修复后 GitHub 远端是否全绿必须以新 run 为准。首轮 npm ci 另观察到29项依赖安全告警（13中/11高/5严重），未自动升级；须在生产发布安全复核中分类处置。正式 P1–P7 与生产部署仍 No-Go。
+
 
 **2026-10-17 远端自动构建基础设施（生产不部署）**：在上游审查分支新增 GitHub Actions .github/workflows/fabric-v2-review-build.yml，push 审查分支与 master 或 master PR 将以 Ubuntu 24.04/Node24 运行 npm ci、全量单测、四组 TypeScript、文档导航与 build；仅短期上传不含 sourcemap 的 dist 审查制品，GITHUB_TOKEN 仅 contents:read，不提供环境/SSH/数据库/COS/部署任务。增加三个持久 TS CI 分片配置和只读 CI 契约及 2 项反向安全测试；本机验证 1103 项单测（1102 通过、1设计跳过）、四组 tsc、构建、CI契约2/2与文档85份/601链接通过。**云端实际 run 尚须以 Actions 日志验收；本地绿色不是云端绿色**。服务器历史环境为远端 Ubuntu /opt/fabric/PM2，未来部署应以单独审批的制品哈希、真实DB备份/回滚与P1–P7证据为前提；本轮不触发生产部署。
 

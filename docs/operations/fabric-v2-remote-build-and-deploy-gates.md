@@ -30,6 +30,8 @@
 
 ## 当前明确的阻断
 
+**2026-10-17 CI 验证记录（需继续复核）**：首次 GitHub PR #1 Linux run 38996348748 的 npm ci、1103项单测和四组 TypeScript 检查全部通过，文档导航因 Git 忽略的 .agents/skills/fabric-ui-design/SKILL.md 不在 checkout 内而失败，构建及制品步骤跳过。现已在审查分支精确增补该项目 UI 技能，CI 预检增加对“文档相对链接的目标是否已被 Git 追踪”的验证；本地单测/构建与新增4项契约测试通过，远端最终运行结论仍以新日志为准。首轮 npm ci 输出 **29 项依赖漏洞警告（13 moderate、11 high、5 critical）**，并非本轮修复范围；正式发布前须对依赖来源、影响范围、实际暴露面与升级/缓解路线人工核查，不得把“CI 绿灯”当作漏洞风险已消除。
+
 一期 node scripts/check-fabric-v2-phase1-delivery.mjs --status 必须如实报告 readyForReview:false、releaseAuthorized:false，因为正式 server.ts / src/App.tsx 接线及八项外部真实验收仍未完成。B1 外网花型图片网关和稳定分享实际实现、B3 寄样/跟进表的真实隔离 MySQL 与工作 UI 也不能由 CI 替代。早期远端 MySQL/SSH 文档是**历史只读核查**，不能直接证明现时线上状态。
 
 源依据：[一期发布门禁](../product-master/product-master-v2-phase1-delivery-readiness.md)、[V2当前进度](../product-master/product-master-v2-progress.md)、[运行与部署](运行与部署.md)。
