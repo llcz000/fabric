@@ -45,6 +45,22 @@ jobs:
           node scripts/check-v2-remote-ci.mjs
           node --test scripts/check-v2-remote-ci.test.mjs
 
+      - name: Verify pinned security patch and audit reporter contracts
+        run: node --test scripts/check-fabric-v2-dependency-baseline.test.mjs scripts/report-fabric-v2-dependency-audit.test.mjs
+
+      - name: Report production dependency risk (review-only, not a deploy gate)
+        shell: bash
+        run: |
+          set +e
+          npm audit --omit=dev --json > "$RUNNER_TEMP/fabric-v2-production-audit.json"
+          result=$?
+          set -e
+          if [ "$result" -gt 1 ]; then
+            echo "npm audit unavailable (cannot certify security risk)" >&2
+            exit "$result"
+          fi
+          node scripts/report-fabric-v2-dependency-audit.mjs "$RUNNER_TEMP/fabric-v2-production-audit.json"
+
       - name: Offline unit and service HTTP tests
         run: npm run test:unit
 

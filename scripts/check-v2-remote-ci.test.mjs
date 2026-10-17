@@ -35,3 +35,10 @@ test('detects ignored but locally present documentation target in a fresh-checko
  const missing=findMissingTrackedDocLinks(root,tracked);
  assert(missing.some(x=>x.includes('.agents/skills/fabric-ui-design/SKILL.md')));
 });
+
+test('review CI verifies patched dependency baseline and publishes live read-only audit risk',()=>{
+ assert.match(workflow,/run: node --test scripts\/check-fabric-v2-dependency-baseline\.test\.mjs scripts\/report-fabric-v2-dependency-audit\.test\.mjs/);
+ assert.match(workflow,/npm audit --omit=dev --json/);
+ assert.match(workflow,/report-fabric-v2-dependency-audit\.mjs/);
+ assert.match(workflow,/\$result.*-gt 1/);
+});
