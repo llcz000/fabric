@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>产品维护｜新增与编辑 - Fabric</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: {
+              DEFAULT: '#346ef6',
+              hover: '#2557d6',
+              light: '#eff4ff',
+            },
+            surface: {
+              DEFAULT: '#f8fafc',
+              card: '#ffffff',
+              subtle: '#f1f5f9',
+            },
+            border: {
+              DEFAULT: '#e2e8f0',
+              subtle: '#edf2f7',
+            },
+            content: {
+              main: '#0f172a',
+              muted: '#64748b',
+              subtle: '#94a3b8',
+            }
+          },
+          fontFamily: {
+            sans: ['Hanken Grotesk', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    body {
+      background-color: #f8fafc;
+      color: #0f172a;
+      font-family: 'Hanken Grotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    /* 自定义开关样式 */
+    .switch-checkbox:checked + .switch-label {
+      background-color: #346ef6;
+    }
+    .switch-checkbox:checked + .switch-label .switch-dot {
+      transform: translateX(18px);
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-50 flex flex-col">
+<!-- 顶部主导航 -->
+<header class="bg-white border-b border-slate-200 sticky top-0 z-30">
+<div class="max-w-[1440px] mx-auto px-8 h-14 flex items-center justify-between">
+<div class="flex items-center space-x-10">
+<!-- Brand -->
+<span class="text-xl font-bold tracking-tight text-slate-900">Fabric</span>
+<!-- Nav Links -->
+<nav class="flex items-center space-x-1">
+<a class="px-3.5 py-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 rounded-md transition-colors" href="#">花型库</a>
+<a class="px-3.5 py-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 rounded-md transition-colors" href="#">面料库</a>
+<a class="px-3.5 py-1.5 text-sm font-semibold text-primary border-b-2 border-primary -mb-[18px] pb-[16px] flex items-center" href="#">
+            产品库
+          </a>
+</nav>
+</div>
+<!-- 右端管理员 -->
+<div class="flex items-center space-x-3">
+<div class="w-7 h-7 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-xs font-medium">
+          管
+        </div>
+<span class="text-sm font-medium text-slate-700">管理员</span>
+</div>
+</div>
+</header>
+<!-- 页面主体容器 -->
+<main class="flex-1 max-w-[1440px] w-full mx-auto px-8 py-6 flex flex-col space-y-5">
+<!-- 标题与动作操作栏 -->
+<div class="flex items-center justify-between pb-1">
+<div class="flex items-center space-x-2.5">
+<a class="text-slate-500 hover:text-slate-800 text-base font-normal flex items-center group transition-colors" href="#">
+<svg class="w-4 h-4 mr-1 text-slate-400 group-hover:text-slate-600 transition-colors" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M15 19l-7-7 7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+          返回产品库
+        </a>
+<span class="text-slate-300">/</span>
+<h1 class="text-xl font-bold text-slate-900 tracking-tight">产品维护｜新增与编辑</h1>
+</div>
+<div class="flex items-center space-x-3">
+<button class="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-md hover:bg-slate-50 hover:text-slate-800 transition-colors" type="button">
+          取消
+        </button>
+<button class="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary-hover shadow-sm transition-colors flex items-center" type="button">
+<svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+          保存产品
+        </button>
+</div>
+</div>
+<!-- 核心区域1：上部产品组合选择区（左右两列严格对齐） -->
+<div class="grid grid-cols-2 gap-5 items-stretch">
+<!-- 左列：花型编号与配色版本 -->
+<section class="bg-white rounded-lg border border-slate-200 p-4 shadow-sm flex flex-col justify-between">
+<div>
+<div class="flex items-center justify-between mb-2">
+<div class="flex items-center space-x-1.5">
+<span class="text-red-500 font-bold">*</span>
+<label class="text-sm font-semibold text-slate-800">花型编号与配色版本</label>
+</div>
+<div class="flex items-center space-x-2">
+<span class="text-[11px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200/80 font-medium">未开单（可变更）</span>
+<a class="text-xs text-slate-400 hover:text-primary transition-colors flex items-center" href="#">
+            去花型库维护
+            <svg class="w-3.5 h-3.5 ml-0.5" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</a>
+</div>
+</div>
+<div class="relative mb-2.5"><div class="flex items-center justify-between w-full h-9 px-3 bg-slate-50 border border-slate-300 rounded-md hover:border-slate-400 focus-within:border-primary focus-within:ring-1 focus-within:ring-primary transition-all cursor-pointer"><div class="flex items-center space-x-2 text-xs"><svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg><span class="font-bold font-mono text-slate-900">1234-1</span><span class="text-slate-500 font-normal">(母版 1234 · 配色 1)</span></div><svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M19 9l-7 7-7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg></div></div>
+<!-- 紧凑单行/双行摘要 -->
+<div class="bg-slate-50/80 rounded border border-slate-200/70 p-3 text-xs flex items-center justify-between text-slate-600"><div class="flex items-center space-x-3"><div class="w-10 h-10 rounded border border-dashed border-slate-300 bg-white flex flex-col items-center justify-center text-slate-400 text-center flex-shrink-0 cursor-default"><svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path></svg><span class="text-[10px] scale-90">待上传图</span></div><div class="space-y-1"><div class="flex flex-wrap items-center gap-x-3 gap-y-1"><div><span class="text-slate-400">母版:</span> <span class="font-medium text-slate-800 font-mono">1234</span></div><div class="text-slate-300">|</div><div><span class="text-slate-400">配色:</span> <span class="font-medium text-slate-800 font-mono">1</span></div><div class="text-slate-300">|</div><div><span class="text-slate-400">题材:</span> <span class="font-medium text-slate-800">花卉/植物</span></div></div><div class="flex items-center space-x-1.5"><span class="text-slate-400">颜色标签:</span><span class="inline-flex items-center px-1.5 py-0.2 rounded-full text-[11px] bg-blue-50 text-blue-700 border border-blue-200/60"><span class="w-1.5 h-1.5 rounded-full bg-blue-800 mr-1"></span>藏蓝</span><span class="inline-flex items-center px-1.5 py-0.2 rounded-full text-[11px] bg-white text-slate-700 border border-slate-200"><span class="w-1.5 h-1.5 rounded-full bg-slate-400 mr-1"></span>米白</span><span class="text-[10px] text-slate-400 ml-1">(仅原图筛选标签)</span></div></div></div><div class="text-[11px] text-slate-400 font-medium bg-slate-100 px-2 py-1 rounded border border-slate-200/60 flex-shrink-0">配色已锁定为 1</div></div>
+</div>
+</section>
+<!-- 右列：面料品号 -->
+<section class="bg-white rounded-lg border border-slate-200 p-4 shadow-sm flex flex-col justify-between">
+<div>
+<div class="flex items-center justify-between mb-2">
+<div class="flex items-center space-x-1.5">
+<span class="text-red-500 font-bold">*</span>
+<label class="text-sm font-semibold text-slate-800">面料品号</label>
+</div>
+<div class="flex items-center space-x-2">
+<span class="text-[11px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200/80 font-medium">在用规格</span>
+<a class="text-xs text-slate-400 hover:text-primary transition-colors flex items-center" href="#">
+            去面料库维护
+            <svg class="w-3.5 h-3.5 ml-0.5" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</a>
+</div>
+</div>
+<div class="relative mb-2.5">
+<div class="flex items-center justify-between w-full h-9 px-3 bg-slate-50 border border-slate-300 rounded-md hover:border-slate-400 focus-within:border-primary focus-within:ring-1 focus-within:ring-primary transition-all cursor-pointer">
+<div class="flex items-center space-x-2 text-xs">
+<svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span class="font-semibold text-slate-900">S24</span>
+<span class="text-slate-500 font-normal">(示例面料02)</span>
+</div>
+<svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M19 9l-7 7-7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</div>
+</div>
+<!-- 紧凑单行摘要 -->
+<div class="bg-slate-50/80 rounded border border-slate-200/70 px-3 py-2 text-xs flex flex-wrap items-center gap-x-4 gap-y-1 text-slate-600">
+<div><span class="text-slate-400">品名:</span> <span class="font-medium text-slate-800">示例面料02</span></div>
+<div class="text-slate-300">|</div>
+<div><span class="text-slate-400">成分:</span> <span class="font-medium text-slate-800">100%真丝</span></div>
+<div class="text-slate-300">|</div>
+<div><span class="text-slate-400">克重:</span> <span class="font-medium text-slate-800">16 mm</span></div>
+<div class="text-slate-300">|</div>
+<div><span class="text-slate-400">门幅:</span> <span class="font-medium text-slate-800">140 cm</span></div>
+</div>
+</div>
+</section>
+</div>
+<!-- 核心区域2：只读自动编号 + 备注 + 启用状态条（集中对齐紧凑行） -->
+<section class="bg-white rounded-lg border border-slate-200 px-4 py-3 flex items-center justify-between shadow-sm">
+<div class="flex items-center space-x-6 flex-1">
+<!-- 自动生成的产品编号 -->
+<div class="flex items-center space-x-2 flex-shrink-0">
+<span class="text-xs font-semibold text-slate-600 uppercase tracking-wider">货号</span>
+<div class="flex items-center space-x-2 px-2.5 py-1 bg-slate-100 rounded border border-slate-200">
+<svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span class="text-sm font-bold font-mono text-slate-900 tracking-tight">1234-1-S24</span>
+<span class="text-[11px] text-slate-500 bg-white px-1.5 py-0.2 rounded border border-slate-200">自动生成 · 只读</span>
+</div>
+</div>
+<!-- 单行产品备注 -->
+<div class="flex items-center space-x-2 flex-1 max-w-xl">
+<label class="text-xs font-medium text-slate-600 flex-shrink-0" for="product-remark">备注</label>
+<input class="w-full text-xs h-8 px-3 bg-white border border-slate-200 rounded focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-slate-800 placeholder-slate-400" id="product-remark" placeholder="可填写单行产品备注，如常规现货、限定款等..." type="text"/>
+</div>
+</div>
+<!-- 右侧：启用状态开关 -->
+<div class="flex items-center space-x-3 pl-6 border-l border-slate-200 flex-shrink-0">
+<span class="text-xs font-medium text-slate-700">启用状态</span>
+<div class="flex items-center">
+<input checked="" class="hidden switch-checkbox" id="status-toggle" type="checkbox"/>
+<label class="switch-label cursor-pointer w-10 h-5 bg-slate-300 rounded-full relative transition-colors duration-200 flex items-center p-0.5" for="status-toggle">
+<span class="switch-dot w-4 h-4 bg-white rounded-full shadow-md transition-transform duration-200 block"></span>
+</label>
+<span class="ml-2 text-xs font-medium text-emerald-600">已启用</span>
+</div>
+</div>
+</section>
+<!-- 核心区域3：下部图片资料（三个并列图片区，处于同一行，1440首屏完整可见） -->
+<section class="bg-white rounded-lg border border-slate-200 p-5 shadow-sm flex flex-col space-y-4">
+<!-- 横排选项卡 Tabs 切换栏 -->
+<div class="flex items-center justify-between border-b border-slate-200 pb-0">
+<div class="flex items-center space-x-2 -mb-px">
+<button class="px-4 py-2 text-sm font-semibold text-primary border-b-2 border-primary flex items-center space-x-1.5 transition-colors" type="button">
+<span>面料大图</span>
+<span class="text-xs font-normal text-slate-500 bg-blue-50 px-1.5 py-0.2 rounded border border-blue-100">0 / 10</span>
+</button>
+<button class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 border-b-2 border-transparent flex items-center space-x-1.5 transition-colors" type="button">
+<span>面料细节图</span>
+<span class="text-xs font-normal text-slate-400 bg-slate-100 px-1.5 py-0.2 rounded">0 / 10</span>
+</button>
+<button class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 border-b-2 border-transparent flex items-center space-x-1.5 transition-colors" type="button">
+<span>效果图</span>
+<span class="text-xs font-normal text-slate-400 bg-slate-100 px-1.5 py-0.2 rounded">0 / 10</span>
+</button>
+</div>
+<div class="text-xs text-slate-400 pb-2">
+      切换类别保留已选图片与排序 · 保存时统一提交全部类别
+    </div>
+</div>
+<!-- Tab 内容区域：顶部控制与操作条 -->
+<div class="flex items-center justify-between py-1">
+<div class="flex items-center space-x-2 text-xs text-slate-500">
+<span class="inline-block w-1.5 h-1.5 rounded-full bg-primary"></span>
+<span>第 1 张为该类主图，支持单张上传、替换与排序</span>
+</div>
+<div class="flex items-center space-x-2">
+<button class="px-3 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-300 rounded hover:bg-slate-50 hover:text-slate-900 transition-colors flex items-center shadow-sm" type="button">
+<svg class="w-3.5 h-3.5 mr-1 text-slate-500" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+        批量删除选中
+      </button>
+<button class="px-3 py-1.5 text-xs font-medium text-white bg-primary rounded hover:bg-primary-hover transition-colors flex items-center shadow-sm" type="button">
+<svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M12 4v16m8-8H4" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+        + 上传图片
+      </button>
+</div>
+</div>
+<!-- 图片紧凑缩略图网格区域 (90x90px 尺寸卡片) -->
+<div class="p-4 bg-slate-50/60 rounded-lg border border-slate-200/80 min-h-[140px] flex items-center">
+<div class="flex flex-wrap items-center gap-3 w-full">
+<!-- 上传占位卡片 -->
+<div class="w-[96px] h-[96px] rounded border-2 border-dashed border-slate-300 hover:border-primary bg-white flex flex-col items-center justify-center text-center cursor-pointer transition-colors group shadow-sm flex-shrink-0">
+<svg class="w-5 h-5 text-slate-400 group-hover:text-primary transition-colors mb-1" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M12 4v16m8-8H4" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span class="text-[11px] font-medium text-slate-600 group-hover:text-primary transition-colors">上传图片</span>
+<span class="text-[10px] text-slate-400">点击或拖拽</span>
+</div>
+<!-- 空状态提示 -->
+<div class="ml-3 text-xs text-slate-400 flex flex-col space-y-1">
+<div class="text-slate-600 font-medium">当前分类暂未上传图片</div>
+<div>单张上传后支持自由调整序号、首张即自动应用为该类别主图</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- 页面底部版权或轻量状态 -->
+</body></html>

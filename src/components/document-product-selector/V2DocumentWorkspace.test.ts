@@ -12,7 +12,7 @@ test('P6 V2 workspace exposes actual create header and safe V2-only product entr
  }));
  for(const label of ['V2单据编辑工作区','公司名称','公司地址','公司电话','单据展示条款','开单人','收货人','收货联系电话','收货地址','已结清','从产品库添加','创建单据'])
   assert(html.includes(label),label);
- assert(html.includes('只通过V2认证接口写入'));
+ assert(html.includes('会保留原产品资料'));
  assert(!html.includes('/api/orders'));
  assert(!html.includes('预收定金'),'sample does not offer a deposit input');
 });

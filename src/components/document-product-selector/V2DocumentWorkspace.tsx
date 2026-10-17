@@ -15,6 +15,7 @@ export interface V2DocumentWorkspaceProps{
  role:'admin'|'sales';
  companyProfile:CompanyProfile;
  documentId?:string;
+ initialDraft?:DocumentData;
  onSaved:(document:DocumentData)=>void;
  onCancel:()=>void;
 }
@@ -40,7 +41,7 @@ function formatError(code:number):string {
  if(code===422)return '所选产品已停用或资料超出单据支持范围，请重新选择';
  return '单据保存或读取失败，请检查数据后重试';
 }
-export default function V2DocumentWorkspace({apiFetch,role,companyProfile,documentId,onSaved,onCancel}:V2DocumentWorkspaceProps){
+export default function V2DocumentWorkspace({apiFetch,role,companyProfile,documentId,initialDraft,onSaved,onCancel}:V2DocumentWorkspaceProps){
  const [draft,setDraft]=useState<DocumentData>(()=>emptyDocument(companyProfile));
  const [removed,setRemoved]=useState<string[]>([]);
  const [picker,setPicker]=useState<{rowId:string;mode:'add'|'replace'}|null>(null);
@@ -50,10 +51,12 @@ export default function V2DocumentWorkspace({apiFetch,role,companyProfile,docume
  const [savedId,setSavedId]=useState<string|null>(documentId??null);
  const [previewOpen,setPreviewOpen]=useState(false);
  const [depositText,setDepositText]=useState('0');
+ const [initialized,setInitialized]=useState(false),[autoNumber,setAutoNumber]=useState(true),[numberRevision,setNumberRevision]=useState(0),[numberBusy,setNumberBusy]=useState(false),[numberError,setNumberError]=useState('');
+ const [customers,setCustomers]=useState<string[]>([]);
  useEffect(()=>{
   let active=true;
   setSavedId(documentId??null);setPreviewOpen(false);
-  if(!documentId){setDraft(emptyDocument(companyProfile));setDepositText('0');setRemoved([]);setLoading(false);return;}
+  if(!documentId){const initial=initialDraft?structuredClone(initialDraft):emptyDocument(companyProfile);setDraft(initial);setDepositText(String(initial.deposit??0));setRemoved([]);setLoading(false);setInitialized(true);setAutoNumber(!initial.docNo);return;}
   const controller=new AbortController();
   setLoading(true);setError('');
   (async()=>{
@@ -69,7 +72,24 @@ export default function V2DocumentWorkspace({apiFetch,role,companyProfile,docume
    }finally{if(active)setLoading(false);}
   })();
   return ()=>{active=false;controller.abort();};
- },[apiFetch,documentId,companyProfile]);
+ },[apiFetch,documentId,initialDraft,companyProfile]);
+ useEffect(()=>{
+  if(documentId||savedId||!initialized||!autoNumber||!/^\d{4}-\d{2}-\d{2}$/.test(draft.date))return;
+  const abort=new AbortController();setNumberBusy(true);setNumberError('');
+  setDraft(before=>({...before,docNo:''}));
+  apiFetch('/api/v2/documents/reserve-number',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:draft.type===DocType.SALES?'bulk':draft.type,date:draft.date}),signal:abort.signal}).then(async response=>{
+   if(!response.ok)throw Error('默认编号获取失败，可重试或手工填写');const result=await response.json();if(typeof result.orderNo!=='string'||!result.orderNo)throw Error('默认编号无效');
+   if(!abort.signal.aborted)setDraft(before=>({...before,docNo:result.orderNo}));
+  }).catch(error=>{if(!abort.signal.aborted)setNumberError(error.message);}).finally(()=>{if(!abort.signal.aborted)setNumberBusy(false);});
+  return()=>{abort.abort();setNumberBusy(false);};
+ },[apiFetch,documentId,savedId,initialized,autoNumber,draft.type,draft.date,numberRevision]);
+ useEffect(()=>{
+  const abort=new AbortController();setCustomers([]);const timer=setTimeout(()=>{
+   apiFetch('/api/v2/documents/customers?'+new URLSearchParams({q:draft.customerName}).toString(),{signal:abort.signal}).then(async response=>{
+    if(!response.ok)return;const result=await response.json();if(!abort.signal.aborted&&Array.isArray(result.items)&&result.items.every((x:unknown)=>typeof x==='string'))setCustomers(result.items);
+   }).catch(()=>{});
+  },250);return()=>{clearTimeout(timer);abort.abort();};
+ },[apiFetch,draft.customerName]);
  const change=(field:keyof DocumentData,value:unknown)=>
   setDraft(before=>({...before,[field]:value}));
  const updateItem=(id:string,patch:Record<string,unknown>)=>
@@ -98,6 +118,7 @@ export default function V2DocumentWorkspace({apiFetch,role,companyProfile,docume
   if(saving||loading)return;
   setError('');
   try{
+   if(numberBusy&&autoNumber)throw Error('正在获取默认编号，请稍候');
    if(!draft.docNo.trim()||!draft.customerName.trim())throw Error('请填写单据编号和客户');
    if(draft.items.length===0)throw Error('请先通过产品库选择至少一条明细');
    setSaving(true);
@@ -136,8 +157,8 @@ export default function V2DocumentWorkspace({apiFetch,role,companyProfile,docume
   onBack={()=>setPreviewOpen(false)}/>;
  return <section className="mx-auto max-w-7xl space-y-5 rounded-2xl bg-white p-4 sm:p-6" aria-label="V2单据编辑工作区">
   <header className="flex flex-wrap justify-between gap-3">
-   <div><h2 className="text-xl font-semibold">{savedId?'编辑V2单据':'新建V2单据'}</h2>
-    <p className="text-xs text-slate-500">只通过V2认证接口写入；产品资料来自库内快照，修改业务字段不会刷新原产品</p></div>
+   <div><h2 className="text-xl font-semibold">{savedId?'编辑单据':'新建单据'}</h2>
+    <p className="text-xs text-slate-500">修改已存明细的米数和价格，会保留原产品资料。</p></div>
    {savedId&&<button type="button" disabled={!canEdit} onClick={()=>setPreviewOpen(true)}
     className="rounded-lg border border-emerald-300 px-4 py-2 text-sm text-emerald-800">预览已保存版本 / Excel</button>}
    <button type="button" disabled={!canEdit} onClick={onCancel}
@@ -145,6 +166,8 @@ export default function V2DocumentWorkspace({apiFetch,role,companyProfile,docume
   </header>
   {loading&&<div role="status" className="text-sm text-slate-600">正在读取V2单据…</div>}
   {error&&<div role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{error}</div>}
+  {numberError&&<p role="alert" className="text-sm text-rose-700">{numberError} <button type="button" onClick={()=>{setAutoNumber(true);setNumberRevision(n=>n+1);}}>重新获取编号</button></p>}
+  {initialDraft&&!savedId&&<p className="text-sm text-slate-600">正在新建副本。未关联产品的历史明细需重新选品；保存时使用当前产品资料，原单据保留。</p>}
   {!loading&&<>
    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
     {!savedId&&<label className="text-xs font-semibold">单据类型
@@ -157,24 +180,28 @@ export default function V2DocumentWorkspace({apiFetch,role,companyProfile,docume
       <option value={DocType.SALES}>销售发货码单</option>
      </select></label>}
     {headerFields.map(([key,label])=><label key={key} className="text-xs font-semibold text-slate-700">
-     {label}<input className={input} type={key==='date'?'date':'text'}
+     {label}<input name={key} list={key==='customerName'?'v2-customer-suggestions':undefined} className={input} type={key==='date'?'date':'text'}
       maxLength={key==='receiverAddress'?500:key==='companyAddress'?500:key==='companyName'?255:100}
-      disabled={!canEdit||Boolean(savedId)&&['docNo','date','customerName','styleNo'].includes(key)}
-      value={String(draft[key]??'')} onChange={e=>change(key,e.target.value)}/></label>)}
+      disabled={!canEdit} readOnly={['companyName','companyAddress','companyPhone'].includes(key)}
+      value={String(draft[key]??'')} onChange={e=>{if(key==='docNo'){setAutoNumber(false);setNumberError('');}change(key,e.target.value);}}/></label>)}
+    <datalist id="v2-customer-suggestions">{customers.map(value=><option key={value} value={value}/>)}</datalist>
     {draft.type!==DocType.SAMPLE&&<label className="text-xs font-semibold">{draft.type===DocType.DEPOSIT?'定金比例（%）':'定金金额（元）'}
      <input className={input} name="deposit" type="text" inputMode="decimal" maxLength={14}
       disabled={!canEdit} value={depositText} onChange={e=>setDepositText(e.target.value)}/></label>}
     {draft.type!==DocType.DEPOSIT&&<label className="flex items-center gap-2 text-sm">
      <input type="checkbox" checked={Boolean(draft.settled)} disabled={!canEdit}
       onChange={e=>change('settled',e.target.checked)}/>已结清</label>}
-    <label className="sm:col-span-2 lg:col-span-3 text-xs font-semibold">单据展示条款
-     <textarea className={input} rows={3} maxLength={12000} disabled={!canEdit}
-      value={draft.terms??''} onChange={e=>change('terms',e.target.value)}/></label>
+    <label className="sm:col-span-2 lg:col-span-3 text-xs font-semibold">单据展示条款（来自开单设置）
+     <textarea className={input} rows={3} maxLength={12000} readOnly
+      value={draft.type===DocType.DEPOSIT?companyProfile.depositTerms:companyProfile.defaultTerms}/></label>
    </div>
    <div className="flex items-center justify-between gap-3">
     <h3 className="font-semibold">产品明细（{draft.items.length}）</h3>
-    <button type="button" disabled={!canEdit} onClick={addItem}
+    <div className="flex gap-2"><button type="button" className="rounded border px-3 py-2 text-sm" disabled={!canEdit||!draft.items.length} onClick={()=>{
+     const removedIds=draft.items.filter(item=>idPattern.test(item.id)).map(item=>item.id);setRemoved(before=>[...new Set([...before,...removedIds])]);setDraft(before=>({...before,items:[]}));
+    }}>清空明细</button><button type="button" disabled={!canEdit} onClick={addItem}
      className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">从产品库添加</button>
+    </div>
    </div>
    <div className="space-y-3">
     {draft.items.map(row=>{

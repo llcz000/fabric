@@ -29,6 +29,14 @@ export function buildDocumentWorkbookFromModel(
  model:DocumentPrintModel,
  images:DocumentWorkbookInput['images']={}
 ):ExcelJS.Workbook{
+  images={...images};
+  for(const role of ['brand_logo','wechat_qr','alipay_qr'] as const){
+    const value=model.companyImages?.[role];if(!value||images[role])continue;
+    const found=/^data:(image\/(?:png|jpeg));base64,([A-Za-z0-9+/]+={0,2})$/.exec(value);
+    if(!found||found[2].length>3*1024*1024)throw Error('Invalid print raster image');
+    const body=Buffer.from(found[2],'base64');if(body.toString('base64')!==found[2])throw Error('Invalid print raster encoding');
+    images[role]={body,mime:found[1] as 'image/png'|'image/jpeg'};
+  }
   const columns = model.columns;
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('打印单据');
@@ -41,6 +49,7 @@ export function buildDocumentWorkbookFromModel(
   sheet.views = [{ showGridLines: false }];
 
   sheet.mergeCells(1, 1, 2, 2);
+  if(!images.brand_logo&&model.brandName)styledCell(sheet.getCell(1,1),model.brandName,18,true,'left');
   sheet.mergeCells(1, 3, 1, lastColumn);
   sheet.mergeCells(2, 3, 2, lastColumn);
   styledCell(sheet.getCell(1, 3), model.companyName, 18, true, 'right');

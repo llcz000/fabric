@@ -53,6 +53,11 @@ export function normalizePieceMeters(raw:unknown):number[]|null{
  if(!Array.isArray(items))throw new DocumentCalculationError('Invalid piece_meters array');
  return items.map((value,i)=>cents(value,'piece_meters['+i+']')/100);
 }
+/** Read projection for old fixed-slot forms only; never accepted for new V2 input. */
+export function normalizeStoredPieceMeters(raw:unknown,legacy:boolean):number[]|null{
+ if(legacy&&raw!=null){const values=typeof raw==='string'?JSON.parse(raw):raw;if(Array.isArray(values))return normalizePieceMeters(values.filter(value=>value!==null));}
+ return normalizePieceMeters(raw);
+}
 export function calculateLineAmounts(type:DocumentTypeInput,input:LineInput):CalculatedLine{
  const t=kind(type),m=cents(input.meters,'meters'),p=cents(input.unitPrice,'unit_price');
  const deduction=input.deductionMeters===undefined?0:cents(input.deductionMeters,'deduction_meters');

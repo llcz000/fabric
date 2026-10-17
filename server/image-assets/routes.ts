@@ -55,7 +55,8 @@ export interface ImageAssetRouteRuntime {
 
 type AssetRequest = express.Request & { imageAssetRequestId?: string };
 
-export function createImageAssetRouter(runtime: ImageAssetRouteRuntime): express.Router {
+export function createImageAssetRouter(runtime: ImageAssetRouteRuntime,
+  principal:(req:express.Request,res:express.Response)=>string=()=>PRINCIPAL_ID): express.Router {
   const router = express.Router();
 
   router.use((req: AssetRequest, res, next) => {
@@ -87,7 +88,7 @@ export function createImageAssetRouter(runtime: ImageAssetRouteRuntime): express
   router.post('/upload-sessions', asyncRoute(async (req, res) => {
     parse(strictEmptyObjectSchema, req.query);
     const input = parseDeclaredJsonBody(uploadSessionSchema, req);
-    const grant = await requireService(runtime).createUploadSession({ ...input, principalId: PRINCIPAL_ID });
+    const grant = await requireService(runtime).createUploadSession({ ...input, principalId: principal(req,res) });
     res.status(201).json({
       sessionId: grant.sessionId,
       uploadUrl: grant.uploadUrl,
@@ -101,14 +102,14 @@ export function createImageAssetRouter(runtime: ImageAssetRouteRuntime): express
     parseEmptyBody(req.body);
     parse(strictEmptyObjectSchema, req.query);
     const sessionId = parse(assetIdSchema, req.params.id);
-    const descriptor = await requireService(runtime).finalizeUploadSession(sessionId, PRINCIPAL_ID);
+    const descriptor = await requireService(runtime).finalizeUploadSession(sessionId, principal(req,res));
     res.json({ assetId: descriptor.id, ...descriptor });
   }));
 
   router.post('/access-urls', asyncRoute(async (req, res) => {
     parse(strictEmptyObjectSchema, req.query);
     const input = parseDeclaredJsonBody(accessUrlsSchema, req);
-    const results = await requireService(runtime).getAccessUrls(input.requests, PRINCIPAL_ID);
+    const results = await requireService(runtime).getAccessUrls(input.requests, principal(req,res));
     res.json({ results });
   }));
 
@@ -116,7 +117,7 @@ export function createImageAssetRouter(runtime: ImageAssetRouteRuntime): express
     parseEmptyBody(req.body);
     const assetId = parse(assetIdSchema, req.params.id);
     const query = parse(contentQuerySchema, req.query);
-    const content = await requireService(runtime).readContent(assetId, query.variant, PRINCIPAL_ID);
+    const content = await requireService(runtime).readContent(assetId, query.variant, principal(req,res));
     res.set('Content-Type', content.mime);
     res.set('Content-Length', String(content.byteSize));
     res.set('X-Content-Type-Options', 'nosniff');
@@ -129,7 +130,7 @@ export function createImageAssetRouter(runtime: ImageAssetRouteRuntime): express
     parse(strictEmptyObjectSchema, req.query);
     parseEmptyBody(req.body);
     const assetId = parse(assetIdSchema, req.params.id);
-    const descriptor = await requireService(runtime).getDescriptor(assetId, PRINCIPAL_ID);
+    const descriptor = await requireService(runtime).getDescriptor(assetId, principal(req,res));
     if (descriptor.status === 'processing' || descriptor.status === 'quarantine') {
       throw new ImageAssetError('ASSET_NOT_READY', 409, true, 'Asset is not ready');
     }
@@ -148,7 +149,7 @@ export function createImageAssetRouter(runtime: ImageAssetRouteRuntime): express
           body,
           contentLength,
           contentType: req.get('Content-Type')?.split(';')[0].trim() ?? '',
-          principalId: PRINCIPAL_ID,
+          principalId: principal(req,res),
         });
         res.status(204).end();
       }),

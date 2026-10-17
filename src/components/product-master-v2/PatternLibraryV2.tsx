@@ -444,7 +444,7 @@ export function PatternLibraryV2({apiFetch,canManage=false,allowExport=true,onCr
    <h1 className="text-xl font-semibold">花型库</h1>
    {allowExport?<CatalogExportButton apiFetch={apiFetch} listUrl={buildPatternUrl("/api/v2/pattern-catalog",filters)} filename="花型资料.xlsx"/>:null}
    {canManage&&onCreateMaster?<button onClick={onCreateMaster} type="button"
-    className="rounded bg-[#346ef6] px-3 py-2 text-xs text-white">新增母版</button>:null}
+    className="rounded bg-[#346ef6] px-3 py-2 text-xs text-white">新增花型</button>:null}
   </header>
   <div className={box+' flex flex-wrap items-center gap-2 px-3 py-2'}>
    <label className="flex items-center gap-1">

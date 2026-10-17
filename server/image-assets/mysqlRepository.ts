@@ -367,7 +367,11 @@ export class MySqlAssetRepository implements AssetRepository {
   }
 
   async replaceCompanyImage(companyId: number, role: CompanyImageRole, assetId: string | null): Promise<void> {
+    if(!['brand_logo','wechat_qr','alipay_qr'].includes(role))throw new Error('Invalid company image role');
     await this.inTransaction(async (connection) => {
+      // Serialize both an association change and explicit legacy-only removal.
+      await connection.query('SELECT id FROM company_config WHERE id = ? FOR UPDATE',[companyId]);
+      if(assetId===null)await connection.query('UPDATE company_config SET '+role+' = NULL WHERE id = ?',[companyId]);
       const linked = rows(await connection.query(
         'SELECT asset_id FROM company_image_assets WHERE company_id = ? AND role = ? FOR UPDATE',
         [companyId, role],

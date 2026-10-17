@@ -1,0 +1,105 @@
+{
+  "format": "fabric-v2-multi-agent-queue-v1",
+  "source": "docs/project/项目需求总览.md",
+  "tasks": [
+    {
+      "id": "query-ui-v2",
+      "owner": "frontend",
+      "priority": "P0",
+      "requirements": [
+        "QUERY-01",
+        "QUERY-02",
+        "QUERY-03"
+      ],
+      "title": "Connect V2 document search, matching detail totals and safe owner-scoped list",
+      "dependsOn": [],
+      "read": [
+        "server/order-v2/orderQueries.ts",
+        "src/components/document-product-selector/V2DocumentWorkspace.tsx"
+      ],
+      "edit": [
+        "src/components/document-product-selector/V2DocumentWorkspace.tsx",
+        "src/components/document-product-selector/V2DocumentWorkspace.test.ts"
+      ],
+      "remainingGate": "UI business review, real MySQL and formal App routing still not accepted"
+    },
+    {
+      "id": "stats-api-v2",
+      "owner": "backend",
+      "priority": "P0",
+      "requirements": [
+        "STATS-01",
+        "STATS-02"
+      ],
+      "title": "Complete owner-scoped top product name metrics and recent four orders",
+      "dependsOn": [],
+      "read": [
+        "server/order-v2/orderQueries.ts",
+        "server/order-v2/documentRoutes.ts"
+      ],
+      "edit": [
+        "server/order-v2/orderQueries.ts",
+        "server/order-v2/orderQueries.test.ts"
+      ],
+      "remainingGate": "Real database aggregation and UI Top5/recent order review remain open"
+    },
+    {
+      "id": "catalog-export-v2",
+      "owner": "backend",
+      "priority": "P1",
+      "requirements": [
+        "EX-01",
+        "EX-02"
+      ],
+      "title": "Add strict filtered metadata-only catalog XLSX export service and tests",
+      "dependsOn": [],
+      "read": [
+        "server/product-master/productsV2Routes.ts"
+      ],
+      "edit": [
+        "server/product-master/catalogExport.ts",
+        "server/product-master/catalogExport.test.ts"
+      ],
+      "remainingGate": "Per-library real filtered export routes and React UI not integrated or accepted"
+    },
+    {
+      "id": "doc-piece-input-v2",
+      "owner": "frontend",
+      "priority": "P1",
+      "requirements": [
+        "DOC-06"
+      ],
+      "title": "Replace free-text sales piece input with ten-row expandable numeric UI and checks",
+      "dependsOn": [
+        "query-ui-v2"
+      ],
+      "read": [
+        "src/components/document-product-selector/V2DocumentWorkspace.tsx",
+        "src/lib/documentPrintModel.ts"
+      ],
+      "edit": [
+        "src/components/document-product-selector/V2DocumentWorkspace.tsx",
+        "src/components/document-product-selector/V2DocumentWorkspace.test.ts"
+      ],
+      "remainingGate": "Sales UAT, preserved calculation and formal React route remain open"
+    },
+    {
+      "id": "scan-admin-v2",
+      "owner": "backend",
+      "priority": "P2",
+      "requirements": [
+        "SCAN-01"
+      ],
+      "title": "Allow registered active admins and sales to scan while preserving QR confidentiality",
+      "dependsOn": [],
+      "read": [
+        "server/customer-samples/scanRepository.ts"
+      ],
+      "edit": [
+        "server/customer-samples/scanRepository.ts",
+        "server/customer-samples/scanRepository.test.ts"
+      ],
+      "remainingGate": "Separate B2 sample-card live authorization, real QR, and customer-sample UAT remain open"
+    }
+  ]
+}

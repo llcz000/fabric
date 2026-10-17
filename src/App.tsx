@@ -18,6 +18,7 @@ const DocumentList = lazy(() => import('./components/DocumentList'));
 const DocumentEditor = lazy(() => import('./components/DocumentEditor'));
 const DocumentPreview = lazy(() => import('./components/DocumentPreview'));
 const CompanyProfileEditor = lazy(() => import('./components/CompanyProfileEditor'));
+const V2App = lazy(() => import('./components/product-master-v2/V2App'));
 const StatsDashboard = lazy(() => import('./components/StatsDashboard'));
 const ProductLibrary = lazy(() => import('./components/ProductLibrary'));
 const InventoryManager = lazy(() => import('./components/InventoryManager'));
@@ -226,7 +227,7 @@ function mapDocToBackendPayload(doc: DocumentData): any {
   };
 }
 
-export default function App() {
+function LegacyApp() {
   // Auth state
   const [authToken, setAuthToken] = useState<string | null>(sessionStorage.getItem('fabric_auth_token'));
   const [loginError, setLoginError] = useState('');
@@ -894,4 +895,16 @@ export default function App() {
     </ErrorBoundary>
     </Suspense>
   );
+}
+
+/** Server owns the active runtime; URL parameters and legacy bearer tokens cannot opt into V2. */
+export default function App(){
+ const [mode,setMode]=useState<'loading'|'legacy'|'v2'|'error'>('loading'),[retry,setRetry]=useState(0);
+ useEffect(()=>{const abort=new AbortController();fetch('/api/runtime',{signal:abort.signal,cache:'no-store'}).then(async response=>{
+  if(!response.ok)throw Error('Runtime unavailable');const value=await response.json();
+  if(value.mode!=='legacy'&&value.mode!=='v2')throw Error('Invalid runtime');if(!abort.signal.aborted)setMode(value.mode);
+ }).catch(()=>{if(!abort.signal.aborted)setMode('error');});return()=>abort.abort();},[retry]);
+ if(mode==='v2')return <ErrorBoundary><Suspense fallback={<p role="status">正在加载…</p>}><V2App/></Suspense></ErrorBoundary>;
+ if(mode==='legacy')return <LegacyApp/>;
+ return <main className="p-6">{mode==='error'?<><p role="alert">服务暂时不可用，请稍后重试。</p><button onClick={()=>{setMode('loading');setRetry(n=>n+1);}}>重试</button></>:<p role="status">正在连接服务…</p>}</main>;
 }

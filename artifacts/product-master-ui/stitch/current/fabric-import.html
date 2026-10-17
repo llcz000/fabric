@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+
+<html class="h-full bg-background" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>面料库｜Excel导入预览</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;family=Public+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS with Forms and Container Queries -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "on-secondary-fixed-variant": "#31447b",
+            "secondary-fixed": "#dbe1ff",
+            "surface": "#faf8ff",
+            "primary-fixed-dim": "#b4c5ff",
+            "on-primary-fixed-variant": "#003ea7",
+            "on-primary-fixed": "#00174b",
+            "secondary-container": "#acbffe",
+            "surface-dim": "#d9d9e5",
+            "surface-tint": "#0053da",
+            "primary-fixed": "#dbe1ff",
+            "tertiary-fixed-dim": "#ffb596",
+            "inverse-surface": "#2e3039",
+            "outline": "#737686",
+            "outline-variant": "#c3c6d7",
+            "on-tertiary-container": "#fffbff",
+            "on-secondary-container": "#394c84",
+            "tertiary-container": "#c64f0a",
+            "on-surface-variant": "#434655",
+            "on-tertiary-fixed-variant": "#7d2d00",
+            "tertiary": "#a03c00",
+            "on-tertiary": "#ffffff",
+            "on-primary": "#ffffff",
+            "primary": "#0051d5",
+            "inverse-on-surface": "#f0f0fc",
+            "secondary-fixed-dim": "#b3c5ff",
+            "on-secondary-fixed": "#00174a",
+            "surface-container-highest": "#e2e1ee",
+            "surface-bright": "#faf8ff",
+            "on-tertiary-fixed": "#360f00",
+            "tertiary-fixed": "#ffdbcd",
+            "surface-variant": "#e2e1ee",
+            "on-surface": "#191b24",
+            "surface-container-lowest": "#ffffff",
+            "on-secondary": "#ffffff",
+            "on-error": "#ffffff",
+            "error-container": "#ffdad6",
+            "background": "#faf8ff",
+            "surface-container-low": "#f3f2ff",
+            "primary-container": "#306bf3",
+            "inverse-primary": "#b4c5ff",
+            "surface-container-high": "#e7e7f4",
+            "on-primary-container": "#fefcff",
+            "secondary": "#495c94",
+            "surface-container": "#ededf9",
+            "on-error-container": "#93000a",
+            "on-background": "#191b24",
+            "error": "#ba1a1a"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.125rem",
+            "lg": "0.25rem",
+            "xl": "0.5rem",
+            "full": "0.75rem"
+          },
+          "spacing": {
+            "space-xs": "0.25rem",
+            "space-xxs": "0.125rem",
+            "margin": "1.5rem",
+            "gutter": "0.5rem",
+            "space-xl": "1.5rem",
+            "space-md": "0.75rem",
+            "space-lg": "1rem",
+            "space-sm": "0.5rem",
+            "gutter-table": "0.5rem"
+          },
+          "fontFamily": {
+            "body-sm": ["Hanken Grotesk"],
+            "body-md": ["Hanken Grotesk"],
+            "headline-sm": ["Hanken Grotesk"],
+            "body-lg": ["Hanken Grotesk"],
+            "label-md": ["Public Sans"],
+            "headline-lg": ["Hanken Grotesk"],
+            "caption": ["Hanken Grotesk"],
+            "headline-md": ["Hanken Grotesk"],
+            "label-sm": ["Public Sans"]
+          },
+          "fontSize": {
+            "body-sm": ["12px", { "lineHeight": "16px", "fontWeight": "400" }],
+            "body-md": ["13px", { "lineHeight": "18px", "fontWeight": "400" }],
+            "headline-sm": ["15px", { "lineHeight": "20px", "fontWeight": "600" }],
+            "body-lg": ["14px", { "lineHeight": "20px", "fontWeight": "500" }],
+            "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500" }],
+            "headline-lg": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.015em", "fontWeight": "600" }],
+            "caption": ["11px", { "lineHeight": "14px", "fontWeight": "400" }],
+            "headline-md": ["18px", { "lineHeight": "24px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+            "label-sm": ["11px", { "lineHeight": "14px", "letterSpacing": "0.03em", "fontWeight": "400" }]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+      font-size: 16px;
+      line-height: 1;
+      display: inline-block;
+      vertical-align: middle;
+    }
+    /* Hairline industrial table alignment */
+    table th, table td {
+      white-space: nowrap;
+    }
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #c3c6d7;
+      border-radius: 2px;
+    }
+  </style>
+</head>
+<body class="h-full flex flex-col font-body-md text-on-surface bg-background antialiased selection:bg-secondary-fixed">
+<!-- 1. Top Navigation Bar (Header Anchor) -->
+<header class="bg-surface-container-lowest border-b border-outline-variant sticky top-0 z-40">
+<div class="max-w-[1440px] mx-auto px-space-xl h-12 flex items-center justify-between">
+<!-- Left: Breadcrumb Back & Title -->
+<div class="flex items-center space-x-space-md">
+<a class="text-on-surface-variant hover:text-primary flex items-center text-label-md font-label-md transition-colors" href="javascript:void(0)">
+<span class="material-symbols-outlined mr-1 text-[16px]">arrow_back</span>
+<span>返回面料库</span>
+</a>
+<div class="h-3.5 w-[1px] bg-outline-variant"></div>
+<h1 class="font-headline-sm text-headline-sm text-on-surface font-semibold tracking-tight">面料Excel导入</h1>
+<span class="text-caption font-caption text-primary bg-primary-fixed/60 border border-primary/20 px-1.5 py-0.5 rounded">管理员权限</span>
+</div>
+<!-- Center: Process Step Indicator -->
+<div class="flex items-center text-label-sm font-label-sm text-on-surface-variant">
+<div class="flex items-center text-outline">
+<span class="w-4 h-4 rounded-full border border-outline flex items-center justify-center mr-1 text-[10px]">1</span>
+<span>选择文件</span>
+</div>
+<span class="material-symbols-outlined text-outline-variant mx-2 text-[14px]">chevron_right</span>
+<div class="flex items-center text-outline">
+<span class="w-4 h-4 rounded-full border border-outline flex items-center justify-center mr-1 text-[10px]">2</span>
+<span>确认字段</span>
+</div>
+<span class="material-symbols-outlined text-outline-variant mx-2 text-[14px]">chevron_right</span>
+<div class="flex items-center text-primary font-semibold bg-surface-container-low px-2 py-0.5 rounded-lg border border-primary/20">
+<span class="w-4 h-4 rounded-full bg-primary text-on-primary flex items-center justify-center mr-1 text-[10px]">3</span>
+<span>预览导入</span>
+</div>
+</div>
+<!-- Right: Action Buttons -->
+<div class="flex items-center space-x-space-sm">
+<button class="h-7 px-space-md text-label-md font-label-md bg-surface-container-lowest text-on-surface-variant border border-outline-variant rounded hover:bg-surface-container transition-colors flex items-center space-x-1">
+<span class="material-symbols-outlined text-[14px]">download</span>
+<span>下载模板</span>
+</button>
+<button class="h-7 px-space-md text-label-md font-label-md bg-surface-container-lowest text-on-surface-variant border border-outline-variant rounded hover:bg-surface-container transition-colors flex items-center space-x-1">
+<span class="material-symbols-outlined text-[14px]">sync</span>
+<span>更换文件</span>
+</button>
+<button class="h-7 px-space-sm text-label-md font-label-md text-on-surface-variant hover:text-on-surface transition-colors">
+          取消
+        </button>
+</div>
+</div>
+</header>
+<!-- Main Canvas Container -->
+<main class="flex-1 max-w-[1440px] w-full mx-auto px-space-xl py-space-md flex flex-col space-y-space-md pb-20">
+<!-- 2. Compact File & Field Mapping Bar -->
+<section class="bg-surface-container-lowest border border-outline-variant rounded shadow-sm">
+<div class="px-space-md py-2 flex flex-wrap items-center justify-between gap-y-2 border-b border-outline-variant/60">
+<!-- File details -->
+<div class="flex items-center space-x-space-md text-body-sm font-body-sm">
+<div class="flex items-center space-x-1 text-on-surface font-semibold bg-surface-container px-2 py-1 rounded">
+<span class="material-symbols-outlined text-primary text-[15px]">description</span>
+<span>面料导入示例.xlsx</span>
+</div>
+<div class="flex items-center space-x-1 text-on-surface-variant">
+<span>工作表:</span>
+<select class="h-6 py-0 pl-1.5 pr-6 text-label-sm font-label-sm bg-surface-container-lowest border border-outline-variant rounded focus:border-primary focus:ring-0">
+<option selected="">面料资料</option>
+<option>Sheet2</option>
+</select>
+</div>
+<div class="flex items-center space-x-1 text-on-surface-variant">
+<span>表头行:</span>
+<span class="font-medium text-on-surface">第 1 行</span>
+</div>
+<div class="h-3 w-[1px] bg-outline-variant"></div>
+<!-- Unit Rule Warning Badge -->
+<div class="flex items-center space-x-1 text-caption font-caption text-secondary bg-surface-container-low px-2 py-0.5 rounded border border-outline-variant/50">
+<span class="material-symbols-outlined text-secondary text-[13px]">info</span>
+<span>克重单位仅限 gsm 或 mm (姆米)，门幅单位 cm；纯数值缺单位需人工确认，不猜测不互换</span>
+</div>
+</div>
+<!-- Collapsible Toggle -->
+<button class="flex items-center space-x-1 text-primary hover:text-primary/80 text-label-sm font-label-sm font-medium" onclick="toggleFieldDetails()">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+<span>7项已匹配</span>
+<span class="text-on-surface-variant text-[11px]" id="mappingToggleText">(展开查看)</span>
+<span class="material-symbols-outlined text-[15px] transition-transform" id="mappingToggleIcon">expand_more</span>
+</button>
+</div>
+<!-- Expandable Mapping Drawer -->
+<div class="hidden px-space-md py-2.5 bg-surface-container-low/40 text-body-sm border-t border-outline-variant/30" id="mappingDetails">
+<div class="text-caption font-caption text-on-surface-variant mb-1.5 font-medium">字段映射详情 (7 个目标字段)：</div>
+<div class="grid grid-cols-4 gap-2 text-label-sm font-label-sm">
+<div class="p-1.5 bg-surface-container-lowest border border-outline-variant rounded flex justify-between items-center">
+<span class="text-on-surface font-semibold">品号 <span class="text-error text-[10px]">*必需</span></span>
+<span class="text-on-surface-variant text-caption font-caption">← 列 A (品号)</span>
+</div>
+<div class="p-1.5 bg-surface-container-lowest border border-outline-variant rounded flex justify-between items-center">
+<span class="text-on-surface font-semibold">品名 <span class="text-error text-[10px]">*必需</span></span>
+<span class="text-on-surface-variant text-caption font-caption">← 列 B (品名)</span>
+</div>
+<div class="p-1.5 bg-surface-container-lowest border border-outline-variant rounded flex justify-between items-center">
+<span class="text-on-surface">成分 <span class="text-outline text-[10px]">可选</span></span>
+<span class="text-on-surface-variant text-caption font-caption">← 列 C (成分)</span>
+</div>
+<div class="p-1.5 bg-surface-container-lowest border border-outline-variant rounded flex justify-between items-center">
+<span class="text-on-surface">克重 <span class="text-outline text-[10px]">可选</span></span>
+<span class="text-on-surface-variant text-caption font-caption">← 列 D (克重)</span>
+</div>
+<div class="p-1.5 bg-surface-container-lowest border border-outline-variant rounded flex justify-between items-center">
+<span class="text-on-surface">克重单位 <span class="text-outline text-[10px]">可选</span></span>
+<span class="text-on-surface-variant text-caption font-caption">← 列 E (克重单位)</span>
+</div>
+<div class="p-1.5 bg-surface-container-lowest border border-outline-variant rounded flex justify-between items-center">
+<span class="text-on-surface">门幅(cm) <span class="text-outline text-[10px]">可选</span></span>
+<span class="text-on-surface-variant text-caption font-caption">← 列 F (门幅)</span>
+</div>
+<div class="p-1.5 bg-surface-container-lowest border border-outline-variant rounded flex justify-between items-center">
+<span class="text-on-surface">备注 <span class="text-outline text-[10px]">可选</span></span>
+<span class="text-on-surface-variant text-caption font-caption">← 列 G (备注)</span>
+</div>
+</div>
+</div>
+</section>
+<!-- 3. Compact Count Bar & Filter Tabs -->
+<div class="flex items-center justify-between bg-surface-container-lowest px-space-md py-2 border border-outline-variant rounded">
+<!-- Filter pills -->
+<div class="flex items-center space-x-1.5">
+<span class="text-body-sm font-body-sm font-semibold text-on-surface mr-2">共 8 行数据</span>
+<button class="px-2.5 py-1 text-label-sm font-label-sm rounded-lg bg-on-surface text-on-primary font-medium" id="btnFilterAll" onclick="filterTable('all')">
+          全部 (8)
+        </button>
+<button class="px-2.5 py-1 text-label-sm font-label-sm rounded-lg text-on-surface-variant hover:bg-surface-container border border-outline-variant/60 flex items-center space-x-1" id="btnFilterInsert" onclick="filterTable('insert')">
+<span class="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
+<span>新增 (2)</span>
+</button>
+<button class="px-2.5 py-1 text-label-sm font-label-sm rounded-lg text-on-surface-variant hover:bg-surface-container border border-outline-variant/60 flex items-center space-x-1" id="btnFilterUpdate" onclick="filterTable('update')">
+<span class="w-2 h-2 rounded-full bg-primary inline-block"></span>
+<span>更新 (0)</span>
+</button>
+<button class="px-2.5 py-1 text-label-sm font-label-sm rounded-lg text-on-surface-variant hover:bg-surface-container border border-outline-variant/60 flex items-center space-x-1" id="btnFilterSkip" onclick="filterTable('skip')">
+<span class="w-2 h-2 rounded-full bg-amber-500 inline-block"></span>
+<span>跳过 (4)</span>
+</button>
+<button class="px-2.5 py-1 text-label-sm font-label-sm rounded-lg text-on-surface-variant hover:bg-surface-container border border-outline-variant/60 flex items-center space-x-1" id="btnFilterError" onclick="filterTable('error')">
+<span class="w-2 h-2 rounded-full bg-error inline-block"></span>
+<span>失败 (2)</span>
+</button>
+</div>
+<!-- Notice Banner -->
+<div class="flex items-center text-caption font-caption text-on-surface-variant">
+<span class="material-symbols-outlined text-outline mr-1 text-[14px]">format_image_left</span>
+<span>重复组和错误行不写入，其他合法行可继续导入</span>
+</div>
+</div>
+<!-- 4. Preview Table (8 Exact Rows & Differences) -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded overflow-hidden shadow-sm">
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse text-body-sm font-body-sm">
+<thead>
+<tr class="bg-surface-container-low text-on-surface-variant border-b border-outline-variant text-label-sm font-label-sm">
+<th class="py-2 px-space-md w-16 text-center">Excel行号</th>
+<th class="py-2 px-space-md w-28">品号</th>
+<th class="py-2 px-space-md w-44">品名</th>
+<th class="py-2 px-space-md w-36">成分</th>
+<th class="py-2 px-space-md w-28">克重</th>
+<th class="py-2 px-space-md w-24">门幅/cm</th>
+<th class="py-2 px-space-md w-36">处理方式</th>
+<th class="py-2 px-space-md">说明 / 操作</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/50">
+<!-- Row 2: S31 (新增) -->
+<tr class="row-item row-insert hover:bg-surface-bright transition-colors">
+<td class="py-2 px-space-md text-center text-outline font-label-sm">2</td>
+<td class="py-2 px-space-md font-semibold text-on-surface font-label-sm">S31</td>
+<td class="py-2 px-space-md text-on-surface font-medium">面料示例A</td>
+<td class="py-2 px-space-md text-on-surface-variant">100%棉</td>
+<td class="py-2 px-space-md text-on-surface-variant">120 gsm</td>
+<td class="py-2 px-space-md text-on-surface-variant">150</td>
+<td class="py-2 px-space-md">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>
+                  新增
+                </span>
+</td>
+<td class="py-2 px-space-md text-on-surface-variant text-caption">新面料，可直接写入</td>
+</tr>
+<!-- Row 3: S32 (新增) -->
+<tr class="row-item row-insert hover:bg-surface-bright transition-colors">
+<td class="py-2 px-space-md text-center text-outline font-label-sm">3</td>
+<td class="py-2 px-space-md font-semibold text-on-surface font-label-sm">S32</td>
+<td class="py-2 px-space-md text-on-surface font-medium">示例B</td>
+<td class="py-2 px-space-md text-outline">—</td>
+<td class="py-2 px-space-md text-outline">—</td>
+<td class="py-2 px-space-md text-outline">—</td>
+<td class="py-2 px-space-md">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>
+                  新增
+                </span>
+</td>
+<td class="py-2 px-space-md text-on-surface-variant text-caption">新面料</td>
+</tr>
+<!-- Row 4: S23 (跳过/更新已存在) -->
+<tr class="row-item row-skip hover:bg-surface-bright transition-colors">
+<td class="py-2 px-space-md text-center text-outline font-label-sm">4</td>
+<td class="py-2 px-space-md font-semibold text-on-surface font-label-sm">S23</td>
+<td class="py-2 px-space-md text-on-surface font-medium">已有面料01</td>
+<td class="py-2 px-space-md text-on-surface-variant">100%涤纶</td>
+<td class="py-2 px-space-md text-on-surface-variant">130 gsm</td>
+<td class="py-2 px-space-md text-on-surface-variant">150</td>
+<td class="py-2 px-space-md">
+<select class="h-6 py-0 pl-1.5 pr-6 text-label-sm font-label-sm bg-surface-container-lowest border border-outline-variant rounded focus:border-primary focus:ring-0" onchange="handleActionChange(this, 'diff-row-4')">
+<option selected="" value="skip">跳过 (默认)</option>
+<option value="update">更新</option>
+</select>
+</td>
+<td class="py-2 px-space-md">
+<div class="flex items-center space-x-2">
+<span class="text-on-surface-variant text-caption">品号已存在；</span>
+<button class="text-primary hover:underline text-caption font-medium flex items-center" id="btn-toggle-diff-row-4" onclick="toggleDiffRow('diff-row-4')">
+<span>查看差异</span>
+<span class="material-symbols-outlined text-[13px] ml-0.5">unfold_more</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 4 Collapsed Diff Sub-row (默认完全收起) -->
+<tr class="hidden bg-surface-container-low/60 border-b border-outline-variant/40" id="diff-row-4">
+<td class="py-1.5 px-space-md pl-16" colspan="8">
+<div class="flex items-center space-x-2 text-caption font-caption text-secondary">
+<span class="font-semibold text-on-surface">差异比对:</span>
+<span class="bg-surface-container-lowest px-1.5 py-0.5 rounded border border-outline-variant/50">
+                    克重: <span class="line-through text-outline">120 gsm</span> → <span class="text-primary font-semibold">130 gsm</span>
+</span>
+<span class="text-outline">（其他字段与数据库原档案一致无变更）</span>
+</div>
+</td>
+</tr>
+<!-- Row 5: S24 (空品名保留原值) -->
+<tr class="row-item row-skip hover:bg-surface-bright transition-colors">
+<td class="py-2 px-space-md text-center text-outline font-label-sm">5</td>
+<td class="py-2 px-space-md font-semibold text-on-surface font-label-sm">S24</td>
+<td class="py-2 px-space-md text-on-surface font-medium">
+  示例面料02<span class="text-outline text-caption ml-1 font-normal">（保留原值）</span>
+</td>
+<td class="py-2 px-space-md text-outline">—</td>
+<td class="py-2 px-space-md text-on-surface-variant">18 mm</td>
+<td class="py-2 px-space-md text-on-surface-variant">140</td>
+<td class="py-2 px-space-md">
+<select class="h-6 py-0 pl-1.5 pr-6 text-label-sm font-label-sm bg-surface-container-lowest border border-outline-variant rounded focus:border-primary focus:ring-0" onchange="handleActionChange(this, 'diff-row-5')">
+<option selected="" value="skip">跳过 (默认)</option>
+<option value="update">更新</option>
+</select>
+</td>
+<td class="py-2 px-space-md">
+<div class="flex items-center space-x-2">
+<span class="text-on-surface-variant text-caption">品号已存在；</span>
+<button class="text-primary hover:underline text-caption font-medium flex items-center" id="btn-toggle-diff-row-5" onclick="toggleDiffRow('diff-row-5')">
+<span>查看差异</span>
+<span class="material-symbols-outlined text-[13px] ml-0.5">unfold_more</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 5 Collapsed Diff Sub-row (默认完全收起) -->
+<tr class="hidden bg-surface-container-low/60 border-b border-outline-variant/40" id="diff-row-5">
+<td class="py-1.5 px-space-md pl-16" colspan="8">
+<div class="flex items-center space-x-3 text-caption font-caption text-secondary">
+<span class="font-semibold text-on-surface">差异比对:</span>
+<span class="bg-surface-container-lowest px-1.5 py-0.5 rounded border border-outline-variant/50">
+                    品名: 文件为空 (保留原值: <span class="text-on-surface font-medium">示例面料02</span>)
+                  </span>
+<span class="bg-surface-container-lowest px-1.5 py-0.5 rounded border border-outline-variant/50">
+                    克重: <span class="line-through text-outline">16 mm</span> → <span class="text-primary font-semibold">18 mm</span>
+</span>
+</div>
+</td>
+</tr>
+<!-- Row 6: S33 重复面料X (跳过) -->
+<tr class="row-item row-skip bg-amber-50/20 hover:bg-amber-50/40 transition-colors">
+<td class="py-2 px-space-md text-center text-outline font-label-sm">6</td>
+<td class="py-2 px-space-md font-semibold text-on-surface font-label-sm">S33</td>
+<td class="py-2 px-space-md text-on-surface font-medium">重复面料X</td>
+<td class="py-2 px-space-md text-on-surface-variant">100%丝</td>
+<td class="py-2 px-space-md text-on-surface-variant">16 mm</td>
+<td class="py-2 px-space-md text-on-surface-variant">140</td>
+<td class="py-2 px-space-md">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200">
+<span class="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5"></span>
+                  跳过
+                </span>
+</td>
+<td class="py-2 px-space-md text-amber-700 text-caption font-medium">
+                文件内重复组（关联第 7 行），整组跳过
+              </td>
+</tr>
+<!-- Row 7: S33 重复面料X (跳过) -->
+<tr class="row-item row-skip bg-amber-50/20 hover:bg-amber-50/40 transition-colors">
+<td class="py-2 px-space-md text-center text-outline font-label-sm">7</td>
+<td class="py-2 px-space-md font-semibold text-on-surface font-label-sm">S33</td>
+<td class="py-2 px-space-md text-on-surface font-medium">重复面料X</td>
+<td class="py-2 px-space-md text-on-surface-variant">100%丝</td>
+<td class="py-2 px-space-md text-on-surface-variant">16 mm</td>
+<td class="py-2 px-space-md text-on-surface-variant">140</td>
+<td class="py-2 px-space-md">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200">
+<span class="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5"></span>
+                  跳过
+                </span>
+</td>
+<td class="py-2 px-space-md text-amber-700 text-caption font-medium">
+                文件内重复组（关联第 6 行），整组跳过
+              </td>
+</tr>
+<!-- Row 8: S34 缺失品名 (失败) -->
+<tr class="row-item row-error bg-error-container/10 hover:bg-error-container/20 transition-colors">
+<td class="py-2 px-space-md text-center text-outline font-label-sm">8</td>
+<td class="py-2 px-space-md font-semibold text-on-surface font-label-sm">S34</td>
+<td class="py-2 px-space-md text-error font-medium flex items-center space-x-1">
+<span class="material-symbols-outlined text-error text-[14px]">error</span>
+<span>(缺失)</span>
+</td>
+<td class="py-2 px-space-md text-on-surface-variant">95%涤纶 5%氨纶</td>
+<td class="py-2 px-space-md text-on-surface-variant">180 gsm</td>
+<td class="py-2 px-space-md text-on-surface-variant">150</td>
+<td class="py-2 px-space-md">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-red-50 text-error border border-red-200">
+<span class="w-1.5 h-1.5 rounded-full bg-error mr-1.5"></span>
+                  失败
+                </span>
+</td>
+<td class="py-2 px-space-md text-error text-caption font-medium">必填字段[品名]缺失</td>
+</tr>
+<!-- Row 9: S35 无效克重 (失败) -->
+<tr class="row-item row-error bg-error-container/10 hover:bg-error-container/20 transition-colors">
+<td class="py-2 px-space-md text-center text-outline font-label-sm">9</td>
+<td class="py-2 px-space-md font-semibold text-on-surface font-label-sm">S35</td>
+<td class="py-2 px-space-md text-on-surface font-medium">面料示例C</td>
+<td class="py-2 px-space-md text-on-surface-variant">100%麻</td>
+<td class="py-2 px-space-md text-error font-medium flex items-center space-x-1">
+<span class="material-symbols-outlined text-error text-[14px]">error</span>
+<span>-1 gsm</span>
+</td>
+<td class="py-2 px-space-md text-on-surface-variant">145</td>
+<td class="py-2 px-space-md">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-red-50 text-error border border-red-200">
+<span class="w-1.5 h-1.5 rounded-full bg-error mr-1.5"></span>
+                  失败
+                </span>
+</td>
+<td class="py-2 px-space-md text-error text-caption font-medium">克重数值无效 (-1 gsm)</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</main>
+<!-- 6. Sticky Bottom Footer Bar -->
+<footer class="fixed bottom-0 left-0 right-0 bg-surface-container-lowest border-t border-outline-variant z-40 shadow-sm">
+<div class="max-w-[1440px] mx-auto px-space-xl h-14 flex items-center justify-between">
+<!-- Left side notice -->
+<div class="flex items-center space-x-2 text-body-sm font-body-sm text-on-surface-variant">
+<span class="material-symbols-outlined text-outline text-[16px]">info</span>
+<span>提示：重复组和错误行不写入，其他合法行可继续。</span>
+</div>
+<!-- Right side action buttons & tooltip -->
+<div class="flex items-center space-x-space-md">
+<!-- Explanatory Tooltip badge -->
+<span class="text-caption font-caption text-outline hidden md:inline">
+          若包含更新操作，将弹出新旧差异与更新数量确认
+        </span>
+<button class="h-8 px-space-lg text-label-md font-label-md bg-surface-container-lowest text-on-surface-variant border border-outline-variant rounded hover:bg-surface-container transition-colors">
+          取消
+        </button>
+<button class="h-8 px-space-lg text-label-md font-label-md bg-primary hover:bg-primary-container text-on-primary rounded font-semibold transition-colors flex items-center space-x-1 shadow-sm" id="btnSubmitImport">
+<span class="material-symbols-outlined text-[16px]">file_upload</span>
+<span id="submitImportLabel">导入合法行 (2)</span>
+</button>
+</div>
+</div>
+</footer>
+<!-- Micro-interactions Script -->
+<script>
+    // Toggle field mapping details drawer
+    function toggleFieldDetails() {
+      const details = document.getElementById('mappingDetails');
+      const text = document.getElementById('mappingToggleText');
+      const icon = document.getElementById('mappingToggleIcon');
+      if (details.classList.contains('hidden')) {
+        details.classList.remove('hidden');
+        text.innerText = '(收起)';
+        icon.classList.add('rotate-180');
+      } else {
+        details.classList.add('hidden');
+        text.innerText = '(展开查看)';
+        icon.classList.remove('rotate-180');
+      }
+    }
+
+    // Toggle inline difference sub-rows (accordion behavior: does not expand two at the same time)
+    function toggleDiffRow(rowId) {
+      const allDiffs = ['diff-row-4', 'diff-row-5'];
+      const target = document.getElementById(rowId);
+
+      allDiffs.forEach(id => {
+        if (id !== rowId) {
+          const other = document.getElementById(id);
+          if (other) other.classList.add('hidden');
+        }
+      });
+
+      if (target) {
+        target.classList.toggle('hidden');
+      }
+    }
+
+    // Filtering table rows
+    function filterTable(type) {
+      const rows = document.querySelectorAll('.row-item');
+
+      // Update filter tab styling
+      const btnAll = document.getElementById('btnFilterAll');
+      const btnInsert = document.getElementById('btnFilterInsert');
+      const btnUpdate = document.getElementById('btnFilterUpdate');
+      const btnSkip = document.getElementById('btnFilterSkip');
+      const btnError = document.getElementById('btnFilterError');
+
+      [btnAll, btnInsert, btnUpdate, btnSkip, btnError].forEach(btn => {
+        btn.className = "px-2.5 py-1 text-label-sm font-label-sm rounded-lg text-on-surface-variant hover:bg-surface-container border border-outline-variant/60 flex items-center space-x-1";
+      });
+
+      if (type === 'all') {
+        btnAll.className = "px-2.5 py-1 text-label-sm font-label-sm rounded-lg bg-on-surface text-on-primary font-medium";
+        rows.forEach(r => r.style.display = '');
+      } else {
+        if (type === 'insert') btnInsert.className = "px-2.5 py-1 text-label-sm font-label-sm rounded-lg bg-emerald-700 text-on-primary font-medium flex items-center space-x-1";
+        if (type === 'update') btnUpdate.className = "px-2.5 py-1 text-label-sm font-label-sm rounded-lg bg-primary text-on-primary font-medium flex items-center space-x-1";
+        if (type === 'skip') btnSkip.className = "px-2.5 py-1 text-label-sm font-label-sm rounded-lg bg-amber-700 text-on-primary font-medium flex items-center space-x-1";
+        if (type === 'error') btnError.className = "px-2.5 py-1 text-label-sm font-label-sm rounded-lg bg-error text-on-primary font-medium flex items-center space-x-1";
+
+        rows.forEach(r => {
+          if (r.classList.contains('row-' + type)) {
+            r.style.display = '';
+          } else {
+            r.style.display = 'none';
+          }
+        });
+      }
+    }
+
+    // Handle dropdown action change for Row 4 & 5 (Skip vs Update)
+    function handleActionChange(selectEl, diffId) {
+      const row = selectEl.closest('tr');
+
+      if (selectEl.value === 'update') {
+        row.classList.remove('row-skip');
+        row.classList.add('row-update');
+      } else {
+        row.classList.remove('row-update');
+        row.classList.add('row-skip');
+      }
+
+      // Recalculate legal lines count (New + Update)
+      const currentUpdates = document.querySelectorAll('.row-update').length;
+      const totalLegal = 2 + currentUpdates;
+
+      const submitLabel = document.getElementById('submitImportLabel');
+      submitLabel.innerText = `导入合法行 (${totalLegal})`;
+
+      const btnFilterUpdate = document.getElementById('btnFilterUpdate');
+      btnFilterUpdate.innerHTML = `<span class="w-2 h-2 rounded-full bg-primary inline-block"></span><span>更新 (${currentUpdates})</span>`;
+
+      const btnFilterSkip = document.getElementById('btnFilterSkip');
+      const currentSkips = document.querySelectorAll('.row-skip').length;
+      btnFilterSkip.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-500 inline-block"></span><span>跳过 (${currentSkips})</span>`;
+    }
+  </script>
+</body></html>

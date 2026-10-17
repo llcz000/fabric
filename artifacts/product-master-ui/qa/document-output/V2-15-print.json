@@ -1,0 +1,117 @@
+{
+  "type": "sample",
+  "title": "样布码单",
+  "companyName": "Fabric 演示公司",
+  "companyLines": [
+    "地址：演示地址",
+    "电话：演示电话"
+  ],
+  "docNo": "YB-DEMO-015",
+  "dateText": "2026年10月16日",
+  "customerName": "演示客户甲",
+  "columns": [
+    {
+      "key": "itemNo",
+      "label": "货号",
+      "excelWidth": 11,
+      "webFraction": 1.2
+    },
+    {
+      "key": "colorNo",
+      "label": "色号",
+      "excelWidth": 10,
+      "webFraction": 1
+    },
+    {
+      "key": "productName",
+      "label": "品名",
+      "excelWidth": 13,
+      "webFraction": 1
+    },
+    {
+      "key": "composition",
+      "label": "成分",
+      "excelWidth": 15,
+      "webFraction": 1.15
+    },
+    {
+      "key": "weight",
+      "label": "克重",
+      "excelWidth": 7.5,
+      "webFraction": 0.85
+    },
+    {
+      "key": "width",
+      "label": "门幅(cm)",
+      "excelWidth": 8.5,
+      "webFraction": 1.05
+    },
+    {
+      "key": "meters",
+      "label": "米数(米)",
+      "excelWidth": 8.5,
+      "webFraction": 1
+    },
+    {
+      "key": "unitPrice",
+      "label": "单价(元)",
+      "excelWidth": 8.5,
+      "webFraction": 1.05
+    },
+    {
+      "key": "amount",
+      "label": "金额(元)",
+      "excelWidth": 10.5,
+      "webFraction": 1.2
+    },
+    {
+      "key": "remark",
+      "label": "备注",
+      "excelWidth": 10,
+      "webFraction": 0.75
+    }
+  ],
+  "rows": [
+    [
+      "P001",
+      "1",
+      "棉麻布",
+      "棉 / 涤",
+      "120 gsm",
+      "150",
+      "10.00",
+      "¥20.00",
+      "¥200.00",
+      "演示明细"
+    ],
+    [
+      "P002",
+      "2",
+      "轻薄雪纺",
+      "棉 / 涤",
+      "120 gsm",
+      "150",
+      "20.00",
+      "¥20.00",
+      "¥400.00",
+      "演示明细"
+    ]
+  ],
+  "summaries": [
+    {
+      "left": "总计数（米）：30.00",
+      "right": "合计金额：¥600.00（大写：陆佰元整）"
+    },
+    {
+      "left": "实发总匹数：2 匹",
+      "right": "应收金额：¥600.00（大写：陆佰元整）"
+    }
+  ],
+  "terms": "仅本机评审数据",
+  "signature": {
+    "issuer": "演示开单人",
+    "receiver": "",
+    "phone": "",
+    "receiverAddress": ""
+  }
+}
