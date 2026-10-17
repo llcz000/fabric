@@ -25,7 +25,7 @@ function sendError(res:import('express').Response,error:unknown):void{
  * Strictly separate, opt-in V2 API. NOT mounted on legacy server.ts; a real
  * V2 schema migration and route-wide authorization is a release precondition.
  */
-export function createV2DocumentRouter(db:Database,options:{companyImages?:CompanyImageRuntime}={}):Router{
+export function createV2DocumentRouter(db:Database,options:{companyImages?:CompanyImageRuntime;companyPrintLabels?:boolean}={}):Router{
  const router=Router();
  router.use(json({limit:'64kb',strict:true}));
  router.use((_req,res,next)=>{res.setHeader('Cache-Control','no-store');next();});
@@ -86,7 +86,14 @@ export function createV2DocumentRouter(db:Database,options:{companyImages?:Compa
   const [raw]=await db.query('SELECT * FROM company_config WHERE id=1 LIMIT 1');
   if(!Array.isArray(raw)||raw.length!==1||!raw[0]||typeof raw[0]!=='object')
    throw new Error('Current company settings unavailable');
-  return raw[0] as Record<string,unknown>;
+  const settings=raw[0] as Record<string,unknown>;
+  if(options.companyPrintLabels){
+   const [labels]=await db.query('SELECT issuer_label,receiver_label FROM v2_company_print_labels WHERE company_id=1 LIMIT 1');
+   if(!Array.isArray(labels))throw Error('Current signature labels unavailable');
+   Object.assign(settings,labels.length===1?labels[0]:{
+    issuer_label:'开单人签字',receiver_label:'收货人签字'});
+  }
+  return settings;
  };
  /** Print and Excel use the same authorized persisted PRODUCT/trade record.
   * Never use legacy /api/export_template/:id (no V2 owner scoping). */
