@@ -31,6 +31,9 @@ import { ProductService } from './server/products/service';
 import type { ProductRouteRuntime } from './server/products/routes';
 import { mapLegacyProductImages } from './server/products/legacyCompatibility';
 import {createLegacyCutoverGuard,resolveLegacyCutoverMode} from './server/access/legacyCutoverGuard';
+import {resolveV2ProductionTarget} from './server/product-master/v2ProductionTarget';
+import {startV2ProductionServer} from './server/product-master/v2ProductionRuntime';
+import {createFrontendStaticRouter} from './server/frontendStatic';
 
 // Load environment variables
 dotenv.config();
@@ -44,6 +47,7 @@ const HOST = process.env.HOST || '127.0.0.1';
 
 // Trust forwarded client IPs only when the immediate proxy is on this host.
 app.set('trust proxy', 'loopback');
+app.get('/api/runtime',(_req,res)=>{res.set('Cache-Control','no-store').json({mode:'legacy'});});
 
 // Ensure local storage directories exist
 const TEMPLATE_DIR = path.join(process.cwd(), 'template');
@@ -2368,6 +2372,10 @@ app.use(async (error: unknown, req: express.Request, res: express.Response, next
 
 // ==================== Vite Dev Server (for development) ====================
 async function startServer() {
+  if(resolveV2ProductionTarget(process.env)){
+    await startV2ProductionServer();
+    return;
+  }
   // Initialize MySQL before accepting connections (avoid race condition)
   try {
     await getMySQLPool();
@@ -2392,13 +2400,7 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     // Production: serve static files from dist, prevent HTML caching
-    app.use(express.static(path.join(process.cwd(), 'dist'), {
-      setHeaders: (res, filePath) => {
-        if (filePath.endsWith('.html')) {
-          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-        }
-      }
-    }));
+    app.use(createFrontendStaticRouter(path.join(process.cwd(), 'dist')));
   }
 
   const server = app.listen(PORT, HOST, () => {

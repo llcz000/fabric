@@ -13,7 +13,7 @@ import {resolve,relative,sep} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 import ts from 'typescript';
-function staticSourceMounts(server,app){
+function staticSourceMounts(server,app,productionRuntime,productionHttp){
  const source=ts.createSourceFile('server.ts',String(server??''),ts.ScriptTarget.Latest,true,ts.ScriptKind.TS);
  const ui=ts.createSourceFile('App.tsx',String(app??''),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
  const routerVars=new Set();
@@ -36,6 +36,22 @@ function staticSourceMounts(server,app){
   ts.forEachChild(node,findMount);
  }
  findMount(source);
+ if(!backend&&productionRuntime&&productionHttp){
+  const parse=(name,value)=>ts.createSourceFile(name,String(value),ts.ScriptTarget.Latest,true,ts.ScriptKind.TS);
+  const runtime=parse('v2ProductionRuntime.ts',productionRuntime),http=parse('v2ProductionHttp.ts',productionHttp);
+  const matches=(node,test)=>{if(test(node))return true;return ts.forEachChild(node,child=>matches(child,test)||undefined)===true;};
+  const call=(node,name)=>ts.isCallExpression(node)&&ts.isIdentifier(node.expression)&&node.expression.text===name;
+  const imported=(file,name,module)=>file.statements.some(n=>ts.isImportDeclaration(n)&&ts.isStringLiteral(n.moduleSpecifier)&&n.moduleSpecifier.text===module&&n.importClause?.namedBindings&&ts.isNamedImports(n.importClause.namedBindings)&&n.importClause.namedBindings.elements.some(e=>e.name.text===name&&(!e.propertyName||e.propertyName.text===name)));
+  const fn=(file,name)=>file.statements.find(n=>ts.isFunctionDeclaration(n)&&n.name?.text===name)?.body;
+  const start=fn(source,'startServer'),assemble=fn(runtime,'createV2ProductionRouter'),run=fn(runtime,'startV2ProductionServer'),compose=fn(http,'createV2ProductionHttpApp');
+  const guarded=start&&matches(start,n=>ts.isIfStatement(n)&&call(n.expression,'resolveV2ProductionTarget')&&n.expression.arguments.length===1&&n.expression.arguments[0].getText(source)==='process.env'&&matches(n.thenStatement,c=>call(c,'startV2ProductionServer'))&&matches(n.thenStatement,c=>ts.isReturnStatement(c)));
+  const assembly=assemble&&matches(assemble,n=>ts.isVariableDeclaration(n)&&n.name.getText(runtime)==='db'&&n.initializer&&call(n.initializer,'createPinnedV2Database')&&n.initializer.arguments.map(a=>a.getText(runtime)).join(',')==='pool,target')&&
+   ['verifyV2ProductionSchema','verifyV2DocumentSupportSchema'].every(name=>matches(assemble,n=>ts.isAwaitExpression(n)&&call(n.expression,name)&&n.expression.arguments[0]?.getText(runtime)==='db'))&&
+   matches(assemble,n=>ts.isVariableDeclaration(n)&&n.name.getText(runtime)==='routes'&&n.initializer&&call(n.initializer,'createV2BusinessRoutes')&&n.initializer.arguments.slice(0,2).every(a=>a.getText(runtime)==='db'));
+  const launch=run&&matches(run,n=>ts.isAwaitExpression(n)&&call(n.expression,'createV2ProductionRouter'))&&matches(run,n=>call(n,'createV2ProductionHttpApp')&&n.arguments[0]?.getText(runtime)==='routes');
+  const mount=compose&&matches(compose,n=>ts.isCallExpression(n)&&ts.isPropertyAccessExpression(n.expression)&&n.expression.expression.getText(http)==='app'&&n.expression.name.text==='use'&&n.arguments.length===2&&ts.isStringLiteral(n.arguments[0])&&n.arguments[0].text==='/api/v2'&&n.arguments[1].getText(http)==='routes');
+  backend=Boolean(imported(source,'startV2ProductionServer','./server/product-master/v2ProductionRuntime')&&imported(source,'resolveV2ProductionTarget','./server/product-master/v2ProductionTarget')&&imported(runtime,'createV2ProductionHttpApp','./v2ProductionHttp')&&guarded&&assembly&&launch&&mount);
+ }
  function findUi(node){
   if(ts.isCallExpression(node)&&node.expression.kind===ts.SyntaxKind.ImportKeyword&&
    node.arguments.length===1&&ts.isStringLiteral(node.arguments[0])&&
@@ -69,8 +85,8 @@ const stripComments=v=>String(v??'').replace(/\/\*[\s\S]*?\*\//g,'').replace(/^\
 const validProof=proof=>typeof proof==='string'&&proof.length>12&&proof.length<360&&/^docs\/(?:operations|product-master|retrospectives\/development)\/[\w.\-\u4e00-\u9fa5/]+\.md(?:#[\w.\-]+)?$/i.test(proof);
 const validReviewer=name=>typeof name==='string'&&name.trim().length>=4&&name.length<=80;
 /** Pure assessment. Reviewer claims are ONLY inputs: CLI additionally requires a real local referenced file. */
-export function assessPhase1({server,app,evidence={}}={}){
- const {backend,frontend}=staticSourceMounts(server,app);
+export function assessPhase1({server,app,productionRuntime,productionHttp,evidence={}}={}){
+ const {backend,frontend}=staticSourceMounts(server,app,productionRuntime,productionHttp);
  const sourceGates={
   backendMount:{ok:backend,what:'正式server.ts装配受控V2路由/启用前置条件'},
   frontendMount:{ok:frontend,what:'正式src/App.tsx接入V2七页导航（静态证据）'}
@@ -138,7 +154,9 @@ if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
   const root=resolve(fileURLToPath(import.meta.url),'..','..');
   const evidence=loadEvidence(root,process.argv.slice(2));
   const result=assessPhase1({server:readFileSync(resolve(root,'server.ts'),'utf8'),
-   app:readFileSync(resolve(root,'src/App.tsx'),'utf8'),evidence});
+   app:readFileSync(resolve(root,'src/App.tsx'),'utf8'),
+   productionRuntime:readFileSync(resolve(root,'server/product-master/v2ProductionRuntime.ts'),'utf8'),
+   productionHttp:readFileSync(resolve(root,'server/product-master/v2ProductionHttp.ts'),'utf8'),evidence});
   console.log(JSON.stringify(result,null,2));
   if(!result.readyForReview)process.exitCode=2;
  }catch(error){

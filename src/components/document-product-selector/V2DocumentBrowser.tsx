@@ -1,5 +1,8 @@
 import React,{useEffect,useRef,useState} from 'react';
-import type {CompanyProfile} from '../../types';
+import type {CompanyProfile,DocumentData} from '../../types';
+import {fromV2DocumentRecord} from './documentAdapter';
+import {copyV2Draft} from './documentActionsModel';
+import {documentResourceUrl} from './documentSearchModel';
 import V2DocumentWorkspace from './V2DocumentWorkspace';
 import V2DocumentPrintView from './V2DocumentPrintView';
 import {createDocumentSearchController,emptySearchFilters,loadMatchingItems,DocumentQueryError,
@@ -9,9 +12,10 @@ const names={sample:'样布码单',bulk:'销售发货码单',deposit:'定金单'
 const money=(n:number)=>n.toFixed(2);
 const input='mt-1 w-full rounded-lg border border-[#c3c6d7] bg-white px-3 py-2 text-sm text-[#191b24] focus:outline-[#346ef6]';
 const button='rounded-lg border border-[#c3c6d7] px-3 py-2 text-sm disabled:opacity-40';
-export function DocumentSearchResults({state,expanded,onToggle,onEdit,onPreview,renderDetails}: {
+export function DocumentSearchResults({state,expanded,onToggle,onEdit,onPreview,onCopy,onDelete,renderDetails}: {
  state:DocumentSearchState;expanded:string|null;onToggle(id:string):void;onEdit(id:string):void;onPreview(id:string):void;
  renderDetails?:(id:string)=>React.ReactNode;
+ onCopy?:(id:string)=>void;onDelete?:(id:string)=>void;
 }){
  if(state.loading)return <p role="status" className="rounded-lg bg-white p-5 text-sm text-slate-600">正在查询单据与命中明细合计…</p>;
  if(state.error)return <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{state.error}</p>;
@@ -40,6 +44,7 @@ export function DocumentSearchResults({state,expanded,onToggle,onEdit,onPreview,
       <td className="px-4 py-3"><div className="flex flex-wrap gap-x-3 gap-y-2 text-xs text-[#0053da]">
        <button type="button" aria-expanded={expanded===item.id} onClick={()=>onToggle(item.id)}>{expanded===item.id?'收起命中明细':'展开命中明细'}</button>
        <button type="button" onClick={()=>onEdit(item.id)}>编辑单据</button><button type="button" onClick={()=>onPreview(item.id)}>预览 / Excel</button>
+       {onCopy&&<button type="button" onClick={()=>onCopy(item.id)}>复制</button>}{onDelete&&<button type="button" className="text-rose-700" onClick={()=>onDelete(item.id)}>删除</button>}
       </div></td>
      </tr>
      {expanded===item.id&&<tr><td colSpan={8} className="border-t bg-[#f8f9ff] p-4">{renderDetails?.(item.id)}</td></tr>}
@@ -76,23 +81,58 @@ export function V2DocumentBrowser({apiFetch,role,companyProfile,initialFilters}:
  const [filters,setFilters]=useState<DocumentSearchFilters>(()=>({...emptySearchFilters(),...initialFilters})),[applied,setApplied]=useState<DocumentSearchFilters>(()=>({...emptySearchFilters(),...initialFilters}));
  const [state,setState]=useState<DocumentSearchState>({loading:true,error:'',page:null,totals:null});
  const [expanded,setExpanded]=useState<string|null>(null),[limit,setLimit]=useState(20),[offset,setOffset]=useState(0);
- const [selected,setSelected]=useState<{id:string;mode:'edit'|'preview'}|null>(null);
+ const [selected,setSelected]=useState<{id:string;mode:'edit'|'preview'|'copy';draft?:DocumentData}|null>(null);
+ const [actionError,setActionError]=useState('');const action=useRef<AbortController|null>(null);
+ const [exporting,setExporting]=useState(false);
  const controller=useRef<ReturnType<typeof createDocumentSearchController>|null>(null);
  useEffect(()=>{
   const next=createDocumentSearchController(apiFetch,setState);controller.current=next;
   const initial={...emptySearchFilters(),...initialFilters};setFilters(initial);setApplied(initial);setOffset(0);setLimit(20);setExpanded(null);setSelected(null);
-  void next.search(initial);return ()=>next.dispose();
+  setActionError('');setExporting(false);action.current?.abort();action.current=null;
+  void next.search(initial);return ()=>{next.dispose();action.current?.abort();};
  },[apiFetch,role,initialFilters?.customer,initialFilters?.productName,initialFilters?.productNo,initialFilters?.colorNo,initialFilters?.type,initialFilters?.from,initialFilters?.to,initialFilters?.settled]);
  const search=(next:DocumentSearchFilters,nextOffset=0,nextLimit=limit)=>{
   setApplied(next);setOffset(nextOffset);setLimit(nextLimit);setExpanded(null);void controller.current?.search(next,nextOffset,nextLimit);
+ };
+ const copy=async(id:string)=>{
+  if(action.current)return;const current=new AbortController();action.current=current;setActionError('');
+  try{
+   const response=await apiFetch(documentResourceUrl(id),{signal:current.signal});if(!response.ok)throw Error('复制资料读取失败，请重新登录或重试');
+   const source=fromV2DocumentRecord(await response.json(),companyProfile),now=new Date();
+   const date=[now.getFullYear(),String(now.getMonth()+1).padStart(2,'0'),String(now.getDate()).padStart(2,'0')].join('-');
+   if(!current.signal.aborted)setSelected({id,mode:'copy',draft:copyV2Draft(source,date)});
+  }catch(e){if(!current.signal.aborted)setActionError(e instanceof Error?e.message:'复制失败');}
+  finally{if(action.current===current)action.current=null;}
+ };
+ const remove=async(id:string)=>{
+  if(action.current||!window.confirm('确认删除此单据及全部明细？删除后无法撤销。'))return;
+  const current=new AbortController();action.current=current;setActionError('');
+  try{
+   const response=await apiFetch(documentResourceUrl(id),{method:'DELETE',signal:current.signal});
+   if(!response.ok)throw Error(response.status===404?'单据不存在或没有删除权限':'删除失败，请重试');
+   if(!current.signal.aborted)search(applied,state.page?.items.length===1?Math.max(0,offset-limit):offset);
+  }catch(e){if(!current.signal.aborted)setActionError(e instanceof Error?e.message:'删除失败');}
+  finally{if(action.current===current)action.current=null;}
+ };
+ const exportDocuments=async()=>{
+  if(exporting||action.current)return;const current=new AbortController();action.current=current;setExporting(true);setActionError('');
+  try{
+   const response=await apiFetch('/api/v2/documents/export.json',{signal:current.signal});if(!response.ok)throw Error('单据快照导出失败');
+   const snapshot=await response.json();if(snapshot.format!=='fabric-v2-documents-export-v1'||!Array.isArray(snapshot.documents))throw Error('单据快照不完整');
+   if(current.signal.aborted)return;const url=URL.createObjectURL(new Blob([JSON.stringify(snapshot,null,2)],{type:'application/json'}));
+   const a=document.createElement('a');a.href=url;a.download='Fabric-单据快照.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }catch(e){if(!current.signal.aborted)setActionError(e instanceof Error?e.message:'单据快照导出失败');}
+  finally{if(action.current===current)action.current=null;if(!current.signal.aborted)setExporting(false);}
  };
  // Stable callback: detail effects must not restart when unrelated state changes.
  const onDenied=React.useCallback((message:string)=>{controller.current?.revoke(message);setExpanded(null);},[]);
  if(selected?.mode==='edit')return <V2DocumentWorkspace apiFetch={apiFetch} role={role} companyProfile={companyProfile} documentId={selected.id}
   onCancel={()=>setSelected(null)} onSaved={()=>{setSelected(null);search(applied,offset);}}/>;
+ if(selected?.mode==='copy')return <V2DocumentWorkspace apiFetch={apiFetch} role={role} companyProfile={companyProfile} initialDraft={selected.draft}
+  onCancel={()=>setSelected(null)} onSaved={()=>{setSelected(null);search(applied);}}/>;
  if(selected?.mode==='preview')return <V2DocumentPrintView apiFetch={apiFetch} documentId={selected.id} onBack={()=>setSelected(null)} backLabel="返回查询"/>;
  return <section aria-label="V2单据查询工作区" className="space-y-4 p-3 text-[#191b24] sm:p-6">
-  <header><h2 className="text-xl font-semibold">单据查询</h2><p className="mt-1 text-xs text-slate-500">{role==='admin'?'查看全公司单据':'仅查看本人单据'} · 按开单日期倒序</p></header>
+  <header className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-xl font-semibold">单据查询</h2><p className="mt-1 text-xs text-slate-500">{role==='admin'?'查看全公司单据':'仅查看本人单据'} · 按开单日期倒序</p></div><button className={button} type="button" disabled={exporting} onClick={()=>void exportDocuments()}>{exporting?'正在导出…':role==='admin'?'导出全公司单据 JSON':'导出全部本人单据 JSON'}</button></header>
   <form className="rounded-xl border border-[#c3c6d7] bg-white p-4" onSubmit={event=>{event.preventDefault();search(filters);}}>
    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
     {([['customer','客户'],['productNo','货号'],['colorNo','色号'],['productName','品名']] as const).map(([key,label])=><label key={key} className="text-xs font-medium">{label}<input name={key} className={input} maxLength={100} value={filters[key]} onChange={e=>setFilters(v=>({...v,[key]:e.target.value}))}/></label>)}
@@ -109,7 +149,9 @@ export function V2DocumentBrowser({apiFetch,role,companyProfile,initialFilters}:
   </form>
   <DocumentSearchResults state={state} expanded={expanded} onToggle={id=>setExpanded(v=>v===id?null:id)}
    onEdit={id=>setSelected({id,mode:'edit'})} onPreview={id=>setSelected({id,mode:'preview'})}
+   onCopy={id=>void copy(id)} onDelete={id=>void remove(id)}
    renderDetails={id=><MatchingDetails key={id} apiFetch={apiFetch} orderId={id} filters={applied} onDenied={onDenied}/>}/>
+  {actionError&&<p role="alert" className="text-sm text-rose-700">{actionError}</p>}
   {state.error&&<button type="button" className={button} onClick={()=>search(applied,offset)}>重试查询</button>}
   {state.page&&<footer className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600">
    <span>共 {state.page.total} 张单据 · 第 {Math.floor(offset/limit)+1} / {Math.max(1,Math.ceil(state.page.total/limit))} 页</span>

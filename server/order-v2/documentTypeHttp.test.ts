@@ -75,3 +75,20 @@ test('DOC-05/07 real private HTTP save, reread, patch, print and actual XLSX pre
   assert.equal(db.rollbacks,2);
  }finally{server.closeAllConnections();await new Promise<void>(r=>server.close(()=>r()));}
 });
+
+test('authorized print HTTP embeds current company raster in JSON and real XLSX with current signature captions',async()=>{
+ const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aPWsAAAAASUVORK5CYII=','base64');
+ const db=new MemoryDocumentDb(),app=express();
+ app.use('/api/v2',createV2DocumentRouter(db,{
+  async loadCurrentCompany(){return {company_name:'当前图片公司',address:'地址',phone:'电话',default_terms:'当前条款',deposit_terms:'定金条款',issuer_label:'开票签名',receiver_label:'客户签名'};},
+  async loadImages(){return {brand_logo:{body:png,mime:'image/png' as const}};}
+ }));
+ const server=app.listen(0,'127.0.0.1');await new Promise<void>(r=>server.once('listening',r));const base='http://127.0.0.1:'+(server.address() as {port:number}).port+'/api/v2/documents';
+ const headers={Authorization:'Bearer '+bearer,'Content-Type':'application/json'};
+ try{
+  const made=await fetch(base,{method:'POST',headers,body:JSON.stringify({orderNo:'OUTPUT-TEST',date:'2026-10-17',receivingUnit:'测试客户',type:'sample',deposit:0,items:[{manual:{productNo:'M001',productName:'测试'},fields:{meters:1,unitPrice:1}}]})});assert.equal(made.status,201);
+  const saved=await made.json(),response=await fetch(base+'/'+saved.id+'/print-model',{headers}),model=await response.json();
+  assert.equal(model.companyName,'当前图片公司');assert.equal(model.signatureLabels.issuer,'开票签名');assert.equal(model.companyImages.brand_logo,'data:image/png;base64,'+png.toString('base64'));
+  const file=await fetch(base+'/'+saved.id+'/export.xlsx',{headers});assert.equal(file.status,200);const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(Buffer.from(await file.arrayBuffer()));assert(workbook.getImage(0));
+ }finally{server.closeAllConnections();await new Promise<void>(r=>server.close(()=>r()));}
+});

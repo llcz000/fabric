@@ -15,9 +15,14 @@ test('P6 header editing has explicit partial update, null display reset allowed,
  for(const [key,value] of Object.entries(h))assert.deepEqual((edited as unknown as Record<string,unknown>)[key],value,key);
  assert.equal(validateV2DocumentEdit({items:[],removeIds:[],displaySnapshot:null}).displaySnapshot,null);
  for(const evil of [{items:[],removeIds:[],template_type:'bulk'},
-  {items:[],removeIds:[],orderNo:'changed'},
   {items:[],removeIds:[],createdByUserId:'3'}])
   assert.throws(()=>validateV2DocumentEdit(evil),DocumentWriteError);
+});
+
+test('DOC-01/03 editable number, date and customer are validated independently of stable document ID/type',()=>{
+ const data=validateV2DocumentEdit({items:[],removeIds:[],orderNo:'XS-NEW',date:'2026-10-17',receivingUnit:'新客户'});
+ assert.equal(data.orderNo,'XS-NEW');assert.equal(data.date,'2026-10-17');assert.equal(data.receivingUnit,'新客户');
+ for(const fields of [{date:'2026-02-30'},{orderNo:''},{receivingUnit:''}])assert.throws(()=>validateV2DocumentEdit({items:[],removeIds:[],...fields}));
 });
 test('P6 header rejects unknown keys, excessive length, invalid types, unsafe presentation snapshot',()=>{
  for(const bad of [

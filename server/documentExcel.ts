@@ -29,6 +29,14 @@ export function buildDocumentWorkbookFromModel(
  model:DocumentPrintModel,
  images:DocumentWorkbookInput['images']={}
 ):ExcelJS.Workbook{
+  images={...images};
+  for(const role of ['brand_logo','wechat_qr','alipay_qr'] as const){
+    const value=model.companyImages?.[role];if(!value||images[role])continue;
+    const found=/^data:(image\/(?:png|jpeg));base64,([A-Za-z0-9+/]+={0,2})$/.exec(value);
+    if(!found||found[2].length>3*1024*1024)throw Error('Invalid print raster image');
+    const body=Buffer.from(found[2],'base64');if(body.toString('base64')!==found[2])throw Error('Invalid print raster encoding');
+    images[role]={body,mime:found[1] as 'image/png'|'image/jpeg'};
+  }
   const columns = model.columns;
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('打印单据');
@@ -93,9 +101,9 @@ export function buildDocumentWorkbookFromModel(
   const footerRow = termsRow + 1;
   const qrStartColumn = Math.max(3, lastColumn - 3);
   sheet.mergeCells(footerRow, 1, footerRow, qrStartColumn - 1);
-  styledCell(sheet.getCell(footerRow, 1), `开单人签字：${model.signature.issuer}`, 11, false, 'left');
+  styledCell(sheet.getCell(footerRow, 1), `${model.signatureLabels?.issuer??'开单人签字'}：${model.signature.issuer}`, 11, false, 'left');
   sheet.mergeCells(footerRow + 1, 1, footerRow + 1, qrStartColumn - 1);
-  styledCell(sheet.getCell(footerRow + 1, 1), `收货人签字：${model.signature.receiver}    电话：${model.signature.phone}`, 11, false, 'left');
+  styledCell(sheet.getCell(footerRow + 1, 1), `${model.signatureLabels?.receiver??'收货人签字'}：${model.signature.receiver}    电话：${model.signature.phone}`, 11, false, 'left');
   for (let rowNumber = footerRow; rowNumber <= footerRow + 3; rowNumber++) sheet.getRow(rowNumber).height = 20;
 
   addCompanyImage(workbook, sheet, images.brand_logo, { col: 0.15, row: 0.2 }, { width: 105, height: 34 });

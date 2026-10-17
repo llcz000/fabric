@@ -56,6 +56,8 @@ export interface DocumentPrintSummary {
 }
 
 export interface DocumentPrintModel {
+  signatureLabels?: {issuer:string;receiver:string};
+  companyImages?: Partial<Record<'brand_logo'|'wechat_qr'|'alipay_qr',string>>;
   type: DocumentPrintType;
   title: string;
   companyName: string;

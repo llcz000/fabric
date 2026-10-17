@@ -10,6 +10,7 @@ import {Router,type ErrorRequestHandler} from 'express';
 import type {Pool} from '../order-v2/lines';
 import {requireV2Principal,type AccessDatabase} from '../access/middleware';
 import {createV2AccessRouter} from '../access/routes';
+import {createV2MemberRouter} from '../access/memberRoutes';
 import {createPatternMasterRouter} from './patternMastersRoutes';
 import {createColorwayIdentityRouter} from './colorwayIdentityRoutes';
 import {createSharedTagsRouter} from './sharedTagsRoutes';
@@ -17,7 +18,7 @@ import {createFabricRouter} from './fabricsRoutes';
 import {createV2ProductsRouter} from './productsV2Routes';
 import {createV2ProductSafetyRouter} from './productSafetyRoutes';
 import {createV2SelectorRouter} from './selectorRoutes';
-import {createV2DocumentRouter} from '../order-v2/documentRoutes';
+import {createV2DocumentRouter,type V2DocumentOutputDependencies} from '../order-v2/documentRoutes';
 import {createSampleCardLibraryRouter,createMySQLSampleCardLibraryDependencies} from '../customer-samples/cardLibraryRoutes';
 import {createSampleCardScanRouter} from '../customer-samples/cardScanRoutes';
 import {createMySQLSampleScanDependencies} from '../customer-samples/sampleDeps';
@@ -114,9 +115,15 @@ export async function createV2CatalogAssembly(database:AccessDatabase,pool:Pool,
  const identity=await requireSameIsolatedStorage(database,pool,options);
  const checkedPool=verifiedTransactionPool(pool,identity);
  const checkedDatabase=verifiedQueryDatabase(checkedPool);
+ return createV2BusinessRoutes(checkedDatabase,checkedPool);
+}
+
+/** Internal composition only. Callers must establish target and schema safety before mounting. */
+export function createV2BusinessRoutes(checkedDatabase:AccessDatabase,checkedPool:Pool,documentOutput?:V2DocumentOutputDependencies):Router{
  const routes=Router();
  routes.use((_req,res,next)=>{res.setHeader('Cache-Control','no-store');next();});
  routes.use('/access',createV2AccessRouter(checkedDatabase));
+ routes.use('/access',createV2MemberRouter(checkedDatabase,checkedPool));
  // Approved card management is independent of products.manage; scans still
  // require sales role plus the explicit customer sample-session grant.
  // Mount before catalog parser fall-through, with private parsers in each router.
@@ -137,7 +144,7 @@ export async function createV2CatalogAssembly(database:AccessDatabase,pool:Pool,
  // Use the same auth query adapter and transaction pool as the catalog;
  // production target identity must be checked before any future deployment.
  routes.use('/document-products',createV2SelectorRouter(checkedDatabase));
- routes.use(createV2DocumentRouter({query:checkedDatabase.query.bind(checkedDatabase),getConnection:checkedPool.getConnection.bind(checkedPool)}));
+ routes.use(createV2DocumentRouter({query:checkedDatabase.query.bind(checkedDatabase),getConnection:checkedPool.getConnection.bind(checkedPool)},documentOutput));
  /** Catch body-parser errors from auth routes too. Never forward Express's
   * development HTML traces into user-visible API responses. */
  const errors:ErrorRequestHandler=(error,_req,res,_next)=>{

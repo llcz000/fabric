@@ -7,6 +7,20 @@ import {createHash} from 'node:crypto';
 import {spawnSync} from 'node:child_process';
 import {assessPhase1,PHASE1_EVIDENCE_GATES,loadEvidence} from './check-fabric-v2-phase1-delivery.mjs';
 
+test('production source gate follows guarded startup, pinned/schema-verified assembly and real HTTP mount',()=>{
+ const sources={server:fs.readFileSync('server.ts','utf8'),app:fs.readFileSync('src/App.tsx','utf8'),productionRuntime:fs.readFileSync('server/product-master/v2ProductionRuntime.ts','utf8'),productionHttp:fs.readFileSync('server/product-master/v2ProductionHttp.ts','utf8')};
+ assert.equal(assessPhase1(sources).sourceGates.backendMount.ok,true);
+ for(const [field,from,to] of [
+  ['server','if(resolveV2ProductionTarget(process.env))','if(false)'],
+  ['server',"import {startV2ProductionServer} from './server/product-master/v2ProductionRuntime';",''],
+  ['productionRuntime','createPinnedV2Database(pool,target)','pool'],
+  ['productionRuntime','await verifyV2ProductionSchema(db,target.database);',''],
+  ['productionRuntime','await verifyV2DocumentSupportSchema(db);',''],
+  ['productionRuntime','createV2BusinessRoutes(db,db,output)','unverifiedRoutes(db)'],
+  ['productionHttp',"app.use('/api/v2',routes)","app.use('/api/v2',unknownRoutes)"]
+ ]){assert.notEqual(sources[field].replace(from,to),sources[field]);assert.equal(assessPhase1({...sources,[field]:sources[field].replace(from,to)}).sourceGates.backendMount.ok,false,field+from);}
+});
+
 test('P0-P7 release readiness defaults to blocked; local isolated tests never prove production',()=>{
  const r=assessPhase1({server:"import express from 'express'; const app=express();",app:"const ProductLibrary=lazy(()=>import('./components/ProductLibrary'));",evidence:{}});
  assert.equal(r.readyForReview,false);
