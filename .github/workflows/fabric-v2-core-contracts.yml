@@ -1,0 +1,32 @@
+# Code-only V2 baseline. Does not mount V2 routes, change DB or deploy.
+name: Fabric V2 core contracts (no deploy)
+on:
+  push:
+    branches:
+      - master
+      - codex/fabric-v2-phase1-core-merge-20261017
+  pull_request:
+    branches:
+      - master
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout reviewed commit
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Run all unit contracts
+        run: npm run test:unit
+      - name: Build unchanged legacy app
+        run: npm run build
