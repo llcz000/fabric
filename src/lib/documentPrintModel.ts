@@ -1,3 +1,4 @@
+import {calculateDocumentPayment} from '../../server/order-v2/calculations';
 export type DocumentPrintType = 'sample' | 'deposit' | 'sales';
 
 export interface DocumentPrintItemInput {
@@ -21,6 +22,9 @@ export interface DocumentPrintInput {
   date: string;
   customerName: string;
   companyName: string;
+  brandName?: string;
+  issuerLabel?: string;
+  receiverLabel?: string;
   companyAddress: string;
   companyPhone: string;
   defaultTerms: string;
@@ -37,6 +41,9 @@ export interface DocumentPrintInput {
   deposit: number;
   deductionMeters: number;
   items: DocumentPrintItemInput[];
+  /** Legacy print fallback creates one synthetic roll when none are entered;
+   * V2 must preserve the persisted zero-roll summary instead. */
+  salesRollFallback?:boolean;
 }
 
 export interface DocumentPrintColumn {
@@ -55,6 +62,9 @@ export interface DocumentPrintModel {
   type: DocumentPrintType;
   title: string;
   companyName: string;
+  brandName?: string;
+  signatureLabels?: {issuer: string; receiver: string};
+  companyImages?: Partial<Record<'brand_logo'|'wechat_qr'|'alipay_qr',string>>;
   companyLines: [string, string];
   docNo: string;
   dateText: string;
@@ -103,18 +113,19 @@ export function buildDocumentPrintModel(input: DocumentPrintInput): DocumentPrin
   const type = normalizeDocumentPrintType(input.type);
   const hasDeduction = type === 'sales' && (input.deductionMeters > 0 || input.items.some((item) => (item.deductionMeters ?? 0) > 0));
   const columns = type === 'sample' ? SAMPLE_COLUMNS : type === 'deposit' ? DEPOSIT_COLUMNS : salesColumns(hasDeduction);
-  const rows = input.items.flatMap((item) => buildRows(type, item, hasDeduction));
+  const rows = input.items.flatMap((item) => buildRows(type, item, hasDeduction,input.salesRollFallback!==false));
   const total = money(input.totalAmount);
-  const receivable = money(input.receivableAmount);
+  const payment=calculateDocumentPayment(type,input.totalAmount,input.deposit);
+  const receivable = money(payment.receivableAmount);
   const totalUpper = numberToChineseCapital(input.totalAmount);
-  const receivableUpper = numberToChineseCapital(input.receivableAmount);
+  const receivableUpper = numberToChineseCapital(payment.receivableAmount);
 
   let summaries: DocumentPrintSummary[];
   if (type === 'deposit') {
-    const depositAmount = input.totalAmount * input.deposit / 100;
+    const depositAmount = payment.depositAmount;
     summaries = [
       { left: `合计米数：${fixed(input.totalMeters)}`, right: `合计金额：${total}（大写：${totalUpper}）` },
-      { left: `定金金额：${trimNumber(input.deposit)}%  ${money(depositAmount)}（大写：${numberToChineseCapital(depositAmount)}）` },
+      { left: `定金金额：${trimNumber(input.deposit)}%  ${money(depositAmount)}（大写：${numberToChineseCapital(depositAmount)}）`,right:`应收金额：${receivable}（大写：${receivableUpper}）` },
     ];
   } else if (type === 'sales') {
     const deduction = input.deductionMeters > 0 ? `    扣损合计：${fixed(input.deductionMeters)} 米` : '';
@@ -125,7 +136,7 @@ export function buildDocumentPrintModel(input: DocumentPrintInput): DocumentPrin
   } else {
     summaries = [
       { left: `总计数（米）：${fixed(input.totalMeters)}`, right: `合计金额：${total}（大写：${totalUpper}）` },
-      { left: `实发总匹数：${input.totalPieces} 匹`, right: `应收金额：${receivable}（大写：${receivableUpper}）` },
+      { left: `实发总匹数：${input.items.length} 匹`, right: `应收金额：${receivable}（大写：${receivableUpper}）` },
     ];
   }
 
@@ -133,6 +144,8 @@ export function buildDocumentPrintModel(input: DocumentPrintInput): DocumentPrin
     type,
     title: type === 'deposit' ? '定金单' : type === 'sales' ? '销售发货码单' : '样布码单',
     companyName: input.companyName,
+    brandName: input.brandName ?? '',
+    signatureLabels:{issuer:input.issuerLabel?.trim()||'开单人签字',receiver:input.receiverLabel?.trim()||'收货人签字'},
     companyLines: [`地址：${input.companyAddress}`, `电话：${input.companyPhone}`],
     docNo: input.docNo,
     dateText: formatDateChinese(input.date),
@@ -145,10 +158,10 @@ export function buildDocumentPrintModel(input: DocumentPrintInput): DocumentPrin
   };
 }
 
-function buildRows(type: DocumentPrintType, item: DocumentPrintItemInput, hasDeduction: boolean): string[][] {
+function buildRows(type: DocumentPrintType, item: DocumentPrintItemInput, hasDeduction: boolean,salesRollFallback:boolean): string[][] {
   if (type === 'sample') return [[item.itemNo, item.colorNo || '-', item.productName, item.composition || '-', item.weight || '-', item.width || '-', fixed(item.meters), money(item.unitPrice), money(item.amount), item.remark || '']];
   if (type === 'deposit') return [[item.itemNo, item.colorNo || '-', item.productName, fixed(item.meters), money(item.unitPrice), money(item.amount)]];
-  const rolls = item.rollValues.length ? item.rollValues : parseRollValues([], item.meters);
+  const rolls = item.rollValues.length ? item.rollValues : salesRollFallback ? parseRollValues([], item.meters) : [];
   const chunks = Math.max(1, Math.ceil(rolls.length / 10));
   return Array.from({ length: chunks }, (_, index) => {
     const first = index === 0;
