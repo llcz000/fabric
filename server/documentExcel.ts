@@ -2,6 +2,7 @@ import ExcelJS from 'exceljs';
 
 import type { CompanyImageRole } from './image-assets/types';
 import { buildBackendDocumentPrintModel } from './documentPrintAdapter';
+import type {DocumentPrintModel} from '../src/lib/documentPrintModel';
 
 export interface DocumentWorkbookInput {
   order: Record<string, unknown>;
@@ -20,6 +21,14 @@ const THIN_BORDER: Partial<ExcelJS.Borders> = {
 export function buildDocumentWorkbook(input: DocumentWorkbookInput): ExcelJS.Workbook {
   const { order, items, company, images = {} } = input;
   const model = buildBackendDocumentPrintModel(order, items, company);
+  return buildDocumentWorkbookFromModel(model,images);
+}
+
+/** Shared model renders identical headings/rows/totals in preview and XLSX. */
+export function buildDocumentWorkbookFromModel(
+ model:DocumentPrintModel,
+ images:DocumentWorkbookInput['images']={}
+):ExcelJS.Workbook{
   const columns = model.columns;
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('打印单据');

@@ -1,10 +1,24 @@
 import { initializeProductDomainSchema } from '../products/schema';
+import { initializeV2ProductMasterSchema } from '../product-master/schema';
 
 export interface SqlConnection {
   query(sql: string, params?: unknown[]): Promise<[unknown, unknown]>;
 }
 
-export async function initializeImageAssetSchema(connection: SqlConnection): Promise<void> {
+/**
+ * The existing application deliberately retains its legacy schema on default
+ * startup until V2 route/auth/order cutover is validated. V2 is *explicit*
+ * and avoids creating legacy product tables or running their unsupported DDL.
+ * Do not infer this opt-in from image feature flags or use it on production
+ * before the new routes and history protections are ready.
+ */
+export async function initializeImageAssetSchema(
+  connection: SqlConnection,
+  options: { productDomain?: 'legacy' | 'v2' } = {},
+): Promise<void> {
+  if (options.productDomain !== undefined && options.productDomain !== 'legacy' && options.productDomain !== 'v2') {
+    throw new Error('Invalid product schema domain');
+  }
   await connection.query(`
     CREATE TABLE IF NOT EXISTS image_assets (
       id VARCHAR(36) PRIMARY KEY,
@@ -103,6 +117,10 @@ export async function initializeImageAssetSchema(connection: SqlConnection): Pro
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `);
 
+  if (options.productDomain === 'v2') {
+    await initializeV2ProductMasterSchema(connection);
+    return;
+  }
   await connection.query(`
     CREATE TABLE IF NOT EXISTS product_image_assets (
       id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

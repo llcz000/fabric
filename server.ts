@@ -30,11 +30,15 @@ import { MySqlProductRepository } from './server/products/mysqlRepository';
 import { ProductService } from './server/products/service';
 import type { ProductRouteRuntime } from './server/products/routes';
 import { mapLegacyProductImages } from './server/products/legacyCompatibility';
+import {createLegacyCutoverGuard,resolveLegacyCutoverMode} from './server/access/legacyCutoverGuard';
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
+// Default preserves the existing legacy app. Future V2 cutover must be
+// independently approved after data/identity and rollback gates are verified.
+app.use(createLegacyCutoverGuard(resolveLegacyCutoverMode(process.env.FABRIC_V2_LEGACY_ROUTE_MODE)));
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '127.0.0.1';
 

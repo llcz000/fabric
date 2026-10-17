@@ -1,0 +1,1899 @@
+{
+  "date": "2026-10-15",
+  "scope": "README + docs逐文件盘点；AGENTS及技能登记同步；其他应用/运行数据未清理",
+  "backup_directory": "D:\\fabric-knowledge-backups\\2026-10-15-115523",
+  "backup_archive": "knowledge-before.zip",
+  "backup_verified": "each file SHA256 and ZIP CRC",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "bytes": 4122,
+      "sha256": "1030ce0b5895c91712b07e21dc6c4b6e5d70eff5e8c2aede7b40280bd979d62c",
+      "action": "更新",
+      "replacement": "AGENTS.md",
+      "reason": "现行入口/同主题合并/引用修复；历史状态与当前进度分开",
+      "after_bytes": 4125,
+      "after_sha256": "7c2566abf6a97147bc0fa70fc348d6177e23fefd4ecc8f1cb0502d9b6d41772b"
+    },
+    {
+      "path": "docs/.obsidian/app.json",
+      "bytes": 133,
+      "sha256": "60971d9325cf966646a95efa64a06e4d340ed9fc8d7c6076b5d4dd9b7d2e1603",
+      "action": "保留",
+      "replacement": "docs/.obsidian/app.json",
+      "reason": "项目规范、运行说明、模板、维护审计或Obsidian配置，仍属于项目",
+      "after_bytes": 133,
+      "after_sha256": "60971d9325cf966646a95efa64a06e4d340ed9fc8d7c6076b5d4dd9b7d2e1603"
+    },
+    {
+      "path": "docs/.obsidian/appearance.json",
+      "bytes": 222,
+      "sha256": "2c3e3e9b661978595ff683f15ed9d9688bc81240c46bbb47643df14b794ca31c",
+      "action": "保留",
+      "replacement": "docs/.obsidian/appearance.json",
+      "reason": "项目规范、运行说明、模板、维护审计或Obsidian配置，仍属于项目",
+      "after_bytes": 222,
+      "after_sha256": "2c3e3e9b661978595ff683f15ed9d9688bc81240c46bbb47643df14b794ca31c"
+    },
+    {
+      "path": "docs/.obsidian/core-plugins.json",
+      "bytes": 696,
+      "sha256": "763cf20a921fd9955735b278006820b90b207b2fc04d9e79ca648279c7c14276",
+      "action": "保留",
+      "replacement": "docs/.obsidian/core-plugins.json",
+      "reason": "项目规范、运行说明、模板、维护审计或Obsidian配置，仍属于项目",
+      "after_bytes": 696,
+      "after_sha256": "763cf20a921fd9955735b278006820b90b207b2fc04d9e79ca648279c7c14276"
+    },
+    {
+      "path": "docs/.obsidian/workspace.json",
+      "bytes": 5964,
+      "sha256": "b0ff410ec1b61bb4a7e712ec5aedcaf5c7da246d9b6945c041f7582f7a0f891f",
+      "action": "保留",
+      "replacement": "docs/.obsidian/workspace.json",
+      "reason": "项目规范、运行说明、模板、维护审计或Obsidian配置，仍属于项目",
+      "after_bytes": 5964,
+      "after_sha256": "b0ff410ec1b61bb4a7e712ec5aedcaf5c7da246d9b6945c041f7582f7a0f891f"
+    },
+    {
+      "path": "docs/00-首页.md",
+      "bytes": 4589,
+      "sha256": "3603be963d24df59ea6224df65c2fbb1b04c4bbce8c7bd115ed2134489416698",
+      "action": "更新",
+      "replacement": "docs/00-首页.md",
+      "reason": "现行入口/同主题合并/引用修复；历史状态与当前进度分开",
+      "after_bytes": 2239,
+      "after_sha256": "f4c8edf9a34c66f72d2fcbb20bbae593c174aa290d802c15e85b630107c6cd87"
+    },
+    {
+      "path": "docs/Attachments/.gitkeep",
+      "bytes": 2,
+      "sha256": "7eb70257593da06f682a3ddda54a9d260d4fc514f645237f5ca74b08f8da61a6",
+      "action": "保留",
+      "replacement": "docs/Attachments/.gitkeep",
+      "reason": "项目规范、运行说明、模板、维护审计或Obsidian配置，仍属于项目",
+      "after_bytes": 2,
+      "after_sha256": "7eb70257593da06f682a3ddda54a9d260d4fc514f645237f5ca74b08f8da61a6"
+    },
+    {
+      "path": "docs/decisions/README.md",
+      "bytes": 2275,
+      "sha256": "b1d9f2ab4fd446471bebb98aa7bd1313550535941059c62f893765cf617d1e16",
+      "action": "更新",
+      "replacement": "docs/decisions/README.md",
+      "reason": "现行入口/同主题合并/引用修复；历史状态与当前进度分开",
+      "after_bytes": 3325,
+      "after_sha256": "01bcc4f7d56fff6906659fc7255fa4402272ea9b8649bb8c2c240b47319fd22d"
+    },
+    {
+      "path": "docs/development/开发与验证规范.md",
+      "bytes": 3249,
+      "sha256": "80c9969aa3b0fc99f090bfb0b8248df2586b67123178f27ad623993db64fc92d",
+      "action": "更新",
+      "replacement": "docs/development/开发与验证规范.md",
+      "reason": "现行入口/同主题合并/引用修复；历史状态与当前进度分开",
+      "after_bytes": 4113,
+      "after_sha256": "630456163a09473e1d36243eb5484b4b395c0b8cfee8d999db46c74b61114e27"
+    },
+    {
+      "path": "docs/maintenance/2026-10-09-知识库整合清单.md",
+      "bytes": 11406,
+      "sha256": "5474e2ee455fae92afbb0492cae873897d40882df0d7d2a9a584f49a1d727d9c",
+      "action": "合并后删除",
+      "replacement": "docs/maintenance/2026-10-15-项目内容清理.md#上一轮整合的保护约束",
+      "reason": "已落实的跨项目迁移明细移入仓库外备份，独有保护约束并入本轮维护记录"
+    },
+    {
+      "path": "docs/maintenance/artifacts-full-purge-2026-10-12.json",
+      "bytes": 13702,
+      "sha256": "edf7559b8418e2ea5ea2c447acaac27117a9c4820ed80e06a9bbc988982f3ebd",
+      "action": "保留",
+      "replacement": "docs/maintenance/artifacts-full-purge-2026-10-12.json",
+      "reason": "项目规范、运行说明、模板、维护审计或Obsidian配置，仍属于项目",
+      "after_bytes": 13702,
+      "after_sha256": "edf7559b8418e2ea5ea2c447acaac27117a9c4820ed80e06a9bbc988982f3ebd"
+    },
+    {
+      "path": "docs/maintenance/知识维护规则.md",
+      "bytes": 2593,
+      "sha256": "2fed88eb51733809f21c1ea7945cceb34713a13b948c6a75d1a5f6ecd77375c7",
+      "action": "更新",
+      "replacement": "docs/maintenance/知识维护规则.md",
+      "reason": "现行入口/同主题合并/引用修复；历史状态与当前进度分开",
+      "after_bytes": 2668,
+      "after_sha256": "106da1ced725cd90d49a654c0d9321de6b0c2692dd415f7d364dd36e7d95a9e4"
+    },
+    {
+      "path": "docs/operations/image-asset-operations.md",
+      "bytes": 6726,
+      "sha256": "584e249e1c4eeb9ec3921fc2a8e65582be462d4601f125d15f7090cce87f81b8",
+      "action": "保留",
+      "replacement": "docs/operations/image-asset-operations.md",
+      "reason": "项目规范、运行说明、模板、维护审计或Obsidian配置，仍属于项目",
+      "after_bytes": 6726,
+      "after_sha256": "584e249e1c4eeb9ec3921fc2a8e65582be462d4601f125d15f7090cce87f81b8"
+    },
+    {
+      "path": "docs/operations/运行与部署.md",
+      "bytes": 2160,
+      "sha256": "8084630091b803efb2348658ddb589717602264df657b4fc1af31ae91f1d7a99",
+      "action": "保留",
+      "replacement": "docs/operations/运行与部署.md",
+      "reason": "项目规范、运行说明、模板、维护审计或Obsidian配置，仍属于项目",
+      "after_bytes": 2160,
+      "after_sha256": "8084630091b803efb2348658ddb589717602264df657b4fc1af31ae91f1d7a99"
+    },
+    {
+      "path": "docs/product-master/fabric-v2-efficiency-phase-2026-10-15.md",
+      "bytes": 6525,
+      "sha256": "1ddb69b6a54896855b4bbe98cdd6a7fdc6386f33ce25b7d61459d89a66ccb29e",
+      "action": "保留",
+      "replacement": "docs/product-master/fabric-v2-efficiency-phase-2026-10-15.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 6525,
+      "after_sha256": "1ddb69b6a54896855b4bbe98cdd6a7fdc6386f33ce25b7d61459d89a66ccb29e"
+    },
+    {
+      "path": "docs/product-master/fabric-v2-skill-pressure-scenarios.md",
+      "bytes": 2905,
+      "sha256": "67c5165e77b2a4b4aba1d06a68619b0732488bac838a48eb5e701c4de874d249",
+      "action": "保留",
+      "replacement": "docs/product-master/fabric-v2-skill-pressure-scenarios.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 2905,
+      "after_sha256": "67c5165e77b2a4b4aba1d06a68619b0732488bac838a48eb5e701c4de874d249"
+    },
+    {
+      "path": "docs/product-master/history/product-master-v2-requirements-recovery.md",
+      "bytes": 8426,
+      "sha256": "775968e12544ba2dc73ec07798ddd1018cf8dbca47a400e5f90b325c54ebd6ff",
+      "action": "保留",
+      "replacement": "docs/product-master/history/product-master-v2-requirements-recovery.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 8426,
+      "after_sha256": "775968e12544ba2dc73ec07798ddd1018cf8dbca47a400e5f90b325c54ebd6ff"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-agent-context-handbook.md",
+      "bytes": 6142,
+      "sha256": "e0b1123207ca573baefa07cf33260e54570c5d192e96f1fe41b486a434a16ecd",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-agent-context-handbook.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 6142,
+      "after_sha256": "e0b1123207ca573baefa07cf33260e54570c5d192e96f1fe41b486a434a16ecd"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-b2-2-sql-transaction.md",
+      "bytes": 8446,
+      "sha256": "0df7880032ba77dc0a7c55948b5fd72c12f5d7a85e17aff5ac7ced490fe8f04b",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-b2-2-sql-transaction.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 8446,
+      "after_sha256": "0df7880032ba77dc0a7c55948b5fd72c12f5d7a85e17aff5ac7ced490fe8f04b"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-b2-3-card-library.md",
+      "bytes": 4589,
+      "sha256": "07f10aff19296a59f33f06b3becfbe1b0042463633886196a4e008b925b99b17",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-b2-3-card-library.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 4589,
+      "after_sha256": "07f10aff19296a59f33f06b3becfbe1b0042463633886196a4e008b925b99b17"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-b2-4-edge-browser-qa.md",
+      "bytes": 5419,
+      "sha256": "33ec659d439b0122326148329ca522177763f23a9ede3f807e82794e3cf34353",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-b2-4-edge-browser-qa.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 5419,
+      "after_sha256": "33ec659d439b0122326148329ca522177763f23a9ede3f807e82794e3cf34353"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-b2-4-review-regression.md",
+      "bytes": 4436,
+      "sha256": "42498881dbb1c9c3fe65113c7b5d8c5e9f6e1dd3820554e969f6209265947776",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-b2-4-review-regression.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 4436,
+      "after_sha256": "42498881dbb1c9c3fe65113c7b5d8c5e9f6e1dd3820554e969f6209265947776"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-b2-5-approved-decisions.md",
+      "bytes": 2929,
+      "sha256": "21b60485dda96e5a514849516b9cba890f6c70856748172c72a1ae7ffbd2d006",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-b2-5-approved-decisions.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 2929,
+      "after_sha256": "21b60485dda96e5a514849516b9cba890f6c70856748172c72a1ae7ffbd2d006"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-b2-5a-b-service-gate.md",
+      "bytes": 4488,
+      "sha256": "c92ba8a559ded6c0b2a6530e3f37d45521688fd542064674530578259495203c",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-b2-5a-b-service-gate.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 4488,
+      "after_sha256": "c92ba8a559ded6c0b2a6530e3f37d45521688fd542064674530578259495203c"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-b2-5c-reprint-gate.md",
+      "bytes": 4839,
+      "sha256": "1df2120510c854a7c723ca7f32206f4ebcf887201c3bcf7fe8ea11bff119d38f",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-b2-5c-reprint-gate.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 4839,
+      "after_sha256": "1df2120510c854a7c723ca7f32206f4ebcf887201c3bcf7fe8ea11bff119d38f"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-b2-5d-sampling-availability-gate.md",
+      "bytes": 5525,
+      "sha256": "16c7c9e23e286afb238621c71e26e3e383fa397444d1c35526feedc30d91a928",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-b2-5d-sampling-availability-gate.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 5525,
+      "after_sha256": "16c7c9e23e286afb238621c71e26e3e383fa397444d1c35526feedc30d91a928"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-b2-5e-schema-readiness.md",
+      "bytes": 2824,
+      "sha256": "96a9ddfe298b70e0179025a5c56a7a2f155cdde529d6733c1928eae2638c5a40",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-b2-5e-schema-readiness.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 2824,
+      "after_sha256": "96a9ddfe298b70e0179025a5c56a7a2f155cdde529d6733c1928eae2638c5a40"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-b2-5f-mysql-sandbox-harness.md",
+      "bytes": 4901,
+      "sha256": "ee875e55832724377d18dd25046c925051dde675e4d9a642b964abc43faa5493",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-b2-5f-mysql-sandbox-harness.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 4901,
+      "after_sha256": "ee875e55832724377d18dd25046c925051dde675e4d9a642b964abc43faa5493"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-b2-5g-server-identity-gate.md",
+      "bytes": 3443,
+      "sha256": "d50bc608e88c5f0e115a8fd446cc28fcd4befc4b35d28d0b598140a84ffca461",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-b2-5g-server-identity-gate.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 3443,
+      "after_sha256": "d50bc608e88c5f0e115a8fd446cc28fcd4befc4b35d28d0b598140a84ffca461"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-b2-5h-scan-lock-order.md",
+      "bytes": 3508,
+      "sha256": "d73b005d3fef3d45cca13460a37585b3424d855f9c06ad2b57a0b9a3379580d7",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-b2-5h-scan-lock-order.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 3508,
+      "after_sha256": "d73b005d3fef3d45cca13460a37585b3424d855f9c06ad2b57a0b9a3379580d7"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-b2b3-scan-foundation.md",
+      "bytes": 5965,
+      "sha256": "61deb3bffa2ff12982288871f45a1ef4aa6ff1e2c604678bdcce9a76c68efc62",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-b2b3-scan-foundation.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 5965,
+      "after_sha256": "61deb3bffa2ff12982288871f45a1ef4aa6ff1e2c604678bdcce9a76c68efc62"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-b3-history-ui-review.md",
+      "bytes": 3084,
+      "sha256": "c647629ebe6b4c8071c499e6b232af82cd9475248fa8f0c826df76a841d3501e",
+      "action": "更新",
+      "replacement": "docs/product-master/product-master-v2-b3-history-ui-review.md",
+      "reason": "现行入口/同主题合并/引用修复；历史状态与当前进度分开",
+      "after_bytes": 3427,
+      "after_sha256": "0056b865371b4859b05c0dea4055a023eaae44445faabe4f63d8a7e277bf1bee"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-b3-session-history-read.md",
+      "bytes": 3130,
+      "sha256": "65bdff612b329dc590ea779d9cc8119daff306c1122f14a8b9e1072c30546667",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-b3-session-history-read.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 3130,
+      "after_sha256": "65bdff612b329dc590ea779d9cc8119daff306c1122f14a8b9e1072c30546667"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-document-product-ui-review.md",
+      "bytes": 6565,
+      "sha256": "b6b64b37f2711f6c3e47a882a4d6a0813ba807214af011cce27862dd736aa62d",
+      "action": "更新",
+      "replacement": "docs/product-master/product-master-v2-document-product-ui-review.md",
+      "reason": "现行入口/同主题合并/引用修复；历史状态与当前进度分开",
+      "after_bytes": 6927,
+      "after_sha256": "4d535f95d379dc5bb589076d9480331762d9477d449707b34f451e5ec89fd993"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-environment-setup.md",
+      "bytes": 3335,
+      "sha256": "440bd8067fd77c32a1726b17addbc5a680ac84f905ffd1b9d030c7654c459ddf",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-environment-setup.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 3335,
+      "after_sha256": "440bd8067fd77c32a1726b17addbc5a680ac84f905ffd1b9d030c7654c459ddf"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-fabric-import-ui-review.md",
+      "bytes": 5434,
+      "sha256": "f25390e0442fa77191d46fe504b05163356ddcb4ac437cf254ab326551b85c23",
+      "action": "更新",
+      "replacement": "docs/product-master/product-master-v2-fabric-import-ui-review.md",
+      "reason": "现行入口/同主题合并/引用修复；历史状态与当前进度分开",
+      "after_bytes": 5745,
+      "after_sha256": "8c5ed5a9e271ce330549bea6fff048a5cf6e940dc560d28c042b1e604da68f40"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-fabric-ui-review.md",
+      "bytes": 5221,
+      "sha256": "df7826365479d702aaa828758de69016618bf1732c173713a797606a69d28716",
+      "action": "更新",
+      "replacement": "docs/product-master/product-master-v2-fabric-ui-review.md",
+      "reason": "现行入口/同主题合并/引用修复；历史状态与当前进度分开",
+      "after_bytes": 5583,
+      "after_sha256": "24b83f01ea8683e86a7a7b6913784fa59ab2ae7caf8f04aa0d76acfc0c7cdafd"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-numeric-colorway-ui-review.md",
+      "bytes": 6931,
+      "sha256": "f8af9dcebee15d7bd6413e1005f8e4f164e1355cf9758c364b763d5adcc09768",
+      "action": "更新",
+      "replacement": "docs/product-master/product-master-v2-numeric-colorway-ui-review.md",
+      "reason": "现行入口/同主题合并/引用修复；历史状态与当前进度分开",
+      "after_bytes": 7293,
+      "after_sha256": "982828c5d66ed767b8262da85c6b440cf06e4abebd678cd2d89cba642546c258"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p0-technical-baseline.md",
+      "bytes": 20031,
+      "sha256": "733a7487259a418e666a53d49ce216322d9cf8e4b9f9202080bacc0c31056178",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p0-technical-baseline.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 20031,
+      "after_sha256": "733a7487259a418e666a53d49ce216322d9cf8e4b9f9202080bacc0c31056178"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p1c-schema-bootstrap.md",
+      "bytes": 6079,
+      "sha256": "a4d0a0a2acfa08e3383170f522f4cca2dde4bf8388003cc7ac695cbbafa9064c",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p1c-schema-bootstrap.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 6079,
+      "after_sha256": "a4d0a0a2acfa08e3383170f522f4cca2dde4bf8388003cc7ac695cbbafa9064c"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p1c2-schema-versioning.md",
+      "bytes": 4675,
+      "sha256": "7743bab4cbeb60d3179d41fa8079858367733f61b2c274e71c550b6ad7459bd2",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p1c2-schema-versioning.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 4675,
+      "after_sha256": "7743bab4cbeb60d3179d41fa8079858367733f61b2c274e71c550b6ad7459bd2"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p1d-history-compatibility.md",
+      "bytes": 8070,
+      "sha256": "6ab15187e4cd4c164da6729ba9b6f85b54712320b9fafe8c3856ffad285ec0a1",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p1d-history-compatibility.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 8070,
+      "after_sha256": "6ab15187e4cd4c164da6729ba9b6f85b54712320b9fafe8c3856ffad285ec0a1"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p1d2-lines.md",
+      "bytes": 6905,
+      "sha256": "7cf1daa7650a1a4e6d0209273f1a4de449a9645ff15fa8be8e4c07b8dceb0175",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p1d2-lines.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 6905,
+      "after_sha256": "7cf1daa7650a1a4e6d0209273f1a4de449a9645ff15fa8be8e4c07b8dceb0175"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p2-access-foundation.md",
+      "bytes": 6657,
+      "sha256": "279bcd430f8ae705526cdedb2bb348533c604a6cea13dd3a62cde62d4447f440",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p2-access-foundation.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 6657,
+      "after_sha256": "279bcd430f8ae705526cdedb2bb348533c604a6cea13dd3a62cde62d4447f440"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p2-admin-management.md",
+      "bytes": 5275,
+      "sha256": "902cfcfbf8e500d87630c98021e46b21d20142a3177c3f2e532f54281afea3c6",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p2-admin-management.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 5275,
+      "after_sha256": "902cfcfbf8e500d87630c98021e46b21d20142a3177c3f2e532f54281afea3c6"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p2-http-auth.md",
+      "bytes": 5542,
+      "sha256": "274467c812283552b4bd51151f9d34790f74cab4a7e08ed87fbb0091295cc686",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p2-http-auth.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 5542,
+      "after_sha256": "274467c812283552b4bd51151f9d34790f74cab4a7e08ed87fbb0091295cc686"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p2-legacy-cutover-gate.md",
+      "bytes": 5541,
+      "sha256": "7226cacd8223baae1c01732373289cdf6656c2ab096475b3f624eae20cf6bdb0",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p2-legacy-cutover-gate.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 5541,
+      "after_sha256": "7226cacd8223baae1c01732373289cdf6656c2ab096475b3f624eae20cf6bdb0"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p3-fabrics.md",
+      "bytes": 4223,
+      "sha256": "6830dc4e5520d592995e409d92e5f262384b45e6503f16b69bfced23a1a1c1ed",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p3-fabrics.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 4223,
+      "after_sha256": "6830dc4e5520d592995e409d92e5f262384b45e6503f16b69bfced23a1a1c1ed"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p3-master-identity.md",
+      "bytes": 2597,
+      "sha256": "f51d142c2676a34c2bf72e38e5c1076bd63e2b15fc4e67f5f72d28a4a501b83d",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p3-master-identity.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 2597,
+      "after_sha256": "f51d142c2676a34c2bf72e38e5c1076bd63e2b15fc4e67f5f72d28a4a501b83d"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p3-product-search.md",
+      "bytes": 6026,
+      "sha256": "06b7b8b971c7118fdc9f95615d18894b14a1d0f5e218dbbd940063fd606cc223",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p3-product-search.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 6026,
+      "after_sha256": "06b7b8b971c7118fdc9f95615d18894b14a1d0f5e218dbbd940063fd606cc223"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p3-products.md",
+      "bytes": 4507,
+      "sha256": "bd057bfa8d60e7d6196563b543c9767143a6b97570ed9029fdd796fa09006058",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p3-products.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 4507,
+      "after_sha256": "bd057bfa8d60e7d6196563b543c9767143a6b97570ed9029fdd796fa09006058"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p3-real-mysql-gate.md",
+      "bytes": 6562,
+      "sha256": "d3261799d1f3328807e55106e9ec48ba6a67416875aad312289328cc2947fcba",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p3-real-mysql-gate.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 6562,
+      "after_sha256": "d3261799d1f3328807e55106e9ec48ba6a67416875aad312289328cc2947fcba"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p3-shared-tags.md",
+      "bytes": 4255,
+      "sha256": "c0efe512f90eb4d75ccc5e4fcd2e4e4edb10bf59bd97ed1cff5a51873b4d1924",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p3-shared-tags.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 4255,
+      "after_sha256": "c0efe512f90eb4d75ccc5e4fcd2e4e4edb10bf59bd97ed1cff5a51873b4d1924"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p4-browser-qa.md",
+      "bytes": 7246,
+      "sha256": "f8c1f1c9ee4324b480aaea232ea5a29824c61f24a46de00ebe0fd5a2285b4fa7",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p4-browser-qa.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 7246,
+      "after_sha256": "f8c1f1c9ee4324b480aaea232ea5a29824c61f24a46de00ebe0fd5a2285b4fa7"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p4-fabric-library.md",
+      "bytes": 6507,
+      "sha256": "f2572ef9437c47f62a5ea24d150eba23bc5fae4be1aa06ef8750484c795c48b8",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p4-fabric-library.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 6507,
+      "after_sha256": "f2572ef9437c47f62a5ea24d150eba23bc5fae4be1aa06ef8750484c795c48b8"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p4-inline-color-tag-decision.md",
+      "bytes": 5387,
+      "sha256": "af7a6894f07343d3a627ef9f96ad6a9dd1dcf37eacc6f9970e67d483b9d9cdf7",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p4-inline-color-tag-decision.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 5387,
+      "after_sha256": "af7a6894f07343d3a627ef9f96ad6a9dd1dcf37eacc6f9970e67d483b9d9cdf7"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p4-pattern-library.md",
+      "bytes": 7928,
+      "sha256": "f6371cf62b40b7081139eb8443353d2eb3b579d33f3e4ee34ee2c3f725685ff6",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p4-pattern-library.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 7928,
+      "after_sha256": "f6371cf62b40b7081139eb8443353d2eb3b579d33f3e4ee34ee2c3f725685ff6"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p4-product-editor-inflight-review.md",
+      "bytes": 3240,
+      "sha256": "b4b2ad856ead6b391eeb33e9ca1f3ca50b70cf2a4a54f07c0a6f413a0d91319b",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p4-product-editor-inflight-review.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 3240,
+      "after_sha256": "b4b2ad856ead6b391eeb33e9ca1f3ca50b70cf2a4a54f07c0a6f413a0d91319b"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p4-product-editor.md",
+      "bytes": 8071,
+      "sha256": "1cb9959d652930617ceedcc8fcf0f073094115c55b4904ac1b4285889de4ef33",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p4-product-editor.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 8071,
+      "after_sha256": "1cb9959d652930617ceedcc8fcf0f073094115c55b4904ac1b4285889de4ef33"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p4-product-list.md",
+      "bytes": 7235,
+      "sha256": "5d226c182437a26cc8a6a7196d7d5de1a208f6c31b26db560cec81f1e738fb27",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p4-product-list.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 7235,
+      "after_sha256": "5d226c182437a26cc8a6a7196d7d5de1a208f6c31b26db560cec81f1e738fb27"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p5-browser-and-mysql-gate.md",
+      "bytes": 5444,
+      "sha256": "b1dff240290dfd8c256f3d9541efbb7a0d7639ef76352028fbcac2e55e9fa969",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p5-browser-and-mysql-gate.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 5444,
+      "after_sha256": "b1dff240290dfd8c256f3d9541efbb7a0d7639ef76352028fbcac2e55e9fa969"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p5-import-commit.md",
+      "bytes": 5491,
+      "sha256": "aa135dcdaecbaebf6dbfb132eb48ca3e0dd2d16a7762085672b8d01a3658fe1a",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p5-import-commit.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 5491,
+      "after_sha256": "aa135dcdaecbaebf6dbfb132eb48ca3e0dd2d16a7762085672b8d01a3658fe1a"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p5-stitch-density.md",
+      "bytes": 3677,
+      "sha256": "aa246d550fa39c3aa210f8f16ea4e5388eb83b02ea3b24761f1c0773e250ad0c",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p5-stitch-density.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 3677,
+      "after_sha256": "aa246d550fa39c3aa210f8f16ea4e5388eb83b02ea3b24761f1c0773e250ad0c"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p5-xlsx-preview.md",
+      "bytes": 2574,
+      "sha256": "dc4cf9893550d3f1434101f6aba0aea507e208c3d7560001cb0e100b47eac9b1",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p5-xlsx-preview.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 2574,
+      "after_sha256": "dc4cf9893550d3f1434101f6aba0aea507e208c3d7560001cb0e100b47eac9b1"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p6-calculations.md",
+      "bytes": 7595,
+      "sha256": "e718f9b8609c80a8977e1de5304a781cfd3fce4404570047ca25174989a872f2",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p6-calculations.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 7595,
+      "after_sha256": "e718f9b8609c80a8977e1de5304a781cfd3fce4404570047ca25174989a872f2"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p6-document-write-read.md",
+      "bytes": 7641,
+      "sha256": "536e970a8f9a46ac9e47c1948d7dea5bcef087ad946f9bab77a7a3a5dc69e9f6",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p6-document-write-read.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 7641,
+      "after_sha256": "536e970a8f9a46ac9e47c1948d7dea5bcef087ad946f9bab77a7a3a5dc69e9f6"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p6-header-workspace.md",
+      "bytes": 5606,
+      "sha256": "83f9e33fb5e1228f38d4eb1f9ba15549f74452d087a89eddb18d509145b602dd",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p6-header-workspace.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 5606,
+      "after_sha256": "83f9e33fb5e1228f38d4eb1f9ba15549f74452d087a89eddb18d509145b602dd"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p6-print-excel.md",
+      "bytes": 6254,
+      "sha256": "74c1ef30915986738d4e21a8ef132d1b937bcf0230ecfaa9cb1ea1f8f1f102a4",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p6-print-excel.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 6254,
+      "after_sha256": "74c1ef30915986738d4e21a8ef132d1b937bcf0230ecfaa9cb1ea1f8f1f102a4"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p6-product-order-safety.md",
+      "bytes": 6371,
+      "sha256": "c73d7aa21d58f3c082424514a991d0cd508c8996f0a968ab9f5d0abbec64d695",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p6-product-order-safety.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 6371,
+      "after_sha256": "c73d7aa21d58f3c082424514a991d0cd508c8996f0a968ab9f5d0abbec64d695"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p6-shared-selector.md",
+      "bytes": 6556,
+      "sha256": "a380e6b035532b4aad715eb17e65993e03c507dbd087160abc17b819554172d4",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p6-shared-selector.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 6556,
+      "after_sha256": "a380e6b035532b4aad715eb17e65993e03c507dbd087160abc17b819554172d4"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p7-delete-http-reference-gate.md",
+      "bytes": 1763,
+      "sha256": "fd5d7eb30c94115f55cc26aba72a8aa255578ba506915fb2ad9c59f1f9e355ed",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p7-delete-http-reference-gate.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 1763,
+      "after_sha256": "fd5d7eb30c94115f55cc26aba72a8aa255578ba506915fb2ad9c59f1f9e355ed"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p7-document-assembly.md",
+      "bytes": 2594,
+      "sha256": "ec3393b61401bbfcbd17dfeb603baaaa1405886ad2cef9dd27c4ef7a02d74a72",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p7-document-assembly.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 2594,
+      "after_sha256": "ec3393b61401bbfcbd17dfeb603baaaa1405886ad2cef9dd27c4ef7a02d74a72"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p7-document-product-lifecycle.md",
+      "bytes": 3966,
+      "sha256": "bf1cc16a37d2b9b48c97759181b726653c5b12567b3fe41806fa44cb5adebee0",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p7-document-product-lifecycle.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 3966,
+      "after_sha256": "bf1cc16a37d2b9b48c97759181b726653c5b12567b3fe41806fa44cb5adebee0"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p7-local-http-assembly.md",
+      "bytes": 5588,
+      "sha256": "b96089d6ae7a1805d6358ebfc7f66c321e3309bd0c2d5f8415deff57f3aaa4ea",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p7-local-http-assembly.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 5588,
+      "after_sha256": "b96089d6ae7a1805d6358ebfc7f66c321e3309bd0c2d5f8415deff57f3aaa4ea"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p7-media-order-lifecycle.md",
+      "bytes": 4829,
+      "sha256": "796b27f55209dcd587e5ae6728d988c783b11ac8c537d8e10a8f87d540a6d36f",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p7-media-order-lifecycle.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 4829,
+      "after_sha256": "796b27f55209dcd587e5ae6728d988c783b11ac8c537d8e10a8f87d540a6d36f"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p7-media-order-readonly.md",
+      "bytes": 4879,
+      "sha256": "540a0121ed43b83e72c08079817b25057fd358696025e1f933fa5438d2187da8",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p7-media-order-readonly.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 4879,
+      "after_sha256": "540a0121ed43b83e72c08079817b25057fd358696025e1f933fa5438d2187da8"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p7-mysql-readonly-gate.md",
+      "bytes": 4674,
+      "sha256": "2da3fc94fa654ecbc4ecc75307e96498706116be2e9b137e1a52784c56955e0b",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p7-mysql-readonly-gate.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 4674,
+      "after_sha256": "2da3fc94fa654ecbc4ecc75307e96498706116be2e9b137e1a52784c56955e0b"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p7-product-deactivation-http.md",
+      "bytes": 3397,
+      "sha256": "eed69ce746d5b0d1e5f3cec1ef8f9f347753c1d81d504fa5832996bb38f87e64",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p7-product-deactivation-http.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 3397,
+      "after_sha256": "eed69ce746d5b0d1e5f3cec1ef8f9f347753c1d81d504fa5832996bb38f87e64"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p7-readonly-http-mysql.md",
+      "bytes": 5395,
+      "sha256": "bea8f1c858a58edb6dcd3f143e943779de912f93f083df2a2110469883ee643a",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p7-readonly-http-mysql.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 5395,
+      "after_sha256": "bea8f1c858a58edb6dcd3f143e943779de912f93f083df2a2110469883ee643a"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p7-storage-identity-preflight.md",
+      "bytes": 4148,
+      "sha256": "06fbe8457721e593a129b75ebff1bb755e2f5a17a897900c12f467078aa1a654",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p7-storage-identity-preflight.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 4148,
+      "after_sha256": "06fbe8457721e593a129b75ebff1bb755e2f5a17a897900c12f467078aa1a654"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p7-transaction-checkout-guard.md",
+      "bytes": 3945,
+      "sha256": "56a439c3e1e9788070be5f2f547467b347161dd43531337ecc81f4824e85860e",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p7-transaction-checkout-guard.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 3945,
+      "after_sha256": "56a439c3e1e9788070be5f2f547467b347161dd43531337ecc81f4824e85860e"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p7-unified-delete.md",
+      "bytes": 4823,
+      "sha256": "f1c1fd89b877c18af70b4609a311f19a5e5dcf16a1449fd2a664cd7a63d70b43",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p7-unified-delete.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 4823,
+      "after_sha256": "f1c1fd89b877c18af70b4609a311f19a5e5dcf16a1449fd2a664cd7a63d70b43"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-p7-verified-read-pool.md",
+      "bytes": 3670,
+      "sha256": "7b3e889785a56375c036256b0e21afa7c282722bc455c99ffd63b374d507a2ae",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-p7-verified-read-pool.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 3670,
+      "after_sha256": "7b3e889785a56375c036256b0e21afa7c282722bc455c99ffd63b374d507a2ae"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-parallel-agents-plan.md",
+      "bytes": 5337,
+      "sha256": "d6faa0b74da5a80e5c49b53b6f984de1987996ec0547338b9c71a308021851ff",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-parallel-agents-plan.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 5337,
+      "after_sha256": "d6faa0b74da5a80e5c49b53b6f984de1987996ec0547338b9c71a308021851ff"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-phase2-ui-review.md",
+      "bytes": 15560,
+      "sha256": "bb62f0318e593c4336972ad28803211ab9ba4e8031c1734d67d40d8afc93c91e",
+      "action": "更新",
+      "replacement": "docs/product-master/product-master-v2-phase2-ui-review.md",
+      "reason": "现行入口/同主题合并/引用修复；历史状态与当前进度分开",
+      "after_bytes": 15994,
+      "after_sha256": "4a62c2a5a2f75e6bcc3619783f3bac426e29b6f464b24b03ec1c7d2e28f4cde6"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-product-ui-review.md",
+      "bytes": 6010,
+      "sha256": "6f0d586ced930430399ffc28537f8d86b50946998e7badccec143a5a58848f07",
+      "action": "更新",
+      "replacement": "docs/product-master/product-master-v2-product-ui-review.md",
+      "reason": "现行入口/同主题合并/引用修复；历史状态与当前进度分开",
+      "after_bytes": 6321,
+      "after_sha256": "b6d3361d3c0d8c89f93e64f7fd67174e01ad5e67925b8576e25386530f04f3cc"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-progress.md",
+      "bytes": 94672,
+      "sha256": "5cfd76854c90e76bdc6d3fcc00a43a21901bbff42cff34dee6ce60dbda9892e6",
+      "action": "更新",
+      "replacement": "docs/product-master/product-master-v2-progress.md",
+      "reason": "现行入口/同主题合并/引用修复；历史状态与当前进度分开",
+      "after_bytes": 7663,
+      "after_sha256": "e8604b2f851054f0e11858da5d947142fc3d3e191376ada7d30553dc87357e91"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-remote-db-audit.md",
+      "bytes": 7220,
+      "sha256": "af95f9fcc8f0cda86cfba8403eb8bf80ff6d61e9ccbc3deaa28d7256d88eb937",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-remote-db-audit.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 7220,
+      "after_sha256": "af95f9fcc8f0cda86cfba8403eb8bf80ff6d61e9ccbc3deaa28d7256d88eb937"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-requirements-review.md",
+      "bytes": 19755,
+      "sha256": "8d6562bddb1343293c04b3c110936fd0fc4a35a83da561dcc1970807f0289309",
+      "action": "更新",
+      "replacement": "docs/product-master/product-master-v2-requirements-review.md",
+      "reason": "现行入口/同主题合并/引用修复；历史状态与当前进度分开",
+      "after_bytes": 19999,
+      "after_sha256": "cda7a8de5b5d1e7b50b5f8cbe65c601a80af8ea7c405d8684f3e1d4a7e0fcbb4"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-requirements.md",
+      "bytes": 157626,
+      "sha256": "3c0a3fef8d2136852b7913c3bf1c0d8ed459b0a3ae99d9f02c927ba1d4725aa0",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-requirements.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 157626,
+      "after_sha256": "3c0a3fef8d2136852b7913c3bf1c0d8ed459b0a3ae99d9f02c927ba1d4725aa0"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-stitch-design-review.md",
+      "bytes": 13603,
+      "sha256": "709ec0ff81494c449a08e593db6e52810e44efca2c0d7bce9f9c2e4002c23ee2",
+      "action": "更新",
+      "replacement": "docs/product-master/product-master-v2-stitch-design-review.md",
+      "reason": "现行入口/同主题合并/引用修复；历史状态与当前进度分开",
+      "after_bytes": 13965,
+      "after_sha256": "9ecab18ccf8ec6a4ad3b1b359a20cc1a4b28b2eb3dc7f4c3da76aa3513511758"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-ui-cleanup.md",
+      "bytes": 6619,
+      "sha256": "07742d660e249bb51e9536e995d00d47ef5041947d92442d40c278d2b8cecbfa",
+      "action": "更新",
+      "replacement": "docs/product-master/product-master-v2-ui-cleanup.md",
+      "reason": "现行入口/同主题合并/引用修复；历史状态与当前进度分开",
+      "after_bytes": 6720,
+      "after_sha256": "65f5773811332ed0e83b2808332758e0b5b0f33a24018e2025df6d59c02e5c2f"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-ui-iteration-workflow.md",
+      "bytes": 23523,
+      "sha256": "f8c330724703e17431d9dfc3f340b03ee79ec090a241d3157b75f304f471a84a",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-ui-iteration-workflow.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 23523,
+      "after_sha256": "f8c330724703e17431d9dfc3f340b03ee79ec090a241d3157b75f304f471a84a"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-ui-review.md",
+      "bytes": 25261,
+      "sha256": "d80f9b4f6945d3fb062e32b7c454e8164a68b6056420d88178a20ee9eec26151",
+      "action": "更新",
+      "replacement": "docs/product-master/product-master-v2-ui-review.md",
+      "reason": "现行入口/同主题合并/引用修复；历史状态与当前进度分开",
+      "after_bytes": 25572,
+      "after_sha256": "dc03ccbfda1a494606385ab9177c13d4095dd94764ef8d11fd35b3aefa14ccd0"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-v149-interactive-delivery.md",
+      "bytes": 1518,
+      "sha256": "52a5f4cd4f8ed66d66b00b208d01caecc3385651ebd38ca04076f40e68dad936",
+      "action": "保留",
+      "replacement": "docs/product-master/product-master-v2-v149-interactive-delivery.md",
+      "reason": "业务需求、分包验收或尚未完成的独有设计；按当前进度索引保留，不以日期或无引用认定垃圾",
+      "after_bytes": 1518,
+      "after_sha256": "52a5f4cd4f8ed66d66b00b208d01caecc3385651ebd38ca04076f40e68dad936"
+    },
+    {
+      "path": "docs/product-master/README.md",
+      "bytes": 42192,
+      "sha256": "3602f4ec859e0fb881247cb2012c108060005c223351460439c96f6188ad5e1d",
+      "action": "更新",
+      "replacement": "docs/product-master/README.md",
+      "reason": "现行入口/同主题合并/引用修复；历史状态与当前进度分开",
+      "after_bytes": 10915,
+      "after_sha256": "3a796ebab4f6b5ea58a19eaf9c46446bc4dd597b313f91a025e40ba6d9f7670c"
+    },
+    {
+      "path": "docs/project/数据与API.md",
+      "bytes": 3384,
+      "sha256": "3b4f1d295c533c6bd43d17a5d728abfa146cad1e177504001619753c4bd39219",
+      "action": "更新",
+      "replacement": "docs/project/数据与API.md",
+      "reason": "现行入口/同主题合并/引用修复；历史状态与当前进度分开",
+      "after_bytes": 3752,
+      "after_sha256": "8e24a924b0475b060ce634e8efd37058e5d0f24430f4109f53aba3d24065a59c"
+    },
+    {
+      "path": "docs/project/项目现状.md",
+      "bytes": 3112,
+      "sha256": "7c720791c1fd1e1796ef062a961dbcc3c7ab1e716c01835d4b387ca90882daf7",
+      "action": "更新",
+      "replacement": "docs/project/项目现状.md",
+      "reason": "现行入口/同主题合并/引用修复；历史状态与当前进度分开",
+      "after_bytes": 3494,
+      "after_sha256": "0dadddf2289caf6534fc13d196e9d84e9b1818d64d061cdcd806c6f70ef6bd89"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-08-13-security-and-correctness.md",
+      "bytes": 2174,
+      "sha256": "1a82f2d0294bbaf859210498b20651961788bbae2d61cf6bb16e6838392f90ef",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-08-13-security-and-correctness.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 2174,
+      "after_sha256": "1a82f2d0294bbaf859210498b20651961788bbae2d61cf6bb16e6838392f90ef"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-08-24-document-preview-layout.md",
+      "bytes": 6372,
+      "sha256": "33db2f69280df6fcf6683c4e5cc8dd5beae972e564a3104426d08605f31da059",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-08-24-document-preview-layout.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 6372,
+      "after_sha256": "33db2f69280df6fcf6683c4e5cc8dd5beae972e564a3104426d08605f31da059"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-09-26-product-schema-deployment.md",
+      "bytes": 2666,
+      "sha256": "2f6c6ce0b7a8464bb14a3c502610060f7ba0f4c5cbae2e4c124f11bb815ca8a6",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-09-26-product-schema-deployment.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 2666,
+      "after_sha256": "2f6c6ce0b7a8464bb14a3c502610060f7ba0f4c5cbae2e4c124f11bb815ca8a6"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-09-document-output-source-review.md",
+      "bytes": 1581,
+      "sha256": "3fd46ac0e1f1129c7b95f3f63ec5cc512a3837fddf17602555ad12d30e5e1028",
+      "action": "更新",
+      "replacement": "docs/retrospectives/development/2026-10-09-document-output-source-review.md",
+      "reason": "现行入口/同主题合并/引用修复；历史状态与当前进度分开",
+      "after_bytes": 2386,
+      "after_sha256": "61a98a779a6480aed717c598bf975a780b5b5be473f34ee323243a3d33a3c529"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-11-stitch-product-list-delivery.md",
+      "bytes": 6394,
+      "sha256": "682a23acc7092bdf2517170b3f167509ae9b2c59d8e6c5fe09597897820f8a56",
+      "action": "更新",
+      "replacement": "docs/retrospectives/development/2026-10-11-stitch-product-list-delivery.md",
+      "reason": "现行入口/同主题合并/引用修复；历史状态与当前进度分开",
+      "after_bytes": 6609,
+      "after_sha256": "21e8bdfc81bda012b398af398a1177f9d12ef3b73a44cbff9cb6120671dcda83"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-12-b2-sample-scan-transaction.md",
+      "bytes": 3314,
+      "sha256": "379581f5e84e7e9da975b1f650ca1ff01ead62be550f954a6ffe27b333eb0f9a",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-12-b2-sample-scan-transaction.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 3314,
+      "after_sha256": "379581f5e84e7e9da975b1f650ca1ff01ead62be550f954a6ffe27b333eb0f9a"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-12-phase2-stitch-delivery.md",
+      "bytes": 4084,
+      "sha256": "9fa03c2dfec285b0866d89c6b0bb9ce6082da5fe4021fe8121e9f0c9c6384418",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-12-phase2-stitch-delivery.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 4084,
+      "after_sha256": "9fa03c2dfec285b0866d89c6b0bb9ce6082da5fe4021fe8121e9f0c9c6384418"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-12-product-master-resume-audit.md",
+      "bytes": 4100,
+      "sha256": "4af674bf37fd35a4ee21dba844aed4107b6fbda23392cc6a55a84d18173a9e30",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-12-product-master-resume-audit.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 4100,
+      "after_sha256": "4af674bf37fd35a4ee21dba844aed4107b6fbda23392cc6a55a84d18173a9e30"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-12-product-sample-scan-foundation.md",
+      "bytes": 2471,
+      "sha256": "68cb161a67cd22b949dbee58b91ad635fb54a06e95707ed56c2f5e3de56418b6",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-12-product-sample-scan-foundation.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 2471,
+      "after_sha256": "68cb161a67cd22b949dbee58b91ad635fb54a06e95707ed56c2f5e3de56418b6"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-12-stitch-user-edit-overwrite.md",
+      "bytes": 4611,
+      "sha256": "ecf58318567c4f05b740ab9a90257c7a2751e551c2a49291a57edc82dc5db5a4",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-12-stitch-user-edit-overwrite.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 4611,
+      "after_sha256": "ecf58318567c4f05b740ab9a90257c7a2751e551c2a49291a57edc82dc5db5a4"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-13-card-number-review-continuation.md",
+      "bytes": 3719,
+      "sha256": "b229cc1c716fc3ec5d14c0917203e3c350afd6a1cf7ba3560f6857e1841e7c82",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-13-card-number-review-continuation.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 3719,
+      "after_sha256": "b229cc1c716fc3ec5d14c0917203e3c350afd6a1cf7ba3560f6857e1841e7c82"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-13-fabric-crud-tests.md",
+      "bytes": 2291,
+      "sha256": "a3a52cbfba5cc5e71ca6c9461d91dcb626cf6e68196b484732e58bac55d1c4aa",
+      "action": "更新",
+      "replacement": "docs/retrospectives/development/2026-10-13-fabric-crud-tests.md",
+      "reason": "现行入口/同主题合并/引用修复；历史状态与当前进度分开",
+      "after_bytes": 2318,
+      "after_sha256": "1058a73b2a3f1bb286a00541a6225a2b0c533514e65c2138bdfd324493d30598"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-13-master-identity-tests.md",
+      "bytes": 1520,
+      "sha256": "19d28f00bd3b26f688e693d769c138c4d240bc045643aa9732064e0c6f655f3b",
+      "action": "合并后删除",
+      "replacement": "docs/retrospectives/development/2026-10-13-fabric-crud-tests.md",
+      "reason": "相同SQL替身误判合并，保留分模块证据"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-13-p3-real-mysql-integration.md",
+      "bytes": 3138,
+      "sha256": "90bda296bb634dd27aaca731bdf46d0f9af4f985c1c7fd1f5055c7c426f52df8",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-13-p3-real-mysql-integration.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 3138,
+      "after_sha256": "90bda296bb634dd27aaca731bdf46d0f9af4f985c1c7fd1f5055c7c426f52df8"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-13-p4-color-tags-one-edit.md",
+      "bytes": 1952,
+      "sha256": "cbba025f8df137838bde5a21b309e53b3dff7927efb9107a37abafb1ae0554fe",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-13-p4-color-tags-one-edit.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 1952,
+      "after_sha256": "cbba025f8df137838bde5a21b309e53b3dff7927efb9107a37abafb1ae0554fe"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-13-p4-edge-browser-review.md",
+      "bytes": 2155,
+      "sha256": "a7867dd8073bfc999fe0440661adc6647e7ac2ae6165d3ed1b927be4b5920cf1",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-13-p4-edge-browser-review.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 2155,
+      "after_sha256": "a7867dd8073bfc999fe0440661adc6647e7ac2ae6165d3ed1b927be4b5920cf1"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-13-p4-fabric-inline-edit.md",
+      "bytes": 3035,
+      "sha256": "a8ff157863b3c8b51b4a5d031c867d6435287a65979984985f2aa7ec98779b6c",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-13-p4-fabric-inline-edit.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 3035,
+      "after_sha256": "a8ff157863b3c8b51b4a5d031c867d6435287a65979984985f2aa7ec98779b6c"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-13-p4-pattern-matrix.md",
+      "bytes": 3270,
+      "sha256": "a82c4d2774656b67c7e4234e4d5fd46df911623e173d7a4fad3b15a480272bcc",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-13-p4-pattern-matrix.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 3270,
+      "after_sha256": "a82c4d2774656b67c7e4234e4d5fd46df911623e173d7a4fad3b15a480272bcc"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-13-p4-product-catalog-react.md",
+      "bytes": 2773,
+      "sha256": "71f991abb8ad1085a329b6f70d9732907b462945fc396dc35257bae87fa4423d",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-13-p4-product-catalog-react.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 2773,
+      "after_sha256": "71f991abb8ad1085a329b6f70d9732907b462945fc396dc35257bae87fa4423d"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-13-p4-product-editor-atomic-images.md",
+      "bytes": 3207,
+      "sha256": "9cfd4b3553a5148d104af153d5b885461a8ed14d6c89309c77bf4e950dfe6572",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-13-p4-product-editor-atomic-images.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 3207,
+      "after_sha256": "9cfd4b3553a5148d104af153d5b885461a8ed14d6c89309c77bf4e950dfe6572"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-13-p5-import-browser-sandbox.md",
+      "bytes": 1754,
+      "sha256": "e4c04e9b78b4a519e5c193fbe9bda1bd88a17cf6a403c0e8febca3a71621e82c",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-13-p5-import-browser-sandbox.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 1754,
+      "after_sha256": "e4c04e9b78b4a519e5c193fbe9bda1bd88a17cf6a403c0e8febca3a71621e82c"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-13-p5-stitch-density-mobile-scroll.md",
+      "bytes": 1595,
+      "sha256": "078ef6f70d0a53bc41f31ced6509806181c2aa125d7b9da9be190edc1d64716a",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-13-p5-stitch-density-mobile-scroll.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 1595,
+      "after_sha256": "078ef6f70d0a53bc41f31ced6509806181c2aa125d7b9da9be190edc1d64716a"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-13-p5-xlsx-two-phase-import.md",
+      "bytes": 1443,
+      "sha256": "e3b7ff06ffa746f965baf9ef640d912f0c689e954aeb17e5b10625eab4a0d328",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-13-p5-xlsx-two-phase-import.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 1443,
+      "after_sha256": "e3b7ff06ffa746f965baf9ef640d912f0c689e954aeb17e5b10625eab4a0d328"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-13-p7-http-assembly-security.md",
+      "bytes": 2076,
+      "sha256": "210e60b4b62198eec42337b857e0f93daa6830dc28fab6262f5b930f7d456d40",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-13-p7-http-assembly-security.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 2076,
+      "after_sha256": "210e60b4b62198eec42337b857e0f93daa6830dc28fab6262f5b930f7d456d40"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-13-p7-unified-product-delete.md",
+      "bytes": 1644,
+      "sha256": "3fc34ec52a39ca9870ee20dc057ff6f3dd61202f0aeab58494b90b7a5274bf67",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-13-p7-unified-product-delete.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 1644,
+      "after_sha256": "3fc34ec52a39ca9870ee20dc057ff6f3dd61202f0aeab58494b90b7a5274bf67"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-13-p7-v2-product-deactivate-route.md",
+      "bytes": 1303,
+      "sha256": "39916638f2ecfebf64f4113dcea7535c9507fa0370be093b4caba00b5d23ebe2",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-13-p7-v2-product-deactivate-route.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 1303,
+      "after_sha256": "39916638f2ecfebf64f4113dcea7535c9507fa0370be093b4caba00b5d23ebe2"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-13-parallel-product-master-transactions.md",
+      "bytes": 3047,
+      "sha256": "2193c3995c8df205182aea36759c03da4126ee0095d528221a3d5c9bc908d0d1",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-13-parallel-product-master-transactions.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 3047,
+      "after_sha256": "2193c3995c8df205182aea36759c03da4126ee0095d528221a3d5c9bc908d0d1"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-13-product-crud-media.md",
+      "bytes": 2034,
+      "sha256": "5b3fe7639543cabd12ed043e7c17fd59e2c7635a413a397a41a3bac796f621a1",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-13-product-crud-media.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 2034,
+      "after_sha256": "5b3fe7639543cabd12ed043e7c17fd59e2c7635a413a397a41a3bac796f621a1"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-13-product-search-tests.md",
+      "bytes": 2524,
+      "sha256": "aaf9715cb71375db5a8050f3bf0109adab1a0745d4c9c0534a6c96892aa941ef",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-13-product-search-tests.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 2524,
+      "after_sha256": "aaf9715cb71375db5a8050f3bf0109adab1a0745d4c9c0534a6c96892aa941ef"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-13-shared-tags-tests.md",
+      "bytes": 2289,
+      "sha256": "3b825e91a3c33b09cdc31d13c74babd057c628e8127e566c63c086a6cd5e4c3d",
+      "action": "合并后删除",
+      "replacement": "docs/retrospectives/development/2026-10-13-fabric-crud-tests.md",
+      "reason": "相同SQL替身误判合并，保留分模块证据"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-14-b1-acp-single-agent-projection.md",
+      "bytes": 1913,
+      "sha256": "790c7752fe2847ecccba0246c475b6cbbc264627c71c5b14811b32832dd81911",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-14-b1-acp-single-agent-projection.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 1913,
+      "after_sha256": "790c7752fe2847ecccba0246c475b6cbbc264627c71c5b14811b32832dd81911"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-14-b2-3-card-payload-lock-order.md",
+      "bytes": 2514,
+      "sha256": "2c86b287089f74735f3e32e101eed546d7c7da093a2608a3e446ed6937177d5e",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-14-b2-3-card-payload-lock-order.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 2514,
+      "after_sha256": "2c86b287089f74735f3e32e101eed546d7c7da093a2608a3e446ed6937177d5e"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-14-b2-4-edge-browser-qa.md",
+      "bytes": 2746,
+      "sha256": "33d7ec2dc697571e612591984765ee992e95e8d9be2be060e9ca70c85add2da8",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-14-b2-4-edge-browser-qa.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 2746,
+      "after_sha256": "33d7ec2dc697571e612591984765ee992e95e8d9be2be060e9ca70c85add2da8"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-14-b2-4-review-regression.md",
+      "bytes": 2408,
+      "sha256": "8a396dfdef870bbe41085966b8032560c2e907d99fe3e1cc1527d9511a685161",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-14-b2-4-review-regression.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 2408,
+      "after_sha256": "8a396dfdef870bbe41085966b8032560c2e907d99fe3e1cc1527d9511a685161"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-14-b2-5a-b-card-retirement-scan.md",
+      "bytes": 1776,
+      "sha256": "c9b0409f5ff4ab46faed83d835cee36a9587e43010662ebdf6492c423a24f54d",
+      "action": "合并后删除",
+      "replacement": "docs/retrospectives/development/2026-10-14-b2-5h-scan-lock-order.md",
+      "reason": "同一生命周期主题合并根因、历史验证和未完成Gate"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-14-b2-5c-reprint-operator.md",
+      "bytes": 1489,
+      "sha256": "1de867014af6b76993f48e0cb21045f5031919611d7761a037cedb79003eb28e",
+      "action": "合并后删除",
+      "replacement": "docs/retrospectives/development/2026-10-14-b2-5h-scan-lock-order.md",
+      "reason": "同一生命周期主题合并根因、历史验证和未完成Gate"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-14-b2-5d-sampling-availability.md",
+      "bytes": 1499,
+      "sha256": "c58a2ca6f5bec7f5892cd445e17ac20b4b369cd332b2ebeecf0064f26cb32ac1",
+      "action": "合并后删除",
+      "replacement": "docs/retrospectives/development/2026-10-14-b2-5h-scan-lock-order.md",
+      "reason": "同一生命周期主题合并根因、历史验证和未完成Gate"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-14-b2-5e-schema-preflight.md",
+      "bytes": 1216,
+      "sha256": "99a720fae109a02a0588705afb9da99bbec0fa8812c9070faadb07f52a370ff8",
+      "action": "合并后删除",
+      "replacement": "docs/retrospectives/development/2026-10-14-b2-5h-scan-lock-order.md",
+      "reason": "同一生命周期主题合并根因、历史验证和未完成Gate"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-14-b2-5f-mysql-sandbox-guard.md",
+      "bytes": 1571,
+      "sha256": "ffe8e6be1b91bdb4e3b66c981210ec32e81a3fd3729f9809fac74b4268bf668d",
+      "action": "合并后删除",
+      "replacement": "docs/retrospectives/development/2026-10-14-b2-5h-scan-lock-order.md",
+      "reason": "同一生命周期主题合并根因、历史验证和未完成Gate"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-14-b2-5g-server-uuid.md",
+      "bytes": 1473,
+      "sha256": "08d516f60a85eb9804353c89739ee025d2c4062d631e19d4f882da3026be52ef",
+      "action": "合并后删除",
+      "replacement": "docs/retrospectives/development/2026-10-14-b2-5h-scan-lock-order.md",
+      "reason": "同一生命周期主题合并根因、历史验证和未完成Gate"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-14-b2-5h-scan-lock-order.md",
+      "bytes": 1244,
+      "sha256": "183d0b4b19fca2138d8807d172d4ced1326952e8db51493d47febfaa6ed40e20",
+      "action": "更新",
+      "replacement": "docs/retrospectives/development/2026-10-14-b2-5h-scan-lock-order.md",
+      "reason": "现行入口/同主题合并/引用修复；历史状态与当前进度分开",
+      "after_bytes": 4543,
+      "after_sha256": "58ebba74d937733ae36eb0d86e9fd2f3da672ec09da3aaf2e0ab28c3e94ee627"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-14-b3-history-ui-review.md",
+      "bytes": 2189,
+      "sha256": "ab04882315e769bcbbd78905aa2d1b8bb745e2830581db2e5dc28ba686891e90",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-14-b3-history-ui-review.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 2189,
+      "after_sha256": "ab04882315e769bcbbd78905aa2d1b8bb745e2830581db2e5dc28ba686891e90"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-14-b3-latest-data-v150.md",
+      "bytes": 4927,
+      "sha256": "0e6bdd85dc1d0cd01af977e47c53cdaccd352e68e2e816344b4ee22413d67638",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-14-b3-latest-data-v150.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 4927,
+      "after_sha256": "0e6bdd85dc1d0cd01af977e47c53cdaccd352e68e2e816344b4ee22413d67638"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-14-b3-session-history-read.md",
+      "bytes": 1712,
+      "sha256": "7a2d8efcfb4bc045b12fa965a92b4c33321135906900ed4a4b27a09a5da196bb",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-14-b3-session-history-read.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 1712,
+      "after_sha256": "7a2d8efcfb4bc045b12fa965a92b4c33321135906900ed4a4b27a09a5da196bb"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-14-p7-database-identity-preflight.md",
+      "bytes": 2697,
+      "sha256": "df42387aec2e38ce0e183ae38ea774554abcd4db1d52f9202b5e24103077494e",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-14-p7-database-identity-preflight.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 2697,
+      "after_sha256": "df42387aec2e38ce0e183ae38ea774554abcd4db1d52f9202b5e24103077494e"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-14-p7-doc-selector-http-assembly.md",
+      "bytes": 2045,
+      "sha256": "c6973a1d708ab6a2e46aefb1ba448af15899f7b9ca91b1e5a5af215c368d93cc",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-14-p7-doc-selector-http-assembly.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 2045,
+      "after_sha256": "c6973a1d708ab6a2e46aefb1ba448af15899f7b9ca91b1e5a5af215c368d93cc"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-14-p7-document-product-lifecycle.md",
+      "bytes": 2640,
+      "sha256": "e0f46b0cc4ac5cb7be1aa76086a6944d46b724ebd678d71e0280b5c6a7980dd0",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-14-p7-document-product-lifecycle.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 2640,
+      "after_sha256": "e0f46b0cc4ac5cb7be1aa76086a6944d46b724ebd678d71e0280b5c6a7980dd0"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-14-p7-media-order-lifecycle.md",
+      "bytes": 3122,
+      "sha256": "c1675449e57822a358ac81825d95de9a0e92705a979608809a8d39cb5ae5aa89",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-14-p7-media-order-lifecycle.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 3122,
+      "after_sha256": "c1675449e57822a358ac81825d95de9a0e92705a979608809a8d39cb5ae5aa89"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-14-p7-media-order-readonly.md",
+      "bytes": 2686,
+      "sha256": "6af48fcf613911e9cead9c33a0a64b969a072824a282cd5a36be73cc3ff8874d",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-14-p7-media-order-readonly.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 2686,
+      "after_sha256": "6af48fcf613911e9cead9c33a0a64b969a072824a282cd5a36be73cc3ff8874d"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-14-p7-mysql-readonly-gate.md",
+      "bytes": 2581,
+      "sha256": "9eda30b3fa616a2c1bc8cae3e3edc8fb2b6152d7c31a0d60de7d2cbb72db5f06",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-14-p7-mysql-readonly-gate.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 2581,
+      "after_sha256": "9eda30b3fa616a2c1bc8cae3e3edc8fb2b6152d7c31a0d60de7d2cbb72db5f06"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-14-p7-readonly-http-mysql.md",
+      "bytes": 2527,
+      "sha256": "58fb820ce00256a963db2c09c9d97857dedf99ce59df8b95c1cc53823d5f8888",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-14-p7-readonly-http-mysql.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 2527,
+      "after_sha256": "58fb820ce00256a963db2c09c9d97857dedf99ce59df8b95c1cc53823d5f8888"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-14-p7-transaction-checkout-guard.md",
+      "bytes": 2823,
+      "sha256": "f82a0e6c64cb8a636e048b0f96c7f61ecf4b7a77a088c3d6b19abba770a66f70",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-14-p7-transaction-checkout-guard.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 2823,
+      "after_sha256": "f82a0e6c64cb8a636e048b0f96c7f61ecf4b7a77a088c3d6b19abba770a66f70"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-14-p7-verified-read-pool.md",
+      "bytes": 2552,
+      "sha256": "63d1752b0966074a1253342e932cfcad4a3f61d163289744e275b332cbe2052c",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-14-p7-verified-read-pool.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 2552,
+      "after_sha256": "63d1752b0966074a1253342e932cfcad4a3f61d163289744e275b332cbe2052c"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-14-ui-design-skill-phase1.md",
+      "bytes": 3111,
+      "sha256": "7d412c9e3bb074bb7ca84b8e59f058c4a1f40cfa348fcf1d895a80511c9c4d8e",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-14-ui-design-skill-phase1.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 3111,
+      "after_sha256": "7d412c9e3bb074bb7ca84b8e59f058c4a1f40cfa348fcf1d895a80511c9c4d8e"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-14-v2-agent-context-safety.md",
+      "bytes": 2154,
+      "sha256": "58bcd222d6fc32962df523483e1d2a148215595c2c0887050a1ebe5978e14b20",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-14-v2-agent-context-safety.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 2154,
+      "after_sha256": "58bcd222d6fc32962df523483e1d2a148215595c2c0887050a1ebe5978e14b20"
+    },
+    {
+      "path": "docs/retrospectives/development/2026-10-15-fabric-v2-efficiency-b3.md",
+      "bytes": 4424,
+      "sha256": "4e6f2dd9c4e1778ab4cc55dcb88c76ae9644c15a962b9bd606dabb58fc5a6217",
+      "action": "保留",
+      "replacement": "docs/retrospectives/development/2026-10-15-fabric-v2-efficiency-b3.md",
+      "reason": "独有故障根因、实际验证或未完成Gate，保留为历史证据",
+      "after_bytes": 4424,
+      "after_sha256": "4e6f2dd9c4e1778ab4cc55dcb88c76ae9644c15a962b9bd606dabb58fc5a6217"
+    },
+    {
+      "path": "docs/retrospectives/README.md",
+      "bytes": 16138,
+      "sha256": "1b5e7c732e2b5d557ce7cdb5983ddc78293101018f3c9be2cc2f848dd4ef1b3d",
+      "action": "更新",
+      "replacement": "docs/retrospectives/README.md",
+      "reason": "现行入口/同主题合并/引用修复；历史状态与当前进度分开",
+      "after_bytes": 12861,
+      "after_sha256": "2c5fe9bf3f12ee707d19db2d96a6990bfe5ad47384304bd306d9f76e23ec656b"
+    },
+    {
+      "path": "docs/retrospectives/video/theme01-video-retrospective-and-reuse-memory-v1.md",
+      "bytes": 18914,
+      "sha256": "9dc6fdb95db969edd80c3f67d91e30b9a12fbfbdcdd2ae4b71f8168302bb67fd",
+      "action": "移出",
+      "replacement": null,
+      "reason": "视频制作已移出应用项目；原文保存在仓库外可恢复备份"
+    },
+    {
+      "path": "docs/retrospectives/video/theme03-video-retrospective-and-reuse-memory-v1.md",
+      "bytes": 16752,
+      "sha256": "c34614938e4970b5c7f1b7d9d2b96100fafe836529c3af9d09bd8a934deee982",
+      "action": "移出",
+      "replacement": null,
+      "reason": "视频制作已移出应用项目；原文保存在仓库外可恢复备份"
+    },
+    {
+      "path": "docs/retrospectives/video/theme04-video-retrospective-and-reuse-memory-v1.md",
+      "bytes": 8788,
+      "sha256": "ac40d9e86edb9c22eae398fa458f03e70c1662f332259c37503db9725a2a3cbf",
+      "action": "移出",
+      "replacement": null,
+      "reason": "视频制作已移出应用项目；原文保存在仓库外可恢复备份"
+    },
+    {
+      "path": "docs/retrospectives/video/theme05-video-retrospective-and-reuse-memory-v1.md",
+      "bytes": 11073,
+      "sha256": "5a344a959d5e012d86deccfd0765173ea7404e1d14d514a9f6fb5d35dba1a576",
+      "action": "移出",
+      "replacement": null,
+      "reason": "视频制作已移出应用项目；原文保存在仓库外可恢复备份"
+    },
+    {
+      "path": "docs/retrospectives/video/theme06-video-retrospective-and-reuse-memory-v1.md",
+      "bytes": 12047,
+      "sha256": "6e8f0f3f1724206fe606e95405a6349578b75f2e7fac8ae0069ba3b7e0d04370",
+      "action": "移出",
+      "replacement": null,
+      "reason": "视频制作已移出应用项目；原文保存在仓库外可恢复备份"
+    },
+    {
+      "path": "docs/retrospectives/video/theme07-video-retrospective-and-reuse-memory-v1.md",
+      "bytes": 11723,
+      "sha256": "395e60743392c5a0f6789d4d66606ca5483a6e7829a62ef0bb904bb0f74a577d",
+      "action": "移出",
+      "replacement": null,
+      "reason": "视频制作已移出应用项目；原文保存在仓库外可恢复备份"
+    },
+    {
+      "path": "docs/retrospectives/video/theme08-video-retrospective-and-reuse-memory-v1.md",
+      "bytes": 10022,
+      "sha256": "1d58d9bf103834336a828cd1f706ddd26386049094cb361d0206c188a15b6cc1",
+      "action": "移出",
+      "replacement": null,
+      "reason": "视频制作已移出应用项目；原文保存在仓库外可恢复备份"
+    },
+    {
+      "path": "docs/retrospectives/video/theme09-video-retrospective-and-reuse-memory-v1.md",
+      "bytes": 10719,
+      "sha256": "158736cb3a3c97cca8b797cde3052622ce0a5c440920638b5d8d4867b53e8604",
+      "action": "移出",
+      "replacement": null,
+      "reason": "视频制作已移出应用项目；原文保存在仓库外可恢复备份"
+    },
+    {
+      "path": "docs/retrospectives/video/theme10-video-retrospective-and-reuse-memory-v1.md",
+      "bytes": 11924,
+      "sha256": "197bdadb87c3966d9db0cff72e458671f272465e4547771785354a60e2484d45",
+      "action": "移出",
+      "replacement": null,
+      "reason": "视频制作已移出应用项目；原文保存在仓库外可恢复备份"
+    },
+    {
+      "path": "docs/retrospectives/video/theme11-video-retrospective-and-reuse-memory-v1.md",
+      "bytes": 8949,
+      "sha256": "8fc934dce5595295a9f89cc5392b2c6e16d547bfb46bb1e0b666efc279d6d858",
+      "action": "移出",
+      "replacement": null,
+      "reason": "视频制作已移出应用项目；原文保存在仓库外可恢复备份"
+    },
+    {
+      "path": "docs/retrospectives/video/theme13-video-retrospective-and-reuse-memory-v1.md",
+      "bytes": 7297,
+      "sha256": "12184c51398696bb8da0a74cb4d020b8ce9527c21dd5788c7a287911661ba876",
+      "action": "移出",
+      "replacement": null,
+      "reason": "视频制作已移出应用项目；原文保存在仓库外可恢复备份"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-08-22-unified-image-asset-system.md",
+      "bytes": 44873,
+      "sha256": "27c43596b559d073d3b318b580acaf1ea4fd9766ce10bb3f97fa7e99bc69c5c3",
+      "action": "保留",
+      "replacement": "docs/superpowers/plans/2026-08-22-unified-image-asset-system.md",
+      "reason": "仍有未完成的集成/迁移/回滚及安全约束，不等同已落实可删除",
+      "after_bytes": 44873,
+      "after_sha256": "27c43596b559d073d3b318b580acaf1ea4fd9766ce10bb3f97fa7e99bc69c5c3"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-08-31-fabric-dms-multi-user-order-product-permissions.md",
+      "bytes": 33349,
+      "sha256": "1e63a33cc84c244cbc13ed61ce2b2231c739ab60704e034f61551eeb81908c44",
+      "action": "保留",
+      "replacement": "docs/superpowers/plans/2026-08-31-fabric-dms-multi-user-order-product-permissions.md",
+      "reason": "仍有未完成的集成/迁移/回滚及安全约束，不等同已落实可删除",
+      "after_bytes": 33349,
+      "after_sha256": "1e63a33cc84c244cbc13ed61ce2b2231c739ab60704e034f61551eeb81908c44"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-09-08-shared-document-print-model.md",
+      "bytes": 6644,
+      "sha256": "f8c82970408bf3ad72154020e130c8f9a384c9e12d1a6ebaec4945ee45bb13a2",
+      "action": "合并后删除",
+      "replacement": "docs/retrospectives/development/2026-10-09-document-output-source-review.md",
+      "reason": "实现与源码已核对，独有打印约束合并，删除重复设计/勾选步骤"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-09-21-product-images-tags-and-issues.md",
+      "bytes": 37160,
+      "sha256": "7d050314e2db2db3c24bef2326152b7f9b69ae49ad338afc3c684f6a00df9da9",
+      "action": "合并后删除",
+      "replacement": "docs/decisions/README.md#旧产品方案的替代边界",
+      "reason": "已退出当前需求或被V2替代，保留安全和数据保护约束"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-09-21-wps-product-import.md",
+      "bytes": 30508,
+      "sha256": "1b00e56a79df06dc335d60580f614838bf09d1e4df86d88c4a5e6e7b15d951d0",
+      "action": "合并后删除",
+      "replacement": "docs/decisions/README.md#旧产品方案的替代边界",
+      "reason": "已退出当前需求或被V2替代，保留安全和数据保护约束"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-10-12-product-master-v2-implementation.md",
+      "bytes": 33896,
+      "sha256": "abb5cec1bbda0147eb67fd04f427f4dbf43fc54cf87368a10daac1cfcdbf4eb1",
+      "action": "更新",
+      "replacement": "docs/superpowers/plans/2026-10-12-product-master-v2-implementation.md",
+      "reason": "现行入口/同主题合并/引用修复；历史状态与当前进度分开",
+      "after_bytes": 34441,
+      "after_sha256": "a03c3bfb0ea28365cd848d0a68f26c1e93d0f7cf49534294d06c6c7a9db5effe"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-10-14-b2-3-sample-card-library.md",
+      "bytes": 8020,
+      "sha256": "dab243f35fca084b2ddf38423134a7afe8cbd4a3199825891b0c883f3527a26e",
+      "action": "更新",
+      "replacement": "docs/superpowers/plans/2026-10-14-b2-3-sample-card-library.md",
+      "reason": "现行入口/同主题合并/引用修复；历史状态与当前进度分开",
+      "after_bytes": 8422,
+      "after_sha256": "aaf73e7726f75c5ae74c4b467971b61f2b00e67c1b28614979b09745576ee593"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-10-14-b2-5-card-lifecycle-reprint.md",
+      "bytes": 8129,
+      "sha256": "1b3ddca3b71f1f4e0773adec821edfc97134e0efbf39cea6bf5538f22ced1652",
+      "action": "更新",
+      "replacement": "docs/superpowers/plans/2026-10-14-b2-5-card-lifecycle-reprint.md",
+      "reason": "现行入口/同主题合并/引用修复；历史状态与当前进度分开",
+      "after_bytes": 8528,
+      "after_sha256": "29aa41eb27b17fed009d3b6841a7880218d1f03fcb905f0d39c1555ee48505d8"
+    },
+    {
+      "path": "docs/superpowers/specs/2026-08-22-unified-image-asset-system-design.md",
+      "bytes": 20386,
+      "sha256": "52d9be4c8f2b10d6f95b25827e15c14d3aa91d23b65db59598d25e8ce2b68182",
+      "action": "保留",
+      "replacement": "docs/superpowers/specs/2026-08-22-unified-image-asset-system-design.md",
+      "reason": "仍有未完成的集成/迁移/回滚及安全约束，不等同已落实可删除",
+      "after_bytes": 20386,
+      "after_sha256": "52d9be4c8f2b10d6f95b25827e15c14d3aa91d23b65db59598d25e8ce2b68182"
+    },
+    {
+      "path": "docs/superpowers/specs/2026-09-08-shared-document-print-model-design.md",
+      "bytes": 4036,
+      "sha256": "7fba8ce9fbf6f415ad67f8a0deb3d12f17b6e190f236dc6212cb1fac436e5691",
+      "action": "合并后删除",
+      "replacement": "docs/retrospectives/development/2026-10-09-document-output-source-review.md",
+      "reason": "实现与源码已核对，独有打印约束合并，删除重复设计/勾选步骤"
+    },
+    {
+      "path": "docs/superpowers/specs/2026-09-20-product-image-categories-and-wps-import-design.md",
+      "bytes": 10539,
+      "sha256": "ae4d3a3814cb5969a044b0ecc6325c9e567086326ca10f709d943945f630a3fa",
+      "action": "合并后删除",
+      "replacement": "docs/decisions/README.md#旧产品方案的替代边界",
+      "reason": "已退出当前需求或被V2替代，保留安全和数据保护约束"
+    },
+    {
+      "path": "docs/superpowers/specs/2026-10-12-product-master-v2-architecture.md",
+      "bytes": 20505,
+      "sha256": "cdb73f2ed0bbebaa8782d1bfc83e209c580fee55468d0f00da51ab71a232baee",
+      "action": "更新",
+      "replacement": "docs/superpowers/specs/2026-10-12-product-master-v2-architecture.md",
+      "reason": "现行入口/同主题合并/引用修复；历史状态与当前进度分开",
+      "after_bytes": 20992,
+      "after_sha256": "a98b6a45f4778c42fbda638ff223ee23cbba231a1dafcad7386fd4879d3ddb44"
+    },
+    {
+      "path": "docs/Templates/决策记录模板.md",
+      "bytes": 469,
+      "sha256": "58e358d146f5739f93dc82163d90519b00d1c6f63ae8ba1d91000a1d332bcbd3",
+      "action": "保留",
+      "replacement": "docs/Templates/决策记录模板.md",
+      "reason": "项目规范、运行说明、模板、维护审计或Obsidian配置，仍属于项目",
+      "after_bytes": 469,
+      "after_sha256": "58e358d146f5739f93dc82163d90519b00d1c6f63ae8ba1d91000a1d332bcbd3"
+    },
+    {
+      "path": "docs/Templates/开发复盘模板.md",
+      "bytes": 1012,
+      "sha256": "3f4da3de1ae411537e95454d468f79b1b99e47af95a46c584c11267089fde664",
+      "action": "更新",
+      "replacement": "docs/Templates/开发复盘模板.md",
+      "reason": "现行入口/同主题合并/引用修复；历史状态与当前进度分开",
+      "after_bytes": 989,
+      "after_sha256": "2149d368fbd5498b77c08b41e0de6a382ca653efa7b81b2025b769b1c0c76808"
+    },
+    {
+      "path": "docs/ui-design/collaboration-workflow.md",
+      "bytes": 3809,
+      "sha256": "791456161c9c138987e401e75ef754afa7d53ab861ec20e146161944af9e1dc2",
+      "action": "保留",
+      "replacement": "docs/ui-design/collaboration-workflow.md",
+      "reason": "项目规范、运行说明、模板、维护审计或Obsidian配置，仍属于项目",
+      "after_bytes": 3809,
+      "after_sha256": "791456161c9c138987e401e75ef754afa7d53ab861ec20e146161944af9e1dc2"
+    },
+    {
+      "path": "docs/ui-design/component-rules.md",
+      "bytes": 5456,
+      "sha256": "9da37731020b61e719f16b52d41bdfbdbdab9b31d4791224e4976d320db5175f",
+      "action": "保留",
+      "replacement": "docs/ui-design/component-rules.md",
+      "reason": "项目规范、运行说明、模板、维护审计或Obsidian配置，仍属于项目",
+      "after_bytes": 5456,
+      "after_sha256": "9da37731020b61e719f16b52d41bdfbdbdab9b31d4791224e4976d320db5175f"
+    },
+    {
+      "path": "docs/ui-design/design-system.md",
+      "bytes": 4245,
+      "sha256": "40096808f5844bc01717f3ef32eadb2603d2487fa0305e9498a752074ab44078",
+      "action": "保留",
+      "replacement": "docs/ui-design/design-system.md",
+      "reason": "项目规范、运行说明、模板、维护审计或Obsidian配置，仍属于项目",
+      "after_bytes": 4245,
+      "after_sha256": "40096808f5844bc01717f3ef32eadb2603d2487fa0305e9498a752074ab44078"
+    },
+    {
+      "path": "docs/ui-design/project-structure-audit.md",
+      "bytes": 4021,
+      "sha256": "8e3e410b511889ac870278adfc562343c763d59fead80166e217a4489e8804df",
+      "action": "更新",
+      "replacement": "docs/ui-design/project-structure-audit.md",
+      "reason": "现行入口/同主题合并/引用修复；历史状态与当前进度分开",
+      "after_bytes": 4136,
+      "after_sha256": "38edecef29f0d4e03b87caa24c461fb2e41347a40a2087f2975f7f76edfa3d51"
+    },
+    {
+      "path": "docs/ui-design/README.md",
+      "bytes": 2842,
+      "sha256": "7b0a52a0a42d21062b08ec978565852e42a451cc983688e4eba96600c06ff9f2",
+      "action": "保留",
+      "replacement": "docs/ui-design/README.md",
+      "reason": "项目规范、运行说明、模板、维护审计或Obsidian配置，仍属于项目",
+      "after_bytes": 2842,
+      "after_sha256": "7b0a52a0a42d21062b08ec978565852e42a451cc983688e4eba96600c06ff9f2"
+    },
+    {
+      "path": "docs/ui-design/ui-review-checklist.md",
+      "bytes": 4342,
+      "sha256": "8361e733b0a378d0ff3e50bdde95de63b1658e14cc31a6f95e0cd3c9718d0511",
+      "action": "保留",
+      "replacement": "docs/ui-design/ui-review-checklist.md",
+      "reason": "项目规范、运行说明、模板、维护审计或Obsidian配置，仍属于项目",
+      "after_bytes": 4342,
+      "after_sha256": "8361e733b0a378d0ff3e50bdde95de63b1658e14cc31a6f95e0cd3c9718d0511"
+    },
+    {
+      "path": "README.md",
+      "bytes": 2963,
+      "sha256": "afe8db031c59d262b5bd6e1c65a4e8e18e3def7532e95d71f880e9e7ec37cf93",
+      "action": "更新",
+      "replacement": "README.md",
+      "reason": "现行入口/同主题合并/引用修复；历史状态与当前进度分开",
+      "after_bytes": 3718,
+      "after_sha256": "c6eee77c8cc60a1c600645382bfab9404e47d7c493344f0046bb1da7332c2e80"
+    },
+    {
+      "path": "skills-lock.json",
+      "bytes": 4040,
+      "sha256": "b1008d2d277ffc7d13c95640d0384efe1aadba3c8e145cbc8287a18cc3ee6f30",
+      "action": "更新",
+      "replacement": "skills-lock.json",
+      "reason": "现行入口/同主题合并/引用修复；历史状态与当前进度分开",
+      "after_bytes": 3214,
+      "after_sha256": "91da2f8d42825025860da903b98306a693c5beed687eaa7a20041aa61bdbe9a1"
+    }
+  ],
+  "missing_historical_attachments": [
+    {
+      "source": "docs/product-master/product-master-v2-document-product-ui-review.md",
+      "path": "../../artifacts/product-master-ui/stitch/current/document-product-canvas.jpg",
+      "reason": "历史附件在本轮开始前已缺失，未补造或重新验收"
+    },
+    {
+      "source": "docs/product-master/product-master-v2-fabric-ui-review.md",
+      "path": "../../artifacts/product-master-ui/stitch/current/fabric-inspection.json",
+      "reason": "历史附件在本轮开始前已缺失，未补造或重新验收"
+    },
+    {
+      "source": "docs/product-master/product-master-v2-numeric-colorway-ui-review.md",
+      "path": "../../artifacts/product-master-ui/stitch/current/numeric-colorway-canvas.jpg",
+      "reason": "历史附件在本轮开始前已缺失，未补造或重新验收"
+    },
+    {
+      "source": "docs/product-master/product-master-v2-stitch-design-review.md",
+      "path": "../../artifacts/product-master-ui/stitch/current/DESIGN.md",
+      "reason": "历史附件在本轮开始前已缺失，未补造或重新验收"
+    },
+    {
+      "source": "docs/product-master/product-master-v2-ui-cleanup.md",
+      "path": "../../artifacts/product-master-ui/stitch/cleanup-proof.jpg",
+      "reason": "历史附件在本轮开始前已缺失，未补造或重新验收"
+    },
+    {
+      "source": "docs/product-master/product-master-v2-ui-cleanup.md",
+      "path": "../../artifacts/product-master-ui/stitch/obsolete-project-inventory.json",
+      "reason": "历史附件在本轮开始前已缺失，未补造或重新验收"
+    },
+    {
+      "source": "docs/retrospectives/development/2026-10-11-stitch-product-list-delivery.md",
+      "path": "../../../artifacts/product-master-ui/stitch/delivery-audit.json",
+      "reason": "历史附件在本轮开始前已缺失，未补造或重新验收"
+    },
+    {
+      "source": "docs/retrospectives/development/2026-10-11-stitch-product-list-delivery.md",
+      "path": "../../../artifacts/product-master-ui/stitch/current/product-list-canvas.jpg",
+      "reason": "历史附件在本轮开始前已缺失，未补造或重新验收"
+    },
+    {
+      "source": "docs/retrospectives/development/2026-10-11-stitch-product-list-delivery.md",
+      "path": "../../../artifacts/product-master-ui/stitch/delivery-gate-verification.json",
+      "reason": "历史附件在本轮开始前已缺失，未补造或重新验收"
+    }
+  ],
+  "protected_file_count": 340,
+  "updated_existing_files": 33,
+  "removed_files": 25,
+  "removed_source_bytes": 241334,
+  "removed_skill_lock_entries": [
+    "design-md",
+    "enhance-prompt",
+    "remotion"
+  ],
+  "verification": "PASS local documentation only; see sibling verification JSON",
+  "original_scope_bytes": 1437845,
+  "current_scope_bytes_including_new_audit_files": 1200612,
+  "record_scope": "Historical first-round snapshot; after_sha256 records that round only. Current classification and old-to-current mapping use 2026-10-15-文档分类合并清单.json."
+}
