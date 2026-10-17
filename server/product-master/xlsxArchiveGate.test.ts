@@ -114,6 +114,54 @@ test('P5 rejects central directory local offsets overlapping another entry',()=>
  forged.writeUInt32LE(forged.readUInt32LE(first+42),second+42);
  assertRejected(forged);
 });
+test('P5 forged tiny central sizes must not allow massive actual deflate expansion',()=>{
+ const large=zip({'xl/worksheets/extra.xml':new Uint8Array(4*1024*1024)});
+ // The compressed payload remains a valid ~4KB deflate stream, but the
+ // attacker lowers the central-directory expanded length to just one byte.
+ // The old header-only preflight accepted this forged promise.
+ const cd=little(large,'504b0102');assert(cd>=0);
+ let entry=cd,changed=false;
+ while(entry<large.length&&large.readUInt32LE(entry)===0x02014b50){
+  const filename=large.subarray(entry+46,entry+46+large.readUInt16LE(entry+28)).toString();
+  const next=entry+46+large.readUInt16LE(entry+28)+large.readUInt16LE(entry+30)+large.readUInt16LE(entry+32);
+  if(filename==='xl/worksheets/extra.xml'){
+   const local=large.readUInt32LE(entry+42);
+   const forged=Buffer.from(large);
+   forged.writeUInt32LE(1,entry+24);
+   if((forged.readUInt16LE(local+6)&8)===0)forged.writeUInt32LE(1,local+22);
+   assertRejected(forged);
+   changed=true;break;
+  }
+  entry=next;
+ }
+ assert(changed);
+});
+test('P5 corrupted compressed entry CRC cannot bypass matching local and central ZIP headers',async()=>{
+ const validWorkbook=await workbook();
+ const cd=little(validWorkbook,'504b0102');assert(cd>=0);
+ const local=validWorkbook.readUInt32LE(cd+42);
+ const modified=Buffer.from(validWorkbook);
+ modified.writeUInt32LE((modified.readUInt32LE(cd+16)^1)>>>0,cd+16);
+ if((modified.readUInt16LE(local+6)&8)===0)
+  modified.writeUInt32LE(modified.readUInt32LE(cd+16),local+14);
+ assertRejected(modified);
+});
+test('P5 changing one compressed payload byte must fail even when header size is plausible',()=>{
+ const original=zip({'xl/worksheets/extra.xml':strToU8('some valid repeated text '.repeat(100))});
+ const cd=little(original,'504b0102');assert(cd>=0);
+ let cursor=cd,found=-1;
+ while(cursor<original.length&&original.readUInt32LE(cursor)===0x02014b50){
+  const size=original.readUInt16LE(cursor+28);
+  const name=original.subarray(cursor+46,cursor+46+size).toString();
+  if(name==='xl/worksheets/extra.xml'){found=cursor;break;}
+  cursor+=46+size+original.readUInt16LE(cursor+30)+original.readUInt16LE(cursor+32);
+ }
+ assert(found>=0);
+ const offset=original.readUInt32LE(found+42);
+ const pos=offset+30+original.readUInt16LE(offset+26)+original.readUInt16LE(offset+28);
+ const modified=Buffer.from(original);modified[pos+3]^=1;
+ assertRejected(modified);
+});
 test('P5 malformed XLSX is rejected before worksheet parsing with a public safe message',async()=>{
  const attacker=zip({'xl/vbaProject.bin':strToU8('not a macro')});
  await assert.rejects(previewFabricXlsx(attacker,{filename:'safe.xlsx'}),FabricExcelError);

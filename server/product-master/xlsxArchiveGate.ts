@@ -1,13 +1,15 @@
 /**
  * P5 XLSX pre-decompression guard. ZIP headers, entry paths, compressed and
- * advertised expanded sizes are checked BEFORE ExcelJS/JSZip inflates data.
+ * actual bounded DEFLATE sizes and CRC are checked BEFORE ExcelJS inflates.
  * Conservative profile: single-disk Zip32, deflate/store, no opaque images,
  * external workbooks, macros, encryption, nested ZIPs or exotic names.
  *
- * This is defense-in-depth, not a sandbox or proof that advertised ZIP sizes
- * are honest. Resource limits and process isolation still apply in production.
+ * This bounds verified total uncompressed bytes even if ZIP headers lie, but
+ * cannot bound synchronous CPU to a deadline. Process isolation/timeout and
+ * independent data-entry validation remain separate production release gates.
  */
 import {Buffer} from 'node:buffer';
+import {inflateRawSync} from 'node:zlib';
 
 const KB=1024,MB=1024*KB;
 const MAX_ENTRIES=256,MAX_TOTAL_UNPACKED=32*MB;
@@ -15,6 +17,30 @@ const MAX_ENTRY_UNPACKED=16*MB,MAX_INFLATE_RATIO=500;
 const MAX_FILENAME=240;
 const bad=()=>new Error('XLSX 压缩存档结构或安全限制不符合要求');
 function ensure(ok:unknown):asserts ok{if(!ok)throw bad();}
+// Inspect actual decompressed data in a hard-limited buffer. This closes the
+// gap between an untrusted ZIP advertised size and its real DEFLATE payload.
+// Keep this guard ahead of any Workbook.xlsx.load() that might inflate twice.
+const CRC_TABLE=Uint32Array.from({length:256},(_,n)=>{
+ let c=n;
+ for(let bit=0;bit<8;bit++)c=(c&1)?0xedb88320^(c>>>1):c>>>1;
+ return c>>>0;
+});
+function crc32(value:Buffer):number{
+ let crc=0xffffffff;
+ for(const byte of value)crc=(CRC_TABLE[(crc^byte)&255]^(crc>>>8))>>>0;
+ return (crc^0xffffffff)>>>0;
+}
+function checkActualEntry(input:Buffer,method:number,offset:number,
+ compressed:number,claimed:number,checksum:number):void{
+ try{
+  const bytes=input.subarray(offset,offset+compressed);
+  // The +1 catches a stream that exceeds its claimed size without ever
+  // allocating or inflating its full potentially enormous untrusted content.
+  const actual=method===0?bytes:
+   inflateRawSync(bytes,{maxOutputLength:claimed+1});
+  ensure(actual.length===claimed&&crc32(actual)===checksum);
+ }catch{throw bad();}
+}
 const u16=(b:Buffer,o:number)=>b.readUInt16LE(o);
 const u32=(b:Buffer,o:number)=>b.readUInt32LE(o);
 const header=(b:Buffer,o:number,n:number)=>o>=0&&n>=0&&o+n<=b.length;
@@ -104,6 +130,9 @@ export function verifyFabricXlsxArchive(input:Buffer):void{
     u32(b,offset+14)===u32(b,at+16));
   const dataStart=offset+30+localName+localExtra;
   ensure(dataStart+compressed<=start);
+  // ZIP central metadata is attacker-controlled. Before ExcelJS we must
+  // verify that the real inflation does not overrun the advertised lengths.
+  checkActualEntry(b,method,dataStart,compressed,unpacked,u32(b,at+16));
   ranges.push({first:offset,end:dataStart+compressed});
   at+=46+nameLen+extraLen+commentLen;
  }
