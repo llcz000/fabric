@@ -3,7 +3,8 @@ import {canCreateOwnOrder,canReadOrder,canManageOrder} from '../access/policy';
 import type {TxConn,Pool,Update} from './lines';
 import {reconcileOrderLinesInTransaction} from './lines';
 import {calculateAndPersistOrderTotals} from './calculatedSave';
-import {normalizePieceMeters} from './calculations';
+import {normalizeStoredPieceMeters} from './calculations';
+import {recordAdminDocumentAction} from './documentAudit';
 import {readHeaderFields,HEADER_COLUMNS,headerSqlValue,type HeaderCreate,type HeaderEdit,type DisplaySnapshot} from './headerFields';
 
 type Row=Record<string,unknown>;
@@ -102,7 +103,7 @@ export function validateV2DocumentEdit(value:unknown):EditDocument {
  return {items,removeIds:v.removeIds as string[],...(v.deposit!==undefined?{deposit:v.deposit as number}: {}),...header,...editable};
 }
 function array(value:unknown):Row[]{if(!Array.isArray(value))throw Error('Database rows unavailable');return value as Row[];}
-export async function lockV2DocumentWriter(db:TxConn,actor:AppPrincipal):Promise<AppPrincipal>{
+export async function freshWriter(db:TxConn,actor:AppPrincipal):Promise<AppPrincipal>{
  // Locks serialize role changes, session revocation and this write. The
  // bearer was also verified by HTTP middleware before reaching this service.
  if(!actor||!/^[1-9][0-9]*$/.test(actor.userId)||!/^[1-9][0-9]*$/.test(actor.sessionId))
@@ -123,6 +124,7 @@ export async function lockV2DocumentWriter(db:TxConn,actor:AppPrincipal):Promise
  if(!canCreateOwnOrder(current))throw new DocumentWriteError('Cannot manage own documents',403);
  return current;
 }
+export const lockV2DocumentWriter=freshWriter;
 async function transact<T>(pool:Pool,worker:(db:TxConn)=>Promise<T>):Promise<T>{
  const db=await pool.getConnection();let active=false;
  try{
@@ -149,26 +151,13 @@ export async function createV2Document(pool:Pool,actor:AppPrincipal,body:unknown
  });
 }
 
-/** User-confirmed deletion; identity is revalidated inside the same transaction as the order lock. */
-export async function deleteV2Document(pool:Pool,actor:AppPrincipal,orderId:string):Promise<void>{
- if(!positiveInt(orderId))throw new DocumentWriteError('Order not found',404);
- await transact(pool,async db=>{
-  const current=await lockV2DocumentWriter(db,actor);
-  const [raw]=await db.query('SELECT id,created_by_user_id FROM orders WHERE id=? FOR UPDATE',[orderId]);
-  const saved=array(raw)[0];
-  if(!saved||!canManageOrder(current,{createdByUserId:saved.created_by_user_id==null?null:String(saved.created_by_user_id)}))throw new DocumentWriteError('Order not found',404);
-  await db.query('DELETE FROM order_items WHERE order_id=?',[orderId]);
-  const [result]=await db.query('DELETE FROM orders WHERE id=?',[orderId]);
-  if(Number((result as {affectedRows?:unknown}).affectedRows)!==1)throw new DocumentWriteError('Document deletion conflict',409);
- });
-}
 export async function updateV2Document(pool:Pool,actor:AppPrincipal,orderId:string,body:unknown):Promise<DocumentRecord>{
  if(!positiveInt(orderId))throw new DocumentWriteError('Order not found',404);
  const input=validateV2DocumentEdit(body);
  return transact(pool,async(db)=>{
   const current=await lockV2DocumentWriter(db,actor);
   await reconcileOrderLinesInTransaction(db,current,orderId,{items:input.items,removeIds:input.removeIds},
-   async(locked,id,touched)=>{
+   async(locked,id,touched,owner)=>{
     if(input.deposit!==undefined||input.settled===true){
      const [read]=await locked.query('SELECT template_type FROM orders WHERE id=? FOR UPDATE',[id]);
      const type=array(read)[0]?.template_type;
@@ -187,6 +176,7 @@ export async function updateV2Document(pool:Pool,actor:AppPrincipal,orderId:stri
     const businessHeader={orderNo:'order_no',date:'order_date',receivingUnit:'receiving_unit'} as const;
     const changed=(Object.keys(businessHeader) as (keyof typeof businessHeader)[]).filter(key=>key in input);
     if(changed.length)await locked.query('UPDATE orders SET '+changed.map(key=>businessHeader[key]+'=?').join(',')+' WHERE id=?',[...changed.map(key=>input[key]),id]);
+    await recordAdminDocumentAction(locked,current,id,owner,'edit');
    });
   return readV2Document(db,current,orderId);
  });
@@ -201,11 +191,7 @@ function snapshot(value:unknown):Row|null{
 function storedPieceMeters(row:Row):number[]|null{
  // The old form persisted fixed-length JSON arrays with empty slots as null.
  // Only unlinked legacy rows get this read projection; SQL and V2 validation stay unchanged.
- if(row.v2_source_kind==null&&row.v2_product_snapshot==null&&row.piece_meters!=null){
-  const values=typeof row.piece_meters==='string'?JSON.parse(row.piece_meters):row.piece_meters;
-  if(Array.isArray(values))return normalizePieceMeters(values.filter(value=>value!==null));
- }
- return normalizePieceMeters(row.piece_meters);
+ return normalizeStoredPieceMeters(row.piece_meters,row.v2_source_kind==null&&row.v2_product_snapshot==null);
 }
 export async function readV2Document(db:ReadDB,actor:AppPrincipal,orderId:string):Promise<DocumentRecord>{
  if(!positiveInt(orderId))throw new DocumentWriteError('Order not found',404);

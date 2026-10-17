@@ -101,6 +101,11 @@ async function product(db:TxConn,id:string):Promise<ProductRef>{
   weightUnit:r.weight_unit??null,widthCm:r.width_value==null?null:String(r.width_value)});
  return {id,productNo,productName:name,colorNo,composition,weight,width,snapshot};
 }
+/** Copy is a new business action and must hold the same active-ancestor locks as normal selection. */
+export async function assertActiveDocumentProduct(db:TxConn,id:string):Promise<void>{
+ if(!productIdOk(id))throw new OrderLineError('Selected product is unavailable',422);
+ await product(db,id);
+}
 function sourceSql(selected:ProductRef|Manual,kind:'catalog'|'manual'):{
  sql:string;params:unknown[]
 } {
@@ -119,7 +124,7 @@ function sourceSql(selected:ProductRef|Manual,kind:'catalog'|'manual'):{
 }
 
 export async function reconcileOrderLinesInTransaction(db:TxConn,actor:AppPrincipal,orderId:string,change:Update,
- finalize?: (db:TxConn,id:string,touchedIds:readonly string[])=>Promise<void>
+ finalize?: (db:TxConn,id:string,touchedIds:readonly string[],ownerId:string|null)=>Promise<void>
 ):Promise<{insertedIds:string[]}>{
  if(!intId(orderId)||!change||!Array.isArray(change.items)||!Array.isArray(change.removeIds)||
     change.items.length>200||change.removeIds.length>200)throw new OrderLineError('Invalid order line input');
@@ -186,7 +191,7 @@ export async function reconcileOrderLinesInTransaction(db:TxConn,actor:AppPrinci
    if(Number((result as {affectedRows?:number}).affectedRows)!==1)
     throw new OrderLineError('Removed line changed concurrently',409);
   }
-  if(finalize)await finalize(db,orderId,touchedIds);
+  if(finalize)await finalize(db,orderId,touchedIds,order.created_by_user_id==null?null:String(order.created_by_user_id));
   return {insertedIds};
 }
 

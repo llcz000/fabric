@@ -107,7 +107,7 @@ export default function V2DocumentPrintView({
   {model&&<div className="overflow-x-auto">
    <div ref={sheetRef} data-v2-print-sheet="true" className="mx-auto w-[240mm] min-h-[140mm] bg-white p-8 text-slate-900">
     <header className="flex items-start justify-between gap-4 border-b-2 border-slate-900 pb-3">
-     <div>{model.companyImages?.brand_logo&&<img src={model.companyImages.brand_logo} alt="公司Logo" className="max-h-12 max-w-[120px] object-contain"/>}</div>
+     <div>{model.companyImages?.brand_logo?<img src={model.companyImages.brand_logo} alt="公司Logo" className="max-h-12 max-w-[120px] object-contain"/>:<strong className="text-lg">{model.brandName}</strong>}</div>
      <div className="text-right">
      <h3 className="text-lg font-bold">{model.companyName}</h3>
      {model.companyLines.map((line,i)=><p key={i} className="text-xs">{line}</p>)}

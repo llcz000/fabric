@@ -5,7 +5,7 @@ import { initializeV2ProductMasterSchema, getV2ProductMasterCreateStatements } f
 const requiredTables = [
   'pattern_masters', 'pattern_colorways', 'v2_fabrics',
   'shared_tags', 'pattern_master_tag_links', 'pattern_colorway_tag_links',
-  'v2_products', 'v2_product_image_assets',
+  'v2_products', 'v2_product_image_assets', 'v2_company_print_labels',
 ] as const;
 
 const expectedColumns: Record<string, string[]> = {
@@ -18,6 +18,7 @@ const expectedColumns: Record<string, string[]> = {
   pattern_colorway_tag_links: ['colorway_id','tag_id'],
   v2_products: ['id','pattern_colorway_id','fabric_id','product_no','remark','is_active','is_available_for_sampling','row_version'],
   v2_product_image_assets: ['id','product_id','asset_id','role','sort_order','deleted_at'],
+  v2_company_print_labels:['company_id','issuer_label','receiver_label'],
 };
 const requiredIndexes: Record<string, string[]> = {
   pattern_masters: ['PRIMARY','uq_v2_master_no'],
@@ -28,6 +29,7 @@ const requiredIndexes: Record<string, string[]> = {
   pattern_colorway_tag_links: ['PRIMARY'],
   v2_products: ['PRIMARY','uq_v2_colorway_fabric','uq_v2_product_no'],
   v2_product_image_assets: ['PRIMARY','uq_v2_product_active_asset'],
+  v2_company_print_labels:['PRIMARY'],
 };
 
 class SchemaRecorder {

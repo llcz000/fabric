@@ -13,7 +13,8 @@ import type {V2ProductionTarget} from './v2ProductionTarget';
 interface Db{query(sql:string,params?:unknown[]):Promise<[unknown,unknown]>}
 const rows=(value:unknown):Record<string,any>[]=>{if(!Array.isArray(value))throw Error('Migration metadata unavailable');return value;};
 const hash=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
-const creates=[...getAccessSchemaCreateStatements(),...getV2ProductMasterCreateStatements().map(s=>s.sql),
+// Freeze this already-rehearsed ledger plan; later sandbox-only tables need their own migration ID.
+const creates=[...getAccessSchemaCreateStatements(),...getV2ProductMasterCreateStatements().filter(s=>s.name!=='v2_company_print_labels').map(s=>s.sql),
  ...getSampleSchemaStatements().map(s=>s.sql.replace(/^CREATE TABLE /,'CREATE TABLE IF NOT EXISTS ')),
  ...getFulfillmentSchemaStatements().map(s=>s.sql.replace(/^CREATE TABLE /,'CREATE TABLE IF NOT EXISTS '))];
 const alterations=[...getP1DAdditiveMigrationSql(),...getP1D2LineMigrationSql(),...getV2DocumentDisplaySchemaSql()];
@@ -32,7 +33,7 @@ export async function verifyV2ProductionSchema(db:Db,database:string):Promise<vo
  }
 }
 /** Explicit operator entry only. One physical connection holds identity, advisory lock and all DDL.
- * DDL implicitly commits; rollback means retaining additions and restoring the old application.
+ * DDL implicitly commits; retain additions. After V2 writes, recovery must stay authenticated V2/read-only.
  * No historical attribution, snapshot backfill, old product mutation or table deletion.
  */
 export async function migrateV2Production(db:Db,target:V2ProductionTarget,input:{backupSha256:string;confirmation:string}){

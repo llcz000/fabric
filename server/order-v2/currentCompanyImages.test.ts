@@ -15,3 +15,7 @@ test('actual XLSX embeds the same authorized raster image and signature labels c
  for(const label of ['开票人签名','客户签名'])assert(strings.some(x=>x.includes(label)));
  assert.throws(()=>buildDocumentWorkbookFromModel({...model,companyImages:{brand_logo:'https://outside.invalid/image.png'}}));
 });
+test('current brand text appears in workbook header when no image logo is configured',()=>{
+ const model={...buildV2DocumentPrintModel(doc,company),brandName:'当前品牌字标'};
+ const workbook=buildDocumentWorkbookFromModel(model);assert.equal(workbook.worksheets[0].getCell(1,1).value,'当前品牌字标');
+});

@@ -22,6 +22,9 @@ export interface DocumentPrintInput {
   date: string;
   customerName: string;
   companyName: string;
+  brandName?: string;
+  issuerLabel?: string;
+  receiverLabel?: string;
   companyAddress: string;
   companyPhone: string;
   defaultTerms: string;
@@ -56,11 +59,12 @@ export interface DocumentPrintSummary {
 }
 
 export interface DocumentPrintModel {
-  signatureLabels?: {issuer:string;receiver:string};
-  companyImages?: Partial<Record<'brand_logo'|'wechat_qr'|'alipay_qr',string>>;
   type: DocumentPrintType;
   title: string;
   companyName: string;
+  brandName?: string;
+  signatureLabels?: {issuer: string; receiver: string};
+  companyImages?: Partial<Record<'brand_logo'|'wechat_qr'|'alipay_qr',string>>;
   companyLines: [string, string];
   docNo: string;
   dateText: string;
@@ -140,6 +144,8 @@ export function buildDocumentPrintModel(input: DocumentPrintInput): DocumentPrin
     type,
     title: type === 'deposit' ? '定金单' : type === 'sales' ? '销售发货码单' : '样布码单',
     companyName: input.companyName,
+    brandName: input.brandName ?? '',
+    signatureLabels:{issuer:input.issuerLabel?.trim()||'开单人签字',receiver:input.receiverLabel?.trim()||'收货人签字'},
     companyLines: [`地址：${input.companyAddress}`, `电话：${input.companyPhone}`],
     docNo: input.docNo,
     dateText: formatDateChinese(input.date),

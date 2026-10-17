@@ -1,4 +1,4 @@
-import {calculateDocumentTotals,calculateLineAmounts,normalizePieceMeters,DocumentCalculationError,type DocumentTotals} from './calculations';
+import {calculateDocumentTotals,calculateLineAmounts,normalizeStoredPieceMeters,DocumentCalculationError,type DocumentTotals} from './calculations';
 import {reconcileOrderLines,type TxConn,type Pool,type Update} from './lines';
 import type {AppPrincipal} from '../access/types';
 type DBRow=Record<string,unknown>;
@@ -23,14 +23,15 @@ export async function calculateAndPersistOrderTotals(
  if(rawType!=='bulk'&&rawType!=='sample'&&rawType!=='deposit')
   throw new DocumentCalculationError('Unexpected saved document type');
  const [lineRaw]=await db.query(
-  'SELECT id,meters,unit_price,amount,piece_meters,deduction_meters FROM order_items WHERE order_id=? ORDER BY id FOR UPDATE',
+  'SELECT id,meters,unit_price,amount,piece_meters,deduction_meters,v2_source_kind,v2_product_snapshot FROM order_items WHERE order_id=? ORDER BY id FOR UPDATE',
   [orderId]
  );
  if(!Array.isArray(lineRaw))throw new DocumentCalculationError('Stored order lines unavailable');
+ if(lineRaw.length===0)throw new DocumentCalculationError('At least one product line required');
  const lines=(lineRaw as DBRow[]).map(r=>{
   const m=Number(r.meters),p=Number(r.unit_price),amt=Number(r.amount),deduction=Number(r.deduction_meters??0);
   return {id:String(r.id),meters:m,unitPrice:p,amount:amt,deductionMeters:deduction,
-   pieceMeters:normalizePieceMeters(r.piece_meters)};
+   pieceMeters:normalizeStoredPieceMeters(r.piece_meters,r.v2_source_kind==null&&r.v2_product_snapshot==null)};
  });
  const known=new Set(lines.map(r=>r.id));
  if(changedIds.some(id=>!known.has(id)))throw new DocumentCalculationError('Touched order line is missing');

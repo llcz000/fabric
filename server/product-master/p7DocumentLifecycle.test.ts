@@ -63,7 +63,7 @@ class LifecycleDb{
   }
   if(sql.startsWith('SELECT template_type,deposit FROM orders WHERE id=?'))
    return row(this.orders.filter(o=>String(o.id)===String(params[0])));
-  if(sql.startsWith('SELECT id,meters,unit_price,amount,piece_meters,deduction_meters FROM order_items'))
+  if(sql.startsWith('SELECT id,meters,unit_price,amount,piece_meters,deduction_meters,v2_source_kind,v2_product_snapshot FROM order_items'))
    return row(this.lines.filter(i=>String(i.order_id)===String(params[0])));
   if(sql.startsWith('UPDATE order_items SET ')&&!sql.startsWith('UPDATE order_items SET amount=')){
    const found=/^UPDATE order_items SET (.+) WHERE id=\? AND order_id=\?$/.exec(sql);

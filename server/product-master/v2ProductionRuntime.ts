@@ -23,12 +23,14 @@ import {createSampleFulfillmentRouter} from '../customer-samples/fulfillmentRout
 import {createV2InventoryRouter} from './v2Inventory';
 import {createFrontendStaticRouter} from '../frontendStatic';
 import {companyExportImage} from '../order-v2/companyExportImage';
+import {verifyV2DocumentAuditSchema} from '../order-v2/documentAuditSchema';
 
 export async function createV2ProductionRouter(pool:Pool,target:V2ProductionTarget,output?:V2DocumentOutputDependencies){
  const db=createPinnedV2Database(pool,target);
  // This is SELECT only. No bootstrap, automatic ALTER, guessed owner or JSON fallback.
  await verifyV2ProductionSchema(db,target.database);
  await verifyV2DocumentSupportSchema(db);
+ await verifyV2DocumentAuditSchema(db);
  const routes=createV2BusinessRoutes(db,db,output);
  routes.use('/customer-samples',createSampleFulfillmentRouter(requireV2Principal(db),db));
  return {routes,db};

@@ -20,6 +20,31 @@ class MemoryDocumentDb{
   if(sql.includes('FROM v2_access_users'))return reply([{id:'1',role:'admin',is_active:1,can_manage_products:1,can_manage_own_orders:1}]);
   if(sql.includes('FROM v2_access_sessions'))return reply([{id:'9'}]);
   if(sql.includes('FROM company_config'))return reply([{company_name:'当前公司',address:'地址',phone:'电话',default_terms:'当前条款',deposit_terms:'定金条款'}]);
+  if(sql.startsWith('SELECT id,created_by_user_id,order_no FROM orders')){
+   const row=this.orders.get(String(args[0]));return reply(row?[row]:[]);
+  }
+  if(sql.startsWith('SELECT id FROM orders WHERE order_no')){
+   return reply([...this.orders.values()].filter(row=>row.order_no===args[0]).map(row=>({id:row.id})));
+  }
+  if(sql.startsWith('SELECT id FROM order_items WHERE order_id')){
+   return reply((this.items.get(String(args[0]))??[]).map(item=>({id:item.id})));
+  }
+  if(sql.startsWith('INSERT INTO orders')&&sql.includes(' SELECT ')){
+   const original=this.orders.get(String(args[3]));assert(original);
+   const id=String(100+this.orders.size);
+   this.orders.set(id,{...original,id,order_no:args[0],order_date:args[1],created_by_user_id:args[2]});
+   this.items.set(id,[]);return reply({insertId:id,affectedRows:1});
+  }
+  if(sql.startsWith('INSERT INTO order_items')&&sql.includes(' SELECT ')){
+   const id=String(args[0]),source=String(args[1]),sourceRows=this.items.get(source)??[];
+   this.items.set(id,structuredClone(sourceRows).map((x,index)=>({...x,id:String(Number(id)*10+index+1),order_id:id})));
+   return reply({affectedRows:sourceRows.length});
+  }
+  if(sql.startsWith('DELETE FROM order_items')){this.items.set(String(args[0]),[]);return reply({affectedRows:1});}
+  if(sql.startsWith('DELETE FROM orders')){
+   const deleted=this.orders.delete(String(args[0]));this.items.delete(String(args[0]));
+   return reply({affectedRows:deleted?1:0});
+  }
   if(sql.startsWith('INSERT INTO orders')){
    const id=String(100+this.orders.size);const columns=['order_no','order_date','receiving_unit','template_type','deposit','created_by_user_id','style_no','sign_person','receiver','receiver_phone','receiver_address','settled','v2_display_snapshot'];
    this.orders.set(id,{id,...Object.fromEntries(columns.map((name,i)=>[name,args[i]]))});this.items.set(id,[]);return reply({insertId:id,affectedRows:1});
@@ -59,6 +84,10 @@ test('DOC-05/07 real private HTTP save, reread, patch, print and actual XLSX pre
    const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(Buffer.from(await xlsx.arrayBuffer()));
    const values:string[]=[];workbook.worksheets[0].eachRow(row=>row.eachCell(c=>{if(typeof c.value==='string')values.push(c.value);}));
    assert(values.includes(model.summaries[1].right));
+   const duplicate=await request('/'+saved.id+'/copy','POST',{orderNo:'COPY-'+type,date:'2026-10-17'});
+   assert.equal(duplicate.status,422,'new copies cannot silently inherit manual mode');
+   assert.equal((await request('/'+saved.id)).status,200);
+
    if(type==='sample'||type==='deposit'){
     const before=structuredClone(db.orders.get(saved.id));
     const bad=await request('/'+saved.id,'PATCH',{items:[{id:saved.items[0].id,fields:{}}],removeIds:[],...(type==='sample'?{deposit:1}:{settled:true})});
@@ -72,7 +101,7 @@ test('DOC-05/07 real private HTTP save, reread, patch, print and actual XLSX pre
     const normalized=await edited.json();assert.equal(type==='sample'?normalized.deposit:normalized.settled,type==='sample'?0:false);
    }
   }
-  assert.equal(db.rollbacks,2);
+  assert.equal(db.rollbacks,5);
  }finally{server.closeAllConnections();await new Promise<void>(r=>server.close(()=>r()));}
 });
 

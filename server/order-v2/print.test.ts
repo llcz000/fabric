@@ -106,3 +106,23 @@ test('P6-4 nullable historical header falls back explicitly, does not alter orig
  assert.equal(model.terms,'新条款');
  assert.equal(legacy.displaySnapshot,null);
 });
+
+
+test('COMPANY-01 updated brand and signature label match print JSON and XLSX for all three kinds',async()=>{
+ for(const type of ['sample','bulk','deposit'] as const){
+  const latest={...now,brand_name:'最新字标',issuer_label:'制单人盖章',receiver_label:'签收人签字'};
+  const doc:DocumentRecord={...base,type};
+  const model=buildV2DocumentPrintModel(doc,latest);
+  assert.equal(model.brandName,'最新字标');
+  assert.deepEqual(model.signatureLabels,{issuer:'制单人盖章',receiver:'签收人签字'});
+  assert.equal(model.terms,type==='deposit'?'新定金条款':'新条款');
+  const workbook=buildV2DocumentWorkbook(doc,latest),parsed=new ExcelJS.Workbook();
+  await parsed.xlsx.load(await workbook.xlsx.writeBuffer());
+  const values:string[]=[];parsed.worksheets[0].eachRow(row=>row.eachCell(c=>{
+   if(typeof c.value==='string')values.push(c.value);
+  }));
+  assert(values.some(x=>x.includes('制单人盖章：业务员')));
+  assert(values.some(x=>x.includes('签收人签字：收货员')));
+  assert.equal(base.displaySnapshot?.companyName,'历史公司','historical snapshot is immutable');
+ }
+});

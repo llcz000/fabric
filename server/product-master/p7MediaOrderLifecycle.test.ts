@@ -129,7 +129,7 @@ class Db{
   }
   if(sql.startsWith('SELECT template_type,deposit FROM orders WHERE id=?'))
    return out(this.orders.filter(o=>o.id===String(params[0])));
-  if(sql.startsWith('SELECT id,meters,unit_price,amount,piece_meters,deduction_meters FROM order_items'))
+  if(sql.startsWith('SELECT id,meters,unit_price,amount,piece_meters,deduction_meters,v2_source_kind,v2_product_snapshot FROM order_items'))
    return out(this.lines.filter(i=>i.order_id===String(params[0])));
   if(sql.startsWith('UPDATE order_items SET amount=')){
    const item=this.lines.find(i=>i.id===String(params[1]));

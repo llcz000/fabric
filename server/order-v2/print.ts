@@ -12,7 +12,7 @@ import {buildDocumentWorkbookFromModel} from '../documentExcel';
 export type CurrentCompany={
  company_name?:unknown;address?:unknown;phone?:unknown;
  default_terms?:unknown;deposit_terms?:unknown;
- issuer_label?:unknown;receiver_label?:unknown;
+ brand_name?:unknown;issuer_label?:unknown;receiver_label?:unknown;
 };
 function currentSettings(company:CurrentCompany){
  if(!company||typeof company!=='object'||Array.isArray(company))throw Error('Current company settings unavailable');
@@ -35,6 +35,9 @@ export function buildV2DocumentPrintModel(
   type:document.type,docNo:document.orderNo,date:document.date,
   customerName:document.receivingUnit,
   companyName:company.company_name,
+  brandName:typeof company.brand_name==='string'?company.brand_name:'',
+  issuerLabel:typeof company.issuer_label==='string'?company.issuer_label:undefined,
+  receiverLabel:typeof company.receiver_label==='string'?company.receiver_label:undefined,
   companyAddress:company.address,
   companyPhone:company.phone,
   defaultTerms:company.default_terms,
@@ -60,12 +63,7 @@ export function buildV2DocumentPrintModel(
    };
   })
  };
- const model=buildDocumentPrintModel(input);
- if(typeof company.issuer_label==='string'||typeof company.receiver_label==='string')model.signatureLabels={
-  issuer:typeof company.issuer_label==='string'&&company.issuer_label.trim()?company.issuer_label:'开单人签字',
-  receiver:typeof company.receiver_label==='string'&&company.receiver_label.trim()?company.receiver_label:'收货人签字'
- };
- return model;
+ return buildDocumentPrintModel(input);
 }
 /** ExcelJS version retains the existing print dimensions, margins and fonts. */
 export function buildV2DocumentWorkbook(

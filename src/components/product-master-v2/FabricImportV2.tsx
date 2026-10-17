@@ -205,8 +205,8 @@ export function FabricImportV2({apiFetch,canManage,isAdmin,onCancel,onFinished}:
    </>}
  </section>;
 }
-export function FabricWorkspaceV2({apiFetch,canManage=false,isAdmin=false}:{
- apiFetch:typeof fetch;canManage?:boolean;isAdmin?:boolean;
+export function FabricWorkspaceV2({apiFetch,canManage=false,isAdmin=false,allowExport=true}:{
+ apiFetch:typeof fetch;canManage?:boolean;isAdmin?:boolean;allowExport?:boolean;
 }){
  const [importing,setImporting]=useState(false),[revision,setRevision]=useState(0);
  return importing?<FabricImportV2 apiFetch={apiFetch} canManage={canManage} isAdmin={isAdmin}
@@ -218,7 +218,7 @@ export function FabricWorkspaceV2({apiFetch,canManage=false,isAdmin=false}:{
     className="rounded-lg border border-[#346ef6] bg-white px-3 py-1.5 text-xs text-[#0053da]">
     导入 XLSX</button>
   </div>:null}
-  <FabricLibraryV2 key={revision} apiFetch={apiFetch} canManage={canManage}/>
+  <FabricLibraryV2 key={revision} apiFetch={apiFetch} canManage={canManage} allowExport={allowExport}/>
  </div>;
 }
 export default FabricImportV2;

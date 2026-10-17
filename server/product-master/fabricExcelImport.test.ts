@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import ExcelJS from 'exceljs';
+import {strToU8,zipSync} from 'fflate';
 import express from 'express';
 import type {Server} from 'node:http';
 import {hashSessionToken} from '../access/password';
@@ -65,6 +66,8 @@ test('P5 sales can create, existing rows skipped, token consumed after commit',a
  const svc=createFabricImportService(db as never,db as never);
  const p=await svc.preview(sales,await book([['F018','新版',null,null,null,null,null],['F019','新建',null,null,null,null,null]]),{filename:'ok.xlsx'});
  assert.deepEqual(p.rows.map(x=>x.action),['skip','create']);
+ // Under current policy a salesperson may explicitly confirm duplicate updates.
+ assert.doesNotMatch(p.rows[0].reason,/只有管理员/);
  const done=await svc.commit(sales,{token:p.token,confirm:true,updateRows:[]});
  assert.deepEqual(done.counts,{created:1,updated:0,skipped:1,failed:0});
  assert.equal(db.items[0].fabric_name,'旧面料');
@@ -159,6 +162,46 @@ test('P5 V2 HTTP preview & commit require Bearer/valid MIME and do not write bef
   const h={authorization:'Bearer '+'a'.repeat(64),'Content-Type':'application/json'};
   const wrongMime=await fetch(base+'preview',{method:'POST',headers:{authorization:h.authorization,'Content-Type':'text/plain'},body});
   assert.equal(wrongMime.status,400);
+  // Real HTTP must reject an unsafe XLSX before creating a preview token
+  // or touching business writes; the following valid preview still succeeds.
+  const hostile=Buffer.from(zipSync({
+   '[Content_Types].xml':strToU8('<Types/>'),
+   'xl/workbook.xml':strToU8('<workbook/>'),
+   'xl/worksheets/sheet1.xml':strToU8('<worksheet/>'),
+   'xl/vbaProject.bin':strToU8('forbidden payload')
+  }));
+  const invalid=await fetch(base+'preview',{method:'POST',headers:h,
+   body:JSON.stringify({fileBase64:hostile.toString('base64'),options:{filename:'evil.xlsx'}})});
+  assert.equal(invalid.status,400);
+  assert.match(String((await invalid.json() as {error:string}).error),/XLSX/);
+  assert.equal(db.items.length,0);
+  // A ZIP with a tiny *forged* directory size and a 4MiB actual DEFLATE
+  // payload previously passed the static header-only gate. HTTP must refuse
+  // actual decompression mismatch before issuing any preview credential.
+  const forged=Buffer.from(zipSync({
+   '[Content_Types].xml':strToU8('<Types/>'),
+   'xl/workbook.xml':strToU8('<workbook/>'),
+   'xl/worksheets/sheet1.xml':new Uint8Array(4*1024*1024)
+  }));
+  let at=forged.indexOf(Buffer.from('504b0102','hex')),found=false;
+  while(at>=0&&at+46<forged.length&&forged.readUInt32LE(at)===0x02014b50){
+   const length=forged.readUInt16LE(at+28);
+   const name=forged.subarray(at+46,at+46+length).toString('utf8');
+   const next=at+46+length+forged.readUInt16LE(at+30)+forged.readUInt16LE(at+32);
+   if(name==='xl/worksheets/sheet1.xml'){
+    const local=forged.readUInt32LE(at+42);
+    forged.writeUInt32LE(1,at+24);
+    if((forged.readUInt16LE(local+6)&8)===0)forged.writeUInt32LE(1,local+22);
+    found=true;break;
+   }
+   at=next;
+  }
+  assert(found);
+  const rejected=await fetch(base+'preview',{method:'POST',headers:h,
+   body:JSON.stringify({fileBase64:forged.toString('base64'),options:{filename:'forged.xlsx'}})});
+  assert.equal(rejected.status,400);
+  assert.match(String((await rejected.json() as {error:string}).error),/XLSX/);
+  assert.equal(db.items.length,0);
   const ok=await fetch(base+'preview',{method:'POST',headers:h,body});
   assert.equal(ok.status,200);
   const preview=await ok.json() as {token:string;counts:{create:number}};

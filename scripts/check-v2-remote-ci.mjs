@@ -31,10 +31,15 @@ export function verifyReviewWorkflow(text){
  assert.ok(text.includes('scripts/tsconfig-b3-fulfillment.json'),'Missing V2 type-check');
  assert.ok(text.includes('scripts/check-fabric-v2-dependency-baseline.test.mjs'),'Missing patched runtime baseline');
  assert.ok(text.includes('node --test scripts/check-fabric-v2-cos-sdk-v3.test.mjs'),'Missing COS 3 runtime SDK smoke');
+ assert.ok(text.includes('node --test scripts/check-fabric-v2-patched-http-image.test.mjs'),'Missing patched HTTP/image runtime compatibility smoke');
  assert.ok(text.includes('scripts/report-fabric-v2-dependency-audit.test.mjs'),'Missing audit reporter tests');
  assert.ok(text.includes('npm audit --omit=dev --json'),'Missing live production audit');
  assert.ok(text.includes('scripts/report-fabric-v2-dependency-audit.mjs'),'Missing audited risk summary');
  assert.ok(text.includes('scripts/check-fabric-v2-doc-navigation.mjs'),'Missing doc checks');
+ assert.ok(text.includes('node --test scripts/check-v2-sandbox-front-config.test.mjs'),'Missing sandbox frontend boundary check');
+ assert.ok(text.includes('vite.js build --config scripts/vite-v2-sandbox.config.ts'),'Missing sandbox UI isolated build');
+ assert.ok(text.includes('FABRIC_V2_SANDBOX_FRONTEND: I_ACKNOWLEDGE_SANDBOX'),'Missing sandbox UI build acknowledgement');
+ assert.ok(text.includes('run: node --check scripts/document-output-browser-qa.mjs'),'Missing OUTPUT-01 browser QA syntax check');
  const forbidden=[
   [/^\s*(?:environment|deployment|deploy):\s*\S*/im,'deploy job or environment'],
   [/\$\{\{\s*(?:secrets|vars)\./i,'external credentials'],

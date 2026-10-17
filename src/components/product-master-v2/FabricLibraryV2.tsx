@@ -193,9 +193,9 @@ export function ConfirmFabricDelete({item,onCancel,onConfirm,busy=false}:{
  </div>;
 }
 export interface FabricLibraryV2Props{
- apiFetch:typeof fetch;canManage?:boolean;onViewProducts?(item:FabricCatalogItem):void;
+ apiFetch:typeof fetch;canManage?:boolean;allowExport?:boolean;onViewProducts?(item:FabricCatalogItem):void;
 }
-export function FabricLibraryV2({apiFetch,canManage=false,onViewProducts}:FabricLibraryV2Props){
+export function FabricLibraryV2({apiFetch,canManage=false,allowExport=true,onViewProducts}:FabricLibraryV2Props){
  const [filters,setFilters]=useState<FabricFilters>({...emptyFabricFilters});
  const [page,setPage]=useState<FabricCatalogPage|null>(null);
  const [loading,setLoading]=useState(false),[failure,setFailure]=useState('');
@@ -259,7 +259,7 @@ export function FabricLibraryV2({apiFetch,canManage=false,onViewProducts}:Fabric
    <button type="button" className="text-xs text-[#0053da] hover:underline"
     onClick={()=>dispatch({type:'reset'})}>清空筛选</button>
   </div>
-  <CatalogExportButton apiFetch={apiFetch} listUrl={buildFabricCatalogUrl(filters)} filename="面料资料.xlsx"/>
+  {allowExport?<CatalogExportButton apiFetch={apiFetch} listUrl={buildFabricCatalogUrl(filters)} filename="面料资料.xlsx"/>:null}
   {loading?<p role="status" className="rounded border bg-white p-3 text-sm text-slate-500">正在查找面料…</p>:null}
   {failure?<p role="alert" className="rounded border border-rose-200 bg-white p-3 text-sm text-rose-700">
    {failure}<button type="button" onClick={refresh} className="ml-3 underline">重试</button></p>:null}

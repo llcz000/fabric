@@ -49,6 +49,7 @@ export function buildDocumentWorkbookFromModel(
   sheet.views = [{ showGridLines: false }];
 
   sheet.mergeCells(1, 1, 2, 2);
+  if(!images.brand_logo&&model.brandName)styledCell(sheet.getCell(1,1),model.brandName,18,true,'left');
   sheet.mergeCells(1, 3, 1, lastColumn);
   sheet.mergeCells(2, 3, 2, lastColumn);
   styledCell(sheet.getCell(1, 3), model.companyName, 18, true, 'right');

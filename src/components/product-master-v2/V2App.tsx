@@ -68,7 +68,7 @@ export default function V2App(){
   {view==='preview'&&<V2DocumentPrintView apiFetch={apiFetch} documentId={previewId} backLabel="返回单据列表" onBack={()=>setView('documents')}/>}
   {view==='pattern'&&<PatternWorkspaceV2 apiFetch={apiFetch} canManage resolvePatternImages={resolveImages}/>}
   {view==='fabric'&&<FabricWorkspaceV2 apiFetch={apiFetch} canManage isAdmin={actor.role==='admin'}/>}
-  {view==='products'&&<ProductCatalogWorkspaceV2 apiFetch={apiFetch} canManage resolveImages={resolveImages} onUploadImage={async file=>(await uploadImageAsset(file,'product_image',{apiFetch})).id} onPatternLibrary={()=>setView('pattern')} onFabricLibrary={()=>setView('fabric')}/>}
+  {view==='products'&&<ProductCatalogWorkspaceV2 apiFetch={apiFetch} canManage resolveImages={resolveImages} onUploadImage={async file=>(await uploadImageAsset(file,'product_image',{apiFetch})).id} onDeleteProduct={async product=>{if(!window.confirm('确认删除产品 '+product.productNo+'？已被单据引用的产品不能删除。'))return;const response=await apiFetch('/api/v2/products/'+product.id,{method:'DELETE'});if(!response.ok)throw Error(response.status===409?'产品已被引用，请改为停用':'产品删除失败');}} onPatternLibrary={()=>setView('pattern')} onFabricLibrary={()=>setView('fabric')}/>}
   {view==='cards'&&<SampleCardLibraryV2 apiFetch={apiFetch}/>}
   {view==='settings'&&<CompanyProfileEditor profile={company} onSave={saveCompany} apiFetch={apiFetch}/>}
   {view==='inventory'&&<V2InventoryWorkspace apiFetch={apiFetch}/>}

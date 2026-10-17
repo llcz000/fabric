@@ -38,12 +38,15 @@ try{
  const original=await json('/api/v2/documents/'+saved.id,a);
  await json('/api/v2/documents/'+saved.id,a,'PATCH',{items:original.items.map(line=>({id:line.id,fields:{}})),removeIds:[],orderNo:'RELEDIT-'+stamp,date:'2026-10-16',receivingUnit:'发布验收编辑'+stamp});
  const edited=await json('/api/v2/documents/'+saved.id,a);assert.equal(edited.ownerId,users[0].id);assert.equal(edited.orderNo,'RELEDIT-'+stamp);assert.deepEqual(edited.items,original.items);checks.push('header editing preserves owner, persisted line identities and frozen product/trade snapshots');
+ await json('/api/v2/documents/'+saved.id,admin,'PATCH',{items:edited.items.map(line=>({id:line.id,fields:{}})),removeIds:[],issuer:'管理员代修改'});assert.equal((await json('/api/v2/documents/'+saved.id,a)).ownerId,users[0].id);
+ const [edits]=await db.query('SELECT original_owner_user_id,action FROM v2_document_audit_events WHERE subject_order_id=?',[saved.id]);assert.equal(edits.length,1);assert.equal(String(edits[0].original_owner_user_id),users[0].id);assert.equal(edits[0].action,'edit');checks.push('administrator edit preserves original sales owner and persists an audit event');
+ await json('/api/v2/documents/'+saved.id,a,'PATCH',{items:[],removeIds:edited.items.map(line=>line.id)},400);assert.equal((await json('/api/v2/documents/'+saved.id,a)).items.length,edited.items.length);checks.push('real direct API empty-document save rolls back removed rows');
  const suggestions=await json('/api/v2/documents/customers?q='+encodeURIComponent('发布验收编辑'),a);assert(suggestions.items.includes(edited.receivingUnit));assert.deepEqual((await json('/api/v2/documents/customers?q='+encodeURIComponent('发布验收编辑'),b)).items,[]);checks.push('real customer suggestions are owner scoped and accept Chinese search');
  const snapshot=await json('/api/v2/documents/export.json',a);assert.equal(snapshot.format,'fabric-v2-documents-export-v1');assert.equal(snapshot.documents.length,1);assert.equal(String(snapshot.documents[0].id),String(saved.id));assert.equal((await json('/api/v2/documents/export.json',b)).documents.length,0);await json('/api/v2/documents/export.json?ownerId='+users[0].id,b,'GET',undefined,400);checks.push('consistent snapshot export uses real read-only MySQL transaction and rejects owner override');
  const [[before]]=await db.query('SELECT COUNT(*) AS count FROM orders');
  await json('/api/v2/documents',a,'POST',{...create,orderNo:'FAIL-'+stamp,items:[...create.items,{selection:{productId:'18446744073709551614'},fields:{meters:1,unitPrice:1}}]},422);
  const [[after]]=await db.query('SELECT COUNT(*) AS count FROM orders');assert.equal(before.count,after.count);checks.push('invalid second product rolls back the complete real document transaction');
- await json('/api/v2/documents/'+saved.id,b,'DELETE',undefined,404);
+ await json('/api/v2/documents/'+saved.id,b,'DELETE',{confirm:true},404);
  stage='inventory';
  const productName='QA-INVENTORY-'+stamp;
  await json('/api/inventory/entries',a,'POST',[{entry_date:'2026-10-17',product_name:productName,rolls:2,meters:12.5,remark:'restored rehearsal only'}]);
@@ -52,6 +55,8 @@ try{
  const [historical]=await db.query('SELECT * FROM orders WHERE created_by_user_id IS NULL ORDER BY id LIMIT 1');assert.equal(historical.length,1);const historyHash=createHash('sha256').update(JSON.stringify(historical)).digest('hex');
  const company=await json('/api/company',admin),images={};
  for(const role of ['brand_logo','wechat_qr','alipay_qr']){images[role]=await upload(admin,role==='brand_logo'?'company_logo':'company_qr');await json('/api/company/images/'+role,admin,'PUT',{assetId:images[role]});}
+ const legacy=await sharp({create:{width:32,height:32,channels:3,background:'#ffffff'}}).png().toBuffer();await db.query('UPDATE company_config SET wechat_qr=? WHERE id=1',['data:image/png;base64,'+legacy.toString('base64')]);
+ await json('/api/company/images/wechat_qr',admin,'DELETE');assert.equal((await json('/api/company',admin)).images.wechat_qr,undefined);const [[cleared]]=await db.query('SELECT wechat_qr FROM company_config WHERE id=1');assert.equal(cleared.wechat_qr,null);images.wechat_qr=await upload(admin,'company_qr');await json('/api/company/images/wechat_qr',admin,'PUT',{assetId:images.wechat_qr});checks.push('explicit company QR removal clears legacy fallback atomically and never revives an old payment code');
  const config={company_name:'发布候选演练公司',brand_name:'QA',address:'仅恢复库演练地址',phone:'0575-00000000',default_terms:'最新统一条款'+stamp,deposit_terms:'最新定金条款'+stamp,issuer_label:'演练开单签字',receiver_label:'演练收货签字'};
  await json('/api/company',admin,'POST',config);
  for(const id of [saved.id,String(historical[0].id)]){
@@ -71,7 +76,11 @@ try{
  const p3=await json('/api/v2/fabrics/import/preview',a,'POST',{fileBase64:duplicateFile,options:{filename:'qa.xlsx',headerRow:1,defaultWeightUnit:'gsm'}});
  const [[fabric]]=await db.query('SELECT id FROM v2_fabrics WHERE fabric_no=?',[fabricNo]);await json('/api/v2/fabrics/'+fabric.id,b,'PATCH',{remark:'another real session changed the row'});
  const stale=await json('/api/v2/fabrics/import/commit',a,'POST',{token:p3.token,confirm:true,updateRows:[2]});assert.equal(stale.counts.failed,1);fixture.importFabric=String(fabric.id);checks.push('real XLSX preview/create, invalid-row isolation, single-use token, explicit duplicate update and stale-row conflict');
- stage='delete';await json('/api/v2/documents/'+saved.id,a,'DELETE');await json('/api/v2/documents/'+saved.id,a,'GET',undefined,404);checks.push('cross-owner delete is denied; owner deletion atomically removes document and lines');
+ stage='copy/delete';const copy=await json('/api/v2/documents/'+saved.id+'/copy',a,'POST',{orderNo:'COPY-'+stamp,date:'2026-10-17'},201);const copied=await json('/api/v2/documents/'+copy.id,a);assert.deepEqual(copied.items.map(({id,...line})=>line),edited.items.map(({id,...line})=>line));
+ const activeProduct=await json('/api/v2/products/'+old.product,a);await json('/api/v2/products/'+old.product,a,'PATCH',{expectedRowVersion:activeProduct.rowVersion,isActive:false});
+ try{await json('/api/v2/documents/'+saved.id+'/copy',a,'POST',{orderNo:'BAD-COPY-'+stamp,date:'2026-10-17'},422);}finally{const inactive=await json('/api/v2/products/'+old.product,a);await json('/api/v2/products/'+old.product,a,'PATCH',{expectedRowVersion:inactive.rowVersion,isActive:true});}
+ await json('/api/v2/documents/'+historical[0].id+'/copy',admin,'POST',{orderNo:'LEGACY-COPY-'+stamp,date:'2026-10-17'},422);checks.push('actual API refuses inactive-product and legacy unlinked copies without creating a document');
+ for(const id of [copy.id,saved.id]){const response=await request('/api/v2/documents/'+id,admin,'DELETE',{confirm:true});assert.equal(response.status,204);await json('/api/v2/documents/'+id,a,'GET',undefined,404);const [events]=await db.query("SELECT original_owner_user_id FROM v2_document_audit_events WHERE subject_order_id=? AND action='delete'",[id]);assert.equal(events.length,1);assert.equal(String(events[0].original_owner_user_id),users[0].id);}checks.push('shared upstream SQL copy preserves frozen source rows; cross-owner delete denied; admin deletion retains original-owner audit after parent removal');
  await writeFile('candidate-release-browser-credentials.local.json',JSON.stringify(users.map(({id,username,password})=>({id,username,password}))),{mode:0o600});
  const result={passed:checks.length,checks,fixture,productionDatabaseChanged:false};await writeFile('candidate-release-qa-result.json',JSON.stringify(result,null,2));console.log(JSON.stringify(result));
 }catch(error){console.error(JSON.stringify({stage,passed:checks.length,error:error instanceof Error?error.message:'failed'}));process.exitCode=1;}finally{await db.end();}

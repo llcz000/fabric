@@ -10,16 +10,16 @@ const input=():PatternCandidate=>({...approved,patternNo:'0012',price:'PRIVATE_P
  colorways:[{...approved,colorwayNumber:1,designImages:[],products:[
   {...approved,fabric:{...approved,fabricNo:'F018',fabricName:'丝绸',composition:'100% silk',weightValue:16,weightUnit:'mm',widthCm:140,privateNote:'PRIVATE_NOTE'},images:[]}
  ]}]});
-async function http(run:(base:string,ctx:{ok:boolean;candidate:PatternCandidate;calls:string[];linkActive:boolean;withdrawOnLoad:boolean})=>Promise<void>){
- const ctx={ok:true,candidate:input(),calls:[] as string[],linkActive:true,withdrawOnLoad:false};
+async function http(run:(base:string,ctx:{ok:boolean;candidate:PatternCandidate;calls:string[];linkActive:boolean;withdrawOnLoad:boolean;masterActive:boolean;disableOnLoad:boolean;withdrawOnSecondRead:boolean})=>Promise<void>){
+ const ctx={ok:true,candidate:input(),calls:[] as string[],linkActive:true,withdrawOnLoad:false,masterActive:true,disableOnLoad:false,withdrawOnSecondRead:false};
  const pool={async query(sql:string,params:unknown[]=[]):Promise<[unknown,unknown]>{
-  ctx.calls.push('SQL');assert(!sql.includes(token));assert.deepEqual(params,[hashPatternLinkToken(token)]);
-  return [[{token_hash:hashPatternLinkToken(token),pattern_master_id:'42',link_status:ctx.linkActive?'active':'inactive',revoked_at:null,parent_is_active:1}],[]];
+  ctx.calls.push('SQL');assert(!sql.includes(token));assert.deepEqual(params,[hashPatternLinkToken(token)]);if(ctx.withdrawOnSecondRead&&ctx.calls.filter(x=>x==='SQL').length===2)ctx.linkActive=false;
+  return [[{token_hash:hashPatternLinkToken(token),pattern_master_id:'42',link_status:ctx.linkActive?'active':'inactive',revoked_at:null,parent_is_active:ctx.masterActive?1:0}],[]];
  }};
  const app=express();app.use('/public/patterns',createPublicPatternRouter({
   pool,
-  verifyServerDecision:async()=>{ctx.calls.push('verify');return {authorizationVerified:ctx.ok,publicationVerified:ctx.ok};},
-  loadCandidate:async(id)=>{ctx.calls.push('load:'+id);if(ctx.withdrawOnLoad)ctx.linkActive=false;return ctx.candidate;}
+  verifyServerDecision:async()=>{ctx.calls.push('verify');return {authorizationVerified:ctx.ok,publicationVerified:ctx.ok&&ctx.masterActive,unavailableVerified:ctx.ok&&!ctx.masterActive};},
+  loadCandidate:async(id)=>{ctx.calls.push('load:'+id);if(ctx.withdrawOnLoad)ctx.linkActive=false;if(ctx.disableOnLoad)ctx.masterActive=false;return ctx.candidate;}
  }));
  const server=await new Promise<ReturnType<typeof app.listen>>(resolve=>{const x=app.listen(0,'127.0.0.1',()=>resolve(x));});
  try{const addr=server.address();assert(addr&&typeof addr!=='string');await run('http://127.0.0.1:'+addr.port+'/public/patterns/'+token,ctx);}
@@ -66,5 +66,49 @@ test('B1 disabled colorway shows temporarily unavailable, while an invalid link 
   assert.equal((await fetch(url+'99')).status,404);
   assert.equal((await fetch(url.replace(token,'sample-card'))).status,404);
   assert.equal((await fetch(url,{method:'POST'})).status,404);
+ });
+});
+
+test('B1 master disabled shows temporarily unavailable instead of 404; same old link works after enable',async()=>{
+ await http(async(url,ctx)=>{
+  ctx.masterActive=false;
+  ctx.calls=[];
+  const disabled=await fetch(url);
+  assert.equal(disabled.status,200);
+  assert.deepEqual(await disabled.json(),{available:false,message:'暂不可用'});
+  assert.deepEqual(ctx.calls,['SQL','verify','SQL','verify']);
+  ctx.masterActive=true;
+  ctx.calls=[];
+  const live=await fetch(url);
+  assert.equal(live.status,200);
+  assert.equal((await live.json()).available,true);
+  assert.deepEqual(ctx.calls,['SQL','verify','load:42','SQL','verify']);
+ });
+});
+test('B1 disable after catalog load must suppress all previously approved content',async()=>{
+ await http(async(url,ctx)=>{
+  ctx.disableOnLoad=true;
+  const result=await fetch(url);
+  assert.equal(result.status,200);
+  assert.deepEqual(await result.json(),{available:false,message:'暂不可用'});
+  assert.deepEqual(ctx.calls,['SQL','verify','load:42','SQL','verify']);
+ });
+});
+test('B1 inactive master link revoked between checks must never expose unavailable state',async()=>{
+ await http(async(url,ctx)=>{
+  ctx.masterActive=false;ctx.withdrawOnSecondRead=true;
+  const result=await fetch(url);
+  assert.equal(result.status,404);
+  assert.deepEqual(await result.json(),{error:'Pattern unavailable'});
+  assert.deepEqual(ctx.calls,['SQL','verify','SQL']);
+ });
+});
+test('B1 denied server authorization stays 404 even when master disabled',async()=>{
+ await http(async(url,ctx)=>{
+  ctx.ok=false;ctx.masterActive=false;
+  const result=await fetch(url);
+  assert.equal(result.status,404);
+  assert.deepEqual(await result.json(),{error:'Pattern unavailable'});
+  assert.deepEqual(ctx.calls,['SQL','verify']);
  });
 });
