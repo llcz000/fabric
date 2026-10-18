@@ -37,3 +37,5 @@ test('deposit editor totals show contract and computed deposit without receivabl
  for(const value of ['总计米数','合计金额','定金金额','75.00'])assert(html.includes(value));
  assert(!/应收|应付|匹数|扣损|结清/.test(html));
 });
+
+test('new document type order is sample, sales, deposit',()=>{const html=renderToStaticMarkup(React.createElement(V2DocumentWorkspace,{apiFetch:fetch,role:'admin',companyProfile:profile,onSaved(){},onCancel(){}}));assert.deepEqual([...html.matchAll(/<option value="(sample|sales|deposit)"[^>]*>/g)].map(m=>m[1]),['sample','sales','deposit']);});

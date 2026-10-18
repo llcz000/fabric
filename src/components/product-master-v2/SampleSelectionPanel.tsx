@@ -112,7 +112,7 @@ export function SampleSelectionPanel({sessionId,load,removeItems,readOnly=false,
    <div><h2 className="text-lg font-semibold">客户选样明细</h2>
     <p className="text-sm text-slate-500">{page.session.customerReference} · 已选产品 {page.total} 款 · 色卡 {page.selectedCardCount} 张</p></div>
    <div className="flex items-center gap-2">
-    {!readOnly&&manualAction&&searchManual&&<button type="button" disabled={busy||closed} onClick={()=>{setManualOpen(true);setNotice('');}}
+    {!readOnly&&manualAction&&searchManual&&<button type="button" disabled={busy||closed} onClick={()=>{setManualOpen(true);setNotice('');setMessage('');}}
      className="rounded bg-[#0053da] px-3 py-1.5 text-sm text-white disabled:opacity-40">人工补选</button>}
     {closed?<span className="rounded bg-slate-100 px-2 py-1 text-xs">{readOnly?'查看 · 只读':'已结束 · 只读'}</span>:<>
      {onRescan&&<button type="button" disabled={busy} onClick={()=>void rescan()} className="rounded border px-3 py-1.5 text-sm">重新扫码补选</button>}
@@ -126,7 +126,7 @@ export function SampleSelectionPanel({sessionId,load,removeItems,readOnly=false,
   {notice&&<p role="status" className="mb-3 rounded bg-[#eef1fd] p-3 text-sm text-[#31447b]">{notice}</p>}
   {busy&&<p role="status" className="mb-3 text-sm text-slate-500">正在处理，请稍候…</p>}
   {manualOpen&&!closed&&searchManual&&manualAction&&<ManualSelectionPane sessionId={sessionId} search={searchManual} add={addOne} resolveThumbnails={resolveThumbnails} disabled={busy}
-   onAccessLost={accessLost} onClose={()=>setManualOpen(false)}/>}
+   actionError={message} actionNotice={notice} customerReference={page.session.customerReference} onAccessLost={accessLost} onClose={()=>setManualOpen(false)}/>}
   {page.items.length===0?<p className="rounded bg-slate-50 p-6 text-center text-sm text-slate-500">暂无已选产品</p>:
   <div className="overflow-x-auto"><table className="w-full min-w-[760px] border-collapse text-left text-sm">
    <thead><tr className="border-b bg-slate-50 text-slate-600">

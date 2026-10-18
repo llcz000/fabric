@@ -7,7 +7,7 @@ export interface ManualSelectionPaneProps{
  search:(filters:ManualFilters,signal?:AbortSignal)=>Promise<SelectionCardPage>;
  add:(card:SelectionCard,productIds?:string[])=>Promise<void>;
  resolveThumbnails?:(ids:string[],signal?:AbortSignal)=>Promise<Map<string,string>>;
- disabled:boolean;onAccessLost:(error:unknown)=>void;onClose:()=>void;
+ disabled:boolean;actionError?:string;actionNotice?:string;customerReference?:string;onAccessLost:(error:unknown)=>void;onClose:()=>void;
 }
 function CardRow({card,disabled,add,resolveThumbnails,onAccessLost}:{card:SelectionCard;disabled:boolean;add:ManualSelectionPaneProps['add'];resolveThumbnails?:ManualSelectionPaneProps['resolveThumbnails'];onAccessLost:ManualSelectionPaneProps['onAccessLost']}){
  const [expanded,setExpanded]=useState(false);
@@ -54,13 +54,14 @@ function CardRow({card,disabled,add,resolveThumbnails,onAccessLost}:{card:Select
   </td></tr>}
  </>;
 }
-/** Inline card search keeps the customer/session visible. Each new result defaults to all colorways. */
-export function ManualSelectionPane({sessionId,search,add,resolveThumbnails,disabled,onAccessLost,onClose}:ManualSelectionPaneProps){
+/** Modal card search keeps the selected list stable behind the dialog. Each new result defaults to all colorways. */
+export function ManualSelectionPane({sessionId,search,add,resolveThumbnails,disabled,onAccessLost,onClose,actionError='',actionNotice='',customerReference=''}:ManualSelectionPaneProps){
  const [query,setQuery]=useState('');const [filters,setFilters]=useState<ManualFilters>({sessionId,query:'',offset:0});
  const [revision,setRevision]=useState(0),[page,setPage]=useState<SelectionCardPage|null>(null);
  const [loading,setLoading]=useState(true),[error,setError]=useState('');
+ const dialog=useRef<HTMLDialogElement>(null);
  const firstInput=useRef<HTMLInputElement>(null),accessLost=useRef(onAccessLost);accessLost.current=onAccessLost;
- useEffect(()=>{firstInput.current?.focus();},[]);
+ useEffect(()=>{const previous=document.activeElement,element=dialog.current;element?.showModal();firstInput.current?.focus();return()=>{if(element?.open)element.close();if(previous instanceof HTMLElement&&previous.isConnected)previous.focus();};},[]);
  useEffect(()=>{
   const controller=new AbortController();setLoading(true);setError('');setPage(null);
   void search(filters,controller.signal).then(result=>{if(!controller.signal.aborted)setPage(result);}).catch(error=>{
@@ -72,10 +73,12 @@ export function ManualSelectionPane({sessionId,search,add,resolveThumbnails,disa
  },[search,filters,revision]);
  const apply=(text:string)=>{setPage(null);setFilters({sessionId,query:text.trim(),offset:0});setRevision(x=>x+1);};
  const locked=disabled||loading;
- return <section aria-label="人工补选色卡" aria-busy={loading||disabled} className="mb-5 rounded-lg border border-[#c3c6d7] bg-[#f8f9ff] p-4">
+ return <dialog ref={dialog} aria-label="人工补选" aria-modal="true" className="m-auto max-h-[90vh] w-[min(96vw,1100px)] overflow-auto rounded-xl border p-0 shadow-xl backdrop:bg-black/30" onCancel={event=>{if(event.target!==event.currentTarget)return;event.preventDefault();if(!disabled)onClose();}}><section aria-label="人工补选色卡" aria-busy={loading||disabled} className="rounded-lg border border-[#c3c6d7] bg-[#f8f9ff] p-4">
   <header className="mb-3 flex items-start justify-between gap-3"><div><h3 className="font-semibold">人工补选 · 搜索色卡</h3>
    <p className="mt-1 text-xs text-slate-600">点击色卡编号查看花型，默认全选；可取消部分勾选后加入，重复加入不会新增一行。</p></div>
-   <button type="button" disabled={disabled} onClick={onClose} className="shrink-0 rounded border px-3 py-1 text-sm disabled:opacity-40">收起补选</button></header>
+   <button type="button" disabled={disabled} onClick={onClose} className="shrink-0 rounded border px-3 py-1 text-sm disabled:opacity-40">关闭补选</button></header>
+  {customerReference&&<p className="mb-2 text-sm text-slate-600">客户：{customerReference}</p>}
+  {actionError&&<p role="alert" className="mb-2 text-sm text-rose-700">{actionError}</p>}{actionNotice&&<p role="status" className="mb-2 text-sm text-emerald-800">{actionNotice}</p>}
   <form onSubmit={e=>{e.preventDefault();if(!locked)apply(query);}} className="mb-3 flex flex-wrap items-end gap-3">
    <label className="min-w-[180px] flex-1 text-sm">色卡搜索<input ref={firstInput} value={query} maxLength={100} disabled={disabled} onChange={e=>setQuery(e.target.value)} placeholder="色卡编号、花型编号、面料品号或品名"
     className="mt-1 block w-full rounded border border-[#c3c6d7] bg-white px-3 py-2 focus:outline-[#346ef6]"/></label>
@@ -93,5 +96,5 @@ export function ManualSelectionPane({sessionId,search,add,resolveThumbnails,disa
    <button type="button" disabled={locked||page.offset===0} onClick={()=>{setPage(null);setFilters({...filters,offset:Math.max(0,page.offset-20)});}} className="rounded border px-3 py-1.5 disabled:opacity-40">上一页色卡</button>
    <button type="button" disabled={locked||page.offset+page.limit>=page.total} onClick={()=>{setPage(null);setFilters({...filters,offset:page.offset+20});}} className="rounded border px-3 py-1.5 disabled:opacity-40">下一页色卡</button>
   </div></footer>}
- </section>;
+ </section></dialog>;
 }

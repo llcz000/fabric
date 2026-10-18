@@ -26,3 +26,7 @@ test('three document editors retain only their applicable business fields, inclu
  assert(!html.includes('款式号'));
  }
 });
+
+test('default zero business inputs render empty without losing readonly computed sales meters',()=>{const html=renderToStaticMarkup(React.createElement(DocumentItemsTable,{draft:{type:DocType.SALES,items:[{id:'new',meters:0,price:0,amount:0,remark:''}]} as unknown as DocumentData,role:'sales',disabled:false,onChange(){},onReplace(){},onRemove(){}}));
+ for(const label of ['单价','扣损米数']){const input=html.match(new RegExp('<input[^>]*aria-label="'+label+'"[^>]*>'))?.[0];assert(input);assert(input.includes('value=""'),label);}
+});

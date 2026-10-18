@@ -1,5 +1,6 @@
 import {DocumentItemsTable} from './DocumentItemsTable';
 import {documentDraftTotals} from './documentDraftTotals';
+import {parseDocumentNumber} from './DocumentNumberInput';
 import React,{useEffect,useState} from 'react';
 import {DocType,type CompanyProfile,type DocumentData,type DocItem} from '../../types';
 import type {DocumentRecord} from '../../../server/order-v2/documents';
@@ -51,13 +52,13 @@ export default function V2DocumentWorkspace({apiFetch,role,companyProfile,docume
  const [error,setError]=useState('');
  const [savedId,setSavedId]=useState<string|null>(documentId??null);
  const [previewOpen,setPreviewOpen]=useState(false);
- const [depositText,setDepositText]=useState('0');
+ const [depositText,setDepositText]=useState('');
  const [initialized,setInitialized]=useState(false),[autoNumber,setAutoNumber]=useState(true),[numberRevision,setNumberRevision]=useState(0),[numberBusy,setNumberBusy]=useState(false),[numberError,setNumberError]=useState('');
  const [customers,setCustomers]=useState<string[]>([]);
  useEffect(()=>{
   let active=true;
   setSavedId(documentId??null);setPreviewOpen(false);
-  if(!documentId){const initial=initialDraft?structuredClone(initialDraft):emptyDocument(companyProfile);setDraft(initial);setDepositText(String(initial.deposit??0));setRemoved([]);setLoading(false);setInitialized(true);setAutoNumber(!initial.docNo);return;}
+  if(!documentId){const initial=initialDraft?structuredClone(initialDraft):emptyDocument(companyProfile);setDraft(initial);setDepositText(initial.deposit?String(initial.deposit):'');setRemoved([]);setLoading(false);setInitialized(true);setAutoNumber(!initial.docNo);return;}
   const controller=new AbortController();
   setLoading(true);setError('');
   (async()=>{
@@ -67,7 +68,7 @@ export default function V2DocumentWorkspace({apiFetch,role,companyProfile,docume
     });
     if(!response.ok)throw Error(formatError(response.status));
     const saved=fromV2DocumentRecord(await response.json(),companyProfile);
-    if(active){setDraft(saved);setDepositText(String(saved.deposit??0));setRemoved([]);}
+    if(active){setDraft(saved);setDepositText(saved.deposit?String(saved.deposit):'');setRemoved([]);}
    }catch(e){
     if(active)setError(e instanceof Error?e.message:'读取单据失败');
    }finally{if(active)setLoading(false);}
@@ -91,12 +92,11 @@ export default function V2DocumentWorkspace({apiFetch,role,companyProfile,docume
    }).catch(()=>{});
   },250);return()=>{clearTimeout(timer);abort.abort();};
  },[apiFetch,draft.customerName]);
- const change=(field:keyof DocumentData,value:unknown)=>
-  setDraft(before=>({...before,[field]:value}));
- const updateItem=(id:string,patch:Record<string,unknown>)=>
-  setDraft(before=>({...before,items:before.items.map(item=>item.id===id?
-   ({...item,...patch} as DocItem):item)}));
+ const change=(field:keyof DocumentData,value:unknown)=>{setError('');setDraft(before=>({...before,[field]:value}));};
+ const updateItem=(id:string,patch:Record<string,unknown>)=>{setError('');setDraft(before=>({...before,items:before.items.map(item=>item.id===id?
+   ({...item,...patch} as DocItem):item)}));};
  const removeItem=(id:string)=>{
+  setError('');
   setDraft(before=>({...before,items:before.items.filter(item=>item.id!==id)}));
   if(idPattern.test(id))setRemoved(before=>before.includes(id)?before:[...before,id]);
  };
@@ -105,7 +105,7 @@ export default function V2DocumentWorkspace({apiFetch,role,companyProfile,docume
   const item=newItem();setDraft(before=>({...before,items:[...before.items,item]}));openPicker(item.id,'add');
  };
  const pickProduct=(product:Parameters<typeof applySelectedProductToDraft>[2])=>{
-  if(!picker)return;
+  if(!picker)return;setError('');
   setDraft(before=>({...before,items:before.items.map(item=>item.id===picker.rowId?
    applySelectedProductToDraft(before.type,item,product):item)}));
   setPicker(null);
@@ -124,12 +124,8 @@ export default function V2DocumentWorkspace({apiFetch,role,companyProfile,docume
    if(draft.items.length===0)throw Error('请先通过产品库选择至少一条明细');
    setSaving(true);
    const isEdit=Boolean(savedId);
-   let deposit=0;
-   if(draft.type!==DocType.SAMPLE){
-    if(!/^(0|[1-9]\d*)(?:\.\d{1,2})?$/.test(depositText.trim()))throw Error('定金须为有效非负数字，最多两位小数');
-    deposit=Number(depositText.trim());
-    documentDraftTotals(draft,depositText);
-   }
+   const deposit=draft.type===DocType.SAMPLE?0:parseDocumentNumber(depositText,draft.type===DocType.DEPOSIT?'定金比例':'定金金额',draft.type===DocType.DEPOSIT?100:999999999.99);
+   documentDraftTotals(draft,depositText);
    const paymentDraft={...draft,deposit};
    const payload=isEdit?toV2EditPayload(paymentDraft,role,removed):toV2CreatePayload(paymentDraft,role);
    const response=await apiFetch(isEdit?
@@ -139,7 +135,7 @@ export default function V2DocumentWorkspace({apiFetch,role,companyProfile,docume
    });
    if(!response.ok)throw Error(formatError(response.status));
    const serverDocument=fromV2DocumentRecord(await response.json(),companyProfile);
-   setDraft(serverDocument);setDepositText(String(serverDocument.deposit??0));setRemoved([]);
+   setDraft(serverDocument);setDepositText(serverDocument.deposit?String(serverDocument.deposit):'');setRemoved([]);
    setSavedId(serverDocument.id);
    onSaved(serverDocument);
   }catch(e){setError(e instanceof Error?e.message:'保存失败');}
@@ -150,7 +146,7 @@ export default function V2DocumentWorkspace({apiFetch,role,companyProfile,docume
  const headerFields:[keyof DocumentData,string][]=[['customerName','客户/收货单位'],['date','开单日期'],['docNo','单据编号']];
  const contactFields:[keyof DocumentData,string][]=[['issuer','开单人'],['receiver','收货人'],['bottomPhone','收货联系电话'],['receiverAddress','收货地址']];
  let totals:ReturnType<typeof documentDraftTotals>|null=null,totalError='';
- try{totals=documentDraftTotals(draft,depositText);}catch{totalError='请检查米数、分匹、单价、扣损或定金输入，汇总将在有效后更新';}
+ try{totals=documentDraftTotals(draft,depositText);}catch(cause){totalError=cause instanceof Error?cause.message:'请完善数字输入后计算汇总';}
  if(previewOpen&&savedId)return <V2DocumentPrintView apiFetch={apiFetch} documentId={savedId}
   onBack={()=>setPreviewOpen(false)}/>;
  return <section className="mx-auto max-w-7xl space-y-5 rounded-2xl bg-white p-4 sm:p-6" aria-label="V2单据编辑工作区">
@@ -172,10 +168,10 @@ export default function V2DocumentWorkspace({apiFetch,role,companyProfile,docume
      <select disabled={!canEdit} className={input} value={draft.type} onChange={e=>{
       const type=e.target.value as DocType;
       if(draft.items.length>0){setError('请先清除当前明细再切换单据类型');return;}
-      setDraft(before=>({...before,type,deposit:0,settled:false,terms:type===DocType.DEPOSIT?companyProfile.depositTerms:companyProfile.defaultTerms}));setDepositText('0');
+      setError('');setDraft(before=>({...before,type,deposit:0,settled:false,terms:type===DocType.DEPOSIT?companyProfile.depositTerms:companyProfile.defaultTerms}));setDepositText('');
      }}>
-      <option value={DocType.SAMPLE}>样布码单</option><option value={DocType.DEPOSIT}>定金单</option>
-      <option value={DocType.SALES}>销售发货码单</option>
+      <option value={DocType.SAMPLE}>样布码单</option><option value={DocType.SALES}>销售发货码单</option>
+      <option value={DocType.DEPOSIT}>定金单</option>
      </select></label>}
     {headerFields.map(([key,label])=><label key={key} className="text-xs font-semibold text-slate-700">
      {label}<input name={key} list={key==='customerName'?'v2-customer-suggestions':undefined} className={input} type={key==='date'?'date':'text'}
@@ -185,7 +181,7 @@ export default function V2DocumentWorkspace({apiFetch,role,companyProfile,docume
     <datalist id="v2-customer-suggestions">{customers.map(value=><option key={value} value={value}/>)}</datalist>
     {draft.type!==DocType.SAMPLE&&<label className="text-xs font-semibold">{draft.type===DocType.DEPOSIT?'定金比例（%）':'定金金额（元）'}
      <input className={input} name="deposit" type="text" inputMode="decimal" maxLength={14}
-      disabled={!canEdit} value={depositText} onChange={e=>setDepositText(e.target.value)}/></label>}
+      disabled={!canEdit} value={depositText} onChange={e=>{setError('');setDepositText(e.target.value);}}/></label>}
     {draft.type!==DocType.DEPOSIT&&<label className="flex items-center gap-2 text-sm">
      <input type="checkbox" checked={Boolean(draft.settled)} disabled={!canEdit}
       onChange={e=>change('settled',e.target.checked)}/>已结清</label>}

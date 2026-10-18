@@ -3,6 +3,7 @@ import {ArrowLeftRight,Trash2} from 'lucide-react';
 import {DocType,type DocumentData,type DocItem} from '../../types';
 import {SalesPieceInputs} from './SalesPieceInputs';
 import {documentDraftTotals} from './documentDraftTotals';
+import {DocumentNumberInput} from './DocumentNumberInput';
 type Detail=DocItem&{composition?:string;weight?:string;width?:string;rollNo?:string;deductionMeters?:number;v2SourceKind?:string|null};
 export function DocumentItemsTable({draft,role,disabled,onChange,onReplace,onRemove}:{draft:DocumentData;role:'admin'|'sales';disabled:boolean;onChange(id:string,patch:Record<string,unknown>):void;onReplace(id:string):void;onRemove(id:string):void}){
  const sale=draft.type===DocType.SALES,sample=draft.type===DocType.SAMPLE;
@@ -12,7 +13,7 @@ export function DocumentItemsTable({draft,role,disabled,onChange,onReplace,onRem
   <tbody>{draft.items.map((row,index)=>{
    const item=row as Detail,manual=role==='admin'&&item.v2SourceKind==='manual';
    const text=(key:'itemNo'|'colorNo'|'productName'|'composition'|'weight'|'width',label:string)=>manual?<input aria-label={label} className={field} disabled={disabled} value={item[key]??''} onChange={e=>onChange(item.id,{[key]:e.target.value})}/>:<span className="block break-words" data-product-field={key}>{item[key]||'—'}</span>;
-   const numeric=(key:'meters'|'price'|'deductionMeters',label:string)=><input aria-label={label} className={field} type="number" min="0" step="0.01" disabled={disabled} readOnly={sale&&key==='meters'} value={item[key]??0} onChange={e=>onChange(item.id,{[key]:e.target.value===''?0:Number(e.target.value)})}/>;
+   const numeric=(key:'meters'|'price'|'deductionMeters',label:string)=><DocumentNumberInput label={label} className={field} disabled={disabled} readOnly={sale&&key==='meters'} value={item[key]??0} onChange={value=>onChange(item.id,{[key]:value})}/>;
    let amount='—';try{amount=documentDraftTotals({...draft,items:[item]},'0').totalAmount.toFixed(2);}catch{}
    return <tr key={item.id} className="border-t border-slate-100 align-top hover:bg-slate-50/50"><td className="px-2 py-2 text-center text-slate-500">{index+1}</td><td className="px-2 py-2">{text('itemNo','货号')}</td><td className="px-2 py-2">{text('colorNo','色号')}</td><td className="px-2 py-2">{text('productName','品名')}{!sample&&manual&&<div className="mt-2 space-y-1">{([['composition','成分'],['weight','克重'],['width','门幅']] as const).map(([key,label])=><label key={key} className="block text-[10px] text-slate-500">{label}{text(key,label)}</label>)}</div>}{!sample&&!manual&&<span className="mt-1 block text-[10px] text-slate-500">{[item.composition,item.weight,item.width?item.width+' cm':''].filter(Boolean).join(' · ')}</span>}</td>
     {sample&&<><td className="px-2 py-2">{text('composition','成分')}</td><td className="px-2 py-2">{text('weight','克重')}</td><td className="px-2 py-2">{text('width','门幅')}</td></>}

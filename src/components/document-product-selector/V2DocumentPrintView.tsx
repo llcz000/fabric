@@ -16,7 +16,7 @@ export function DocumentPrintTable({model}:{model:DocumentPrintModel}){
    return <tr key={i}>{row.map((value,j)=>{
     const merge=group&&group.rowCount>1&&!/^roll\d+$/.test(model.columns[j].key);
     if(merge&&i!==group.start)return null;
-    return <td key={j} rowSpan={merge?group.rowCount:undefined} className="break-words border border-slate-300 px-1 py-2 text-center">{value}</td>;
+    return <td key={j} rowSpan={merge?group.rowCount:undefined} className="break-words border border-slate-500 px-1 py-2 text-center">{value}</td>;
    })}</tr>;
   })}</tbody>
   <tfoot className="table-row-group">{model.summaries.map((s,i)=><tr key={i} className="bg-slate-50 font-medium">

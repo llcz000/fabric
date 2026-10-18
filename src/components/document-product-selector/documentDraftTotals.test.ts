@@ -10,3 +10,9 @@ test('invalid decimal/pieces cannot be presented as zero live totals',()=>{
  assert.throws(()=>documentDraftTotals(doc(DocType.SALES),'1e'));
  const broken=doc(DocType.SALES);(broken.items[0] as any).rollNo='1e';assert.throws(()=>documentDraftTotals(broken,'0'));
 });
+
+test('empty optional deposit is zero and leading zeros never reject an otherwise valid amount',()=>{
+ assert.equal(documentDraftTotals(doc(DocType.SALES),'').depositAmount,0);assert.equal(documentDraftTotals(doc(DocType.SALES),'020').depositAmount,20);
+ assert.equal(documentDraftTotals(doc(DocType.DEPOSIT),'025.00').depositAmount,5);
+});
+test('numeric errors identify the row and field instead of a generic summary warning',()=>{const bad=doc(DocType.SAMPLE);bad.items[0].price=NaN;assert.throws(()=>documentDraftTotals(bad,''),/第1行.*单价/);assert.throws(()=>documentDraftTotals(doc(DocType.DEPOSIT),'101'),/定金比例.*100/);});

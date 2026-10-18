@@ -44,6 +44,7 @@ try{
  const directory=await privateJson('/api/v2/customer-samples/sessions?query='+encodeURIComponent(customer));sessionId=directory.items[0].id;
  stage='manual';await click('人工补选');await fill('input[placeholder="色卡编号、花型编号、面料品号或品名"]','B3');await until(()=>js(`Boolean(document.querySelector('button[aria-label^="加入色卡 B3"]'))`),'card search');
  await js(`document.querySelector('button[aria-label^="加入色卡 B3"]').click()`);await until(()=>js(`document.body.textContent.includes('已选产品 2 款')`),'two selected products');checks.push('existing card-based manual selection adds current two products without a separate product picker');
+ await click('关闭补选','dialog button');await send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
  stage='photo scan';
  const cards=await privateJson('/api/v2/sample-cards?query=B3&limit=20'),physical=cards.items.find(c=>c.cardNo.startsWith('B3'));assert(physical?.qrPayload);
  const photo=path.join(downloads,'physical-card.png');await QRCode.toFile(photo,physical.qrPayload,{width:640,margin:4});
@@ -55,11 +56,11 @@ try{
   await send('DOM.setFileInputFiles',{nodeId:fileNode.nodeId,files:[photo]});await until(()=>Boolean(heldCreate),'photo decoder delayed');
   await check(`(()=>{const f=document.querySelector('form[aria-label="扫码加入选样"]');return f.querySelector('input:not([type="file"])').disabled&&f.querySelector('button').disabled;})()`,'pending photo decode blocks conflicting HID/manual input and submission');
  }finally{if(heldCreate)await send('Fetch.continueRequest',{requestId:heldCreate});await send('Fetch.disable');heldCreate=null;}
- await until(()=>js(`document.body.textContent.includes('已识别色卡，请点击扫码加入')`),'real QR photo decode');
+ await until(()=>js(`document.body.textContent.includes('已识别色卡，请确认加入')`),'real QR photo decode');
  assert.deepEqual(await privateJson('/api/v2/customer-samples/sessions/'+sessionId+'?limit=20'),beforePhoto);checks.push('real card PNG decodes locally without submitting or changing selection');
- await click('扫码加入');await until(()=>js(`document.body.textContent.includes('重复产品保持原选择')`),'explicit photo scan submit');await check(`document.body.textContent.includes('已选产品 2 款')`,'explicit photo scan uses existing authenticated deduplicating card endpoint');
+ await click('确认加入');await until(()=>js(`document.body.textContent.includes('重复产品保持原选择')`),'explicit photo scan submit');await check(`document.body.textContent.includes('已选产品 2 款')`,'explicit photo scan uses existing authenticated deduplicating card endpoint');
  const blank=path.join(downloads,'blank.png');await sharp({create:{width:200,height:200,channels:3,background:'#fff'}}).png().toFile(blank);await send('DOM.setFileInputFiles',{nodeId:fileNode.nodeId,files:[blank]});await until(()=>js(`document.body.textContent.includes('未识别到二维码')`),'blank photo error');await check(`!document.querySelector('input[aria-label="拍照或选图识别色卡"]').disabled`,'unreadable photo gives retryable feedback');
- if(await js(`Boolean([...document.querySelectorAll('button')].find(e=>e.textContent.trim()==='收起补选'))`))await click('收起补选');await snap('selection');
+ if(await js(`Boolean([...document.querySelectorAll('button')].find(e=>e.textContent.trim()==='关闭补选'))`))await click('关闭补选');await snap('selection');
  stage='shipment';await click('寄样记录');await until(()=>js(`Boolean(document.querySelector('input[aria-label^="寄样数量"]'))`),'shipment form');await fill('input[aria-label^="寄样数量"]','1.5');await click('保存寄样批次');await until(()=>js(`document.body.textContent.includes('正整数')`),'invalid quantity rejection');await check(`document.querySelector('input[aria-label^="寄样数量"]').value==='1.5'`,'invalid shipment input is retained without an API write');
  await fill('input[aria-label^="寄样数量"]','3');await input('物流公司','顺丰');await input('快递单号','BROWSER-B3');
  await js(`(()=>{const b=[...document.querySelectorAll('button')].find(e=>e.textContent.trim()==='保存寄样批次');b.click();b.click();})()`);
