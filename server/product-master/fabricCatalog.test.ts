@@ -6,6 +6,16 @@ import type {Server} from 'node:http';
 import {hashSessionToken} from '../access/password';
 import {createFabricRouter} from './fabricsRoutes';
 
+test('independent fabric number/name/composition are AND conditions in count and page with literal wildcards',async()=>{
+ const query=parseFabricCatalogQuery({fabricNo:'F%_',fabricName:'棉',composition:'麻'});
+ const calls:{sql:string;params:unknown[]}[]=[];
+ const db={async query(sql:string,params:unknown[]=[]):Promise<[unknown,unknown]>{calls.push({sql,params});return [sql.includes('COUNT(*)')?[{total:1}]:[],[]];}};
+ await searchFabricCatalog(db,query);
+ assert.equal(calls.length,2);
+ for(const call of calls){assert.match(call.sql,/fabric_no LIKE.* AND fabric_name LIKE.* AND composition LIKE/);assert.deepEqual(call.params.slice(0,3),['%F!%!_%','%棉%','%麻%']);}
+ for(const key of ['fabricNo','fabricName','composition'])assert.throws(()=>parseFabricCatalogQuery({[key]:['bad']}));
+});
+
 const row=(n:number)=>({
  id:String(n),fabric_no:'F'+String(n).padStart(4,'0'),fabric_name:n%2?'真丝雪纺':'棉麻混纺',
  composition:n%2?'100%真丝':'55%棉45%麻',weight_value:n%3?'16.500':null,

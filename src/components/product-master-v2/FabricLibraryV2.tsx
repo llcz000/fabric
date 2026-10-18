@@ -222,7 +222,7 @@ export function FabricLibraryV2({apiFetch,canManage=false,allowExport=true,onVie
     if(ctrl.signal.aborted||!latest.current.isCurrent(rev))return;
     setFailure('面料列表加载失败，请重试。');setLoading(false);
    }
-  },filters.query?200:0);
+  },filters.query||filters.fabricNo||filters.fabricName||filters.composition?200:0);
   return ()=>{clearTimeout(timer);ctrl.abort();latest.current.cancel();};
  },[filters,reload,apiFetch]);
  const save=async(original:FabricCatalogItem|null,payload:FabricPayload)=>{
@@ -247,12 +247,12 @@ export function FabricLibraryV2({apiFetch,canManage=false,allowExport=true,onVie
     <Plus size={15}/>新增面料</button>:null}
   </header>
   <div className={border+' flex flex-wrap items-center gap-3 p-3'}>
-   <label className="flex items-center gap-2 text-xs">
+   {([['fabricNo','品号'],['fabricName','品名'],['composition','成分']] as const).map(([key,label])=><label key={key} className="flex items-center gap-2 text-xs">
     <Search size={15} className="text-slate-500"/>
-    <input aria-label="搜索品号 / 品名 / 成分"
-     placeholder="搜索品号 / 品名 / 成分" className="min-w-48 rounded border px-2 py-1.5 outline-[#346ef6]"
-     value={filters.query} onChange={e=>dispatch({type:'query',value:e.target.value})}/>
-   </label>
+    <input aria-label={'搜索'+label} maxLength={100}
+     placeholder={label} className="w-40 rounded border px-2 py-1.5 outline-[#346ef6]"
+     value={filters[key]??''} onChange={e=>dispatch({type:key,value:e.target.value})}/>
+   </label>)}
    <label className="inline-flex items-center gap-1 text-xs text-slate-600">
     <input type="checkbox" aria-label="包含停用" checked={filters.includeInactive}
      onChange={e=>dispatch({type:'inactive',value:e.target.checked})}/>包含停用</label>

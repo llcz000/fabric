@@ -152,8 +152,8 @@ export async function createFabric(pool:Pool,actor:AppPrincipal,body:unknown):Pr
   return {id:dbId((raw as {insertId:unknown}).insertId),...fields};
  });}catch(e){return dbConflict(e);}
 }
-function listOptions(input:{includeInactive?:boolean;query?:string;limit?:number;offset?:number}={}):{
- includeInactive:boolean;query:string;limit:number;offset:number
+function listOptions(input:{includeInactive?:boolean;query?:string;fabricNo?:string;fabricName?:string;composition?:string;limit?:number;offset?:number}={}):{
+ includeInactive:boolean;query:string;fabricNo?:string;fabricName?:string;composition?:string;limit:number;offset:number
 }{
  if(typeof input.includeInactive!=='undefined'&&typeof input.includeInactive!=='boolean')
   throw new FabricError('Invalid inactive filter');
@@ -163,10 +163,16 @@ function listOptions(input:{includeInactive?:boolean;query?:string;limit?:number
  if(!Number.isSafeInteger(limit)||limit<1||limit>100||
     !Number.isSafeInteger(offset)||offset<0||offset>1000000)
   throw new FabricError('Invalid pagination');
- return {includeInactive:input.includeInactive??false,query:input.query?.trim()??'',limit,offset};
+ const fields:{fabricNo?:string;fabricName?:string;composition?:string}={};
+ for(const key of ['fabricNo','fabricName','composition'] as const){
+  const value=input[key];if(value===undefined)continue;
+  if(typeof value!=='string'||[...value].length>100||/[\p{Cc}\p{Cf}]/u.test(value))throw new FabricError('Invalid '+key);
+  fields[key]=value.trim();
+ }
+ return {...fields,includeInactive:input.includeInactive??false,query:input.query?.trim()??'',limit,offset};
 }
 export async function listFabrics(db:Query,options:{
- includeInactive?:boolean;query?:string;limit?:number;offset?:number
+ includeInactive?:boolean;query?:string;fabricNo?:string;fabricName?:string;composition?:string;limit?:number;offset?:number
 }={}):Promise<Fabric[]>{
  const params:unknown[]=[];
  const config=listOptions(options);
@@ -176,6 +182,9 @@ export async function listFabrics(db:Query,options:{
   const escaped='%'+config.query.replace(/[!%_]/g,c=>'!'+c)+'%';
   sql+=" AND (fabric_no LIKE ? ESCAPE '!' OR fabric_name LIKE ? ESCAPE '!' OR composition LIKE ? ESCAPE '!')";
   params.push(escaped,escaped,escaped);
+ }
+ for(const [key,column] of [['fabricNo','fabric_no'],['fabricName','fabric_name'],['composition','composition']] as const){
+  if(config[key]){sql+=' AND '+column+" LIKE ? ESCAPE '!'";params.push('%'+config[key].replace(/[!%_]/g,c=>'!'+c)+'%');}
  }
  sql+=' ORDER BY fabric_no ASC,id ASC LIMIT ? OFFSET ?';
  params.push(config.limit,config.offset);

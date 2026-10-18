@@ -52,6 +52,10 @@ test('pattern image draft saves atomically, validates ready product assets and p
   }
   override async getConnection(){const assets=structuredClone(this.assets),conn=await super.getConnection();return {...conn,rollback:async()=>{this.assets=assets;await conn.rollback();}};}
  }
+ const created=new Images();const first=await createColorway(created,actor,'1',{patternImageAssetId:a});
+ assert.equal(first.patternImageAssetId,a);assert.equal(created.assets.get(a)!.ref_count,3);
+ created.assets.get(b)!.status='processing';await assert.rejects(createColorway(created,actor,'1',{patternImageAssetId:b}),hasStatus(409));
+ assert.equal(created.next,2);assert.equal(created.data.length,1);
  const db=new Images();db.data=[{id:'100',master_id:'1',colorway_no:1,pattern_image_asset_id:a,remark:'原备注',is_active:1}];
  const changed=await updateColorway(db,actor,'100',{remark:'新备注',isActive:true,patternImageAssetId:b});
  assert.equal(changed.patternImageAssetId,b);assert.equal(db.assets.get(a)!.ref_count,1);assert.equal(db.assets.get(a)!.status,'ready');assert.equal(db.assets.get(b)!.ref_count,1);

@@ -11,7 +11,14 @@ export function DocumentPrintTable({model}:{model:DocumentPrintModel}){
  return <table className="w-full table-fixed border-collapse text-[10px]" aria-label="单据明细及汇总">
   <colgroup>{model.columns.map(c=><col key={c.key} style={{width:(c.webFraction/model.columns.reduce((sum,col)=>sum+col.webFraction,0)*100)+'%'}}/>)}</colgroup>
   <thead><tr>{model.columns.map(c=><th key={c.key} className="border border-slate-500 px-1 py-1">{c.label}</th>)}</tr></thead>
-  <tbody>{model.rows.map((row,i)=><tr key={i}>{row.map((value,j)=><td key={j} className="break-words border border-slate-300 px-1 py-2 text-center">{value}</td>)}</tr>)}</tbody>
+  <tbody>{model.rows.map((row,i)=>{
+   const group=model.rowGroups?.find(g=>i>=g.start&&i<g.start+g.rowCount);
+   return <tr key={i}>{row.map((value,j)=>{
+    const merge=group&&group.rowCount>1&&!/^roll\d+$/.test(model.columns[j].key);
+    if(merge&&i!==group.start)return null;
+    return <td key={j} rowSpan={merge?group.rowCount:undefined} className="break-words border border-slate-300 px-1 py-2 text-center">{value}</td>;
+   })}</tr>;
+  })}</tbody>
   <tfoot className="table-row-group">{model.summaries.map((s,i)=><tr key={i} className="bg-slate-50 font-medium">
    <td colSpan={s.right&&rightSpan>0?leftSpan:model.columns.length} className="break-words border border-slate-500 px-2 py-2 text-left">{s.left}{rightSpan===0&&s.right?'　'+s.right:''}</td>
    {s.right&&rightSpan>0&&<td colSpan={rightSpan} className="break-words border border-slate-500 px-2 py-2 text-left">{s.right}</td>}

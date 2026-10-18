@@ -51,6 +51,10 @@ export function createSampleOperationsClient(apiFetch:typeof fetch){
    const items=data.items.map(summary);if(new Set(items.map((x:SampleSessionSummary)=>x.id)).size!==items.length)throw bad();return {...data,items} as SampleSessionDirectory;
   },
   async create(customerReference:string,signal?:AbortSignal){return summary(await request(base+'/sessions',{method:'POST',body:JSON.stringify({customerReference}),signal}));},
+  async changeStatus(sessionId:string,expectedStatus:'open'|'closed',status:'open'|'closed',signal?:AbortSignal){
+   const value=summary(await request(endpoint(sessionId)+'/status',{method:'PATCH',body:JSON.stringify({expectedStatus,status}),signal}));
+   if(value.id!==sessionId||value.status!==status)throw bad();return value;
+  },
   async progress(sessionId:string,signal?:AbortSignal){return progress(await request(endpoint(sessionId)+'/progress',{signal}),sessionId);},
   async history(sessionId:string,kind:OperationKind,offset:number,signal?:AbortSignal){if(!['shipments','followups'].includes(kind)||!count(offset)||offset>1000000)throw bad();return history(await request(endpoint(sessionId)+'/'+kind+'?limit=20&offset='+offset,{signal}),sessionId,kind,offset);},
   async save(sessionId:string,kind:OperationKind,input:unknown,signal?:AbortSignal){

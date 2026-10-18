@@ -71,6 +71,8 @@ export interface DocumentPrintModel {
   customerName: string;
   columns: DocumentPrintColumn[];
   rows: string[][];
+  /** Physical rows belonging to each original item; never inferred from blank cells. */
+  rowGroups?: Array<{start:number;rowCount:number}>;
   summaries: DocumentPrintSummary[];
   terms: string;
   signature: { issuer: string; receiver: string; phone: string; receiverAddress: string };
@@ -113,7 +115,11 @@ export function buildDocumentPrintModel(input: DocumentPrintInput): DocumentPrin
   const type = normalizeDocumentPrintType(input.type);
   const hasDeduction = type === 'sales' && (input.deductionMeters > 0 || input.items.some((item) => (item.deductionMeters ?? 0) > 0));
   const columns = type === 'sample' ? SAMPLE_COLUMNS : type === 'deposit' ? DEPOSIT_COLUMNS : salesColumns(hasDeduction);
-  const rows = input.items.flatMap((item) => buildRows(type, item, hasDeduction,input.salesRollFallback!==false));
+  const rows:string[][]=[],rowGroups:Array<{start:number;rowCount:number}>=[];
+  for(const item of input.items){
+    const group=buildRows(type,item,hasDeduction,input.salesRollFallback!==false);
+    rowGroups.push({start:rows.length,rowCount:group.length});rows.push(...group);
+  }
   const total = money(input.totalAmount);
   const payment=calculateDocumentPayment(type,input.totalAmount,input.deposit);
   const receivable = money(payment.receivableAmount);
@@ -152,6 +158,7 @@ export function buildDocumentPrintModel(input: DocumentPrintInput): DocumentPrin
     customerName: input.customerName,
     columns,
     rows,
+    rowGroups,
     summaries,
     terms: input.terms || (type === 'deposit' ? input.depositTerms : input.defaultTerms) || '无备注条款。',
     signature: { issuer: input.issuer, receiver: input.receiver, phone: input.receiverPhone, receiverAddress: input.receiverAddress },

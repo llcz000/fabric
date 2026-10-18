@@ -1,5 +1,7 @@
 # 完整 V2 候选：发布顺序与未签收事项
 
+2026-10-18九项反馈候选更新：最新包4a7d9c61f531ad0aa0d5594da36299032550993e32119d124c2036f0ca57d35c，3004/52987；真实Edge/MySQL/COS25项＋状态草稿2项、单元1264项（1263通过/1跳过）、完整lint/build通过。旧75b2a16/3aa22d7包的恢复证明保留其时点，不能继承到本包；当前人工UI待复核，生产不切流。生产新词表须在已授权迁移/启动后，使用当前V2身份令牌和明确目标来源显式运行scripts/initialize-v2-default-tags.mjs（FABRIC_V2_SEED_URL/FABRIC_V2_SEED_TOKEN仅置私有运行环境，不写文档/命令日志）；不在启动自动DML，幂等保留自定义/归档。详见[当前进度](../product-master/product-master-v2-progress.md)。
+
 2026-10-18用户单据UI验收未通过，已在同一PR6针对性修复，最新候选归档75b2a16a654b40d6c9e51386a05c566a07a19e531a35ea3ea8b05e6f43dfa9e4，3004/52987。下文3aa22d7安装包/17项恢复为先前检查点，不能称最新UI包恢复证据；最新单据22项真实浏览器/PNG/Excel、1257项单测及完整lint/build见[当前进度](../product-master/product-master-v2-progress.md)。等待重新实际复核，未正式切流。
 
 此文件是最终执行交接，不增加业务范围或再次申请部署许可。用户已授权完成剩余内容及部署；人工 UI 签收来自仓库 AGENTS.md 与一期交付门槛，不能由 Agent 或自动测试代签。

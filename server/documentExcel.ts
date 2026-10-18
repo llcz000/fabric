@@ -89,6 +89,12 @@ export function buildDocumentWorkbookFromModel(
     });
   });
 
+  for(const group of model.rowGroups??[]){
+    if(group.rowCount<2)continue;
+    columns.forEach((column,index)=>{
+      if(!/^roll\d+$/.test(column.key))sheet.mergeCells(headerRowNumber+1+group.start,index+1,headerRowNumber+group.start+group.rowCount,index+1);
+    });
+  }
   const summaryRow = headerRowNumber + 1 + model.rows.length;
   model.summaries.forEach((summary, index) => addSummaryRow(sheet, summaryRow + index, lastColumn, summary.left, summary.right ?? ''));
 

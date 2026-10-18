@@ -156,9 +156,10 @@ test('P4-3 deletion warning includes full number, refs server-locked and cancell
  assert(html.includes('可停用'));
  assert(html.includes('确认删除')&&html.includes('取消')&&html.includes('role="alertdialog"'));
 });
-test('P4-3 complete page restricts mutators by manage permission, keeps unified search',()=>{
+test('fabric page restricts mutators by permission and has three independent search inputs',()=>{
  const readOnly=renderToStaticMarkup(React.createElement(FabricLibraryV2,{apiFetch:fetch,canManage:false}));
- assert(readOnly.includes('面料库')&&readOnly.includes('搜索品号 / 品名 / 成分'));
+ assert(readOnly.includes('面料库'));
+ for(const label of ['搜索品号','搜索品名','搜索成分'])assert(readOnly.includes('aria-label="'+label+'"'));
  assert(readOnly.includes('包含停用'));
  assert(!readOnly.includes('新增面料'));
  const manage=renderToStaticMarkup(React.createElement(FabricLibraryV2,{apiFetch:fetch,canManage:true}));

@@ -2,6 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { buildDocumentPrintModel, normalizeDocumentPrintType, type DocumentPrintInput } from './documentPrintModel';
+import {buildDocumentWorkbookFromModel} from '../../server/documentExcel';
+import React from 'react';
+import {renderToStaticMarkup} from 'react-dom/server';
+import {DocumentPrintTable} from '../components/document-product-selector/V2DocumentPrintView';
 
 const base: DocumentPrintInput = {
   type: 'sample', docNo: 'YB-1', date: '2026-09-08', customerName: '花花服饰',
@@ -11,6 +15,21 @@ const base: DocumentPrintInput = {
   totalAmount: 180, receivableAmount: 180, deposit: 0, deductionMeters: 0,
   items: [{ itemNo: 'G0531', colorNo: '米黄', productName: '剪花布', composition: '人丝', weight: '65', width: '128', meters: 3, unitPrice: 60, amount: 180, remark: '备注', rollValues: [] }],
 };
+
+test('15 rolls stay one logical line with vertical merges in HTML and Excel, adjacent identical products stay separate',()=>{
+ const item={...base.items[0],rollValues:Array.from({length:15},(_,i)=>i+1)};
+ const model=buildDocumentPrintModel({...base,type:'sales',items:[item,item]});
+ assert.deepEqual(model.rowGroups,[{start:0,rowCount:2},{start:2,rowCount:2}]);
+ const html=renderToStaticMarkup(React.createElement(DocumentPrintTable,{model}));
+ assert.equal((html.match(/rowSpan="2"/g)??[]).length,14);
+ assert.equal((html.match(/>G0531</g)??[]).length,2);
+ assert.equal((html.match(/>15.0</g)??[]).length,2);
+ const sheet=buildDocumentWorkbookFromModel(model).worksheets[0];
+ assert.equal(sheet.getCell('A8').master.address,'A7');
+ assert.equal(sheet.getCell('A10').master.address,'A9');
+ assert.equal(sheet.getCell('D8').isMerged,false);
+ assert.equal(sheet.getCell('H8').value,'15.0');
+});
 
 test('normalizes persisted bulk orders as sales documents', () => {
   assert.equal(normalizeDocumentPrintType('bulk'), 'sales');

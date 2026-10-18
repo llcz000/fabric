@@ -136,7 +136,7 @@ function validateCustomColorNames(names:string[],tagIds?:string[]):void{
  }
 }
 export async function createNextColorway(
- apiFetch:typeof fetch,masterId:string,details:{remark?:string;isActive?:boolean;tagIds?:string[];newColorTags?:string[]}
+ apiFetch:typeof fetch,masterId:string,details:{remark?:string;isActive?:boolean;tagIds?:string[];newColorTags?:string[];patternImageAssetId?:string|null}
 ):Promise<PatternVersionItem>{
  if(!goodId(masterId))throw Error('无效母版');
  if(details.tagIds!==undefined)validColorTagIds(details.tagIds);

@@ -111,7 +111,7 @@ export interface PatternColorwayEditorProps{
  topics:CatalogTag[];colors:CatalogTag[];nextColorwayNo:number;canManage?:boolean;
  thumbnailUrls?:Map<string,string>;onPreview?(item:PatternVersionItem):void;
  onClose():void;onSaveVersion(item:PatternVersionItem,value:{remark:string;isActive:boolean;patternImageAssetId?:string|null}):Promise<void>;
- onAdd(value:{remark:string;isActive:boolean}):Promise<void>;
+ onAdd(value:{remark:string;isActive:boolean;patternImageAssetId?:string|null}):Promise<void>;
  onSaveMasterTags(ids:string[]):Promise<void>;
  onSaveMasterColorTags?(ids:string[],newColorTags?:string[]):Promise<void>;
  onUploadPatternImage?(file:File):Promise<string>;
@@ -133,7 +133,7 @@ export function PatternColorwayEditor({
  const [topicDraft,setTopicDraft]=useState(master.topicTags.map(t=>t.id));
  const [topicEditing,setTopicEditing]=useState(false);
  const [adding,setAdding]=useState(false);
- const [newDraft,setNewDraft]=useState({remark:'',isActive:true});
+ const [newDraft,setNewDraft]=useState({remark:'',isActive:true,patternImageAssetId:null as string|null});
  const [confirmRemove,setConfirmRemove]=useState<PatternVersionItem|null>(null);
  const [working,setWorking]=useState(false),[error,setError]=useState('');
  const workRef=useRef(false);
@@ -173,7 +173,7 @@ export function PatternColorwayEditor({
     <div className="flex items-center gap-2">
      <span className="text-[11px] text-slate-500">下一配色 {nextColorwayNo}</span>
      {canManage?<button type="button" disabled={working||adding||editing!==null||nextColorwayNo>4294967295}
-       onClick={()=>{setNewDraft({remark:'',isActive:true});setAdding(true);}}
+       onClick={()=>{setNewDraft({remark:'',isActive:true,patternImageAssetId:null});setAdding(true);}}
        className="inline-flex items-center gap-1 rounded border border-[#346ef6] px-2 py-1 text-xs text-[#0053da]">
        <Plus size={13}/>添加配色</button>:null}
      <button ref={closeButton} type="button" onClick={close} className="rounded p-1 hover:bg-slate-100" aria-label="关闭配色编辑">
@@ -222,8 +222,8 @@ export function PatternColorwayEditor({
         <button type="button" aria-label={'查看花型原图 '+version.patternNo} onClick={()=>onPreview({...version,patternImageAssetId:imageId})}>
          <img src={imageUrl} alt={'配色 '+version.patternNo}
           className="h-14 w-14 rounded border object-cover" loading="lazy"/></button>:
-        <span className="flex h-14 w-14 items-center justify-center rounded border border-dashed bg-slate-50 text-[10px] text-slate-400">
-         {imageId?'图片暂不可用':'待上传'}</span>}
+        <button type="button" disabled={!canManage||working||adding||editing!==null&&editing!==version.id} aria-label={'编辑花型图 '+version.patternNo} onClick={()=>{setDraft({remark:version.remark,isActive:version.isActive,patternImageAssetId:version.patternImageAssetId});setEditing(version.id);}}
+         className="flex h-14 w-14 items-center justify-center rounded border border-dashed bg-slate-50 text-[10px] text-blue-700 disabled:text-slate-400">{imageId?'更换图片':'上传花型图'}</button>}
         {editing===version.id&&canManage?<div className="mt-2 flex w-36 flex-wrap gap-2 text-xs">
          {onUploadPatternImage?<label className={'text-[#0053da] '+(working?'opacity-50':'cursor-pointer')}>
           {imageId?'更换花型图':'上传花型图'}<input type="file" className="sr-only" disabled={working} accept="image/jpeg,image/png,image/webp,image/gif"
@@ -268,7 +268,14 @@ export function PatternColorwayEditor({
        </td>
       </tr>;})}
       {adding&&canManage?<tr className="bg-[#f3f2ff]">
-       <td className="px-3 py-2 text-xs text-slate-400">待上传</td>
+       <td className="px-3 py-2 text-xs">{newDraft.patternImageAssetId&&stagedThumbs.get(newDraft.patternImageAssetId)&&<img alt="新配色花型图" className="mb-1 h-14 w-14 rounded object-cover" src={stagedThumbs.get(newDraft.patternImageAssetId)}/>}
+        {onUploadPatternImage&&<label className="cursor-pointer text-blue-700">{newDraft.patternImageAssetId?'更换图片':'上传花型图'}<input type="file" aria-label="新配色花型图" className="sr-only" disabled={working} accept="image/jpeg,image/png,image/webp,image/gif" onChange={event=>{
+         const file=event.target.files?.[0];event.target.value='';if(!file)return;
+         void call(async()=>{if(!['image/jpeg','image/png','image/webp','image/gif'].includes(file.type)||!file.size||file.size>20*1024*1024)throw Error('请选择20MB以内的图片');
+          const id=await onUploadPatternImage(file);const url=URL.createObjectURL(file);stagedUrls.current.push(url);setStagedThumbs(before=>new Map(before).set(id,url));setNewDraft(before=>({...before,patternImageAssetId:id}));});
+        }}/></label>}
+        {newDraft.patternImageAssetId&&<button disabled={working} className="ml-2 text-rose-700" onClick={()=>setNewDraft(before=>({...before,patternImageAssetId:null}))}>移除图片</button>}
+       </td>
        <td className="px-3 py-2 text-xs" title="保存时由服务端分配最终配色序号">下一配色 {nextColorwayNo}</td>
        <td className="px-3 py-2 text-xs">{master.masterNo}-{nextColorwayNo} (预计)</td>
        <td className="px-3 py-2"><input aria-label="新版本备注" maxLength={500}
@@ -409,7 +416,7 @@ export function PatternLibraryV2({apiFetch,canManage=false,allowExport=true,onCr
   await saveColorwayProperties(apiFetch,item,draft);
   try{await refreshEdit(selected!);}catch{setEditorError('配色已保存，但刷新失败。请重新打开花型核对，不要重复保存。');}
  };
- const add=async(input:{remark:string;isActive:boolean})=>{
+ const add=async(input:{remark:string;isActive:boolean;patternImageAssetId?:string|null})=>{
   if(!selected)throw Error('Missing master');
   // A successful POST permanently reserves its number. Failure of the following
   // GET must NEVER leave the Add button treating that committed POST as retryable.

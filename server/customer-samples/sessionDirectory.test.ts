@@ -1,12 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {createSampleSession,listSampleSessions,readShipmentProgress} from './sessionDirectory';
+import {createSampleSession,listSampleSessions,readShipmentProgress,changeSampleSessionStatus} from './sessionDirectory';
 import type {AppPrincipal} from '../access/types';
 const actor={userId:'6',sessionId:'9',role:'sales'} as AppPrincipal;
 class Db{
+ status:'open'|'closed'='open';conflict=false;
  active=true;login=true;grant=true;failGrant=false;commits=0;rollbacks=0;calls:{sql:string;args:unknown[]}[]=[];
  async getConnection(){return {beginTransaction:async()=>{},commit:async()=>{this.commits++;},rollback:async()=>{this.rollbacks++;},release:()=>{},query:async(sql:string,args:unknown[]=[]):Promise<[unknown,unknown]>=>{
   this.calls.push({sql,args});
+  if(sql.startsWith('SELECT id,customer_reference,status'))return [[{id:'41',customer_reference:'客户甲',status:this.status}],[]];
+  if(sql.startsWith('UPDATE customer_sample_sessions SET status=')){if(this.conflict)return [{affectedRows:0},[]];this.status=args[0] as typeof this.status;return [{affectedRows:1},[]];}
   if(sql.includes('FROM v2_access_users'))return [this.active?[{role:'sales',is_active:1}]:[],[]];
   if(sql.includes('FROM v2_access_sessions'))return [this.login?[{id:'9'}]:[],[]];
   if(sql.startsWith('INSERT INTO customer_sample_sessions'))return [{affectedRows:1,insertId:'41'},[]];
@@ -19,6 +22,15 @@ class Db{
   throw Error('Unexpected SQL '+sql);
  }};}
 }
+
+test('close/reopen require locked current identity, explicit grant and expected state, conflicts roll back',async()=>{
+ const db=new Db();assert.equal((await changeSampleSessionStatus(db,actor,'41',{expectedStatus:'open',status:'closed'})).status,'closed');
+ assert.equal((await changeSampleSessionStatus(db,actor,'41',{expectedStatus:'closed',status:'open'})).status,'open');
+ assert(db.calls.some(c=>c.sql.includes('can_manage')&&c.sql.includes('FOR UPDATE')));
+ for(const setup of [(d:Db)=>{d.grant=false;},(d:Db)=>{d.login=false;},(d:Db)=>{d.status='closed';},(d:Db)=>{d.conflict=true;}]){
+  const denied=new Db();setup(denied);await assert.rejects(changeSampleSessionStatus(denied,actor,'41',{expectedStatus:'open',status:'closed'}));assert.equal(denied.commits,0);assert.equal(denied.rollbacks,1);
+ }
+});
 test('new customer selection stores actor and its explicit grant in one transaction',async()=>{
  const db=new Db();assert.deepEqual(await createSampleSession(db,actor,{customerReference:' 客户甲 '}),{id:'41',customerReference:'客户甲',status:'open'});
  assert.deepEqual(db.calls.find(x=>x.sql.startsWith('INSERT INTO customer_sample_sessions'))?.args,['客户甲','6']);

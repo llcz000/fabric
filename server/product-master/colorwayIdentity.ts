@@ -154,7 +154,6 @@ async function replacePatternImage(db:ColorwayQuery,colorwayId:string,previous:s
  */
 export async function createColorway(pool:Pool,actor:AppPrincipal,masterId:string,body:unknown):Promise<ColorwayIdentity>{
  id(masterId);const value=attributes(body);
- if(value.patternImageAssetId!==undefined)throw new ColorwayIdentityError('Save the colorway before attaching its image');
  return transaction(pool,actor,async db=>{
   const parent=await master(db,masterId,true),next=counter(parent.next_colorway_no);
   if(next>MAX_COLORWAY)throw new ColorwayIdentityError('Colorway sequence exhausted',409);
@@ -163,8 +162,9 @@ export async function createColorway(pool:Pool,actor:AppPrincipal,masterId:strin
   const remark=value.remark??'',isActive=value.isActive??true;
   const [inserted]=await db.query('INSERT INTO pattern_colorways(master_id,colorway_no,remark,is_active) VALUES (?,?,?,?)',[masterId,next.toString(),remark,isActive?1:0]);
   const result=inserted as {insertId:unknown};const newId=databaseId(result.insertId);
+  if(value.patternImageAssetId)await replacePatternImage(db,newId,null,value.patternImageAssetId);
   if(value.tagIds!==undefined)await replaceVersionColorTags(db,newId,value.tagIds,true,value.newColorTags);
-  return record({id:newId,master_id:masterId,colorway_no:next.toString(),pattern_image_asset_id:null,remark,is_active:isActive?1:0},parent);
+  return record({id:newId,master_id:masterId,colorway_no:next.toString(),pattern_image_asset_id:value.patternImageAssetId??null,remark,is_active:isActive?1:0},parent);
  });
 }
 /** Expected next number is informational; reading/cancelling a draft reserves nothing. */

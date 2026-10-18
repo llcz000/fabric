@@ -2,6 +2,7 @@ import React,{useRef,useState} from 'react';
 import {createLatestRequestGuard} from './catalogModel';
 import {ArrowLeft,FileSpreadsheet,Upload} from 'lucide-react';
 import {FabricLibraryV2} from './FabricLibraryV2';
+import {FabricProductsDialog} from './FabricProductsDialog';
 import {
  fileAsBase64,previewFabricImport,commitFabricImport,formatFabricImportStatus,
  validateSelectedRows,type FabricImportPreview,type FabricImportResult,
@@ -209,6 +210,7 @@ export function FabricWorkspaceV2({apiFetch,canManage=false,isAdmin=false,allowE
  apiFetch:typeof fetch;canManage?:boolean;isAdmin?:boolean;allowExport?:boolean;
 }){
  const [importing,setImporting]=useState(false),[revision,setRevision]=useState(0);
+ const [linked,setLinked]=useState<import('./fabricModel').FabricCatalogItem|null>(null);
  return importing?<FabricImportV2 apiFetch={apiFetch} canManage={canManage} isAdmin={isAdmin}
   onCancel={()=>setImporting(false)}
   onFinished={()=>setRevision(n=>n+1)}/>:
@@ -218,7 +220,8 @@ export function FabricWorkspaceV2({apiFetch,canManage=false,isAdmin=false,allowE
     className="rounded-lg border border-[#346ef6] bg-white px-3 py-1.5 text-xs text-[#0053da]">
     导入 XLSX</button>
   </div>:null}
-  <FabricLibraryV2 key={revision} apiFetch={apiFetch} canManage={canManage} allowExport={allowExport}/>
+  <FabricLibraryV2 key={revision} apiFetch={apiFetch} canManage={canManage} allowExport={allowExport} onViewProducts={setLinked}/>
+  {linked&&<FabricProductsDialog key={linked.id} apiFetch={apiFetch} fabric={linked} onClose={()=>setLinked(null)}/>}
  </div>;
 }
 export default FabricImportV2;

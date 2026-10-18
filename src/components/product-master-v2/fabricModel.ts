@@ -7,9 +7,10 @@ export interface FabricCatalogItem{
 export interface FabricCatalogPage{
  items:FabricCatalogItem[];total:number;limit:number;offset:number;
 }
-export interface FabricFilters{query:string;includeInactive:boolean;limit:number;offset:number}
+export interface FabricFilters{query:string;fabricNo?:string;fabricName?:string;composition?:string;includeInactive:boolean;limit:number;offset:number}
 export type FabricAction=
  |{type:'query';value:string}
+ |{type:'fabricNo'|'fabricName'|'composition';value:string}
  |{type:'inactive';value:boolean}
  |{type:'page';offset:number}
  |{type:'reset'};
@@ -19,12 +20,14 @@ export function reduceFabricFilters(f:FabricFilters,a:FabricAction):FabricFilter
   case 'reset':return {...emptyFabricFilters};
   case 'page':return {...f,offset:a.offset};
   case 'query':return {...f,query:a.value,offset:0};
+  case 'fabricNo':case 'fabricName':case 'composition':return {...f,[a.type]:a.value,offset:0};
   case 'inactive':return {...f,includeInactive:a.value,offset:0};
  }
 }
 export function buildFabricCatalogUrl(filter:FabricFilters):string{
  const params=new URLSearchParams();
  if(filter.query.trim())params.set('query',filter.query.trim());
+ for(const key of ['fabricNo','fabricName','composition'] as const)if(filter[key]?.trim())params.set(key,filter[key].trim());
  if(filter.includeInactive)params.set('includeInactive','true');
  params.set('limit',String(filter.limit));params.set('offset',String(filter.offset));
  return '/api/v2/fabrics/catalog?'+params.toString();

@@ -8,6 +8,7 @@ export class ProductSearchError extends Error {
 }
 export type ProductStatus='active'|'inactive'|'all';
 export interface ProductSearchFilters{
+ fabricId?:string;
  productNo:string;fabricName:string;topicTagIds:string[];colorTagIds:string[];
  status:ProductStatus;limit:number;offset:number;
 }
@@ -30,7 +31,7 @@ type Query={query(sql:string,params?:unknown[]):Promise<[unknown,unknown]>};
 type Row=Record<string,unknown>;
 const MAX_ID=18446744073709551615n;
 const FILTER_KEYS=new Set(['productNo','fabricName','topicTagIds','colorTagIds',
- 'status','includeInactive','limit','offset']);
+ 'status','includeInactive','limit','offset','fabricId']);
 const inspect=(text:unknown,key:string,max:number):string=>{
  if(text===undefined)return '';
  if(typeof text!=='string'||[...text].length>max||/[\p{Cc}\p{Cf}]/u.test(text))
@@ -69,6 +70,7 @@ export function parseProductSearchQuery(input:unknown):ProductSearchFilters{
     Object.keys(input).some(k=>!FILTER_KEYS.has(k)))
   throw new ProductSearchError('Invalid product search');
  const raw=input as Record<string,unknown>;
+ if(raw.fabricId!==undefined&&typeof raw.fabricId!=='string')throw new ProductSearchError('Invalid fabric identity');
  if(raw.includeInactive!==undefined&&raw.includeInactive!=='true')
   throw new ProductSearchError('Invalid includeInactive');
  if(raw.includeInactive!==undefined&&raw.status!==undefined)
@@ -77,6 +79,7 @@ export function parseProductSearchQuery(input:unknown):ProductSearchFilters{
  if(status!=='active'&&status!=='inactive'&&status!=='all')
   throw new ProductSearchError('Invalid status filter');
  return {
+  ...(raw.fabricId===undefined?{}:{fabricId:positiveId(raw.fabricId)}),
   productNo:inspect(raw.productNo,'productNo',160),
   fabricName:inspect(raw.fabricName,'fabricName',255),
   topicTagIds:selectedTags(raw.topicTagIds,'topicTagIds'),
@@ -104,6 +107,7 @@ function escapeLike(text:string):string{
 }
 function queryConditions(filter:ProductSearchFilters):{sql:string;params:unknown[]}{
  const conditions:string[]=[];const params:unknown[]=[];
+ if(filter.fabricId){conditions.push('p.fabric_id=?');params.push(filter.fabricId);}
  if(filter.status!=='all'){
   conditions.push('p.is_active=?');params.push(filter.status==='active'?1:0);
  }

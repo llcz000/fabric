@@ -2,6 +2,22 @@ import type {AppPrincipal} from '../access/types';
 import type {SamplePool,SampleTx} from './scanRepository';
 import {lockSelectionIdentity,lockSelectionAccess,selectionRows,selectionDbId,validSelectionId,SampleSessionManualError} from './sessionManual';
 export interface SampleSessionSummary{id:string;customerReference:string;status:'open'|'closed'}
+export async function changeSampleSessionStatus(pool:SamplePool,actor:AppPrincipal,sessionId:string,input:unknown):Promise<SampleSessionSummary>{
+ if(!validSelectionId(sessionId)||!input||typeof input!=='object'||Array.isArray(input))throw invalid();
+ const body=input as Record<string,unknown>;
+ if(Object.keys(body).length!==2||typeof body.status!=='string'||typeof body.expectedStatus!=='string'||!['open','closed'].includes(body.status)||!['open','closed'].includes(body.expectedStatus)||body.status===body.expectedStatus)throw invalid();
+ return transaction(pool,async tx=>{
+  await lockSelectionIdentity(tx,actor);
+  const [sessions]=await tx.query('SELECT id,customer_reference,status FROM customer_sample_sessions WHERE id=? FOR UPDATE',[sessionId]);
+  const session=selectionRows(sessions)[0];if(!session)throw new SampleSessionManualError(404);
+  const [access]=await tx.query('SELECT can_manage FROM customer_sample_session_access WHERE session_id=? AND user_id=? AND can_manage=1 FOR UPDATE',[sessionId,actor.userId]);
+  const grants=selectionRows(access);if(grants.length!==1||Number(grants[0].can_manage)!==1)throw new SampleSessionManualError(404);
+  if(session.status!==body.expectedStatus)throw new SampleSessionManualError(409);
+  const [result]=await tx.query('UPDATE customer_sample_sessions SET status=? WHERE id=? AND status=?',[body.status,sessionId,body.expectedStatus]);
+  if((result as {affectedRows?:unknown})?.affectedRows!==1)throw new SampleSessionManualError(409);
+  return summary({...session,status:body.status});
+ });
+}
 export interface SampleSessionDirectory{items:SampleSessionSummary[];total:number;limit:number;offset:number}
 export interface SampleShipmentProgress{sessionId:string;selectedProducts:number;shippedProducts:number;pendingProducts:number;shippedQuantity:number}
 async function transaction<T>(pool:SamplePool,run:(tx:SampleTx)=>Promise<T>):Promise<T>{

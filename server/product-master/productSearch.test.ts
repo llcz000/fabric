@@ -6,6 +6,14 @@ import {hashSessionToken} from '../access/password';
 import {parseProductSearchQuery,searchProductCatalog,ProductSearchError} from './productSearch';
 import {createV2ProductsRouter} from './productsV2Routes';
 
+test('linked products filter uses exact fabric identity before count and paging',async()=>{
+ const filter=parseProductSearchQuery({fabricId:'12',status:'all'});
+ const calls:{sql:string;params:unknown[]}[]=[];
+ await searchProductCatalog({async query(sql:string,params:unknown[]=[]):Promise<[unknown,unknown]>{calls.push({sql,params});return [sql.includes('COUNT(*)')?[{total:0}]:[],[]];}},filter);
+ assert(calls.every(c=>c.sql.includes('p.fabric_id=?')&&c.params[0]==='12'));
+ assert.throws(()=>parseProductSearchQuery({fabricId:'12 OR 1=1'}));
+});
+
 type P={id:string;pattern_colorway_id:string;fabric_id:string;master_id:string;master_no:string;colorway_no:number;
  product_no:string;row_version:string;fabric_name:string;fabric_no:string;composition:string|null;weight_value:string|null;
  weight_unit:'gsm'|'mm'|null;width_value:string|null;pattern_image_asset_id:string|null;
