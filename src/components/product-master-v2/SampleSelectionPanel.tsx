@@ -24,6 +24,10 @@ const errorText=(error:unknown):string=>{
  return status===401?'登录已失效，请重新登录':status===403||status===404?'无权查看或选样单不存在':'暂时无法读取选样资料';
 };
 const value=(text:string|null)=>text===null||text===''?'—':text;
+function SelectionPatternThumbnail({assetId,url,patternNo,pending,failed}:{assetId?:string|null;url?:string;patternNo:string;pending:boolean;failed:boolean}){
+ const [broken,setBroken]=useState(false);useEffect(()=>setBroken(false),[assetId,url]);
+ return url&&!broken?<img src={url} alt={'花型 '+patternNo} width={56} height={56} loading="lazy" decoding="async" onError={()=>setBroken(true)} className="h-14 w-14 rounded border bg-slate-50 object-contain"/>:<span className="flex h-14 w-14 items-center justify-center rounded border border-dashed bg-slate-50 text-center text-[10px] text-slate-500">{!assetId?'暂无图片':broken||failed?'加载失败':pending?'加载中…':'图片不可用'}</span>;
+}
 export function SampleSelectionPanel({sessionId,load,removeItems,readOnly=false,addManual,searchManual,resolveThumbnails,onRescan,initialPage}:SampleSelectionPanelProps){
  const [page,setPage]=useState<SampleSessionPage|null>(
   initialPage?.session.id===sessionId?initialPage:null);
@@ -32,6 +36,13 @@ export function SampleSelectionPanel({sessionId,load,removeItems,readOnly=false,
  const [notice,setNotice]=useState('');
  const [manualOpen,setManualOpen]=useState(false);
  const [selectedItems,setSelectedItems]=useState<string[]>([]);
+ const [thumbnailData,setThumbnailData]=useState<{page:SampleSessionPage|null;urls:Map<string,string>;pending:boolean;failed:boolean}>({page:null,urls:new Map(),pending:false,failed:false});
+ useEffect(()=>{
+  const controller=new AbortController(),ids=page?.session.id===sessionId?[...new Set(page.items.map(item=>item.current.patternImageAssetId).filter((id):id is string=>!!id))]:[];
+  setThumbnailData({page,urls:new Map(),pending:Boolean(ids.length&&resolveThumbnails),failed:false});
+  if(ids.length&&resolveThumbnails)void resolveThumbnails(ids,controller.signal).then(urls=>{if(!controller.signal.aborted)setThumbnailData({page,urls,pending:false,failed:false});}).catch(()=>{if(!controller.signal.aborted)setThumbnailData({page,urls:new Map(),pending:false,failed:true});});
+  return()=>controller.abort();
+ },[page,sessionId,resolveThumbnails]);
  const ticket=useRef(0);
  const manualPending=useRef(false),removePending=useRef(false);
  const currentPage=useRef(page);currentPage.current=page;
@@ -130,11 +141,12 @@ export function SampleSelectionPanel({sessionId,load,removeItems,readOnly=false,
   {page.items.length===0?<p className="rounded bg-slate-50 p-6 text-center text-sm text-slate-500">暂无已选产品</p>:
   <div className="overflow-x-auto"><table className="w-full min-w-[760px] border-collapse text-left text-sm">
    <thead><tr className="border-b bg-slate-50 text-slate-600">
-    {['色卡编号','货号','品名','成分','克重','门幅 / cm'].map(name=><th key={name} className="px-3 py-3 font-medium">{name}</th>)}
+    {['色卡编号','花型图','货号','品名','成分','克重','门幅 / cm'].map(name=><th key={name} className="px-3 py-3 font-medium">{name}</th>)}
    </tr></thead>
    <tbody>{page.items.map(item=><tr key={item.id} className="border-b align-top">
     <td className="px-3 py-3"><div className="flex items-start gap-2">{!closed&&removeItems&&<input type="checkbox" className="mt-1 shrink-0" data-selection-item={item.id} aria-label={'勾选货号 '+item.current.productNo} disabled={busy} checked={selectedItems.includes(item.id)} onChange={event=>select(item.id,event.target.checked)}/>}<div>{item.sources.length?item.sources.map(source=>
      <div key={source.cardId}>{source.cardNo}{source.retired&&<span className="ml-2 rounded bg-amber-100 px-1.5 text-amber-800">已失效</span>}</div>):'—'}</div></div></td>
+    <td className="w-20 px-3 py-3"><SelectionPatternThumbnail assetId={item.current.patternImageAssetId} url={thumbnailData.page===page&&item.current.patternImageAssetId?thumbnailData.urls.get(item.current.patternImageAssetId):undefined} patternNo={item.current.patternNo+'-'+item.current.colorwayNo} pending={thumbnailData.page===page&&thumbnailData.pending} failed={thumbnailData.page===page&&thumbnailData.failed}/></td>
     <td className="px-3 py-3 font-medium">{item.current.productNo}</td>
     <td className="px-3 py-3">{item.current.fabricName}</td>
     <td className="px-3 py-3">{value(item.current.composition)}</td>

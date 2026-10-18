@@ -1,7 +1,7 @@
 import type {AppPrincipal} from '../access/types';
 import type {SamplePool,SampleTx} from './scanRepository';
 import {lockSelectionIdentity,lockSelectionAccess,selectionRows,selectionDbId,validSelectionId,SampleSessionManualError} from './sessionManual';
-export interface SampleSessionSummary{id:string;customerReference:string;status:'open'|'closed'}
+export interface SampleSessionSummary{id:string;customerReference:string;status:'open'|'closed';createdOn?:string}
 export async function updateSampleSession(pool:SamplePool,actor:AppPrincipal,sessionId:string,input:unknown):Promise<SampleSessionSummary>{
  if(!validSelectionId(sessionId)||!input||typeof input!=='object'||Array.isArray(input))throw invalid();
  const body=input as Record<string,unknown>;
@@ -55,7 +55,9 @@ const invalid=()=>new SampleSessionManualError(400);
 function count(raw:unknown){const n=Number(raw);if((typeof raw!=='number'&&!(typeof raw==='string'&&/^\d+$/.test(raw)))||!Number.isSafeInteger(n)||n<0)throw new SampleSessionManualError(409);return n;}
 function summary(raw:Record<string,unknown>):SampleSessionSummary{
  if(typeof raw.customer_reference!=='string'||!raw.customer_reference.trim()||raw.customer_reference.length>160||!['open','closed'].includes(String(raw.status)))throw new SampleSessionManualError(409);
- return {id:selectionDbId(raw.id),customerReference:raw.customer_reference,status:raw.status as 'open'|'closed'};
+ const createdOn=raw.created_on;
+ if(createdOn!==undefined&&(typeof createdOn!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(createdOn)||!Number.isFinite(Date.parse(createdOn))||new Date(createdOn).toISOString().slice(0,10)!==createdOn))throw new SampleSessionManualError(409);
+ return {id:selectionDbId(raw.id),customerReference:raw.customer_reference,status:raw.status as 'open'|'closed',...(createdOn===undefined?{}:{createdOn:createdOn as string})};
 }
 export async function createSampleSession(pool:SamplePool,actor:AppPrincipal,input:unknown):Promise<SampleSessionSummary>{
  if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).length!==1||!('customerReference' in input)||typeof input.customerReference!=='string'||/[\p{Cc}\p{Cf}]/u.test(input.customerReference))throw invalid();
@@ -81,7 +83,7 @@ export async function listSampleSessions(pool:SamplePool,actor:AppPrincipal,inpu
   const [totals]=await tx.query('SELECT COUNT(*) AS total'+from,args);
   const found=selectionRows(totals);if(found.length!==1)throw new SampleSessionManualError(409);
   const total=count(found[0].total);
-  const [data]=await tx.query('SELECT CAST(s.id AS CHAR) AS id,s.customer_reference,s.status'+from+' ORDER BY s.id DESC LIMIT ? OFFSET ?',[...args,limit,offset]);
+  const [data]=await tx.query('SELECT CAST(s.id AS CHAR) AS id,s.customer_reference,s.status,DATE_FORMAT(s.created_at,\'%Y-%m-%d\') AS created_on'+from+' ORDER BY s.id DESC LIMIT ? OFFSET ?',[...args,limit,offset]);
   const items=selectionRows(data).map(summary);
   if(items.length!==Math.min(limit,Math.max(0,total-offset))||new Set(items.map(x=>x.id)).size!==items.length)throw new SampleSessionManualError(409);
   return {items,total,limit,offset};

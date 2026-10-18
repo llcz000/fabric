@@ -21,7 +21,7 @@ class Db{
   if(sql.includes('SELECT can_manage'))return [this.grant?[{can_manage:1}]:[],[]];
   if(sql.includes('AS shipped_quantity'))return [[{selected_products:'2',shipped_products:'1',shipped_quantity:'7'}],[]];
   if(sql.includes('COUNT(*) AS total'))return [[{total:this.deleted?'0':'1'}],[]];
-  if(sql.includes('customer_sample_session_access'))return [this.deleted?[]:[{id:'41',customer_reference:this.name,status:'open'}],[]];
+  if(sql.includes('customer_sample_session_access'))return [this.deleted?[]:[{id:'41',customer_reference:this.name,status:'open',created_on:'2026-10-18'}],[]];
   throw Error('Unexpected SQL '+sql);
  }};}
 }
@@ -69,4 +69,9 @@ test('revoked or disabled identities cannot list/create, and missing session gra
 test('shipment progress counts complete current selection and all actual batches, including historical shipped quantity',async()=>{
  const db=new Db();assert.deepEqual(await readShipmentProgress(db,actor,'41'),{sessionId:'41',selectedProducts:2,shippedProducts:1,pendingProducts:1,shippedQuantity:7});
  const query=db.calls.find(x=>x.sql.includes('AS shipped_quantity'))!;assert(query.sql.includes('removed_at IS NULL'));assert(!query.sql.includes('LIMIT'));assert(query.sql.includes('SUM(si.quantity)'));
+});
+
+test('directory returns stored creation date without changing grant, sorting or records',async()=>{
+ const db=new Db(),result=await listSampleSessions(db,actor,{});assert.equal((result.items[0] as {createdOn?:string}).createdOn,'2026-10-18');
+ const query=db.calls.find(x=>x.sql.includes('ORDER BY s.id DESC'))!;assert(query.sql.includes("DATE_FORMAT(s.created_at,'%Y-%m-%d') AS created_on"));assert(!db.calls.some(x=>/^(UPDATE|INSERT|DELETE)/.test(x.sql)));
 });

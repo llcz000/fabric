@@ -47,3 +47,5 @@ test('B3 authenticated workspace composes the real client adapter and current se
  const html=renderToStaticMarkup(React.createElement(SampleSelectionWorkspaceV2,{sessionId:'51',apiFetch:async()=>new Response('{}'),initialPage:page}));
  assert(html.includes('最新丝绸'));assert(html.includes('色卡编号'));
 });
+
+test('selected details keep source first then a pattern thumbnail column with an empty-image fallback',()=>{const html=renderToStaticMarkup(React.createElement(SampleSelectionPanel,props)),headers=[...html.matchAll(new RegExp('<th[^>]*>([^<]+)</th>','g'))].map(x=>x[1]);assert.deepEqual(headers,['色卡编号','花型图','货号','品名','成分','克重','门幅 / cm']);assert.match(html,/暂无图片/);assert.equal((html.match(/data-selection-item=/g)??[]).length,1);});

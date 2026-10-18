@@ -44,6 +44,7 @@ function pageOf(raw:unknown,sessionId:string):SampleSessionPage{
  for(const item of o.items){
   if(!item||typeof item.id!=='string'||!validId(item.id)||!validId(item.productId)||
    !item.current||typeof item.current.productNo!=='string'||typeof item.current.fabricName!=='string'||
+   !(item.current.patternImageAssetId==null||typeof item.current.patternImageAssetId==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(item.current.patternImageAssetId))||
    !Array.isArray(item.sources)||item.sources.some(s=>!s||!validId(s.cardId)||typeof s.cardNo!=='string'||
     typeof s.retired!=='boolean'||(s.firstScanEventId===null?!s.firstManualEventId||!validId(s.firstManualEventId):!validId(s.firstScanEventId))))
    throw Error('Invalid selection item');

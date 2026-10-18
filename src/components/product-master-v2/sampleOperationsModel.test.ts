@@ -30,3 +30,10 @@ test('history parsing preserves removed product IDs as historical facts, rejects
  response=Response.json({...progress,sessionId:'42'});await assert.rejects(api.history('41','shipments',0));
  response=Response.json({error:'secret'},{status:403});await assert.rejects(api.progress('41'),(error:unknown)=>(error as {status:number}).status===403&&!String(error).includes('secret'));
 });
+
+test('directory accepts a date-only creation date and legacy absence, rejects invalid dates',async()=>{
+ let createdOn:unknown='2026-10-18';
+ const api=createSampleOperationsClient(async()=>Response.json({total:1,limit:20,offset:0,items:[{id:'41',customerReference:'客户甲',status:'open',...(createdOn===undefined?{}:{createdOn})}]}));
+ assert.equal((await api.directory('')).items[0].createdOn,'2026-10-18');createdOn=undefined;await api.directory('');
+ for(const bad of ['2026-02-30','2026-10-18T12:30:00.000Z',123,null]){createdOn=bad;await assert.rejects(api.directory(''));}
+});

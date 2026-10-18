@@ -8,7 +8,7 @@ import {createSampleSessionReadRouter} from './sessionReadRoutes';
 const bearer='d'.repeat(64);
 const actor:AppPrincipal={userId:'2',sessionId:'9',username:'sales',displayName:'Sales',role:'sales',canManageOwnOrders:false,canManageProducts:false};
 class Db{
- role:'sales'|'admin'='sales';active=true;login=true;granted=true;exists=true;closed=false;fail=false;badSnapshot=false;missingSpecs=false;total=1;manual=false;
+ imageAsset:string|null='a1111111-1111-4111-8111-111111111111';role:'sales'|'admin'='sales';active=true;login=true;granted=true;exists=true;closed=false;fail=false;badSnapshot=false;missingSpecs=false;total=1;manual=false;
  calls:{sql:string;params:unknown[]}[]=[];begins=0;commits=0;rollbacks=0;releases=0;
  async query(sql:string,params:unknown[]=[]):Promise<[unknown,unknown]>{
   this.calls.push({sql,params});if(this.fail)throw Error('PRIVATE_SQL_PASSWORD');
@@ -18,7 +18,7 @@ class Db{
   if(sql.includes('FROM customer_sample_session_access'))return [this.granted?[{can_manage:1}]:[],[]];
   if(sql.includes('AS selected_card_count'))return [[{customer_reference:'客户A',total:this.total,selected_card_count:2}],[]];
   if(sql.includes('FROM customer_sample_sessions'))return [this.exists?[{id:'51',status:this.closed?'closed':'open'}]:[],[]];
-  if(sql.includes('FROM customer_sample_items'))return [[sql.includes('JOIN v2_products')?{id:'61',product_id:'81',product_no:'0012-1-F018',master_no:'0012',colorway_no:1,fabric_no:'F018',fabric_name:this.badSnapshot?null:'最新丝绸',composition:this.missingSpecs?null:'最新成分',weight_value:this.missingSpecs?null:'18.000',weight_unit:this.missingSpecs?null:'gsm',width_value:this.missingSpecs?null:'145.00'}:{id:'61',product_id:'81',product_snapshot_json:JSON.stringify({productNo:'0012-1-F018',fabricName:'旧品名',composition:'原始成分',weightValue:'16',weightUnit:'mm',widthCm:'140'})}],[]];
+  if(sql.includes('FROM customer_sample_items'))return [[sql.includes('JOIN v2_products')?{id:'61',product_id:'81',product_no:'0012-1-F018',master_no:'0012',colorway_no:1,pattern_image_asset_id:this.imageAsset,fabric_no:'F018',fabric_name:this.badSnapshot?null:'最新丝绸',composition:this.missingSpecs?null:'最新成分',weight_value:this.missingSpecs?null:'18.000',weight_unit:this.missingSpecs?null:'gsm',width_value:this.missingSpecs?null:'145.00'}:{id:'61',product_id:'81',product_snapshot_json:JSON.stringify({productNo:'0012-1-F018',fabricName:'旧品名',composition:'原始成分',weightValue:'16',weightUnit:'mm',widthCm:'140'})}],[]];
   if(sql.includes('FROM customer_sample_item_sources')){
    assert.deepEqual(params,['51','81']);
    return [[{product_id:'81',card_id:'12',card_no:'0012-F018',deleted_at:'2026-10-14 12:00:00',first_scan_event_id:'71'},{product_id:'81',card_id:'13',card_no:'0012-F018',deleted_at:null,first_scan_event_id:'72'}],[]];
@@ -124,3 +124,5 @@ test('B3 inaccessible and absent sessions share 404 and never reveal private met
   assert(!db.calls.some(c=>c.sql.includes('customer_reference')));
  });
 });
+
+test('selected session exposes current pattern asset through its existing authorized join',async()=>{const db=new Db(),result=await readSampleSession(db,actor,'51');assert.equal((result.items[0].current as any).patternImageAssetId,db.imageAsset);assert(db.calls.some(c=>c.sql.includes('c.pattern_image_asset_id')));db.imageAsset=null;assert.equal((await readSampleSession(db,actor,'51')).items[0].current.patternImageAssetId,null);});

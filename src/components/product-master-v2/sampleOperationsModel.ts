@@ -17,7 +17,7 @@ const iso=(v:unknown):v is string=>typeof v==='string'&&Number.isFinite(Date.par
 const bad=()=>new Error('选样资料格式无效，请重新读取');
 const requiredId=(v:string)=>{if(!id(v))throw bad();return v;};
 function summary(value:unknown):SampleSessionSummary{
- if(!row(value)||!id(value.id)||!string(value.customerReference,160)||!value.customerReference.trim()||!['open','closed'].includes(value.status))throw bad();return value as unknown as SampleSessionSummary;
+ if(!row(value)||!id(value.id)||!string(value.customerReference,160)||!value.customerReference.trim()||!['open','closed'].includes(value.status)||(value.createdOn!==undefined&&!date(value.createdOn)))throw bad();return value as unknown as SampleSessionSummary;
 }
 function page(value:unknown,offset:number){
  if(!row(value)||!count(value.total)||value.offset!==offset||value.limit!==20||!Array.isArray(value.items)||value.items.length!==Math.min(20,Math.max(0,value.total-offset)))throw bad();

@@ -6,7 +6,7 @@ export class SampleSessionReadError extends Error{
 export interface SampleSessionPage{
  session:{id:string;customerReference:string;status:'open'|'closed'};
  total:number;selectedCardCount:number;limit:number;offset:number;
- items:{id:string;productId:string;current:{productNo:string;patternNo:string;colorwayNo:number;fabricNo:string;fabricName:string;composition:string|null;weightValue:string|null;weightUnit:'gsm'|'mm'|null;widthCm:string|null};sources:{cardId:string;cardNo:string;retired:boolean;firstScanEventId:string|null;firstManualEventId?:string}[]}[];
+ items:{id:string;productId:string;current:{productNo:string;patternNo:string;colorwayNo:number;patternImageAssetId?:string|null;fabricNo:string;fabricName:string;composition:string|null;weightValue:string|null;weightUnit:'gsm'|'mm'|null;widthCm:string|null};sources:{cardId:string;cardNo:string;retired:boolean;firstScanEventId:string|null;firstManualEventId?:string}[]}[];
 }
 const validId=(value:unknown):value is string=>typeof value==='string'&&/^[1-9]\d{0,19}$/.test(value)&&BigInt(value)<=18446744073709551615n;
 type Row=Record<string,unknown>;
@@ -40,8 +40,13 @@ function liveDetails(row:Row):SampleSessionPage['items'][number]['current']{
  const weightUnit=rawUnit as 'gsm'|'mm'|null;
  if((weightValue===null)!==(weightUnit===null))throw new SampleSessionReadError(409);
  if(row.composition!==null&&typeof row.composition!=='string')throw new SampleSessionReadError(409);
+ const rawAssetId=row.pattern_image_asset_id;let patternImageAssetId:string|null=null;
+ if(rawAssetId!==null&&rawAssetId!==undefined){
+  if(typeof rawAssetId!=='string'||!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(rawAssetId))throw new SampleSessionReadError(409);
+  patternImageAssetId=rawAssetId;
+ }
  return {
-  productNo:required(row.product_no),patternNo:required(row.master_no),colorwayNo,
+  productNo:required(row.product_no),patternNo:required(row.master_no),colorwayNo,patternImageAssetId,
   fabricNo:required(row.fabric_no),fabricName:required(row.fabric_name),
   composition:row.composition as string|null,weightValue,weightUnit,
   widthCm:decimal(row.width_value)
@@ -84,7 +89,7 @@ export async function readSampleSession(
   const summary=rows(summaryRaw)[0];
   if(!summary||typeof summary.customer_reference!=='string'||summary.customer_reference.length>160)throw new SampleSessionReadError(409);
   const total=count(summary.total),selectedCardCount=count(summary.selected_card_count);
-  const [itemRaw]=await tx.query('SELECT i.id,i.product_id,p.product_no,m.master_no,c.colorway_no, '+
+  const [itemRaw]=await tx.query('SELECT i.id,i.product_id,p.product_no,m.master_no,c.colorway_no,c.pattern_image_asset_id, '+
    'f.fabric_no,f.fabric_name,f.composition,f.weight_value,f.weight_unit,f.width_value '+
    'FROM customer_sample_items i LEFT JOIN v2_products p ON p.id=i.product_id '+
    'LEFT JOIN pattern_colorways c ON c.id=p.pattern_colorway_id '+

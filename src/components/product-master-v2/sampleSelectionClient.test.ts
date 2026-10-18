@@ -74,3 +74,5 @@ test('product-grain batch posts selected item IDs and refuses forged or inconsis
  for(const ids of [[],['61','61'],['bad']])await assert.rejects(api.removeItems!('51',ids));assert.equal(calls,1);
  const wrong=createSampleSelectionClient(async()=>Response.json({sessionId:'51',removedCount:1}));await assert.rejects(wrong.removeItems!('51',['61','62']),/Invalid/);
 });
+
+test('selected image identity accepts null or UUID and rejects URLs and malformed assets',async()=>{for(const asset of [null,undefined,'a1111111-1111-4111-8111-111111111111','https://foreign.invalid/a.jpg','bad',42]){const data={...payload,total:1,items:[{id:'61',productId:'81',current:{productNo:'0012-1-F018',fabricName:'丝绸',patternImageAssetId:asset},sources:[]}]},api=createSampleSelectionClient(async()=>Response.json(data));if(asset==null||asset==='a1111111-1111-4111-8111-111111111111')assert.equal((await api.load('51',20,0)).items.length,1);else await assert.rejects(api.load('51',20,0),/Invalid/);}});
