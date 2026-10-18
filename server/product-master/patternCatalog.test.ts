@@ -5,7 +5,7 @@ import express from 'express';
 import type {Server} from 'node:http';
 import {hashSessionToken} from '../access/password';
 import {createPatternMasterRouter} from './patternMastersRoutes';
-type R={id:string;master_no:string;is_active:number;next_colorway_no:string;topic:string[];versions:V[]};
+type R={created_at?:string;id:string;master_no:string;is_active:number;next_colorway_no:string;topic:string[];versions:V[]};
 type V={id:string;master_id:string;colorway_no:number;pattern_image_asset_id:string|null;remark:string;is_active:number;color:string[]};
 const tag:Record<string,string>={'1':'花卉','2':'植物','3':'几何','11':'蓝色','12':'绿色'};
 class Fake {
@@ -16,7 +16,7 @@ class Fake {
    const versions:V[]=Array.from({length:21},(_,j)=>({id:String(i*100+j+1),
     master_id:id,colorway_no:j+1,pattern_image_asset_id:j===1?'a1111111-1111-4111-8111-111111111111':null,
     remark:j===0?'设计稿':'',is_active:j===2?0:1,color:j%2?['12']:['11']}));
-   this.masters.push({id,master_no:'M'+String(i).padStart(3,'0'),
+   this.masters.push({created_at:new Date(Date.UTC(2026,9,1,0,0,n-i)).toISOString(),id,master_no:'M'+String(i).padStart(3,'0'),
     is_active:i%19===0?0:1,next_colorway_no:'22',
     topic:i%2?['1']:['2','3'],versions});
   }
@@ -58,8 +58,8 @@ class Fake {
   }
   if(sql.startsWith('SELECT COUNT(*) AS total'))return [[{total:masters.length}],[]];
   if(sql.includes('FROM pattern_masters m')){
-   assert(sql.includes('ORDER BY m.master_no,m.id LIMIT ? OFFSET ?'));
-   const page=masters.sort((a,b)=>a.master_no.localeCompare(b.master_no));
+   assert(sql.includes('ORDER BY m.created_at DESC,m.id DESC LIMIT ? OFFSET ?'));
+   const page=masters.sort((a,b)=>(b.created_at??'').localeCompare(a.created_at??'')||(BigInt(a.id)>BigInt(b.id)?-1:1));
    return [page.slice(Number(params.at(-1)),Number(params.at(-1))+Number(params.at(-2))).map(m=>({
     id:m.id,master_no:m.master_no,is_active:m.is_active,next_colorway_no:m.next_colorway_no
    })),[]];
@@ -228,4 +228,9 @@ test('P4-2 isolated HTTP matrix and edit endpoints require Bearer and reject uns
   const rejected=await fetch(url+'/pattern-masters/0/colorway-details',{headers});
   assert.equal(rejected.status,400);
  }finally{await new Promise<void>((resolve,reject)=>server.close(err=>err?reject(err):resolve()));}
+});
+
+test('pattern catalog pages by creation descending with descending identity ties',async()=>{
+ const db=new Fake(3);db.masters[0].created_at='2026-10-18T00:00:00Z';db.masters[1].created_at=db.masters[2].created_at='2026-10-19T00:00:00Z';const first=await searchPatternCatalog(db,parse({limit:'2',offset:'0'})),second=await searchPatternCatalog(db,parse({limit:'2',offset:'2'}));assert.deepEqual(first.items.map(x=>x.id),['3','2']);assert.deepEqual(second.items.map(x=>x.id),['1']);assert.equal(first.total,3);
+ assert(db.calls.find(x=>x.sql.includes('LIMIT ? OFFSET ?'))!.sql.includes('ORDER BY m.created_at DESC,m.id DESC LIMIT ? OFFSET ?'));
 });

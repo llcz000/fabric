@@ -88,7 +88,7 @@ test('AC-98/99 B2-5 printing and retirement actions appear per card without modi
   onToggle:()=>{},onPageAll:()=>{},onPage:()=>{},onConfirmReprinted:()=>{},onRetire:()=>{}}));
  assert.match(html,/需重新打印/);assert.match(html,/标记已重新打印/);assert.match(html,/删除色卡/);
  for(const title of ['色卡编号','品名','成分','克重','门幅','二维码'])assert(html.includes(title));
- assert.equal((html.match(/<th /g)||[]).length,8,'checkbox plus six business headers and final operations column');
+ assert.equal((html.match(/<th /g)||[]).length,7,'checkbox plus five business headers and final operations column');
  const row=html.match(/<tbody>([\s\S]*?)<\/tbody>/)?.[1]??'';
  const cells=[...row.matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/g)].map(match=>match[1]);
  assert.match(cells.at(-1)??'',/删除色卡/,'delete action belongs to the rightmost cell');
@@ -111,7 +111,7 @@ test('B2-3 actual default QR matrix decodes to exact server payload and is rende
  assert.equal(jsQR(pixels,size,size)?.data,card.qrPayload);
  const html=renderToStaticMarkup(React.createElement(SampleCardQr,{payload:card.qrPayload}));assert.match(html,/<svg/);assert.match(html,/<path/);
 });
-test('B2-3 six business table columns and stable QR use current row, page-all is explicit',()=>{
+test('B2-3 five business columns and QR operation use current row, page-all is explicit',()=>{
  const html=renderToStaticMarkup(React.createElement(SampleCardTable,{page:page([card],20,70),selectedIds:['1'],onToggle:()=>{},onPageAll:()=>{},onPage:()=>{}}));
  for(const h of ['色卡编号','品名','成分','克重','门幅','二维码'])assert(html.includes(h));
  assert.match(html,/raw_TOKEN-Case_000/);assert.match(html,/本页/);assert.match(html,/70/);assert.match(html,/下一页/);
@@ -146,6 +146,6 @@ test('B2-3 no selection or inactive records cannot create card and foreign serve
  await assert.rejects(()=>fetchSampleCardPage(fetch,'',1000001));
 });
 
-test('card list retains compact QR and exposes an accessible enlargement action for scanning one card',()=>{const html=renderToStaticMarkup(React.createElement(SampleCardTable,{page:page([card]),selectedIds:[],onToggle(){},onPageAll(){},onPage(){}}));assert(html.includes('aria-label="放大色卡二维码 '+card.cardNo+'"'));assert(html.includes('width="52"'));});
+test('card list exposes QR in row operations without rendering a QR column or inline codes',()=>{const html=renderToStaticMarkup(React.createElement(SampleCardTable,{page:page([card]),selectedIds:[],onToggle(){},onPageAll(){},onPage(){}}));assert(html.includes('aria-label="放大色卡二维码 '+card.cardNo+'"'));assert(!html.includes('<svg'));assert(!/<th[^>]*>二维码<\/th>/.test(html));const cells=html.match(/<td\b[^>]*>[\s\S]*?<\/td>/g)!;assert(cells.at(-1)!.includes('查看二维码'));assert.equal(cells.length,7);});
 
 test('card row offers view patterns in operations',()=>{const html=renderToStaticMarkup(React.createElement(SampleCardTable,{page:page([card]),selectedIds:[],onToggle(){},onPageAll(){},onPage(){},onViewPatterns(){}} as any));assert.match(html,/查看花型/);});

@@ -176,7 +176,7 @@ export function SampleCardTable({page,selectedIds,onToggle,onPageAll,onPage,onCo
     <thead className="border-b border-[#c3c6d7] bg-[#fbfcfd]"><tr>
      <th className="w-10 px-3 py-2.5"><input type="checkbox" aria-label="选择本页色卡" checked={all}
       disabled={busy||!page.items.length} onChange={e=>onPageAll(e.target.checked)}/></th>
-     {['色卡编号','品名','成分','克重','门幅','二维码'].map((title,i)=><th scope="col" key={title} className={'px-3 py-2.5 font-semibold '+(i===5?'text-center':'')}>{title}</th>)}
+     {['色卡编号','品名','成分','克重','门幅'].map(title=><th scope="col" key={title} className="px-3 py-2.5 font-semibold">{title}</th>)}
      <th scope="col" className="whitespace-nowrap px-3 py-2.5 font-semibold">操作</th>
     </tr></thead>
     <tbody>{page.items.map(c=><tr key={c.id} data-qr-payload={c.qrPayload} className="border-b border-[#e2e8f0] last:border-0 hover:bg-[#fbfcfd]">
@@ -191,8 +191,8 @@ export function SampleCardTable({page,selectedIds,onToggle,onPageAll,onPage,onCo
      </td><td className="px-3 py-3">{c.description}</td>
      <td className="px-3 py-3">{c.composition||'—'}</td><td className="whitespace-nowrap px-3 py-3">{c.weightValue===null?'—':c.weightValue+' '+c.weightUnit}</td>
      <td className="whitespace-nowrap px-3 py-3">{c.widthValue===null?'—':c.widthValue+' cm'}</td>
-     <td className="px-3 py-3 text-center"><button type="button" aria-label={'放大色卡二维码 '+c.cardNo} onClick={()=>setQrCard(c)} className="inline-flex rounded border border-[#c3c6d7] bg-white p-1"><QrRenderer payload={c.qrPayload}/></button></td>
      <td className="whitespace-nowrap px-3 py-3">
+      <button type="button" aria-label={'放大色卡二维码 '+c.cardNo} onClick={()=>setQrCard(c)} className="mr-3 text-xs text-[#0053da] hover:underline">查看二维码</button>
       {onViewPatterns&&<button type="button" disabled={busy} className="mr-3 text-xs text-[#0053da] hover:underline disabled:opacity-50" aria-label={'查看花型 '+c.cardNo} onClick={()=>onViewPatterns(c)}>查看花型</button>}
       {onRetire?<button type="button" disabled={busy} className="text-xs text-rose-700 hover:underline disabled:opacity-50"
        aria-label={'删除色卡 '+c.cardNo} onClick={()=>onRetire(c)}>删除色卡</button>:null}
