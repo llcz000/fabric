@@ -54,7 +54,7 @@ try{
  await input('扫描或输入色卡编码',physical.qrPayload);heldCreate=null;await send('Fetch.enable',{patterns:[{urlPattern:'*cardPhotoScan-*.js',requestStage:'Request'}]});
  try{
   await send('DOM.setFileInputFiles',{nodeId:fileNode.nodeId,files:[photo]});await until(()=>Boolean(heldCreate),'photo decoder delayed');
-  await check(`(()=>{const f=document.querySelector('form[aria-label="扫码加入选样"]');return f.querySelector('input:not([type="file"])').disabled&&f.querySelector('button').disabled;})()`,'pending photo decode blocks conflicting HID/manual input and submission');
+  await check(`(()=>{const f=document.querySelector('form[aria-label="扫码加入选样"]');return f.querySelector('input:not([type="file"])').disabled&&[...f.querySelectorAll('input[type="file"]')].every(input=>input.disabled)&&![...f.querySelectorAll('button')].some(button=>!button.disabled);})()`,'pending photo decode blocks conflicting HID/manual input and submission');
  }finally{if(heldCreate)await send('Fetch.continueRequest',{requestId:heldCreate});await send('Fetch.disable');heldCreate=null;}
  await until(()=>js(`document.body.textContent.includes('已识别色卡，请确认加入')`),'real QR photo decode');
  assert.deepEqual(await privateJson('/api/v2/customer-samples/sessions/'+sessionId+'?limit=20'),beforePhoto);checks.push('real card PNG decodes locally without submitting or changing selection');

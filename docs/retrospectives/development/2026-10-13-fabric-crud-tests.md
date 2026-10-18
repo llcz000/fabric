@@ -105,3 +105,12 @@ UI数字raw与业务数值分开，不用Number原生控件吞掉未完成输入
 本轮实体手机补充：用户确认LAN可访问，指出扫码加入初始置灰；经追问尚未选图、期望点击开始扫码。根因是已有按钮为识别后的提交，虽照片解码在浏览器可通过，仍不等于入口易用。追加入口专项RED→GREEN，扫码加入改为可点capture入口，识别后才出现确认加入，新照片清旧编码；取消及识别失败保持重试，不提交旧卡。独立只读追加审查无确认P1/P2，实体手机新包扫码仍待用户操作。
 
 追加入口后的最终验证：统一1289项（1288通过/1跳过）、lint/build通过；最终包经LAN地址真实Edge/MySQL23项，包括实际tap唤起文件chooser、cancel无提交、真实PNG识别及新照片失败清旧token/可重试；当前包三单据26项及选样管理19项复验。旧管理员验收凭据401未改用户账号，新增隔离库专用自动验收账号并在验后停用。最终当前包及未完成Gate只在唯一进度维护。
+
+实体手机再验未通过：用户反馈“点击拍照后没反应，没法扫码”。当前已追问具体浏览器/系统及停在唤起还是拍后解码；Edge触发chooser/PNG识别不能证明真实手机相机链，未定位前不宣称兼容已修复，不要求用户反复重试同一包。
+
+### 2026-10-18 Android内置浏览器与宽触屏
+
+- 触发/确认：用户补充Android今日头条完全不弹相机；系统自带浏览器登录后没有扫码入口、和桌面一样。此前Edge23项仅证明桌面chooser与PNG解码，实体扫码明确未通过。相机未返回照片，不能按解码失败修；系统首页本来是大盘，扫码位于客户选样→新建/编辑，补充路径说明。
+- 根因边界与处理：md:hidden仅看宽度，真实Edge在980px且先确认coarse触控时复现入口隐藏RED；宽触控规则恢复flex，常规桌面仍隐藏。原JS.click触发替换为点击面积完整、可键盘聚焦的原生file输入，拍照/独立相册分开，共用原有decode/abort/锁/显式提交；相册无capture。今日头条宿主为何未弹不能由源码或PC仿真确证，作为兼容假设与设备Gate保留。原生唤起和图片格式边界可参考[MDN文件选择](https://developer.mozilla.org/en-US/docs/Web/API/File_API/Using_files_from_web_applications)及[Android宿主文件请求](https://developer.android.com/reference/android/webkit/WebChromeClient#onShowFileChooser(android.webkit.WebView,android.webkit.ValueCallback%3Candroid.net.Uri[]%3E,android.webkit.WebChromeClient.FileChooserParams))，不能据此断言该App具体实现。
+- 验证：初态原生双入口1项RED→相关8/8，完整lint/build通过；最终候选经LAN真实Edge/MySQL29项，包括普通桌面隐藏、宽触屏可见、屏蔽脚本input.click后真实点原生入口、相册打开/真实PNG识别/确认去重/新图失败清旧token，原补选/数字/PNG检查保留。独立只读审查及CSS复核无确认P1/P2。专用隔离测试账号30复用后再次停用，原用户账号未重设；源码未涉及身份/单据计算或数据迁移。新包SHA只在唯一进度维护，不把前包全量/恢复证据继承到新包。
+- 剩余与治理：已请用户用系统浏览器新版地址实际检查入口/相机/相册/加入；设备实际结果待回，头条相机未确认为已修好。真实纸打、人工UI、新包独立恢复与正式发布开放。此计划、同题复盘及旧包证据保留，无归档/移动/删除；唯一状态V2进度，项目现状只摘要。可复用的是触控宽视图测试与原生回退，不将未经实测的头条根因写成通用事实。

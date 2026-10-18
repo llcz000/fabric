@@ -8,5 +8,5 @@ test('sample workspace offers customer search/new selection and uses no browser 
 
 test('mobile scan starts from an enabled camera action before there is a decoded token',()=>{
  const html=renderToStaticMarkup(React.createElement(Session,{session:{id:'7',customerReference:'客户',status:'open'},apiFetch:fetch,onBack(){},onStatusChanged(){}}));
- const start=html.match(/<button[^>]*data-scan-start[^>]*>扫码加入<\/button>/)?.[0];assert(start,'scan entry must open capture before a token exists');assert(!/\sdisabled(?:=|\s|>)/.test(start));assert(!html.includes('>确认加入</button>'),'no grey submit presented as the scan entry');
+ const start=html.match(/<input[^>]*data-scan-start[^>]*>/)?.[0];assert(start,'scan entry must open capture before a token exists');assert(!/\sdisabled(?:=|\s|>)/.test(start));assert(!html.includes('>确认加入</button>'),'no grey submit presented as the scan entry');
 });
