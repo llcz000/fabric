@@ -17,10 +17,12 @@ import {uploadImageAsset,applyCompanyImageMutations} from '../../lib/imageAssets
 import type {CompanyImageMutation} from '../../lib/companyImageState';
 import {resolveImageUrls} from './catalogModel';
 import {parseV2AppPrincipal,v2AuthenticatedFetch,mapV2Company,type V2AppPrincipal} from './v2AppModel';
-const SESSION='fabric-v2-session';
+import {createV2LoginStore,V2_LOGIN_KEY} from './v2LoginStorage';
+import {installV2BackGuard} from './v2BackGuard';
 type View='stats'|'documents'|'create'|'pattern'|'fabric'|'products'|'cards'|'samples'|'settings'|'members'|'preview'|'inventory';
 export default function V2App(){
- const [token,setToken]=useState(()=>{try{return sessionStorage.getItem(SESSION)??'';}catch{return '';}});
+ const loginStore=useMemo(()=>createV2LoginStore(),[]);
+ const [token,setToken]=useState(()=>loginStore.restore()),currentToken=useRef(token);currentToken.current=token;
  const [actor,setActor]=useState<V2AppPrincipal|null>(null),[company,setCompany]=useState<CompanyProfile|null>(null);
  const [view,setView]=useState<View>('stats'),[productName,setProductName]=useState(''),[previewId,setPreviewId]=useState('');
  const [error,setError]=useState(''),[busy,setBusy]=useState(false),[revision,setRevision]=useState(0);
@@ -28,8 +30,11 @@ export default function V2App(){
  const [shareEnabled,setShareEnabled]=useState(false),[sharingMaster,setSharingMaster]=useState<{id:string;masterNo:string}|null>(null);
  const leaveGuard=useRef<()=>boolean>(()=>true);
  const registerSampleLeaveGuard=useCallback((guard:(()=>boolean)|null)=>{leaveGuard.current=guard??(()=>true);},[]);
- const expire=useCallback(()=>{sessionStorage.removeItem(SESSION);setToken('');setActor(null);setCompany(null);setView('stats');setShareEnabled(false);setSharingMaster(null);},[]);
- const apiFetch=useMemo(()=>v2AuthenticatedFetch(fetch,token,expire),[token,expire]);
+ const resetIdentity=useCallback((next:string)=>{currentToken.current=next;setToken(next);setActor(null);setCompany(null);setView('stats');setShareEnabled(false);setSharingMaster(null);},[]);
+ const expire=useCallback(()=>{if(loginStore.clear(currentToken.current))resetIdentity('');else resetIdentity(loginStore.restore(true));},[loginStore,resetIdentity]);
+ const apiFetch=useMemo(()=>v2AuthenticatedFetch(fetch,token,()=>{if(currentToken.current===token)expire();}),[token,expire]);
+ useEffect(()=>{const sync=(event:StorageEvent)=>{if(event.key!==V2_LOGIN_KEY&&event.key!==null)return;const next=loginStore.restore(true);if(next!==currentToken.current){currentToken.current=next;resetIdentity(next);}};window.addEventListener('storage',sync);return()=>window.removeEventListener('storage',sync);},[loginStore,resetIdentity]);
+ useEffect(()=>{if(!actor)return;return installV2BackGuard(window,()=>leaveGuard.current());},[Boolean(actor)]);
  useEffect(()=>{
   if(!token)return;const controller=new AbortController(),urls:string[]=[];setError('');setActor(null);setCompany(null);
   (async()=>{try{
@@ -56,9 +61,9 @@ export default function V2App(){
   const response=await fetch('/api/v2/access/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password})});
   if(!response.ok)throw Error(response.status===429?'登录尝试过多，请稍后重试':'登录失败，请检查账号和密码');
   const result=await response.json();if(typeof result.token!=='string'||!(/^[a-f0-9]{64}$/.test(result.token)))throw Error('登录会话无效');
-  sessionStorage.setItem(SESSION,result.token);setPassword('');setToken(result.token);
+  loginStore.save(result.token,result.expiresIn);currentToken.current=result.token;setPassword('');setToken(result.token);
  }catch(cause){setError(cause instanceof Error?cause.message:'登录失败');}finally{setBusy(false);}};
- const logout=async()=>{if(!leaveGuard.current())return;try{await apiFetch('/api/v2/access/logout',{method:'POST'});}finally{expire();}};
+ const logout=async()=>{if(!leaveGuard.current())return;const issuedFor=token;try{await apiFetch('/api/v2/access/logout',{method:'POST'});}finally{if(currentToken.current===issuedFor)expire();}};
  const saveCompany=async(profile:CompanyProfile,mutations:CompanyImageMutation[])=>{
   const response=await apiFetch('/api/company',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({company_name:profile.name,brand_name:profile.logoText,address:profile.address,phone:profile.phone,default_terms:profile.defaultTerms,deposit_terms:profile.depositTerms??'',issuer_label:profile.issuerLabel,receiver_label:profile.receiverLabel})});
   if(!response.ok)throw Error('公司资料保存失败');await applyCompanyImageMutations(mutations,{apiFetch,reloadCompanyProfile:async()=>{setRevision(n=>n+1);}});setRevision(n=>n+1);
