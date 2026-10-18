@@ -108,6 +108,8 @@ jobs:
           name: fabric-v2-review-build-${{ github.sha }}
           path: |
             dist/
+            dist-camera/
+            !dist-camera/**/*.map
             !dist/*.map
             !dist/**/*.map
           if-no-files-found: error

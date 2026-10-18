@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs && esbuild scripts/run-v2-recovery.ts --bundle --platform=node --format=cjs --packages=external --outfile=dist/recovery.cjs",
+    "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs && esbuild scripts/run-v2-recovery.ts --bundle --platform=node --format=cjs --packages=external --outfile=dist/recovery.cjs && npm run build:camera",
     "start": "node dist/server.cjs",
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
     "lint": "tsc --noEmit",
@@ -17,7 +17,8 @@
     "migrate:image-assets": "tsx scripts/migrate-image-assets.ts",
     "migrate:product-image-roles": "tsx scripts/migrate-product-image-roles.ts",
     "import:products": "tsx scripts/import-products.ts",
-    "test:security": "node scripts/smoke-security.mjs"
+    "test:security": "node scripts/smoke-security.mjs",
+    "build:camera": "vite build --config vite.camera.config.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

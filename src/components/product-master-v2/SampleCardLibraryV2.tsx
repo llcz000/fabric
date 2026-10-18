@@ -1,5 +1,6 @@
 import React,{useEffect,useRef,useState,useSyncExternalStore} from 'react';
 import QRCode from 'qrcode';
+import {SampleCardPatternsDialog} from './SampleCardPatternsDialog';
 import type {PatternMasterItem} from './patternModel';
 import type {FabricCatalogItem} from './fabricModel';
 import {resolveImageUrls} from './catalogModel';
@@ -156,14 +157,20 @@ export function SampleCardCreateDialog({controller,onClose,onCreate,imageUrls=ne
   </div>
  </div>;
 }
-export function SampleCardTable({page,selectedIds,onToggle,onPageAll,onPage,onConfirmReprinted,onRetire,QrRenderer=SampleCardQr,busy=false}:{
+function CardQrZoom({card,QrRenderer,onClose}:{card:SampleCard;QrRenderer:SampleCardQrRenderer;onClose():void}){
+ const ref=useRef<HTMLDialogElement>(null);useEffect(()=>{const before=document.activeElement,dialog=ref.current;dialog?.showModal();return()=>{dialog?.close();if(before instanceof HTMLElement&&before.isConnected)before.focus();};},[]);
+ return <dialog ref={ref} aria-label={'色卡二维码 '+card.cardNo} onCancel={event=>{event.preventDefault();onClose();}} className="m-auto max-w-[94vw] rounded-xl border bg-white p-5 shadow-xl backdrop:bg-black/30"><header className="mb-3 flex items-center justify-between gap-4"><h3 className="font-semibold">{card.cardNo}</h3><button type="button" onClick={onClose} className={button}>关闭二维码</button></header><div className="mx-auto w-[min(76vw,420px)] [&>svg]:h-auto [&>svg]:w-full"><QrRenderer payload={card.qrPayload} size={420}/></div><p className="mt-3 text-sm text-slate-500">请对准这个二维码实时扫码</p></dialog>;
+}
+export function SampleCardTable({page,selectedIds,onToggle,onPageAll,onPage,onConfirmReprinted,onRetire,onViewPatterns,QrRenderer=SampleCardQr,busy=false}:{
  page:SampleCardPage;selectedIds:readonly string[];onToggle(id:string,selected:boolean):void;
  onPageAll(selected:boolean):void;onPage(offset:number):void;
- onConfirmReprinted?(card:SampleCard):void;onRetire?(card:SampleCard):void;
+ onConfirmReprinted?(card:SampleCard):void;onRetire?(card:SampleCard):void;onViewPatterns?(card:SampleCard):void;
  QrRenderer?:SampleCardQrRenderer;busy?:boolean;
 }){
+ const [qrCard,setQrCard]=useState<SampleCard|null>(null);
  const all=page.items.length>0&&page.items.every(c=>selectedIds.includes(c.id));
  return <section className={border+' overflow-hidden'}>
+  {qrCard&&<CardQrZoom card={qrCard} QrRenderer={QrRenderer} onClose={()=>setQrCard(null)}/>}
   <div className="overflow-x-auto" role="region" aria-label="色卡列表，可横向滚动" tabIndex={0}>
    <table className="w-full min-w-[880px] border-collapse text-left text-xs">
     <thead className="border-b border-[#c3c6d7] bg-[#fbfcfd]"><tr>
@@ -184,8 +191,9 @@ export function SampleCardTable({page,selectedIds,onToggle,onPageAll,onPage,onCo
      </td><td className="px-3 py-3">{c.description}</td>
      <td className="px-3 py-3">{c.composition||'—'}</td><td className="whitespace-nowrap px-3 py-3">{c.weightValue===null?'—':c.weightValue+' '+c.weightUnit}</td>
      <td className="whitespace-nowrap px-3 py-3">{c.widthValue===null?'—':c.widthValue+' cm'}</td>
-     <td className="px-3 py-3 text-center"><span className="inline-flex rounded border border-[#c3c6d7] bg-white p-1"><QrRenderer payload={c.qrPayload}/></span></td>
+     <td className="px-3 py-3 text-center"><button type="button" aria-label={'放大色卡二维码 '+c.cardNo} onClick={()=>setQrCard(c)} className="inline-flex rounded border border-[#c3c6d7] bg-white p-1"><QrRenderer payload={c.qrPayload}/></button></td>
      <td className="whitespace-nowrap px-3 py-3">
+      {onViewPatterns&&<button type="button" disabled={busy} className="mr-3 text-xs text-[#0053da] hover:underline disabled:opacity-50" aria-label={'查看花型 '+c.cardNo} onClick={()=>onViewPatterns(c)}>查看花型</button>}
       {onRetire?<button type="button" disabled={busy} className="text-xs text-rose-700 hover:underline disabled:opacity-50"
        aria-label={'删除色卡 '+c.cardNo} onClick={()=>onRetire(c)}>删除色卡</button>:null}
      </td>
@@ -212,6 +220,7 @@ function download(blob:Blob,filename:string){
 }
 /** Standalone page. Assembly must supply the existing authenticated fetch; server still authorizes every call. */
 export function SampleCardLibraryV2({apiFetch,QrRenderer=SampleCardQr,resolvePatternImages,onDownload=download}:SampleCardLibraryV2Props){
+ const [viewingPatterns,setViewingPatterns]=useState<SampleCard|null>(null);
  const [query,setQuery]=useState(''),[offset,setOffset]=useState(0),[refresh,setRefresh]=useState(0);
  const [needsReprint,setNeedsReprint]=useState(false),[acting,setActing]=useState(false);
  const [page,setPage]=useState<SampleCardPage>({items:[],total:0,limit:50,offset:0});
@@ -291,7 +300,8 @@ export function SampleCardLibraryV2({apiFetch,QrRenderer=SampleCardQr,resolvePat
   <SampleCardTable page={page} selectedIds={selectedIds} busy={busy||exporting||acting} QrRenderer={QrRenderer}
    onToggle={(id,value)=>setSelectedIds(old=>toggleCardSelection(old,id,value))}
    onPageAll={value=>setSelectedIds(old=>setPageSelection(old,page.items,value))}
-   onConfirmReprinted={card=>void markPrinted(card)} onRetire={card=>void retire(card)} onPage={setOffset}/>
+   onViewPatterns={setViewingPatterns} onConfirmReprinted={card=>void markPrinted(card)} onRetire={card=>void retire(card)} onPage={setOffset}/>
+  {viewingPatterns&&<SampleCardPatternsDialog key={viewingPatterns.id} card={viewingPatterns} apiFetch={apiFetch} onClose={()=>setViewingPatterns(null)}/>}
   {controller?<SampleCardCreateDialog key="create" controller={controller} imageUrls={imageUrls} QrRenderer={QrRenderer} onClose={close} onCreate={create}/>:null}
  </main>;
 }

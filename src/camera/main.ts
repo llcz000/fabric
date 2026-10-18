@@ -1,0 +1,12 @@
+import './camera.css';
+import {parseCameraLaunch,validCameraMessage} from '../components/product-master-v2/cameraBridge';
+import {readLiveCard} from '../components/product-master-v2/liveCardCamera';
+const video=document.querySelector<HTMLVideoElement>('#camera')!,status=document.querySelector<HTMLElement>('#status')!,retry=document.querySelector<HTMLButtonElement>('#retry')!,cancel=document.querySelector<HTMLButtonElement>('#cancel')!,launch=parseCameraLaunch(location.hash),parent=window.opener;
+history.replaceState(null,'',location.pathname);let controller:AbortController|null=null,authorized=false,finished=false;
+function post(type:'ready'|'cancel'|'result',token?:string){if(launch&&parent)parent.postMessage({type,nonce:launch.nonce,...(token?{token}:{})},launch.origin);}
+function stop(){controller?.abort();controller=null;}
+function exit(){if(finished)return;finished=true;stop();post('cancel');window.close();status.textContent='扫码已取消，请返回选样单';}
+async function scan(){if(!authorized||controller||finished)return;if(!isSecureContext||!navigator.mediaDevices?.getUserMedia){status.textContent='当前浏览器无法实时扫码，请用系统浏览器重新进入';return;}const current=new AbortController();controller=current;retry.hidden=true;status.textContent='请允许使用相机，并对准一个完整的色卡二维码';try{const token=await readLiveCard(video,current.signal);if(finished||current.signal.aborted)return;finished=true;post('result',token);status.textContent='已识别，正在返回并加入选样单';}catch(cause){if(current.signal.aborted)return;const name=(cause as {name?:string}).name;status.textContent=name==='NotAllowedError'?'相机权限未开启，请允许此浏览器使用相机后重试':name==='NotFoundError'?'未找到可用相机，请使用有相机的设备重新进入':'相机启动失败，请检查相机权限后重试';retry.hidden=false;}finally{if(controller===current)controller=null;}}
+window.addEventListener('message',event=>{if(!launch||finished||event.source!==parent||event.origin!==launch.origin||!validCameraMessage(event.data,launch.nonce,'start')||authorized)return;authorized=true;void scan();});
+retry.addEventListener('click',()=>void scan());cancel.addEventListener('click',exit);window.addEventListener('pagehide',()=>{stop();if(!finished)post('cancel');});document.addEventListener('visibilitychange',()=>{if(document.hidden&&controller){stop();status.textContent='相机已暂停，返回后点击启动相机';retry.hidden=false;}});
+if(!launch||!parent){status.textContent='请从客户选样单点击实时扫码进入';cancel.textContent='关闭';}else{post('ready');setTimeout(()=>{if(!authorized&&!finished)status.textContent='无法连接选样单，请关闭后重新进入';},10000);}

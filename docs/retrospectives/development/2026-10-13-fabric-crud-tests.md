@@ -114,3 +114,13 @@ UI数字raw与业务数值分开，不用Number原生控件吞掉未完成输入
 - 根因边界与处理：md:hidden仅看宽度，真实Edge在980px且先确认coarse触控时复现入口隐藏RED；宽触控规则恢复flex，常规桌面仍隐藏。原JS.click触发替换为点击面积完整、可键盘聚焦的原生file输入，拍照/独立相册分开，共用原有decode/abort/锁/显式提交；相册无capture。今日头条宿主为何未弹不能由源码或PC仿真确证，作为兼容假设与设备Gate保留。原生唤起和图片格式边界可参考[MDN文件选择](https://developer.mozilla.org/en-US/docs/Web/API/File_API/Using_files_from_web_applications)及[Android宿主文件请求](https://developer.android.com/reference/android/webkit/WebChromeClient#onShowFileChooser(android.webkit.WebView,android.webkit.ValueCallback%3Candroid.net.Uri[]%3E,android.webkit.WebChromeClient.FileChooserParams))，不能据此断言该App具体实现。
 - 验证：初态原生双入口1项RED→相关8/8，完整lint/build通过；最终候选经LAN真实Edge/MySQL29项，包括普通桌面隐藏、宽触屏可见、屏蔽脚本input.click后真实点原生入口、相册打开/真实PNG识别/确认去重/新图失败清旧token，原补选/数字/PNG检查保留。独立只读审查及CSS复核无确认P1/P2。专用隔离测试账号30复用后再次停用，原用户账号未重设；源码未涉及身份/单据计算或数据迁移。新包SHA只在唯一进度维护，不把前包全量/恢复证据继承到新包。
 - 剩余与治理：已请用户用系统浏览器新版地址实际检查入口/相机/相册/加入；设备实际结果待回，头条相机未确认为已修好。真实纸打、人工UI、新包独立恢复与正式发布开放。此计划、同题复盘及旧包证据保留，无归档/移动/删除；唯一状态V2进度，项目现状只摘要。可复用的是触控宽视图测试与原生回退，不将未经实测的头条根因写成通用事实。
+
+## 2026-10-18 实时扫码、色卡花型与新建选样弹窗
+
+- 日期/范围：当前隔离候选UI与实时相机静态页，沿用候选部署授权；不改正式业务入口或数据库结构。
+- 触发/根因：用户期望对准即可识别，原file拍照需快门且实际照片无法识别；HTTP LAN不能直接获得getUserMedia，改受信任HTTPS顶层窗口。[MDN getUserMedia](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia)为机制依据。照片原件未提供，未复现其具体解码根因；后续用户明确要求移除照片和相册。色卡列表不能直观看到配色，客户名不适合常驻目录。
+- 处理：父子随机nonce、origin/source及ready/start/result握手；只有父页验证后关闭子页，child不访问业务API、不上传视频。相机成功/失败/取消/迟到流均释放track。实时结果直接走认证scan，pending同步防重，照片与相册入口移除。单张二维码放大；关联花型用精确masterId AND fabricId在count/page前筛选，分页thumbnail不取原图；客户名在原生新建dialog输入并保留取消/焦点/写锁。
+- 故障与审查：独立审查发现child发结果后立即自关与parent轮询竞态，已改由parent收到校验结果后关。自动加入首轮RED受QA重放已停止传播的Event污染，不作为业务RED；确认父页busy且0请求后改为重新构造保留data/origin/source的消息事件，重放用例才能有效验证。拦截器须先安装且只延迟正确来源/nonce，恶意消息必须进入生产校验。相机权限测试不要使用覆盖授权的fake-ui标志或无法定位context的guest。
+- 验证：新增色卡/新建3项RED和移除照片1项RED→相关39/39；完整1300（1299通过/1跳过）、lint/build通过；真实Edge/MySQL/COS23项含ready图片上传及签名缩略图、跨组合排除、创建一次入单、取消焦点、相机连续视频/拒绝/取消、恶意消息、延迟结果/重放及自动加入/失败重试。另LAN20项补选/数字/PNG回归。初轮LAN直接上传失败，COS现有上传CORS未新增LAN来源；缩略图/扫码验收转52987，LAN回归不包含上传，不宣称LAN上传已修复。原用户账号未改，专用QA30停用。
+- 人工证据：Android系统浏览器用户确认“实时识别并加入正常”；后续再次确认“扫码加入正常”，同时指出拍照/相册无法识别，按要求移除。新版关联花型/新建弹窗视觉尚未由用户签收。
+- 剩余/治理：唯一状态[V2进度](../../product-master/product-master-v2-progress.md)。纸打、全七页人工UI、当前包独立恢复和正式切流开放；本计划、相机/原生拍照历史证据及两篇同题复盘**保留**，无归档候选/移动/删除。保留照片失败证据，不把下架当成解码问题已解决。

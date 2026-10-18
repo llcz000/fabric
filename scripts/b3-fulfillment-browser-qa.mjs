@@ -39,8 +39,8 @@ try{
  ws.addEventListener('message',event=>{const m=JSON.parse(event.data),p=pending.get(m.id);if(m.method==='Fetch.requestPaused'){heldCreate=m.params.requestId;}if(m.method==='Page.javascriptDialogOpening'){runtimeEvents.push(m.params.type);void send('Page.handleJavaScriptDialog',{accept:acceptDialog});}if(p){pending.delete(m.id);m.error?p.reject(Error(m.error.message)):p.resolve(m.result);}});
  await send('Runtime.enable');await send('Page.enable');await send('Emulation.setDeviceMetricsOverride',{width:1400,height:1100,deviceScaleFactor:1,mobile:false});
  await send('Page.navigate',{url:base});await until(()=>js(`Boolean(document.querySelector('form[aria-label="账号登录"]'))`),'login');await fill('input[name="username"]',credentials.username);await fill('input[name="password"]',credentials.password);await click('登录');await until(()=>js(`Boolean(document.querySelector('nav[aria-label="主导航"]'))`),'navigation');
- await click('客户选样','nav[aria-label="主导航"] button');await until(()=>js(`Boolean(document.querySelector('form[aria-label="新建选样单"]'))&&!document.body.textContent.includes('正在读取选样单')`),'directory loaded');
- const customer='浏览器选样QA'+Date.now();await input('客户名称',customer);await click('新建选样单');await until(()=>js(`Boolean(document.querySelector('section[aria-label="客户选样明细"]'))`),'new selection');await until(()=>js(`document.body.textContent.includes('暂无已选产品')`),'empty selection');checks.push('real browser creates its own customer selection and explicit grant');
+ await click('客户选样','nav[aria-label="主导航"] button');await until(()=>js(`Boolean(document.querySelector('input[aria-label="搜索客户"]'))&&!document.body.textContent.includes('正在读取选样单')`),'directory loaded');await click('新建选样单');
+ const customer='浏览器选样QA'+Date.now();await input('客户名称',customer);await click('创建选样单');await until(()=>js(`Boolean(document.querySelector('section[aria-label="客户选样明细"]'))`),'new selection');await until(()=>js(`document.body.textContent.includes('暂无已选产品')`),'empty selection');checks.push('real browser creates its own customer selection and explicit grant');
  const directory=await privateJson('/api/v2/customer-samples/sessions?query='+encodeURIComponent(customer));sessionId=directory.items[0].id;
  stage='manual';await click('人工补选');await fill('input[placeholder="色卡编号、花型编号、面料品号或品名"]','B3');await until(()=>js(`Boolean(document.querySelector('button[aria-label^="加入色卡 B3"]'))`),'card search');
  await js(`document.querySelector('button[aria-label^="加入色卡 B3"]').click()`);await until(()=>js(`document.body.textContent.includes('已选产品 2 款')`),'two selected products');checks.push('existing card-based manual selection adds current two products without a separate product picker');
@@ -81,7 +81,7 @@ try{
  if(await js(`Boolean([...document.querySelectorAll('button')].find(e=>e.textContent.trim()==='返回客户选样'))`))await click('返回客户选样');
  await until(()=>js(`Boolean(document.querySelector('tbody button'))`),'existing sessions');
  await probe('pending create blocks conflicting existing-session navigation and recovers normal controls',async()=>{
-  await input('客户名称','延迟新建QA'+Date.now());heldCreate=null;await send('Fetch.enable',{patterns:[{urlPattern:'*/api/v2/customer-samples/sessions',requestStage:'Response'}]});
+  await click('新建选样单');await input('客户名称','延迟新建QA'+Date.now());heldCreate=null;await send('Fetch.enable',{patterns:[{urlPattern:'*/api/v2/customer-samples/sessions',requestStage:'Response'}]});
   try{await click('新建选样单');await until(()=>Boolean(heldCreate),'create committed/delayed response');assert(await js(`document.querySelector('tbody button').disabled`),'existing-session navigation remained enabled during create');}
   finally{if(heldCreate)await send('Fetch.continueRequest',{requestId:heldCreate});await send('Fetch.disable');heldCreate=null;}
  });

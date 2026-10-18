@@ -246,3 +246,5 @@ test('P3-5 HTTP GET /api/v2/products authenticates, combines filters, returns to
   assert.equal(failure.status,503);assert(!((await failure.text()).includes('PRODUCTION_CREDENTIALS_MUST_NOT_LEAK')));
  });
 });
+
+test('card patterns apply exact master AND fabric identity to both count and page',async()=>{const filter=parseProductSearchQuery({masterId:'9',fabricId:'12',status:'all'});const calls:{sql:string;params:unknown[]}[]=[];await searchProductCatalog({async query(sql:string,params:unknown[]=[]):Promise<[unknown,unknown]>{calls.push({sql,params});return [sql.includes('COUNT(*)')?[{total:1}]:[],[]];}},filter);assert(calls.length>=2);assert(calls.every(c=>c.sql.includes('m.id=?')&&c.sql.includes('p.fabric_id=?')&&c.params.includes('9')&&c.params.includes('12')));for(const id of ['0','9 OR 1=1',[],9])assert.throws(()=>parseProductSearchQuery({masterId:id}));});

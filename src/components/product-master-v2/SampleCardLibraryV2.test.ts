@@ -145,3 +145,7 @@ test('B2-3 no selection or inactive records cannot create card and foreign serve
  await assert.rejects(()=>fetchSampleCardPage(fetch,'x'.repeat(101)));
  await assert.rejects(()=>fetchSampleCardPage(fetch,'',1000001));
 });
+
+test('card list retains compact QR and exposes an accessible enlargement action for scanning one card',()=>{const html=renderToStaticMarkup(React.createElement(SampleCardTable,{page:page([card]),selectedIds:[],onToggle(){},onPageAll(){},onPage(){}}));assert(html.includes('aria-label="放大色卡二维码 '+card.cardNo+'"'));assert(html.includes('width="52"'));});
+
+test('card row offers view patterns in operations',()=>{const html=renderToStaticMarkup(React.createElement(SampleCardTable,{page:page([card]),selectedIds:[],onToggle(){},onPageAll(){},onPage(){},onViewPatterns(){}} as any));assert.match(html,/查看花型/);});
