@@ -59,7 +59,7 @@ export function PatternMasterRows({items,thumbnailUrls,onPreview,onEdit,onShare,
   {!items.length?<p className="py-16 text-center text-sm text-[#737686]">没有匹配的花型，可调整或清空筛选条件。</p>:null}
  </div>;
 }
-function TagSelector({options,selected,onChange,disabled=false,ariaLabel,reserved=0}:{
+export function TagSelector({options,selected,onChange,disabled=false,ariaLabel,reserved=0}:{
  options:CatalogTag[];selected:string[];onChange(value:string[]):void;disabled?:boolean;ariaLabel:string;
  reserved?:number;
 }){
@@ -74,7 +74,7 @@ function TagSelector({options,selected,onChange,disabled=false,ariaLabel,reserve
   }):<span className="text-[11px] text-[#737686]">暂无可选标签</span>}
  </div>;
 }
-function InlineColorTagEditor({options,tagIds,newColorTags,onChange,disabled=false,label}:{
+export function InlineColorTagEditor({options,tagIds,newColorTags,onChange,disabled=false,label}:{
  options:CatalogTag[];tagIds:string[];newColorTags:string[];
  onChange(value:{tagIds:string[];newColorTags:string[]}):void;
  disabled?:boolean;label:string;

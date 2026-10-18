@@ -47,3 +47,12 @@ test('B3 isolated DELETE route emits safe errors for missing targets, revoked gr
   assert.equal(unavailable.status,503);assert(!((await unavailable.text()).includes('PRIVATE')));
  });
 });
+test('item batch HTTP only accepts an authenticated itemIds payload and safe transaction errors',async()=>{
+ await http(async(url,state)=>{const target=url.replace('/items/81','/items/remove');const post=(body:unknown,query='')=>fetch(target+query,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+ assert.equal((await post({itemIds:['81']})).status,401);assert.equal(state.calls,0);state.actor=sales;
+ for(const body of [{cardIds:['81']},{itemIds:['81'],userId:'9'},null,[],{itemIds:[]}]){assert.equal((await post(body)).status,400);assert.equal(state.calls,0);}
+ assert.equal((await post({itemIds:['81']},'?userId=9')).status,400);assert.equal(state.calls,0);
+ for(const code of [403,404,409] as const){state.failure=new SampleSessionRemoveError(code);const r=await post({itemIds:['81']});assert.equal(r.status,code);assert.equal(r.headers.get('cache-control'),'no-store');}
+ state.failure=Error('PRIVATE SQL PASSWORD');const r=await post({itemIds:['81']});assert.equal(r.status,503);assert(!(await r.text()).includes('PRIVATE'));
+ });
+});

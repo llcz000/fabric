@@ -16,20 +16,22 @@ const page:SampleSessionPage={
    {cardId:'13',cardNo:'0012-F019',retired:true,firstScanEventId:'43'}]}]
 };
 const props:SampleSelectionPanelProps={sessionId:'51',initialPage:page,
- load:async()=>page,remove:async()=>{},onRescan:()=>{}};
+ load:async()=>page,remove:async()=>{},removeItems:async()=>({removedCount:1}),onRescan:()=>{}};
 
-test('selection supports card checkboxes and explicit current-page select all, while view mode has no mutation controls',()=>{
- const html=renderToStaticMarkup(React.createElement(SampleSelectionPanel,{...props,removeCards:async()=>({removedCount:1})}));
- assert(html.includes('勾选色卡 0012-F018'));assert(html.includes('全选当前页色卡'));assert(html.includes('移除所选色卡'));
- const view=renderToStaticMarkup(React.createElement(SampleSelectionPanel,{...props,readOnly:true,removeCards:async()=>({removedCount:1})}));
- assert(!view.includes('移除该款'));assert(!view.includes('移除所选色卡'));assert(!view.includes('type="checkbox"'));
+test('each selected product has one independently keyed checkbox and only one removal entry',()=>{
+ const rows={...page,total:2,items:[page.items[0],{...page.items[0],id:'62',productId:'82',current:{...page.items[0].current,productNo:'0012-2-F018'}}]};
+ const html=renderToStaticMarkup(React.createElement(SampleSelectionPanel,{...props,initialPage:rows,removeItems:async()=>({removedCount:1})}));
+ assert(html.includes('勾选货号 0012-1-F018'));assert(html.includes('勾选货号 0012-2-F018'));assert(html.includes('全选当前页货号'));
+ assert.equal((html.match(/data-selection-item=/g)??[]).length,2);
+ assert(!html.includes('移除该款'));assert(!html.includes('移除所选色卡'));assert(html.includes('移除所选'));assert(!html.includes('>操作<'));
+ const view=renderToStaticMarkup(React.createElement(SampleSelectionPanel,{...props,readOnly:true,removeItems:async()=>({removedCount:1})}));assert(!view.includes('移除所选'));assert(!view.includes('type="checkbox"'));
 });
 test('B3 selected items display current master data and card source first without valid badge',()=>{
  const html=renderToStaticMarkup(React.createElement(SampleSelectionPanel,props));
  assert(html.includes('最新丝绸'));assert(html.includes('真丝100%'));
  assert(html.includes('0012-F018'));assert(html.includes('已失效'));
  assert(html.includes('18 gsm'));assert(html.includes('145'));
- assert(html.indexOf('色卡编号')<html.indexOf('货号'));
+ const header=html.slice(html.indexOf('<thead>'),html.indexOf('</thead>'));assert(header.indexOf('色卡编号')<header.indexOf('货号'));
  assert(!html.includes('>有效<'));
  assert(html.includes('移除'));
 });

@@ -10,7 +10,7 @@ export interface SampleSelectionPanelProps {
  sessionId:string;
  load:(sessionId:string,limit:number,offset:number)=>Promise<SampleSessionPage>;
  remove:(sessionId:string,itemId:string)=>Promise<void>;
- removeCards?:SelectionApi['removeCards'];
+ removeItems?:SelectionApi['removeItems'];
  readOnly?:boolean;
  addManual?:SelectionApi['addManual'];
  searchManual?:ManualSelectionPaneProps['search'];
@@ -24,17 +24,16 @@ const errorText=(error:unknown):string=>{
  return status===401?'登录已失效，请重新登录':status===403||status===404?'无权查看或选样单不存在':'暂时无法读取选样资料';
 };
 const value=(text:string|null)=>text===null||text===''?'—':text;
-export function SampleSelectionPanel({sessionId,load,remove,removeCards,readOnly=false,addManual,searchManual,resolveThumbnails,onRescan,initialPage}:SampleSelectionPanelProps){
+export function SampleSelectionPanel({sessionId,load,removeItems,readOnly=false,addManual,searchManual,resolveThumbnails,onRescan,initialPage}:SampleSelectionPanelProps){
  const [page,setPage]=useState<SampleSessionPage|null>(
   initialPage?.session.id===sessionId?initialPage:null);
  const [busy,setBusy]=useState(false);
  const [message,setMessage]=useState('');
  const [notice,setNotice]=useState('');
  const [manualOpen,setManualOpen]=useState(false);
- const [confirmId,setConfirmId]=useState<string|null>(null);
- const [selectedCards,setSelectedCards]=useState<string[]>([]);
+ const [selectedItems,setSelectedItems]=useState<string[]>([]);
  const ticket=useRef(0);
- const manualPending=useRef(false);
+ const manualPending=useRef(false),removePending=useRef(false);
  const currentPage=useRef(page);currentPage.current=page;
  const manualAction=useMemo(()=>addManual?createManualSelectionAction({sessionId,addManual,
   isOpen:()=>currentPage.current?.session.id===sessionId&&currentPage.current.session.status==='open',
@@ -43,9 +42,9 @@ export function SampleSelectionPanel({sessionId,load,remove,removeCards,readOnly
    const latest=await load(sessionId,LIMIT,0);
    if(seq!==ticket.current)throw Error('Selection changed');
    if(latest.session.id!==sessionId)throw Error('Unexpected selection identity');
-   setPage(latest);setConfirmId(null);
+   setPage(latest);
   }}):null,[sessionId,addManual,load]);
- function accessLost(error:unknown){setPage(null);setConfirmId(null);setSelectedCards([]);setManualOpen(false);setMessage(errorText(error));}
+ function accessLost(error:unknown){setPage(null);setSelectedItems([]);setManualOpen(false);setMessage(errorText(error));}
  async function addOne(card:SelectionCard,productIds?:string[]){
   if(!manualAction||busy||manualPending.current||!page||page.session.status!=='open')return;
   manualPending.current=true;
@@ -66,39 +65,27 @@ export function SampleSelectionPanel({sessionId,load,remove,removeCards,readOnly
    const result=await load(sessionId,LIMIT,offset);
    if(seq!==ticket.current)return;
    if(result.session.id!==sessionId)throw Error('Unexpected selection identity');
-   setPage(result);setConfirmId(null);
+   setPage(result);
   }catch(error){
    if(seq!==ticket.current)return;
-   setPage(null);setConfirmId(null);setMessage(errorText(error));
+   if(selectionAccessRevoked(error))accessLost(error);else{setPage(null);setMessage(errorText(error));}
   }finally{if(seq===ticket.current)setBusy(false);}
  }
  useEffect(()=>{
   ticket.current++;
-  setSelectedCards([]);
+  setSelectedItems([]);
   if(!initialPage||initialPage.session.id!==sessionId)setPage(null);
   void refresh(0);
   return ()=>{ticket.current++;};
  // The session ID is the security boundary; callers keep injected adapters stable.
  // eslint-disable-next-line react-hooks/exhaustive-deps
  },[sessionId]);
- async function removeOne(itemId:string){
-  if(!page||page.session.status!=='open'||busy)return;
-  setBusy(true);setMessage('');
-  try{
-   await remove(sessionId,itemId);
-   setConfirmId(null);
-   await refresh(page.offset>0&&page.items.length===1?page.offset-LIMIT:page.offset);
-  }catch(error){
-   if(selectionAccessRevoked(error)){setPage(null);setConfirmId(null);}
-   setMessage(errorText(error));setBusy(false);
-  }
- }
  async function rescan(){
   if(!onRescan||!page||page.session.status!=='open'||busy)return;
   setBusy(true);setMessage('');
   try{await onRescan();await refresh(page.offset);}
   catch(error){
-   if(selectionAccessRevoked(error)){setPage(null);setConfirmId(null);}
+   if(selectionAccessRevoked(error))accessLost(error);
    setMessage(errorText(error));setBusy(false);
   }
  }
@@ -110,14 +97,14 @@ export function SampleSelectionPanel({sessionId,load,remove,removeCards,readOnly
   {message&&<button type="button" disabled={busy} onClick={()=>void refresh(0)} className="mt-3 rounded border px-3 py-2 text-sm">重试读取</button>}
  </section>;
  const closed=readOnly||page.session.status==='closed';
- const pageCards=[...new Map(page.items.flatMap(item=>item.sources).map(source=>[source.cardId,source])).values()];
- const allChecked=pageCards.length>0&&pageCards.every(card=>selectedCards.includes(card.cardId));
- const select=(id:string,on:boolean)=>setSelectedCards(before=>on?[...new Set([...before,id])]:before.filter(value=>value!==id));
+ const pageIds=page.items.map(item=>item.id);
+ const allChecked=pageIds.length>0&&pageIds.every(id=>selectedItems.includes(id));
+ const select=(id:string,on:boolean)=>setSelectedItems(before=>on?[...new Set([...before,id])]:before.filter(value=>value!==id));
  const removeSelected=async()=>{
-  if(closed||busy||!removeCards||!selectedCards.length||!window.confirm('从本次选样移除所选 '+selectedCards.length+' 张色卡的全部已选配色（包含其他页）？寄样、跟进及来源历史会保留，色卡库不受影响。'))return;
-  setBusy(true);setMessage('');setNotice('');
-  try{const result=await removeCards(sessionId,selectedCards);setSelectedCards([]);await refresh(0);setNotice('已移除 '+result.removedCount+' 款已选配色');}
-  catch(error){if(selectionAccessRevoked(error))accessLost(error);else setMessage('批量移除未确认，请刷新核对后重试');setBusy(false);}
+  if(closed||busy||removePending.current||!removeItems||!selectedItems.length||!window.confirm('从本次选样移除所选 '+selectedItems.length+' 个货号？仅移除勾选记录，寄样、跟进及来源历史会保留，色卡库不受影响。'))return;
+  removePending.current=true;setBusy(true);setMessage('');setNotice('');
+  try{const result=await removeItems(sessionId,selectedItems);setSelectedItems([]);await refresh(0);setNotice('已移除 '+result.removedCount+' 款已选配色');}
+  catch(error){if(selectionAccessRevoked(error))accessLost(error);else setMessage('批量移除未确认，请刷新核对后重试');setBusy(false);}finally{removePending.current=false;}
  };
  const max=Math.max(0,Math.ceil(page.total/LIMIT)-1)*LIMIT;
  return <section aria-label="客户选样明细" className="rounded-xl border border-slate-200 bg-white p-5 text-slate-800">
@@ -133,29 +120,27 @@ export function SampleSelectionPanel({sessionId,load,remove,removeCards,readOnly
     <button type="button" disabled={busy} onClick={()=>void refresh(page.offset)} className="rounded border px-3 py-1.5 text-sm">刷新</button>
    </div>
   </header>
-  {!closed&&removeCards&&<div className="mb-3 flex items-center gap-3 text-sm"><label className="flex items-center gap-2"><input type="checkbox" aria-label="全选当前页色卡" disabled={busy||!pageCards.length} checked={allChecked} ref={element=>{if(element)element.indeterminate=!allChecked&&pageCards.some(card=>selectedCards.includes(card.cardId));}} onChange={event=>setSelectedCards(before=>event.target.checked?[...new Set([...before,...pageCards.map(card=>card.cardId)])]:before.filter(id=>!pageCards.some(card=>card.cardId===id)))}/>全选当前页色卡</label><button type="button" disabled={busy||!selectedCards.length} className="rounded border px-3 py-1 text-rose-700 disabled:opacity-40" onClick={()=>void removeSelected()}>移除所选色卡{selectedCards.length?'（'+selectedCards.length+'）':''}</button></div>}
+  {!closed&&removeItems&&<div className="mb-3 flex items-center gap-3 text-sm"><label className="flex items-center gap-2"><input type="checkbox" aria-label="全选当前页货号" disabled={busy||!pageIds.length} checked={allChecked} ref={element=>{if(element)element.indeterminate=!allChecked&&pageIds.some(id=>selectedItems.includes(id));}} onChange={event=>setSelectedItems(before=>event.target.checked?[...new Set([...before,...pageIds])]:before.filter(id=>!pageIds.includes(id)))}/>全选当前页货号</label><button type="button" disabled={busy||!selectedItems.length} className="rounded border px-3 py-1 text-rose-700 disabled:opacity-40" onClick={()=>void removeSelected()}>移除所选{selectedItems.length?'（'+selectedItems.length+'）':''}</button></div>}
+
   {message&&<p role="alert" className="mb-3 text-sm text-red-700">{message}</p>}
   {notice&&<p role="status" className="mb-3 rounded bg-[#eef1fd] p-3 text-sm text-[#31447b]">{notice}</p>}
   {busy&&<p role="status" className="mb-3 text-sm text-slate-500">正在处理，请稍候…</p>}
   {manualOpen&&!closed&&searchManual&&manualAction&&<ManualSelectionPane sessionId={sessionId} search={searchManual} add={addOne} resolveThumbnails={resolveThumbnails} disabled={busy}
    onAccessLost={accessLost} onClose={()=>setManualOpen(false)}/>}
   {page.items.length===0?<p className="rounded bg-slate-50 p-6 text-center text-sm text-slate-500">暂无已选产品</p>:
-  <div className="overflow-x-auto"><table className="w-full min-w-[860px] border-collapse text-left text-sm">
+  <div className="overflow-x-auto"><table className="w-full min-w-[760px] border-collapse text-left text-sm">
    <thead><tr className="border-b bg-slate-50 text-slate-600">
-    {['色卡编号','货号','品名','成分','克重','门幅 / cm','操作'].map(name=><th key={name} className="px-3 py-3 font-medium">{name}</th>)}
+    {['色卡编号','货号','品名','成分','克重','门幅 / cm'].map(name=><th key={name} className="px-3 py-3 font-medium">{name}</th>)}
    </tr></thead>
    <tbody>{page.items.map(item=><tr key={item.id} className="border-b align-top">
-    <td className="px-3 py-3">{item.sources.length?item.sources.map(source=>
-     <label key={source.cardId} className="flex items-center gap-2">{!closed&&removeCards&&<input type="checkbox" aria-label={'勾选色卡 '+source.cardNo} disabled={busy} checked={selectedCards.includes(source.cardId)} onChange={event=>select(source.cardId,event.target.checked)}/>} {source.cardNo}{source.retired&&<span className="ml-2 rounded bg-amber-100 px-1.5 text-amber-800">已失效</span>}</label>):'—'}</td>
+    <td className="px-3 py-3"><div className="flex items-start gap-2">{!closed&&removeItems&&<input type="checkbox" className="mt-1 shrink-0" data-selection-item={item.id} aria-label={'勾选货号 '+item.current.productNo} disabled={busy} checked={selectedItems.includes(item.id)} onChange={event=>select(item.id,event.target.checked)}/>}<div>{item.sources.length?item.sources.map(source=>
+     <div key={source.cardId}>{source.cardNo}{source.retired&&<span className="ml-2 rounded bg-amber-100 px-1.5 text-amber-800">已失效</span>}</div>):'—'}</div></div></td>
     <td className="px-3 py-3 font-medium">{item.current.productNo}</td>
     <td className="px-3 py-3">{item.current.fabricName}</td>
     <td className="px-3 py-3">{value(item.current.composition)}</td>
     <td className="px-3 py-3">{item.current.weightValue===null?'—':item.current.weightValue+' '+(item.current.weightUnit??'')}</td>
     <td className="px-3 py-3">{value(item.current.widthCm)}</td>
-    <td className="px-3 py-3">{!closed&&(confirmId===item.id?
-     <div className="flex gap-2"><button type="button" disabled={busy} onClick={()=>void removeOne(item.id)} className="text-red-700">确认移除</button>
-     <button type="button" onClick={()=>setConfirmId(null)}>取消</button></div>:
-     <button type="button" disabled={busy} onClick={()=>setConfirmId(item.id)} className="text-red-700">移除该款</button>)}</td>
+
    </tr>)}</tbody>
   </table></div>}
   <footer className="mt-4 flex items-center justify-between gap-3 text-sm">

@@ -29,6 +29,23 @@ export async function removeSampleSessionCards(pool:SamplePool,actor:AppPrincipa
   await tx.commit();began=false;return {sessionId,removedCount:found.length};
  }catch(error){if(began)await tx.rollback();if(error instanceof SampleSessionManualError)throw new SampleSessionRemoveError(error.status);throw error;}finally{tx.release();}
 }
+/** Explicit item identities only: selecting one product must not remove its card siblings. */
+export async function removeSampleSessionItems(pool:SamplePool,actor:AppPrincipal,sessionId:string,itemIds:unknown):Promise<{sessionId:string;removedCount:number}>{
+ if(!validId(sessionId)||!Array.isArray(itemIds)||!itemIds.length||itemIds.length>1000||!itemIds.every(validId)||new Set(itemIds).size!==itemIds.length)throw new SampleSessionRemoveError(400);
+ const tx=await pool.getConnection();let began=false;
+ try{
+  await tx.beginTransaction();began=true;await lockSelectionAccess(tx,actor,sessionId,true);
+  const [raw]=await tx.query('SELECT i.id,i.product_id FROM customer_sample_items i WHERE i.session_id=? AND i.removed_at IS NULL AND i.id IN ('+itemIds.map(()=>'?').join(',')+') ORDER BY i.id FOR UPDATE',[sessionId,...itemIds]);
+  const found=rows(raw),known=new Set(found.map(item=>dbId(item.id)));
+  if(found.length!==itemIds.length||known.size!==itemIds.length||itemIds.some(id=>!known.has(id)))throw new SampleSessionRemoveError(404);
+  for(const item of found){
+   const itemId=dbId(item.id);dbId(item.product_id);
+   const [updated]=await tx.query('UPDATE customer_sample_items SET removed_at=UTC_TIMESTAMP(),removed_by_user_id=? WHERE session_id=? AND id=? AND removed_at IS NULL',[actor.userId,sessionId,itemId]);requireOneWrite(updated);
+   const [event]=await tx.query('INSERT INTO customer_sample_item_removal_events (session_id,product_id,actor_user_id,removed_at) SELECT session_id,product_id,removed_by_user_id,removed_at FROM customer_sample_items WHERE session_id=? AND id=?',[sessionId,itemId]);requireOneWrite(event);
+  }
+  await tx.commit();began=false;return {sessionId,removedCount:found.length};
+ }catch(error){if(began)await tx.rollback();if(error instanceof SampleSessionManualError)throw new SampleSessionRemoveError(error.status);throw error;}finally{tx.release();}
+}
 const validId=(value:unknown):value is string=>typeof value==='string'&&/^[1-9]\d{0,19}$/.test(value)&&BigInt(value)<=18446744073709551615n;
 type Row=Record<string,unknown>;
 function rows(raw:unknown):Row[]{

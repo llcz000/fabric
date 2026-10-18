@@ -67,3 +67,10 @@ test('B3 selection adapter validates identities and hides failed unauthorized re
  await assert.rejects(wrong.load('51',20,0),/Invalid/);
  await assert.rejects(wrong.remove('invalid','61'),/Invalid/);
 });
+
+test('product-grain batch posts selected item IDs and refuses forged or inconsistent receipts',async()=>{
+ let calls=0;const api=createSampleSelectionClient(async(url,init)=>{calls++;assert.equal(url,'/api/v2/customer-samples/sessions/51/items/remove');assert.deepEqual(JSON.parse(String(init?.body)),{itemIds:['61','62']});return Response.json({sessionId:'51',removedCount:2});});
+ assert.equal((await api.removeItems!('51',['61','62'])).removedCount,2);
+ for(const ids of [[],['61','61'],['bad']])await assert.rejects(api.removeItems!('51',ids));assert.equal(calls,1);
+ const wrong=createSampleSelectionClient(async()=>Response.json({sessionId:'51',removedCount:1}));await assert.rejects(wrong.removeItems!('51',['61','62']),/Invalid/);
+});

@@ -30,6 +30,6 @@ export function SampleSelectionWorkspaceV2({sessionId,apiFetch,getV2SessionToken
  // Keep the established image access adapter separate from the V2-only selection transport.
  const thumbnails=useMemo(()=>(ids:string[],signal?:AbortSignal)=>resolveImages?resolveImages(ids,'thumbnail',signal):resolveImageUrls(apiFetch,ids,'thumbnail',signal),[apiFetch,resolveImages]);
  return <SampleSelectionPanel key={sessionId} sessionId={sessionId}
-  load={api.load} remove={api.remove} removeCards={api.removeCards} readOnly={readOnly} addManual={api.addManual} searchManual={search} resolveThumbnails={thumbnails} onRescan={onRescan} initialPage={initialPage}/>;
+  load={api.load} remove={api.remove} removeItems={api.removeItems} readOnly={readOnly} addManual={api.addManual} searchManual={search} resolveThumbnails={thumbnails} onRescan={onRescan} initialPage={initialPage}/>;
 }
 export default SampleSelectionWorkspaceV2;

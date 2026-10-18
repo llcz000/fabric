@@ -1,7 +1,7 @@
 import {Router,json,type RequestHandler,type ErrorRequestHandler} from 'express';
 import type {AppPrincipal} from '../access/types';
 import type {SamplePool} from './scanRepository';
-import {removeSampleSessionItem,removeSampleSessionCards,SampleSessionRemoveError} from './sessionRemove';
+import {removeSampleSessionItem,removeSampleSessionCards,removeSampleSessionItems,SampleSessionRemoveError} from './sessionRemove';
 
 /** Independent, unmounted route. The integration owner must supply
  * requireV2Principal(authDb); the transaction rechecks account/login/grant.
@@ -10,6 +10,11 @@ import {removeSampleSessionItem,removeSampleSessionCards,SampleSessionRemoveErro
 export function createSampleSessionRemoveRouter(authenticate:RequestHandler,pool:SamplePool):Router{
  const router=Router();
  router.use((_req,res,next)=>{res.setHeader('Cache-Control','no-store');next();});
+ router.post('/sessions/:sessionId/items/remove',authenticate,json({strict:true,limit:'32kb'}),async(req,res)=>{
+  if(!req.is('application/json')||Object.keys(req.query).length||!req.body||typeof req.body!=='object'||Array.isArray(req.body)||Object.keys(req.body).length!==1||!('itemIds' in req.body)){res.status(400).json({error:'Invalid item removal'});return;}
+  try{res.json(await removeSampleSessionItems(pool,res.locals.principal as AppPrincipal,String(req.params.sessionId),req.body.itemIds));}
+  catch(error){res.status(error instanceof SampleSessionRemoveError?error.status:503).json({error:'Selection removal unavailable'});}
+ });
  router.post('/sessions/:sessionId/cards/remove',authenticate,json({strict:true,limit:'32kb'}),async(req,res)=>{
   if(!req.is('application/json')||Object.keys(req.query).length||!req.body||typeof req.body!=='object'||Array.isArray(req.body)||Object.keys(req.body).length!==1||!('cardIds' in req.body)){res.status(400).json({error:'Invalid card removal'});return;}
   try{res.json(await removeSampleSessionCards(pool,res.locals.principal as AppPrincipal,String(req.params.sessionId),req.body.cardIds));}
