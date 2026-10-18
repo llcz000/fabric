@@ -45,6 +45,10 @@ class Fixture {
       if(sql.includes('can_manage_own_orders=?'))u.own=params[0]===1;
       if(sql.includes('can_manage_products=?'))u.products=params[0]===1;
       if(sql.includes('password_hash=?'))u.passwordHash=String(params[0]);
+      if(sql.includes('username=?,username_normalized=?,display_name=?')){
+       if([...that.users.values()].some(other=>other.id!==id&&other.username.toLowerCase()===String(params[1])))throw Object.assign(Error('duplicate'),{code:'ER_DUP_ENTRY'});
+       u.username=String(params[0]);
+      }
       return [{affectedRows:1},[]];
     }
     if(sql.includes('UPDATE v2_access_sessions SET revoked_at=')){
@@ -57,6 +61,16 @@ class Fixture {
 }
 const admin:AppPrincipal={userId:'1',username:'admin',displayName:'Admin',role:'admin',canManageOwnOrders:true,canManageProducts:true,sessionId:'10'};
 const sales:AppPrincipal={...admin,userId:'3',role:'sales',username:'sales',canManageOwnOrders:true,canManageProducts:true};
+
+test('admin edits login/display name with stable user ID, normalized uniqueness and no password or ownership mutation',async()=>{
+ const db=new Fixture();const before=db.users.get('3')!.passwordHash;
+ await changeMember(db,admin,'3',{username:'New.Staff',displayName:' 新姓名 '} as never);
+ const write=db.queries.find(x=>x.sql.includes('username=?,username_normalized=?,display_name=?'));
+ assert.deepEqual(write?.params,['New.Staff','new.staff','新姓名','3']);assert.equal(db.users.get('3')!.passwordHash,before);assert.equal(db.revokedIds.length,0);
+ await denial(changeMember(db,admin,'3',{username:'ADMIN',displayName:'重名'} as never),409);
+ await denial(changeMember(db,sales,'3',{username:'other',displayName:'无权'} as never),403);
+ for(const patch of [{username:'bad name',displayName:'姓名'},{username:'good',displayName:' '},{username:'good',displayName:'x\n'},{username:'good'}])await denial(changeMember(db,admin,'3',patch as never),400);
+});
 async function denial(p:Promise<unknown>,status:number){
  await assert.rejects(p,(e:unknown)=>e instanceof MemberAccessError&&e.status===status);
 }

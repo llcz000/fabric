@@ -33,3 +33,9 @@
 ## 范围与文档治理
 
 STOCK-01～03未排期，不夹带库存算法整改。手机拍照/选图的本地解码、显式提交与重复去重已通过真实QR图片和Edge；真实手机原生拍照/微信兼容与纸质输出继续待设备签收。需求未批准的CRM、图册/以图搜图、单产品扫码页/客户合集不纳入本包。当前唯一状态为 [V2进度](../product-master/product-master-v2-progress.md)；本交接、B1/B2/B3计划/真实证据/同题复盘、一期恢复资料均**保留**，无归档候选、无删除移动或媒体清理。
+
+## 2026-10-18 选样保历史删除的独立迁移
+
+候选3004使用独立ledger `20261018-sample-session-lifecycle`，planSHA `bce6287bdd56896399dd2b4bad5814b321c4201e9c4ed9c80ed366b87d40696e`；仅新增sessions.deleted_at/deleted_by_user_id及配对CHECK/FK，已冻结核心迁移哈希不变。正式执行仍须新完整备份、SHA、目标数据库/UUID复核及已有迁移授权边界；迁移脚本显式 `FABRIC_V2_MIGRATE_SESSION_LIFECYCLE=APPLY_SAMPLE_LIFECYCLE`，启动只读校验结构且检查真实CHECK表达式，不做启动DDL。候选备份 `/var/backups/fabric/v2-selection-20261018T030814Z/candidate-before.sql.gz` SHA `432f88d7ac72cb866ff65ab310b9ed3471d88f7d0a9ab2ec9d02d4c399f8a387`，首跑/重复跑、原会话字段及受检历史表CHECKSUM通过。该备份是候选恢复材料，不能代替正式生产新备份。
+
+本轮功能与三类单据字段纠偏证据见唯一V2进度；仅刷新隔离候选，正式3000和一期3001未切换。人工UI、手机及纸打Gate仍需真实签收；本交接与计划/复盘保留，不清退旧库、历史或图片对象。

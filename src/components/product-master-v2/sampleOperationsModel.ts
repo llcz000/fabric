@@ -51,6 +51,10 @@ export function createSampleOperationsClient(apiFetch:typeof fetch){
    const items=data.items.map(summary);if(new Set(items.map((x:SampleSessionSummary)=>x.id)).size!==items.length)throw bad();return {...data,items} as SampleSessionDirectory;
   },
   async create(customerReference:string,signal?:AbortSignal){return summary(await request(base+'/sessions',{method:'POST',body:JSON.stringify({customerReference}),signal}));},
+  async rename(sessionId:string,customerReference:string,expectedCustomerReference:string,signal?:AbortSignal){
+   const value=summary(await request(endpoint(sessionId),{method:'PATCH',body:JSON.stringify({customerReference,expectedCustomerReference}),signal}));if(value.id!==sessionId)throw bad();return value;
+  },
+  async retire(sessionId:string,signal?:AbortSignal){const value=await request(endpoint(sessionId),{method:'DELETE',signal});if(!row(value)||value.id!==sessionId||value.deleted!==true)throw bad();},
   async changeStatus(sessionId:string,expectedStatus:'open'|'closed',status:'open'|'closed',signal?:AbortSignal){
    const value=summary(await request(endpoint(sessionId)+'/status',{method:'PATCH',body:JSON.stringify({expectedStatus,status}),signal}));
    if(value.id!==sessionId||value.status!==status)throw bad();return value;

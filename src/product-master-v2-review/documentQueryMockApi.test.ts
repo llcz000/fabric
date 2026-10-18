@@ -36,11 +36,11 @@ test('query review fixture uses one matching row, real pagination and owner-limi
  assert.equal((await demo.apiFetch('/api/v2/documents')).status,200);
 });
 
-test('document review deposit example exposes percentage input and matching rounded receipt in print',async()=>{
+test('document review deposit example exposes percentage input and rounded deposit without receivable in print',async()=>{
  const demo=createDocumentQueryReviewApi('sales');
  const page=await (await demo.apiFetch('/api/v2/documents?type=deposit')).json();
  const saved=await (await demo.apiFetch('/api/v2/documents/'+page.items[0].id)).json();
  assert.equal(saved.deposit,25);assert.equal(saved.settled,false);assert.equal(saved.totalPieces,0);
  const model=await (await demo.apiFetch('/api/v2/documents/'+saved.id+'/print-model')).json();
- assert.match(model.summaries[1].left,/25%  ¥150.00/);assert.match(model.summaries[1].right,/应收金额：¥450.00/);
+ assert.match(model.summaries[1].left,/25%  ¥150.00/);assert.equal(model.summaries[1].right,undefined);
 });

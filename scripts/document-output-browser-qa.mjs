@@ -79,7 +79,7 @@ try{
   checks.push(type+' narrow viewport exports identical complete paper pixels');await snap(type+'-narrow');
   await send('Emulation.setDeviceMetricsOverride',{width:1400,height:1100,deviceScaleFactor:1,mobile:false});
   if(type==='deposit'){
-   assert(displayed.text.includes('25%  ¥150.00'));assert(displayed.text.includes('应收金额：¥450.00'));checks.push('deposit JSON/preview uses rounded monetary deposit and receivable');
+   assert(displayed.text.includes('25%  ¥150.00'));assert(!/应收|应付/.test(displayed.text));checks.push('deposit JSON/preview uses rounded monetary deposit without receivable');
    // The review fixture intentionally has no XLSX endpoint: test the real error UI without claiming successful server export.
    await click('下载打印Excel');await until(()=>js(`document.querySelector('[role="alert"]')?.textContent.includes('没有导出权限')`),'explicit Excel failure');
    await check(`[...document.querySelectorAll('button')].filter(b=>['下载 PNG','下载打印 JSON','下载打印Excel'].includes(b.textContent.trim())).every(b=>!b.disabled)`,'export failure restores actions');

@@ -16,6 +16,8 @@ interface NewMember {
  username:string;displayName:string;password:string;role:AppRole;
 }
 interface MemberPatch {
+ username?:string;
+ displayName?:string;
  role?:AppRole;
  isActive?:boolean;
 }
@@ -113,14 +115,16 @@ export async function createMember(pool:MemberTransactionPool,actor:AppPrincipal
 export async function changeMember(pool:MemberTransactionPool,actor:AppPrincipal,id:string,patch:MemberPatch):Promise<void>{
  if(actor?.role!=='admin')throw new MemberAccessError(403,'Forbidden');
  if(!userIdOk(id)||!patch||typeof patch!=='object'||Array.isArray(patch)||
-  !Object.keys(patch).length||Object.keys(patch).some(key=>!['role','isActive'].includes(key))||
+  !Object.keys(patch).length||Object.keys(patch).some(key=>!['role','isActive','username','displayName'].includes(key))||
+  (('username' in patch||'displayName' in patch)&&(!usernameOk(patch.username)||typeof patch.displayName!=='string'||!patch.displayName.trim()||patch.displayName.trim().length>100||/[\p{Cc}\p{Cf}]/u.test(patch.displayName)))||
   ('role' in patch && !isRole(patch.role))||
   ('isActive' in patch && !bool(patch.isActive))) {
   throw new MemberAccessError(400,'Invalid member update');
  }
- await withTx(pool,async db=>{
+ try{await withTx(pool,async db=>{
   const activeAdmins=await authorizeAndLockAdmins(db,actor);
   const target=await lockTarget(db,id);
+  if(patch.username!==undefined&&patch.displayName!==undefined)await db.query('UPDATE v2_access_users SET username=?,username_normalized=?,display_name=? WHERE id=?',[patch.username,patch.username.toLowerCase(),patch.displayName.trim(),id]);
   const newRole=patch.role??target.role;
   const newActive=patch.isActive??target.active;
   if(target.role==='admin'&&target.active && (newRole!=='admin'||!newActive) && activeAdmins<=1)
@@ -134,7 +138,7 @@ export async function changeMember(pool:MemberTransactionPool,actor:AppPrincipal
   if(('isActive' in patch && !patch.isActive)||('role' in patch && patch.role!==target.role)){
    await revokeSessions(db,id);
   }
- });
+ });}catch(error){if(isDuplicate(error))throw new MemberAccessError(409,'Login name already exists');throw error;}
 }
 export async function resetMemberPassword(pool:MemberTransactionPool,actor:AppPrincipal,id:string,password:string):Promise<void>{
  if(actor?.role!=='admin')throw new MemberAccessError(403,'Forbidden');

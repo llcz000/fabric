@@ -73,3 +73,15 @@ test('preserves jiao and fen in shared uppercase currency text', () => {
   const model = buildDocumentPrintModel({ ...base, totalAmount: 180.25, receivableAmount: 180.25 });
   assert.equal(model.summaries[0].right, '合计金额：¥180.25（大写：壹佰捌拾元贰角伍分）');
 });
+
+ test('deposit preview and workbook have only contract/deposit totals and one full-width deposit row',async()=>{
+ const model=buildDocumentPrintModel({...base,type:'deposit',deposit:25});
+ assert.equal(model.summaries[1].right,undefined);
+ assert(!JSON.stringify(model).includes('应收'));assert(!JSON.stringify(model).includes('应付'));
+ const html=renderToStaticMarkup(React.createElement(DocumentPrintTable,{model}));
+ assert.match(html,/<td colSpan="6"[^>]*>定金金额：25%  ¥45.00/);
+ const sheet=buildDocumentWorkbookFromModel(model).worksheets[0];
+ assert.equal(sheet.getCell('F9').master.address,'A9');
+ const cells:string[]=[];sheet.eachRow(row=>row.eachCell(c=>{if(typeof c.value==='string')cells.push(c.value);}));
+ assert(!cells.some(x=>/应收|应付|匹数|结清/.test(x)));
+ });

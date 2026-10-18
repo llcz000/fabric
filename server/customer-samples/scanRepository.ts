@@ -67,7 +67,7 @@ export async function persistSampleCardScan(
   if(!readRows(loginRaw)[0])throw new SampleScanError(403,'Sample scan forbidden');
   // Serialize all scan/item mutations for the same sample session.
   const [sessionRaw]=await tx.query(
-   'SELECT id,status,created_by_user_id FROM customer_sample_sessions WHERE id=? FOR UPDATE',
+   'SELECT id,status,created_by_user_id FROM customer_sample_sessions WHERE id=? AND deleted_at IS NULL FOR UPDATE',
    [input.sessionId]);
   const session=readRows(sessionRaw)[0];
   if(!session||session.status!=='open')throw new SampleScanError(404,'Sample session not found');

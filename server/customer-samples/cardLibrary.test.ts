@@ -3,6 +3,11 @@ import test from 'node:test';
 import {createHash} from 'node:crypto';
 import type {AppPrincipal} from '../access/types';
 import {createSampleCard,retireSampleCard,confirmSampleCardReprinted,listSampleCards,getSelectedSampleCards,SampleCardError} from './cardLibrary';
+
+test('new cards sort by creation time then identity descending before pagination',async()=>{
+ const db=new Fixture();await listSampleCards(db,{limit:20,offset:0});
+ assert(db.queries.some(q=>q.sql.includes('ORDER BY c.created_at DESC,c.id DESC LIMIT ? OFFSET ?')));
+});
 type Row=Record<string,unknown>;
 const actor:AppPrincipal={userId:'6',sessionId:'1',username:'sales',displayName:'Sales',role:'sales',canManageOwnOrders:false,canManageProducts:false};
 const allow=()=>true;

@@ -1,27 +1,41 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {createSampleSession,listSampleSessions,readShipmentProgress,changeSampleSessionStatus} from './sessionDirectory';
+import {createSampleSession,listSampleSessions,readShipmentProgress,changeSampleSessionStatus,updateSampleSession,deleteSampleSession} from './sessionDirectory';
 import type {AppPrincipal} from '../access/types';
 const actor={userId:'6',sessionId:'9',role:'sales'} as AppPrincipal;
 class Db{
+ deleted=false;name='客户甲';
  status:'open'|'closed'='open';conflict=false;
  active=true;login=true;grant=true;failGrant=false;commits=0;rollbacks=0;calls:{sql:string;args:unknown[]}[]=[];
  async getConnection(){return {beginTransaction:async()=>{},commit:async()=>{this.commits++;},rollback:async()=>{this.rollbacks++;},release:()=>{},query:async(sql:string,args:unknown[]=[]):Promise<[unknown,unknown]>=>{
   this.calls.push({sql,args});
-  if(sql.startsWith('SELECT id,customer_reference,status'))return [[{id:'41',customer_reference:'客户甲',status:this.status}],[]];
+  if(sql.startsWith('SELECT id,customer_reference,status'))return [this.deleted?[]:[{id:'41',customer_reference:this.name,status:this.status}],[]];
+  if(sql.startsWith('UPDATE customer_sample_sessions SET customer_reference=')){if(this.conflict)return [{affectedRows:0},[]];this.name=String(args[0]);return [{affectedRows:1},[]];}
+  if(sql.startsWith('UPDATE customer_sample_sessions SET deleted_at=')){this.deleted=true;return [{affectedRows:1},[]];}
   if(sql.startsWith('UPDATE customer_sample_sessions SET status=')){if(this.conflict)return [{affectedRows:0},[]];this.status=args[0] as typeof this.status;return [{affectedRows:1},[]];}
   if(sql.includes('FROM v2_access_users'))return [this.active?[{role:'sales',is_active:1}]:[],[]];
   if(sql.includes('FROM v2_access_sessions'))return [this.login?[{id:'9'}]:[],[]];
   if(sql.startsWith('INSERT INTO customer_sample_sessions'))return [{affectedRows:1,insertId:'41'},[]];
   if(sql.startsWith('INSERT INTO customer_sample_session_access')){if(this.failGrant)throw Error('db secret');return [{affectedRows:1},[]];}
-  if(sql.includes('SELECT id,status FROM customer_sample_sessions'))return [[{id:'41',status:'open'}],[]];
+  if(sql.includes('SELECT id,status FROM customer_sample_sessions'))return [this.deleted?[]:[{id:'41',status:this.status}],[]];
   if(sql.includes('SELECT can_manage'))return [this.grant?[{can_manage:1}]:[],[]];
   if(sql.includes('AS shipped_quantity'))return [[{selected_products:'2',shipped_products:'1',shipped_quantity:'7'}],[]];
-  if(sql.includes('COUNT(*) AS total'))return [[{total:'1'}],[]];
-  if(sql.includes('customer_sample_session_access'))return [[{id:'41',customer_reference:'客户甲',status:'open'}],[]];
+  if(sql.includes('COUNT(*) AS total'))return [[{total:this.deleted?'0':'1'}],[]];
+  if(sql.includes('customer_sample_session_access'))return [this.deleted?[]:[{id:'41',customer_reference:this.name,status:'open'}],[]];
   throw Error('Unexpected SQL '+sql);
  }};}
 }
+
+test('selection rename uses current name CAS; deletion is a timestamp/actor marker without losing history and disappears from reads',async()=>{
+ const db=new Db();assert.equal((await updateSampleSession(db,actor,'41',{customerReference:'客户乙',expectedCustomerReference:'客户甲'})).customerReference,'客户乙');
+ await assert.rejects(updateSampleSession(db,actor,'41',{customerReference:'错误覆盖',expectedCustomerReference:'客户甲'}));
+ const before=db.calls.length;await deleteSampleSession(db,actor,'41');
+ assert(db.calls.slice(before).some(c=>c.sql.includes('deleted_at=UTC_TIMESTAMP()')&&c.args[0]==='6'));
+ assert(!db.calls.some(c=>/^DELETE FROM|UPDATE customer_sample_items|UPDATE sample_ship/.test(c.sql)));
+ assert.equal((await listSampleSessions(db,actor,{})).items.length,0);
+ await assert.rejects(readShipmentProgress(db,actor,'41'));await assert.rejects(changeSampleSessionStatus(db,actor,'41',{expectedStatus:'closed',status:'open'}));
+ const denied=new Db();denied.grant=false;await assert.rejects(deleteSampleSession(denied,actor,'41'));assert(!denied.deleted);
+});
 
 test('close/reopen require locked current identity, explicit grant and expected state, conflicts roll back',async()=>{
  const db=new Db();assert.equal((await changeSampleSessionStatus(db,actor,'41',{expectedStatus:'open',status:'closed'})).status,'closed');

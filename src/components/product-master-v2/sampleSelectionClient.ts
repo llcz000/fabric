@@ -5,6 +5,7 @@ import type {ManualSelectionResult} from '../../../server/customer-samples/sessi
 export interface SelectionApi {
  load:(sessionId:string,limit:number,offset:number,signal?:AbortSignal)=>Promise<SampleSessionPage>;
  remove:(sessionId:string,itemId:string)=>Promise<void>;
+ removeCards?:(sessionId:string,cardIds:string[])=>Promise<{removedCount:number}>;
  addManual:(sessionId:string,cardId:string,productIds?:string[])=>Promise<ManualSelectionResult>;
 }
 export class SelectionHttpError extends Error {
@@ -55,6 +56,12 @@ export function createSampleSelectionClient(
  if(!base.startsWith('/')||base.startsWith('//'))throw Error('Invalid private API base');
  const endpoint=(sessionId:string)=>base+'/sessions/'+requireId(sessionId);
  return {
+  async removeCards(sessionId,cardIds){
+   if(!Array.isArray(cardIds)||!cardIds.length||cardIds.length>1000||!cardIds.every(validId)||new Set(cardIds).size!==cardIds.length)throw Error('Invalid card selection');
+   const response=await authenticatedFetch(endpoint(sessionId)+'/cards/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cardIds}),cache:'no-store'});
+   if(!response.ok)throw new SelectionHttpError(response.status);const result=await response.json();
+   if(result.sessionId!==sessionId||!Number.isSafeInteger(result.removedCount)||result.removedCount<0)throw Error('Invalid removal response');return result;
+  },
   async load(sessionId,limit,offset,signal){
    if(!Number.isSafeInteger(limit)||limit<1||limit>100||!Number.isSafeInteger(offset)||offset<0)throw Error('Invalid pagination');
    const url=endpoint(sessionId)+'?limit='+limit+'&offset='+offset;

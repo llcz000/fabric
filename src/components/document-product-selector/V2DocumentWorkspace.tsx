@@ -199,13 +199,7 @@ export default function V2DocumentWorkspace({apiFetch,role,companyProfile,docume
     </div>
    </div>
    <DocumentItemsTable draft={draft} role={role} disabled={!canEdit} onChange={updateItem} onReplace={id=>openPicker(id,'replace')} onRemove={removeItem}/>
-   <section aria-label="单据汇总" className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm">
-    {totals?<>{draft.type!==DocType.DEPOSIT&&<span>总匹数：<strong>{totals.totalPieces} 匹</strong></span>}<span>总计米数：<strong className="text-sky-700">{totals.totalMeters.toFixed(2)} 米</strong></span>
-     {draft.type===DocType.SALES&&totals.totalDeductionMeters>0&&<span className="text-amber-700">扣损合计：<strong>{totals.totalDeductionMeters.toFixed(2)} 米</strong></span>}
-     <span>合计金额：<strong className="text-rose-700">¥{totals.totalAmount.toFixed(2)}</strong></span>
-     {draft.type!==DocType.SAMPLE&&<span>{draft.type===DocType.DEPOSIT?'定金金额':'预收订金'}：¥{totals.depositAmount.toFixed(2)}</span>}
-     <span>应收金额：<strong>¥{totals.receivableAmount.toFixed(2)}</strong></span></>:<p role="alert" className="text-rose-700">{totalError}</p>}
-   </section>
+   <DocumentTotalsSummary type={draft.type} totals={totals} error={totalError}/>
    <details className="rounded-xl border border-slate-100 p-4"><summary className="cursor-pointer text-sm font-semibold">单据签署与联系信息</summary><div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
     {contactFields.map(([key,label])=><label key={key} className="text-xs font-semibold">{label}<input name={key} className={input} maxLength={key==='receiverAddress'?500:100} disabled={!canEdit} value={String(draft[key]??'')} onChange={event=>change(key,event.target.value)}/></label>)}
     {([['companyName','公司名称'],['companyAddress','公司地址'],['companyPhone','公司电话']] as const).map(([key,label])=><label key={key} className="text-xs text-slate-500">{label}<input className={input} readOnly value={String(draft[key]??'')}/></label>)}
@@ -222,4 +216,14 @@ export default function V2DocumentWorkspace({apiFetch,role,companyProfile,docume
   <ProductSelectorDialog open={picker!==null} mode={picker?.mode??'add'} role={role}
    apiFetch={apiFetch} onSelect={pickProduct} onCancel={()=>setPicker(null)} onRequestManual={manual}/>
  </section>;
+}
+
+export function DocumentTotalsSummary({type,totals,error}:{type:DocType;totals:ReturnType<typeof documentDraftTotals>|null;error:string}){
+ return <section aria-label="单据汇总" className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm">
+    {totals?<>{type!==DocType.DEPOSIT&&<span>总匹数：<strong>{totals.totalPieces} 匹</strong></span>}<span>总计米数：<strong className="text-sky-700">{totals.totalMeters.toFixed(2)} 米</strong></span>
+     {type===DocType.SALES&&totals.totalDeductionMeters>0&&<span className="text-amber-700">扣损合计：<strong>{totals.totalDeductionMeters.toFixed(2)} 米</strong></span>}
+     <span>合计金额：<strong className="text-rose-700">¥{totals.totalAmount.toFixed(2)}</strong></span>
+     {type!==DocType.SAMPLE&&<span>{type===DocType.DEPOSIT?'定金金额':'预收订金'}：¥{totals.depositAmount.toFixed(2)}</span>}
+     {type!==DocType.DEPOSIT&&<span>应收金额：<strong>¥{totals.receivableAmount.toFixed(2)}</strong></span>}</>:<p role="alert" className="text-rose-700">{error}</p>}
+   </section>;
 }

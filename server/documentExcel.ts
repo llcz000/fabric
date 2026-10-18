@@ -144,9 +144,10 @@ function styledCell(cell: ExcelJS.Cell, value: unknown, size: number, bold: bool
 
 function addSummaryRow(sheet: ExcelJS.Worksheet, rowNumber: number, lastColumn: number, left: string, right: string): void {
   const half = Math.floor(lastColumn / 2);
-  sheet.mergeCells(rowNumber, 1, rowNumber, half);
-  sheet.mergeCells(rowNumber, half + 1, rowNumber, lastColumn);
-  for (const [column, value] of [[1, left], [half + 1, right]] as const) {
+  const pairs:readonly (readonly [number,string])[]=right?[[1,left],[half+1,right]]:[[1,left]];
+  if(right){sheet.mergeCells(rowNumber,1,rowNumber,half);sheet.mergeCells(rowNumber,half+1,rowNumber,lastColumn);}
+  else sheet.mergeCells(rowNumber,1,rowNumber,lastColumn);
+  for (const [column, value] of pairs) {
     const cell = sheet.getCell(rowNumber, column);
     styledCell(cell, value, 10, true, 'left');
     cell.border = THIN_BORDER;

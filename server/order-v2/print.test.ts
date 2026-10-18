@@ -54,7 +54,7 @@ test('P6-4 deposit is percent not currency, full gross remains total',()=>{
  const model=buildV2DocumentPrintModel(doc,now);
  assert.equal(model.title,'定金单');
  assert.match(model.summaries[1].left,/定金金额：25%  ¥75.00/);
- assert.match(model.summaries[1].right??'',/应收金额：¥225.00/);
+ assert.equal(model.summaries[1].right,undefined);
  const workbook=buildV2DocumentWorkbook(doc,now);
  assert.equal(workbook.worksheets[0].getCell('A3').value,'定金单');
 });
@@ -67,13 +67,13 @@ test('DOC-05/07 actual workbook and print use the same rounded receipt and omit 
  const tiny:DocumentRecord={...base,type:'deposit',deposit:50,settled:true,totalPieces:17,totalMeters:0.01,totalAmount:0.01,
   items:[{...base.items[0],meters:0.01,unitPrice:1,amount:0.01}]};
  const model=buildV2DocumentPrintModel(tiny,now);
- assert.equal(model.summaries[1].right,'应收金额：¥0.00（大写：零元整）');
+ assert.equal(model.summaries[1].right,undefined);
  assert.match(model.summaries[1].left,/¥0.01/);
  assert(!JSON.stringify(model).includes('匹数'));assert(!JSON.stringify(model).includes('结清'));
  const workbook=buildV2DocumentWorkbook(tiny,now),reopened=new ExcelJS.Workbook();
  await reopened.xlsx.load(await workbook.xlsx.writeBuffer());
  const cells:string[]=[];reopened.worksheets[0].eachRow(row=>row.eachCell(cell=>{if(typeof cell.value==='string')cells.push(cell.value);}));
- assert(cells.some(text=>text==='应收金额：¥0.00（大写：零元整）'));
+ assert(!cells.some(text=>/应收|应付/.test(text)));
  assert(cells.some(text=>text.includes('50%  ¥0.01')));
  const sample=buildV2DocumentPrintModel(base,now);assert(!JSON.stringify(sample.summaries).includes('预收'));
  assert.equal(buildV2DocumentPrintModel({...base,totalPieces:99},now).summaries[1].left,'实发总匹数：1 匹');

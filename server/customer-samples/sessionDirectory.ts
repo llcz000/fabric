@@ -2,13 +2,39 @@ import type {AppPrincipal} from '../access/types';
 import type {SamplePool,SampleTx} from './scanRepository';
 import {lockSelectionIdentity,lockSelectionAccess,selectionRows,selectionDbId,validSelectionId,SampleSessionManualError} from './sessionManual';
 export interface SampleSessionSummary{id:string;customerReference:string;status:'open'|'closed'}
+export async function updateSampleSession(pool:SamplePool,actor:AppPrincipal,sessionId:string,input:unknown):Promise<SampleSessionSummary>{
+ if(!validSelectionId(sessionId)||!input||typeof input!=='object'||Array.isArray(input))throw invalid();
+ const body=input as Record<string,unknown>;
+ if(Object.keys(body).length!==2||typeof body.customerReference!=='string'||typeof body.expectedCustomerReference!=='string'||!body.customerReference.trim()||body.customerReference.trim().length>160||/[\p{Cc}\p{Cf}]/u.test(body.customerReference))throw invalid();
+ return transaction(pool,async tx=>{
+  await lockSelectionAccess(tx,actor,sessionId,true);
+  const [raw]=await tx.query('SELECT id,customer_reference,status FROM customer_sample_sessions WHERE id=? AND deleted_at IS NULL FOR UPDATE',[sessionId]);
+  const current=selectionRows(raw)[0];if(!current)throw new SampleSessionManualError(404);
+  if(current.customer_reference!==body.expectedCustomerReference)throw new SampleSessionManualError(409);
+  const name=(body.customerReference as string).trim();
+  const [write]=await tx.query('UPDATE customer_sample_sessions SET customer_reference=? WHERE id=? AND customer_reference=? AND deleted_at IS NULL',[name,sessionId,body.expectedCustomerReference]);
+  if((write as {affectedRows?:unknown})?.affectedRows!==1)throw new SampleSessionManualError(409);
+  return summary({...current,customer_reference:name});
+ });
+}
+export async function deleteSampleSession(pool:SamplePool,actor:AppPrincipal,sessionId:string):Promise<{id:string;deleted:true}>{
+ if(!validSelectionId(sessionId))throw invalid();
+ return transaction(pool,async tx=>{
+  await lockSelectionAccess(tx,actor,sessionId,true,true);
+  const [current]=await tx.query('SELECT id,customer_reference,status FROM customer_sample_sessions WHERE id=? AND deleted_at IS NULL FOR UPDATE',[sessionId]);
+  if(selectionRows(current).length!==1)throw new SampleSessionManualError(404);
+  const [write]=await tx.query("UPDATE customer_sample_sessions SET deleted_at=UTC_TIMESTAMP(),deleted_by_user_id=?,status='closed' WHERE id=? AND deleted_at IS NULL",[actor.userId,sessionId]);
+  if((write as {affectedRows?:unknown})?.affectedRows!==1)throw new SampleSessionManualError(409);
+  return {id:sessionId,deleted:true};
+ });
+}
 export async function changeSampleSessionStatus(pool:SamplePool,actor:AppPrincipal,sessionId:string,input:unknown):Promise<SampleSessionSummary>{
  if(!validSelectionId(sessionId)||!input||typeof input!=='object'||Array.isArray(input))throw invalid();
  const body=input as Record<string,unknown>;
  if(Object.keys(body).length!==2||typeof body.status!=='string'||typeof body.expectedStatus!=='string'||!['open','closed'].includes(body.status)||!['open','closed'].includes(body.expectedStatus)||body.status===body.expectedStatus)throw invalid();
  return transaction(pool,async tx=>{
   await lockSelectionIdentity(tx,actor);
-  const [sessions]=await tx.query('SELECT id,customer_reference,status FROM customer_sample_sessions WHERE id=? FOR UPDATE',[sessionId]);
+  const [sessions]=await tx.query('SELECT id,customer_reference,status FROM customer_sample_sessions WHERE id=? AND deleted_at IS NULL FOR UPDATE',[sessionId]);
   const session=selectionRows(sessions)[0];if(!session)throw new SampleSessionManualError(404);
   const [access]=await tx.query('SELECT can_manage FROM customer_sample_session_access WHERE session_id=? AND user_id=? AND can_manage=1 FOR UPDATE',[sessionId,actor.userId]);
   const grants=selectionRows(access);if(grants.length!==1||Number(grants[0].can_manage)!==1)throw new SampleSessionManualError(404);
@@ -50,7 +76,7 @@ export async function listSampleSessions(pool:SamplePool,actor:AppPrincipal,inpu
  return transaction(pool,async tx=>{
   await lockSelectionIdentity(tx,actor);
   const keyword=query.trim(),args:unknown[]=[actor.userId];
-  let from=' FROM customer_sample_sessions s JOIN customer_sample_session_access a ON a.session_id=s.id WHERE a.user_id=? AND a.can_manage=1';
+  let from=' FROM customer_sample_sessions s JOIN customer_sample_session_access a ON a.session_id=s.id WHERE a.user_id=? AND a.can_manage=1 AND s.deleted_at IS NULL';
   if(keyword){from+=" AND s.customer_reference LIKE ? ESCAPE '!'";args.push('%'+keyword.replace(/[!%_]/g,'!$&')+'%');}
   const [totals]=await tx.query('SELECT COUNT(*) AS total'+from,args);
   const found=selectionRows(totals);if(found.length!==1)throw new SampleSessionManualError(409);

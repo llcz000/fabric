@@ -249,7 +249,7 @@ test('B3 unified HTTP reads granted live history for sales and admin and audits 
   const path='/customer-samples/sessions/51';
   assert.equal((await request(base,path,'GET',undefined,null)).status,401);
   const empty=await request(base,path);assert.equal(empty.status,200);assert.deepEqual((await empty.json()).items,[]);
-  assert(!db.calls.some(c=>c.sql.includes('FROM customer_sample_item_sources src')),'empty page skips source query');
+  assert(!db.calls.some(c=>c.sql.startsWith('SELECT src.product_id,src.card_id')),'empty page skips source materialization query');
   const made=await request(base,'/sample-cards','POST',{masterId:'41',fabricId:'23'});assert.equal(made.status,201);
   const card=(await made.json()).card;
   assert.equal((await request(base,'/sample-cards/scan','POST',{cardToken:card.qrPayload,sessionId:'51'})).status,200);

@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
-import V2DocumentWorkspace from './V2DocumentWorkspace';
+import V2DocumentWorkspace,{DocumentTotalsSummary} from './V2DocumentWorkspace';
+import {DocType} from '../../types';
 import type {CompanyProfile} from '../../types';
 const profile={name:'公司A',address:'地址A',phone:'0575',defaultTerms:'标准备注',
  depositTerms:'定金备注'} as CompanyProfile;
@@ -29,4 +30,10 @@ test('editor restores published hierarchy with collapsed optional contacts and n
  assert(!html.includes('款式号'));assert(!html.includes('name="styleNo"'));
  assert.match(html,/<details[^>]*><summary[^>]*>单据签署与联系信息/);
  assert(!/<details[^>]*\sopen/.test(html));assert(html.includes('合计金额'));assert(html.includes('总计米数'));
+});
+
+test('deposit editor totals show contract and computed deposit without receivable, pieces or settlement',()=>{
+ const html=renderToStaticMarkup(React.createElement(DocumentTotalsSummary,{type:DocType.DEPOSIT,totals:{totalMeters:10,totalPieces:0,totalAmount:300,totalDeductionMeters:0,depositAmount:75,receivableAmount:0},error:''}));
+ for(const value of ['总计米数','合计金额','定金金额','75.00'])assert(html.includes(value));
+ assert(!/应收|应付|匹数|扣损|结清/.test(html));
 });

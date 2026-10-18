@@ -80,6 +80,6 @@ export default function V2App(){
   {view==='samples'&&<SampleBusinessWorkspaceV2 apiFetch={apiFetch} onRegisterLeaveGuard={registerSampleLeaveGuard}/>}
   {view==='settings'&&<CompanyProfileEditor profile={company} onSave={saveCompany} apiFetch={apiFetch}/>}
   {view==='inventory'&&<V2InventoryWorkspace apiFetch={apiFetch}/>}
-  {view==='members'&&actor.role==='admin'&&<V2MemberManager apiFetch={apiFetch}/>}
+  {view==='members'&&actor.role==='admin'&&<V2MemberManager apiFetch={apiFetch} onProfileChanged={async()=>{const response=await apiFetch('/api/v2/access/me');if(!response.ok)throw Error('身份读取失败');setActor(parseV2AppPrincipal(await response.json()));}}/>}
  </main>{sharingMaster&&<PatternShareDialog master={sharingMaster} apiFetch={apiFetch} onClose={()=>setSharingMaster(null)}/>}</div>;
 }

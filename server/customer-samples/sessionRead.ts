@@ -69,14 +69,17 @@ export async function readSampleSession(
   const [loginRaw]=await tx.query('SELECT id FROM v2_access_sessions WHERE id=? AND user_id=? AND revoked_at IS NULL AND expires_at>UTC_TIMESTAMP() FOR SHARE',[actor.sessionId,actor.userId]);
   if(rows(loginRaw).length!==1)throw new SampleSessionReadError(403);
   // Do not fetch customer details until the explicit session grant is checked.
-  const [sessionRaw]=await tx.query('SELECT id,status FROM customer_sample_sessions WHERE id=? FOR SHARE',[sessionId]);
+  const [sessionRaw]=await tx.query('SELECT id,status FROM customer_sample_sessions WHERE id=? AND deleted_at IS NULL FOR SHARE',[sessionId]);
   const session=rows(sessionRaw)[0];if(!session)throw new SampleSessionReadError(404);
   if(session.status!=='open'&&session.status!=='closed')throw new SampleSessionReadError(409);
   const [grantRaw]=await tx.query('SELECT can_manage FROM customer_sample_session_access WHERE session_id=? AND user_id=? AND can_manage=1 FOR SHARE',[sessionId,actor.userId]);
   const grant=rows(grantRaw);if(grant.length!==1||Number(grant[0].can_manage)!==1)throw new SampleSessionReadError(404);
   const [summaryRaw]=await tx.query('SELECT s.customer_reference, '+
    '(SELECT COUNT(*) FROM customer_sample_items i WHERE i.session_id=s.id AND i.removed_at IS NULL) AS total, '+
-   '(SELECT COUNT(*) FROM customer_sample_selected_cards c WHERE c.session_id=s.id) AS selected_card_count '+
+   '(SELECT COUNT(*) FROM customer_sample_selected_cards c WHERE c.session_id=s.id AND EXISTS ('+
+   'SELECT 1 FROM customer_sample_items selected WHERE selected.session_id=s.id AND selected.removed_at IS NULL AND ('+
+   'EXISTS (SELECT 1 FROM customer_sample_item_sources src WHERE src.session_id=s.id AND src.product_id=selected.product_id AND src.card_id=c.card_id) OR '+
+   'EXISTS (SELECT 1 FROM customer_sample_manual_events e WHERE e.session_id=s.id AND e.product_id=selected.product_id AND e.card_id=c.card_id)))) AS selected_card_count '+
    'FROM customer_sample_sessions s WHERE s.id=?',[sessionId]);
   const summary=rows(summaryRaw)[0];
   if(!summary||typeof summary.customer_reference!=='string'||summary.customer_reference.length>160)throw new SampleSessionReadError(409);

@@ -79,11 +79,11 @@ test('DOC-05/07 real private HTTP save, reread, patch, print and actual XLSX pre
    assert.equal(response.status,201);const saved=await response.json();assert.equal(saved.totalAmount,0.01);assert.equal(saved.totalPieces,type==='deposit'?0:1);
    const reread=await request('/'+saved.id);assert.deepEqual(await reread.json(),saved);
    const printable=await request('/'+saved.id+'/print-model');assert.equal(printable.status,200);const model=await printable.json();
-   assert.match(model.summaries[1].right,type==='deposit'?/应收金额：¥0.00/:/¥0.01/);
+   if(type==='deposit')assert.equal(model.summaries[1].right,undefined);else assert.match(model.summaries[1].right,/¥0.01/);
    const xlsx=await request('/'+saved.id+'/export.xlsx');assert.equal(xlsx.status,200);
    const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(Buffer.from(await xlsx.arrayBuffer()));
    const values:string[]=[];workbook.worksheets[0].eachRow(row=>row.eachCell(c=>{if(typeof c.value==='string')values.push(c.value);}));
-   assert(values.includes(model.summaries[1].right));
+   if(type==='deposit'){assert(!values.some(x=>/应收|应付/.test(x)));assert(values.some(x=>x.includes('50%  ¥0.01')));}else assert(values.includes(model.summaries[1].right));
    const duplicate=await request('/'+saved.id+'/copy','POST',{orderNo:'COPY-'+type,date:'2026-10-17'});
    assert.equal(duplicate.status,422,'new copies cannot silently inherit manual mode');
    assert.equal((await request('/'+saved.id)).status,200);

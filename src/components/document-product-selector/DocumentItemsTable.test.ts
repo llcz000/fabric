@@ -15,3 +15,14 @@ test('admin manual entries retain specification inputs on all document types',()
   for(const value of ['货号','成分','克重','门幅'])assert(html.includes('aria-label="'+value+'"'),type+' '+value);
  }
 });
+
+test('three document editors retain only their applicable business fields, including saved remarks',()=>{
+ for(const type of [DocType.SAMPLE,DocType.SALES,DocType.DEPOSIT]){
+ const html=renderToStaticMarkup(React.createElement(DocumentItemsTable,{draft:{type,items:[{...applySelectedProductToDraft(type,{id:'new',meters:10,price:2,amount:0,remark:'单据行备注'} as DocItem,product)}]} as unknown as DocumentData,role:'sales',disabled:false,onChange:()=>{},onReplace:()=>{},onRemove:()=>{}}));
+ for(const label of ['货号','色号','品名','米数','单价','金额','备注'])assert(html.includes(label),type+' '+label);
+ assert(html.includes('单据行备注'));
+ assert.equal(html.includes('aria-label="扣损米数"'),type===DocType.SALES);
+ assert.equal(html.includes('aria-label="第1匹米数"'),type===DocType.SALES);
+ assert(!html.includes('款式号'));
+ }
+});

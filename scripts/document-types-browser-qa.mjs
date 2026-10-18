@@ -56,7 +56,7 @@ try{
   await snap(type+'-edit');await click('预览已保存版本 / Excel');
   await until(()=>js(`Boolean(document.querySelector('[data-v2-print-sheet]'))`),'saved print');
   if(type==='deposit'){
-   await check(`document.querySelector('[data-v2-print-sheet]').textContent.includes('25%  ¥150.00')&&document.querySelector('[data-v2-print-sheet]').textContent.includes('应收金额：¥450.00')`,'saved deposit preview displays computed money and receivable');
+   await check(`document.querySelector('[data-v2-print-sheet]').textContent.includes('25%  ¥150.00')&&document.querySelector('[data-v2-print-sheet]').textContent.includes('应收金额')===false`,'saved deposit preview displays computed deposit money without receivable');
    await check(`!document.querySelector('[data-v2-print-sheet]').textContent.includes('匹数')&&!document.querySelector('[data-v2-print-sheet]').textContent.includes('已结清')`,'deposit print omits pieces and settlement');
   }else if(type==='sample'){
    await check(`document.querySelector('[data-v2-print-sheet]').textContent.includes('应收金额：¥600.00')&&!document.querySelector('[data-v2-print-sheet]').textContent.includes('预收')`,'sample preview receives full gross without prepayment');

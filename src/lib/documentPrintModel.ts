@@ -131,7 +131,7 @@ export function buildDocumentPrintModel(input: DocumentPrintInput): DocumentPrin
     const depositAmount = payment.depositAmount;
     summaries = [
       { left: `合计米数：${fixed(input.totalMeters)}`, right: `合计金额：${total}（大写：${totalUpper}）` },
-      { left: `定金金额：${trimNumber(input.deposit)}%  ${money(depositAmount)}（大写：${numberToChineseCapital(depositAmount)}）`,right:`应收金额：${receivable}（大写：${receivableUpper}）` },
+      { left: `定金金额：${trimNumber(input.deposit)}%  ${money(depositAmount)}（大写：${numberToChineseCapital(depositAmount)}）` },
     ];
   } else if (type === 'sales') {
     const deduction = input.deductionMeters > 0 ? `    扣损合计：${fixed(input.deductionMeters)} 米` : '';

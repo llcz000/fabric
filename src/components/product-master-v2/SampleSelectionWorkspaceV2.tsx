@@ -18,8 +18,9 @@ export interface SampleSelectionWorkspaceV2Props{
  initialPage?:SampleSessionPage;
  resolveImages?:CatalogImageResolver;
  onAccessRevoked?:()=>void;
+ readOnly?:boolean;
 }
-export function SampleSelectionWorkspaceV2({sessionId,apiFetch,getV2SessionToken,onRescan,initialPage,resolveImages,onAccessRevoked}:SampleSelectionWorkspaceV2Props){
+export function SampleSelectionWorkspaceV2({sessionId,apiFetch,getV2SessionToken,onRescan,initialPage,resolveImages,onAccessRevoked,readOnly=false}:SampleSelectionWorkspaceV2Props){
  const privateFetch=useMemo(()=>getV2SessionToken?createV2SelectionFetch(apiFetch,getV2SessionToken):apiFetch,[apiFetch,getV2SessionToken]);
  const api=useMemo(()=>{
   const guarded:typeof fetch=async(input,init)=>{const response=await privateFetch(input,init);if(selectionAccessRevoked({status:response.status}))onAccessRevoked?.();return response;};
@@ -29,6 +30,6 @@ export function SampleSelectionWorkspaceV2({sessionId,apiFetch,getV2SessionToken
  // Keep the established image access adapter separate from the V2-only selection transport.
  const thumbnails=useMemo(()=>(ids:string[],signal?:AbortSignal)=>resolveImages?resolveImages(ids,'thumbnail',signal):resolveImageUrls(apiFetch,ids,'thumbnail',signal),[apiFetch,resolveImages]);
  return <SampleSelectionPanel key={sessionId} sessionId={sessionId}
-  load={api.load} remove={api.remove} addManual={api.addManual} searchManual={search} resolveThumbnails={thumbnails} onRescan={onRescan} initialPage={initialPage}/>;
+  load={api.load} remove={api.remove} removeCards={api.removeCards} readOnly={readOnly} addManual={api.addManual} searchManual={search} resolveThumbnails={thumbnails} onRescan={onRescan} initialPage={initialPage}/>;
 }
 export default SampleSelectionWorkspaceV2;

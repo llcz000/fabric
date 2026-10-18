@@ -294,7 +294,7 @@ export function PatternColorwayEditor({
    </div>
    {confirmRemove?<div role="alertdialog" aria-modal="true" aria-label="删除配色确认"
      className="m-3 rounded border border-rose-200 bg-rose-50 p-3 text-xs">
-    <p>确认删除 {confirmRemove.patternNo}？有产品引用或原图关联时，服务器会拒绝删除。已保存序号永久不复用。</p>
+    <p>确认删除 {confirmRemove.patternNo} 及其花型图？已关联产品的配色不能删除；删除后该配色序号永久不复用。</p>
     <div className="mt-2 flex gap-2">
      <button type="button" className="rounded bg-rose-700 px-2 py-1 text-white"
       disabled={working} onClick={()=>call(()=>onDeleteVersion(confirmRemove),()=>setConfirmRemove(null))}>确认删除</button>

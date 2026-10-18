@@ -17,6 +17,13 @@ const page:SampleSessionPage={
 };
 const props:SampleSelectionPanelProps={sessionId:'51',initialPage:page,
  load:async()=>page,remove:async()=>{},onRescan:()=>{}};
+
+test('selection supports card checkboxes and explicit current-page select all, while view mode has no mutation controls',()=>{
+ const html=renderToStaticMarkup(React.createElement(SampleSelectionPanel,{...props,removeCards:async()=>({removedCount:1})}));
+ assert(html.includes('勾选色卡 0012-F018'));assert(html.includes('全选当前页色卡'));assert(html.includes('移除所选色卡'));
+ const view=renderToStaticMarkup(React.createElement(SampleSelectionPanel,{...props,readOnly:true,removeCards:async()=>({removedCount:1})}));
+ assert(!view.includes('移除该款'));assert(!view.includes('移除所选色卡'));assert(!view.includes('type="checkbox"'));
+});
 test('B3 selected items display current master data and card source first without valid badge',()=>{
  const html=renderToStaticMarkup(React.createElement(SampleSelectionPanel,props));
  assert(html.includes('最新丝绸'));assert(html.includes('真丝100%'));

@@ -1,10 +1,18 @@
 import {Router,json,type RequestHandler,type ErrorRequestHandler} from 'express';
 import type {AppPrincipal} from '../access/types';
 import type {SamplePool} from './scanRepository';
-import {createSampleSession,listSampleSessions,readShipmentProgress,changeSampleSessionStatus} from './sessionDirectory';
+import {createSampleSession,listSampleSessions,readShipmentProgress,changeSampleSessionStatus,updateSampleSession,deleteSampleSession} from './sessionDirectory';
 import {SampleSessionManualError} from './sessionManual';
 export function createSampleSessionDirectoryRouter(authenticate:RequestHandler,pool:SamplePool):Router{
  const router=Router();router.use((_req,res,next)=>{res.setHeader('Cache-Control','no-store');next();});
+ router.patch('/sessions/:sessionId',authenticate,json({strict:true,limit:'8kb'}),async(req,res)=>{
+  if(Object.keys(req.query).length||!req.is('application/json')){res.status(400).json({error:'Invalid selection request'});return;}
+  try{res.json(await updateSampleSession(pool,res.locals.principal as AppPrincipal,String(req.params.sessionId),req.body));}catch(error){failure(res,error);}
+ });
+ router.delete('/sessions/:sessionId',authenticate,async(req,res)=>{
+  if(Object.keys(req.query).length||req.headers['transfer-encoding']!==undefined||req.headers['content-length']!==undefined&&req.headers['content-length']!=='0'){res.status(400).json({error:'Invalid selection request'});return;}
+  try{res.json(await deleteSampleSession(pool,res.locals.principal as AppPrincipal,String(req.params.sessionId)));}catch(error){failure(res,error);}
+ });
  router.patch('/sessions/:sessionId/status',authenticate,json({strict:true,limit:'8kb'}),async(req,res)=>{
   if(Object.keys(req.query).length||!req.is('application/json')){res.status(400).json({error:'Invalid selection request'});return;}
   try{res.json(await changeSampleSessionStatus(pool,res.locals.principal as AppPrincipal,String(req.params.sessionId),req.body));}catch(error){failure(res,error);}

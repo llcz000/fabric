@@ -190,9 +190,9 @@ export async function deleteColorway(pool:Pool,actor:AppPrincipal,colorwayId:str
  id(colorwayId);
  try{return await transaction(pool,actor,async db=>{
   const row=await saved(db,colorwayId);
-  if(row.pattern_image_asset_id!=null)throw new ColorwayIdentityError('Remove the linked image through the image service first',409);
   const [references]=await db.query('SELECT id FROM v2_products WHERE pattern_colorway_id=? LIMIT 1',[colorwayId]);
   if(rows(references).length)throw new ColorwayIdentityError('Colorway is referenced by a product',409);
+  if(row.pattern_image_asset_id!=null)await replacePatternImage(db,colorwayId,String(row.pattern_image_asset_id),null);
   const [deleted]=await db.query('DELETE FROM pattern_colorways WHERE id=?',[colorwayId]);
   if(Number((deleted as {affectedRows?:number}).affectedRows)!==1)throw new ColorwayIdentityError('Colorway not found',404);
   return {id:colorwayId,deleted:true as const};

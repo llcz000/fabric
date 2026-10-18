@@ -106,7 +106,8 @@ export function calculateDocumentTotals(type:DocumentTypeInput,lines:StoredLine[
  };
 }
 
-/** Receipt values derive from the saved gross. Round deposit money first, then subtract.
+/** Receipt values derive from the saved gross. Deposit contracts only calculate deposit money.
+ * The common numeric receipt slot is zero for deposit contracts, never a contract balance.
  * Sample legacy prepayment remains in raw history, but is not a field in this document type.
  */
 export function calculateDocumentPayment(type:DocumentTypeInput,totalAmount:number,deposit:number):Pick<DocumentTotals,'depositAmount'|'receivableAmount'>{
@@ -114,5 +115,5 @@ export function calculateDocumentPayment(type:DocumentTypeInput,totalAmount:numb
  const input=t==='sample'?0:cents(deposit,'deposit',t==='deposit'?100:999999999.99);
  const paid=t==='deposit'?Number((BigInt(total)*BigInt(input)+5000n)/10000n):input;
  if(!Number.isSafeInteger(paid))throw new DocumentCalculationError('Invalid deposit amount');
- return {depositAmount:paid/100,receivableAmount:(total-paid)/100};
+ return {depositAmount:paid/100,receivableAmount:t==='deposit'?0:(total-paid)/100};
 }

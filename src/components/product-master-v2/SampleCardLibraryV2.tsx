@@ -249,7 +249,7 @@ export function SampleCardLibraryV2({apiFetch,QrRenderer=SampleCardQr,resolvePat
  const create=async()=>{
   if(!controller)return;
   const result=await createSampleCard(apiFetch,controller.state.master,controller.state.fabric);
-  setNotice(result.created?'已生成色卡 '+result.card.cardNo:'已复用现有色卡 '+result.card.cardNo);close();setRefresh(x=>x+1);
+  setNotice(result.created?'已生成色卡 '+result.card.cardNo:'已复用现有色卡 '+result.card.cardNo);close();setOffset(0);setQuery('');setNeedsReprint(false);setRefresh(x=>x+1);
  };
  const markPrinted=async(card:SampleCard)=>{
   if(acting||!card.needsReprint)return;

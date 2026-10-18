@@ -24,6 +24,7 @@ import {createFrontendStaticRouter} from '../frontendStatic';
 import {companyExportImage} from '../order-v2/companyExportImage';
 import {verifyV2DocumentAuditSchema} from '../order-v2/documentAuditSchema';
 import {createPatternShareRuntime} from '../customer-share/patternShareRuntime';
+import {verifySessionLifecycleSchema} from '../customer-samples/sessionLifecycleSchema';
 
 export async function createV2ProductionRouter(pool:Pool,target:V2ProductionTarget,output?:V2DocumentOutputDependencies){
  const db=createPinnedV2Database(pool,target);
@@ -31,6 +32,7 @@ export async function createV2ProductionRouter(pool:Pool,target:V2ProductionTarg
  await verifyV2ProductionSchema(db,target.database);
  await verifyV2DocumentSupportSchema(db);
  await verifyV2DocumentAuditSchema(db);
+ await verifySessionLifecycleSchema(db);
  const routes=createV2BusinessRoutes(db,db,output);
  return {routes,db};
 }

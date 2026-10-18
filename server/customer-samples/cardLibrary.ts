@@ -241,7 +241,7 @@ export async function listSampleCards(db:SampleCardDb,input:SampleCardListQuery=
  const [countRows]=await db.query('SELECT COUNT(*) AS total'+from+filter,args);
  const total=Number(rows(countRows)[0]?.total);
  if(!Number.isSafeInteger(total)||total<0)throw Error('Invalid sample card count');
- const [items]=await db.query(select+filter+' ORDER BY c.card_no ASC,c.id ASC LIMIT ? OFFSET ?',[...args,limit,offset]);
+ const [items]=await db.query(select+filter+' ORDER BY c.created_at DESC,c.id DESC LIMIT ? OFFSET ?',[...args,limit,offset]);
  return {items:rows(items).map(card),total,limit,offset};
 }
 /** Explicit selection only; no partial export and preserve caller selection order. */
