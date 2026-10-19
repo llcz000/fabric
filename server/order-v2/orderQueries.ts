@@ -95,7 +95,7 @@ export async function listScopedOrders(db:Database,actor:AppPrincipal|null|undef
  if(!Number.isSafeInteger(total)||total<0)throw Error('Invalid order count');
  if(total===0)return {total,limit:filters.limit,offset:filters.offset,items:[]};
  const [raw]=await db.query(
-  'SELECT o.id,o.order_no,o.order_date,o.receiving_unit,o.template_type,o.deposit,o.total_meters,o.total_pieces,o.total_amount,o.created_by_user_id,o.settled FROM orders o '+
+  'SELECT o.id,o.order_no,o.order_date,o.receiving_unit,o.template_type,o.deposit,o.total_meters,o.total_pieces,o.total_amount,o.deduction_meters,o.created_by_user_id,o.settled FROM orders o '+
   query.sql+' ORDER BY o.order_date DESC,o.id DESC LIMIT ? OFFSET ?',
   [...query.args,filters.limit,filters.offset]
  );
@@ -105,7 +105,7 @@ export async function listScopedOrders(db:Database,actor:AppPrincipal|null|undef
   receivingUnit:String(r.receiving_unit??''),type:String(r.template_type),
   ownerId:r.created_by_user_id==null?null:String(r.created_by_user_id),
   deposit:Number(r.deposit??0),totalMeters:Number(r.total_meters??0),
-  totalPieces:Number(r.total_pieces??0),totalAmount:Number(r.total_amount??0),settled:Number(r.settled)===1
+  totalPieces:Number(r.total_pieces??0),totalAmount:Number(r.total_amount??0),deductionMeters:Number(r.deduction_meters??0),settled:Number(r.settled)===1
  }))};
 }
 /** QUERY-02: return only matched saved lines, after checking the same scoped

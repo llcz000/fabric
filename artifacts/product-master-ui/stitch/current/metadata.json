@@ -1,0 +1,224 @@
+{
+  "date": "2026-10-12",
+  "requirements": "v1.35 分期评审稿",
+  "status": "当前七页，产品备注恢复已核验并保护；旧11列页清理完成，应用未实施",
+  "projectId": "10431924406877433135",
+  "projectUrl": "https://stitch.withgoogle.com/projects/10431924406877433135",
+  "historyProjectId": "10433989830792868216",
+  "designSystem": "assets/bd90e0a4d02c4477be31b4280e59ad3c",
+  "current": [
+    {
+      "id": "8a6e9e4e58e5447f8fd5394e7a6de9f5",
+      "name": "projects/10431924406877433135/screens/8a6e9e4e58e5447f8fd5394e7a6de9f5",
+      "title": "花型库",
+      "html": "https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ8Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpbCiVodG1sXzBhYjc3MmY1YzA2ZjRjMWU5MDFiZDNiODIxZTM1MGM5EgsSBxDGpZa_ihYYAZIBJAoKcHJvamVjdF9pZBIWQhQxMDQzMTkyNDQwNjg3NzQzMzEzNQ&filename=&opi=96797242",
+      "screenshot": "https://lh3.googleusercontent.com/aida/AEtjO1VLMf1yjCzrFhD1bM_ftLrj4RBgg4nah_PMI0DEaJLTbjT-87Kxjz2wc1pRRbx5Uq-lwfpWGVxQ-o0EbTArlWfCEaTyeRtpPSKIFkjfHyWS7u3sOknHJJnJQgIfug0z4KvlzxOs1xayfuh6qxCzbWiPgSvML0rvyxVq_Wbpn4hx2EJotj1nxN3aD1BvUqemPeOfsaZatZ21KXg33hZbGzWhDWMKXcJy6FBUB6akRob4W6VdmO31fwVt7Wjr",
+      "status": "numeric_colorway_pending_ui_review",
+      "pageKey": "pattern-list",
+      "canvasLocation": "x=12109/y=-5",
+      "verification": "实际画布实例与最终HTML/截图；原生五页结构、本地数字配色13项、三种单据16项；后台未实施"
+    },
+    {
+      "id": "138aa243d7f548b18e92789d382482de",
+      "name": "projects/10431924406877433135/screens/138aa243d7f548b18e92789d382482de",
+      "title": "编辑母版及配色资料",
+      "html": "https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ8Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpbCiVodG1sX2JmZDEzODFlN2JhNDQ0MTZhYTRhMzIzMTc5YTNjOGRiEgsSBxDGpZa_ihYYAZIBJAoKcHJvamVjdF9pZBIWQhQxMDQzMTkyNDQwNjg3NzQzMzEzNQ&filename=&opi=96797242",
+      "screenshot": "https://lh3.googleusercontent.com/aida/AEtjO1VxreTOZdbvHxkxYmSxY8b-7-CAunL_iUOln3dx1_M1LW4r2Cu2udW7HlkJxECgVUV1wib0YOfxiItucDp2uZnd0AUX6P5oMcyA9juhzpKgx0e9wqzMTLwYYuohyEz40mQRyBzZe4OWcHWw3EH3TfghW66BieqVS4YEzwjQ8b8Id-Xi-tbG3IgnK1oGaE8S0sa1p9u6WxQ0_d9IsjwNgtDKhlzRou-nPR8R-WhTTk7UrhPJKSSknnjH784",
+      "status": "numeric_colorway_pending_ui_review",
+      "pageKey": "pattern-editor",
+      "canvasLocation": "x=10765/y=-5",
+      "verification": "实际画布实例与最终HTML/截图；原生五页结构、本地数字配色13项、三种单据16项；后台未实施"
+    },
+    {
+      "id": "f2c1ab5adbba4c50bb876fc2f7d75b41",
+      "name": "projects/10431924406877433135/screens/f2c1ab5adbba4c50bb876fc2f7d75b41",
+      "title": "面料库｜行内维护评审",
+      "html": "https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ8Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpbCiVodG1sX2RmYTJhMTk1N2MyMDRkMWFiNGJhZDRjZWIyOTkxYTk0EgsSBxDGpZa_ihYYAZIBJAoKcHJvamVjdF9pZBIWQhQxMDQzMTkyNDQwNjg3NzQzMzEzNQ&filename=&opi=96797242",
+      "screenshot": "https://lh3.googleusercontent.com/aida/AEtjO1XTzRm1fAKqc73kPg-P6JiAvaNuD4NGW4V5EXzgliUq2HmsZnNcy9Si3eSabXsPPXshyp0x1AA5DVcfQ2oExJ0Uu5J0TiIgs3FBEJthLVy45t8D-C2H_FozTbSObaz-RI6-Y94GQHR6ikZNsJogbWwI7s8sn_s6V1YTggD6omQNKjAiUFAuXwcKqxuKsiJ5DQOm2c3eqUeeIi5QViefhYVlnvt4-FMXaGSjPXgEOP1so_FKuY0vm9kLQAoh",
+      "date": "2026-10-11",
+      "status": "pending_ui_review",
+      "localHtml": "fabric.html",
+      "localScreenshot": "fabric.png",
+      "localNormalization": [
+        "输入控件名称",
+        "品名必填标识"
+      ],
+      "verification": "三张当前屏已核对；面料查找栏仅文本搜索及包含停用；九列六条48px行，规格字段保留",
+      "pageKey": "fabric-list",
+      "canvasLocation": "x=1344/y=1280"
+    },
+    {
+      "id": "4e49bb73b9ad4ea6a3bca3b3031b4805",
+      "name": "projects/10431924406877433135/screens/4e49bb73b9ad4ea6a3bca3b3031b4805",
+      "title": "产品维护｜新增与编辑",
+      "html": "https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ8Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpbCiVodG1sXzA0M2E3NjJjMDI4NjQwMWJiMjQ1N2ExNWZiNDZhYmM3EgsSBxDGpZa_ihYYAZIBJAoKcHJvamVjdF9pZBIWQhQxMDQzMTkyNDQwNjg3NzQzMzEzNQ&filename=&opi=96797242",
+      "screenshot": "https://lh3.googleusercontent.com/aida/AEtjO1XXcvDn1arhGhUOZQ4X-zSPa8yrI5wdbet2_bJPsHi5CXZFRy5MeGorTxNl8FaI_bnbeCSuneZgVU5a4nxbwHbY94ZzuVaVK_Rtv8-jwtX3L-6edQymbeQO5Jg8BDxmPqeBZTyXmXPWoFBEmpqNdA7hrGpoVaDKL9KCk7UN__BB3vng4S3ywCBMXQ09cWR4huFwqwi94lPZE3KwU2v8AZmFHiEih8whrg5dGCjdeqxQrHvCS7roEz32GRU",
+      "localHtml": "product.html",
+      "localScreenshot": "product.png",
+      "status": "numeric_colorway_pending_ui_review",
+      "date": "2026-10-11",
+      "localNormalization": [],
+      "verification": "实际画布实例与最终HTML/截图；原生五页结构、本地数字配色13项、三种单据16项；后台未实施",
+      "pageKey": "product-editor",
+      "canvasLocation": "x=13453/y=-5"
+    },
+    {
+      "id": "1ac8dc0f5f65419aaa80bc264a43abde",
+      "name": "projects/10431924406877433135/screens/1ac8dc0f5f65419aaa80bc264a43abde",
+      "title": "产品库｜列表评审",
+      "html": "https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ8Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpbCiVodG1sX2FiYzkzZGNkN2QwNTRlYzg5ZjRhZjM3NDcyNTY4NzVlEgsSBxDGpZa_ihYYAZIBJAoKcHJvamVjdF9pZBIWQhQxMDQzMTkyNDQwNjg3NzQzMzEzNQ&filename=&opi=96797242",
+      "screenshot": "https://lh3.googleusercontent.com/aida/AEtjO1WCyd_X0vE_ECo8rAi2NcL8me9cIU3Eb95ofXG_bGTpbZzUeNmnQ7JCkt3pr46h_Y4f140U7rdq132p0HJDhXRJYJhtpThH4U08dgvvHsIQbqqbPEDFwrMadKKLXHz4t33bvIviWQlA7a_mFoW3356s-f4LghCjQVwQc7sJJ8qRLQqFNGTFad8sCn6oa_F_4NdDVQIa-AVecPECHbQGV57XCDu-nql5xgitF1CT7peo7D8BEl6o0OFcCFJm",
+      "status": "remark_restored_pending_layout_review",
+      "date": "2026-10-11",
+      "localHtml": "product-list.html",
+      "localScreenshot": "product-list.png",
+      "localNormalization": [],
+      "verification": "完整12列/6行，其他单元格逐行一致；原生5项、本地6项、备注遗漏拦截；实际画布截图",
+      "canvasLocation": "x=8077/y=-5",
+      "pageKey": "product-list"
+    },
+    {
+      "id": "18bf13584579427fbbba015239957622",
+      "name": "projects/10431924406877433135/screens/18bf13584579427fbbba015239957622",
+      "title": "面料库｜Excel导入预览",
+      "html": "https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ8Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpbCiVodG1sXzg5OTZjYzAyODBhOTRhMWM4NjlkZjk1ZjQ0MTY2MTFhEgsSBxDGpZa_ihYYAZIBJAoKcHJvamVjdF9pZBIWQhQxMDQzMTkyNDQwNjg3NzQzMzEzNQ&filename=&opi=96797242",
+      "screenshot": "https://lh3.googleusercontent.com/aida/AEtjO1UCxYpnRqXYprEBov2j-zBdasKwJ1RU5nYDpjyGZYfC7zqlS5NFkaK1hHv74foniht0VrpmW2wS01t7SAn8bE0jQREixPpesP5Mwtz9BHGNpnm3InsTLQMu04y1LkMB6tWG_19l5q4794x_zUwl6o3RO1HjSbpb2f23riD6gJ2pjer-MCfxIfTqI39yjhhGw_fyNpwolqeplBZh8m4MO2oYCjLvYEtRKx68CqbH8ZNWOqCYiFkI7TpPBPnI",
+      "pageKey": "fabric-import",
+      "localHtml": "fabric-import.html",
+      "localScreenshot": "fabric-import.png",
+      "status": "displayed_ui_accepted_2026-10-12_implementation_pending",
+      "verification": "完整原生HTML、8列8行、7字段、差异收起/单行展开、1440宽度及实际画布选中截图、原生六页实例核对；本地导入13项与产品搜索14项通过",
+      "canvasLocation": "x=858/y=3225"
+    },
+    {
+      "id": "bab4de3e72cd44ffa4cdd4d5ff0e311c",
+      "name": "projects/10431924406877433135/screens/bab4de3e72cd44ffa4cdd4d5ff0e311c",
+      "title": "单据｜共用产品选择",
+      "html": "https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ8Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpbCiVodG1sX2YyYjFjNGVjYmExMDQ4NDNiYzYyMjgyZDQ5OTMxMDUyEgsSBxDGpZa_ihYYAZIBJAoKcHJvamVjdF9pZBIWQhQxMDQzMTkyNDQwNjg3NzQzMzEzNQ&filename=&opi=96797242",
+      "screenshot": "https://lh3.googleusercontent.com/aida/AEtjO1XTDqehUzxVbQgtYsq1SL4tczYNNTpZzs1yQPgQFaVs-JDKNRGjKO6WYsERopAq4QUpZz6791R9edSPLUt-bMWK1-g4bNguNnosJtL56Llikc6haGVvqUwAVjCjfbL2sbSVnl2AHOpjSjxFPqV00v64YK0lxqD_DuxkmQz0aTbp2EiolHJY-69W20TH1kgIDlixXaTUGlkK43OgXsN4WfTwYPidy6u8_YakQx4OZSCwGLGdEle5BuWU86rO",
+      "pageKey": "document-product-picker",
+      "status": "numeric_colorway_pending_ui_review",
+      "canvasLocation": "x=14797/y=-5",
+      "verification": "实际画布实例与最终HTML/截图；原生五页结构、本地数字配色13项、三种单据16项；后台未实施"
+    }
+  ],
+  "localNormalization": [
+    "统一当前背景及颜色标签名称",
+    "清理模型补入资料与备注",
+    "中性图框"
+  ],
+  "remoteVsLocal": "v1.31已回同步Stitch双搜索框、未开单删除和紧凑维护标签页布局。原生为静态视觉示意，部分按钮未接脚本；本地原型验证标签切换、三类草稿与统一保存、确认删除及角色条件。原图有图交互以独立thumbnailUrl / originalUrl隔离夹具验证；示例无真实源图。模型文案不构成额外业务规则。",
+  "appCodeChanged": false,
+  "historyScreens": [
+    {
+      "id": "69389bac9a1141109ead4300f5552361",
+      "status": "removed_from_canvas_2026-10-10"
+    },
+    {
+      "id": "67030667cbb94f16810f190894e60bc5",
+      "status": "removed_from_canvas_2026-10-10"
+    },
+    {
+      "id": "395eb9e7120441a08a1d765231e6865b",
+      "status": "removed_from_current_canvas_2026-10-11"
+    },
+    {
+      "id": "8e2215496b6e424f81e6ea39f0cf5114",
+      "status": "removed_from_current_canvas_2026-10-11",
+      "replacedBy": "34e1ea042ea74086bce8ee2dcb2b7748"
+    },
+    {
+      "id": "a3449a236c4940d6af9d2835a293ac39",
+      "status": "removed_intermediate_modal_2026-10-11"
+    },
+    {
+      "id": "34e1ea042ea74086bce8ee2dcb2b7748",
+      "status": "removed_recoverably_from_canvas_2026-10-11",
+      "replacedBy": "d927ded5c30443048c2565ddcc6530f1"
+    },
+    {
+      "id": "fd9c2c79522a489eaeb20de39662d9e4",
+      "status": "removed_recoverably_from_canvas_2026-10-11",
+      "replacedBy": "9792319d03354d999b5954f16c9f05d7"
+    },
+    {
+      "id": "76b6c422daa34ddba6d3d85b44e34283",
+      "status": "removed_recoverably_from_canvas_2026-10-11",
+      "replacedBy": "d927ded5c30443048c2565ddcc6530f1"
+    },
+    {
+      "id": "178e450b1e344a83a5bba0338d77eabc",
+      "status": "removed_recoverably_from_canvas_2026-10-12",
+      "replacedBy": "18bf13584579427fbbba015239957622"
+    },
+    {
+      "id": "feae9e3a174b411ba596e7648e1ad0a4",
+      "status": "not_in_final_current_instances_2026-10-12",
+      "note": "额外差异展开稿，未作为独立页面交付；不声称由本轮删除动作直接移除"
+    },
+    {
+      "id": "2d23937e01ad471ca3fb2c706bdf7b73",
+      "status": "removed_recoverably_from_canvas_2026-10-12",
+      "replacedBy": "8a6e9e4e58e5447f8fd5394e7a6de9f5"
+    },
+    {
+      "id": "c3b178d2f7e343008016b20663f011bb",
+      "status": "removed_recoverably_from_canvas_2026-10-12",
+      "replacedBy": "138aa243d7f548b18e92789d382482de"
+    },
+    {
+      "id": "d927ded5c30443048c2565ddcc6530f1",
+      "status": "removed_recoverably_from_canvas_2026-10-12",
+      "replacedBy": "88aaba3274e743af983e1a104e8099c1"
+    },
+    {
+      "id": "9792319d03354d999b5954f16c9f05d7",
+      "status": "removed_recoverably_from_canvas_2026-10-12",
+      "replacedBy": "4e49bb73b9ad4ea6a3bca3b3031b4805"
+    },
+    {
+      "id": "14301e8af7814bd6ad04e3090ed2f428",
+      "status": "removed_recoverably_from_canvas_2026-10-12",
+      "replacedBy": "bab4de3e72cd44ffa4cdd4d5ff0e311c"
+    },
+    {
+      "id": "78a6a3009c14404583c1252b871ee567",
+      "status": "removed_recoverably_from_canvas_2026-10-12"
+    },
+    {
+      "id": "4c302499f0d742af9ccf024f63c7ae65",
+      "status": "removed_recoverably_from_canvas_2026-10-12"
+    },
+    {
+      "id": "a6ce99ee44914768ba5f5ce7981d3d7d",
+      "status": "removed_recoverably_from_canvas_2026-10-12"
+    },
+    {
+      "id": "88aaba3274e743af983e1a104e8099c1",
+      "replacedBy": "1ac8dc0f5f65419aaa80bc264a43abde",
+      "status": "removed_recoverably_from_canvas_2026-10-12"
+    }
+  ],
+  "cleanupPolicy": "每轮在当前稿与登记保存后及时移除被替代画布屏幕、本地旧稿及临时渲染，不积累UI历史目录；需求决策保留为文字。",
+  "historyProjectDeletion": {
+    "id": "10433989830792868216",
+    "status": "deleted_verified_2026-10-11",
+    "inventoryCount": 21,
+    "userConfirmation": "可以删除",
+    "verification": "原生delete_project成功；重新list_projects仅剩当前项目10431924406877433135，三张可见现行屏保留"
+  },
+  "interactiveReview": {
+    "html": "library-review.html",
+    "fragment": "library-review-fragment.html",
+    "checks": "library-review-checks.json",
+    "scope": "面料维护、产品列表与新增/编辑；示例资料，不连接服务",
+    "status": "pending_ui_review",
+    "checkCount": 14,
+    "productListScreenshot": "product-list-interaction.png",
+    "verification": "本轮14项货号/品名独立组合搜索检查通过；此前19项为上一轮，原图8项记录保留；非应用实施或性能验收",
+    "patternOriginalChecks": "pattern-original-checks.json",
+    "productSearchChecks": "product-search-checks.json"
+  },
+  "deliveryManifest": "review-delivery.json",
+  "canvasSnapshot": "canvas-snapshot.json"
+}

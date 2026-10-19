@@ -69,7 +69,7 @@ function routeRuntime(overrides: Partial<ImageAssetRouteRuntime> = {}): ImageAss
   };
 }
 
-async function withHttpServer<T>(runtime: ImageAssetRouteRuntime, work: (baseUrl: string) => Promise<T>): Promise<T> {
+async function withHttpServer<T>(runtime: ImageAssetRouteRuntime, work: (baseUrl: string) => Promise<T>, principal?:()=>string): Promise<T> {
   const app = express();
   app.use('/api', (req, res, next) => {
     if (req.headers.authorization !== 'Bearer accepted-admin-token') {
@@ -77,7 +77,7 @@ async function withHttpServer<T>(runtime: ImageAssetRouteRuntime, work: (baseUrl
     }
     next();
   });
-  app.use('/api/image-assets', createImageAssetRouter(runtime));
+  app.use('/api/image-assets', createImageAssetRouter(runtime,principal));
 
   const server = app.listen(0, '127.0.0.1');
   await new Promise<void>((resolve, reject) => {
@@ -91,6 +91,14 @@ async function withHttpServer<T>(runtime: ImageAssetRouteRuntime, work: (baseUrl
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }
 }
+
+test('V2 image adapter uses trusted per-user identity instead of legacy admin or a client actor header',async()=>{
+ let seen='';
+ await withHttpServer(routeRuntime({service:routeService({async getDescriptor(_id,actor){seen=actor;return READY_DESCRIPTOR;}})}),async base=>{
+  const response=await fetch(base+'/api/image-assets/asset-1',{headers:{Authorization:'Bearer accepted-admin-token','X-Actor-Id':'admin'}});
+  assert.equal(response.status,200);assert.equal(seen,'v2:7');
+ },()=> 'v2:7');
+});
 
 function authenticatedJson(method: string, body?: unknown, requestId?: string): RequestInit {
   return {

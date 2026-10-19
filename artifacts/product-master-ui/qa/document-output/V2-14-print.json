@@ -1,0 +1,85 @@
+{
+  "type": "deposit",
+  "title": "定金单",
+  "companyName": "Fabric 演示公司",
+  "companyLines": [
+    "地址：演示地址",
+    "电话：演示电话"
+  ],
+  "docNo": "DJ-DEMO-014",
+  "dateText": "2026年10月15日",
+  "customerName": "演示客户甲",
+  "columns": [
+    {
+      "key": "itemNo",
+      "label": "货号",
+      "excelWidth": 15,
+      "webFraction": 1
+    },
+    {
+      "key": "colorNo",
+      "label": "色号",
+      "excelWidth": 14,
+      "webFraction": 1
+    },
+    {
+      "key": "productName",
+      "label": "品名",
+      "excelWidth": 18,
+      "webFraction": 1
+    },
+    {
+      "key": "meters",
+      "label": "米数(米)",
+      "excelWidth": 14,
+      "webFraction": 1
+    },
+    {
+      "key": "unitPrice",
+      "label": "单价(元)",
+      "excelWidth": 14,
+      "webFraction": 1
+    },
+    {
+      "key": "amount",
+      "label": "金额(元)",
+      "excelWidth": 16,
+      "webFraction": 1.1
+    }
+  ],
+  "rows": [
+    [
+      "P001",
+      "1",
+      "棉麻布",
+      "10.00",
+      "¥20.00",
+      "¥200.00"
+    ],
+    [
+      "P002",
+      "2",
+      "轻薄雪纺",
+      "20.00",
+      "¥20.00",
+      "¥400.00"
+    ]
+  ],
+  "summaries": [
+    {
+      "left": "合计米数：30.00",
+      "right": "合计金额：¥600.00（大写：陆佰元整）"
+    },
+    {
+      "left": "定金金额：25%  ¥150.00（大写：壹佰伍拾元整）",
+      "right": "应收金额：¥450.00（大写：肆佰伍拾元整）"
+    }
+  ],
+  "terms": "仅本机评审数据",
+  "signature": {
+    "issuer": "演示开单人",
+    "receiver": "",
+    "phone": "",
+    "receiverAddress": ""
+  }
+}

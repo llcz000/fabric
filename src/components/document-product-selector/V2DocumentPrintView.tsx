@@ -6,6 +6,25 @@ import {documentResourceUrl} from './documentSearchModel';
 export function serializeV2PrintJson(model:DocumentPrintModel):string{
  return JSON.stringify(model,null,2);
 }
+export function DocumentPrintTable({model}:{model:DocumentPrintModel}){
+ const leftSpan=Math.max(1,Math.floor(model.columns.length/2)),rightSpan=model.columns.length-leftSpan;
+ return <table className="w-full table-fixed border-collapse text-[10px]" aria-label="单据明细及汇总">
+  <colgroup>{model.columns.map(c=><col key={c.key} style={{width:(c.webFraction/model.columns.reduce((sum,col)=>sum+col.webFraction,0)*100)+'%'}}/>)}</colgroup>
+  <thead><tr>{model.columns.map(c=><th key={c.key} className="border border-slate-500 px-1 py-1">{c.label}</th>)}</tr></thead>
+  <tbody>{model.rows.map((row,i)=>{
+   const group=model.rowGroups?.find(g=>i>=g.start&&i<g.start+g.rowCount);
+   return <tr key={i}>{row.map((value,j)=>{
+    const merge=group&&group.rowCount>1&&!/^roll\d+$/.test(model.columns[j].key);
+    if(merge&&i!==group.start)return null;
+    return <td key={j} rowSpan={merge?group.rowCount:undefined} className="break-words border border-slate-500 px-1 py-2 text-center">{value}</td>;
+   })}</tr>;
+  })}</tbody>
+  <tfoot className="table-row-group">{model.summaries.map((s,i)=><tr key={i} className="bg-slate-50 font-medium">
+   <td colSpan={s.right&&rightSpan>0?leftSpan:model.columns.length} className="break-words border border-slate-500 px-2 py-2 text-left">{s.left}{rightSpan===0&&s.right?'　'+s.right:''}</td>
+   {s.right&&rightSpan>0&&<td colSpan={rightSpan} className="break-words border border-slate-500 px-2 py-2 text-left">{s.right}</td>}
+  </tr>)}</tfoot>
+ </table>;
+}
 
 /** Isolated V2 preview: authenticated print-model and XLSX only, never legacy /api/export_template. */
 export interface V2DocumentPrintViewProps{
@@ -14,11 +33,12 @@ export interface V2DocumentPrintViewProps{
 function assertModel(value:unknown):DocumentPrintModel{
  if(!value||typeof value!=='object'||Array.isArray(value))throw Error('打印数据格式错误');
  const m=value as DocumentPrintModel;
+ const invalidImages=m.companyImages&&Object.values(m.companyImages).some(value=>typeof value!=='string'||value.length>3*1024*1024||!/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/]+={0,2}$/.test(value));
  if(!Array.isArray(m.columns)||!Array.isArray(m.rows)||!Array.isArray(m.summaries)||
   typeof m.docNo!=='string'||typeof m.companyName!=='string'||
   m.columns.some(c=>typeof c.label!=='string')||
   m.rows.some(row=>!Array.isArray(row)||row.length!==m.columns.length||
-   row.some(cell=>typeof cell!=='string')))
+   row.some(cell=>typeof cell!=='string'))||invalidImages)
   throw Error('打印数据不完整');
  return m;
 }
@@ -30,32 +50,6 @@ export default function V2DocumentPrintView({
  const [loading,setLoading]=useState(true);
  const [exporting,setExporting]=useState(false);
  const sheetRef=useRef<HTMLDivElement|null>(null);
- const [companyImageUrls,setCompanyImageUrls]=useState<Record<string,string>>({});
- const [imagesLoading,setImagesLoading]=useState(false);
- useEffect(()=>{
-  const urls=model?.companyImages??{};
-  const entries=Object.entries(urls).filter((entry):entry is [string,string]=>typeof entry[1]==='string');
-  if(!entries.length){setCompanyImageUrls({});return;}
-  let cancelled=false;
-  const abort=new AbortController();
-  const borrowed:string[]=[];
-  setImagesLoading(true);
-  void Promise.all(entries.map(async([role,url])=>{
-   try{
-    const response=await apiFetch(url,{signal:abort.signal,headers:{Accept:'image/png'}});
-    if(!response.ok||!(response.headers.get('content-type')??'').startsWith('image/png'))return null;
-    const blob=await response.blob();
-    if(blob.size>4*1024*1024||!blob.size)return null;
-    const imageUrl=URL.createObjectURL(blob);
-    borrowed.push(imageUrl);
-    return [role,imageUrl] as const;
-   }catch{return null;}
-  })).then(values=>{
-   if(!cancelled)setCompanyImageUrls(Object.fromEntries(values.filter(x=>x!==null)));
-  }).finally(()=>{if(!cancelled)setImagesLoading(false);});
-  return ()=>{cancelled=true;abort.abort();for(const url of borrowed)URL.revokeObjectURL(url);};
- },[apiFetch,documentId,model]);
-
  const offerDownload=(blob:Blob,name:string)=>{
   const url=URL.createObjectURL(blob);
   try{
@@ -71,9 +65,10 @@ export default function V2DocumentPrintView({
   finally{setExporting(false);}
  };
  const downloadPng=async()=>{
-  if(!model||exporting||imagesLoading||!sheetRef.current)return;
+  if(!model||exporting||!sheetRef.current)return;
   setError('');setExporting(true);
   try{
+   await Promise.all([...sheetRef.current.querySelectorAll('img')].map(img=>img.decode()));
    const canvas=await html2canvas(sheetRef.current,{scale:2,backgroundColor:'#ffffff',useCORS:false,allowTaint:false,logging:false});
    const blob=await new Promise<Blob>((resolve,reject)=>canvas.toBlob(value=>value?resolve(value):reject(Error('PNG图片生成失败')),'image/png'));
    offerDownload(blob,'V2-'+documentId+'.png');
@@ -129,32 +124,25 @@ export default function V2DocumentPrintView({
   {loading&&<p role="status">正在读取打印资料…</p>}
   {error&&<p role="alert" className="text-sm text-rose-700">{error}</p>}
   {model&&<div className="overflow-x-auto">
-   <div ref={sheetRef} data-v2-print-sheet="true" className="mx-auto w-[240mm] min-h-[140mm] bg-white p-8 text-slate-900">
-    <header className="border-b-2 border-slate-900 pb-3 text-right">
-     {companyImageUrls.brand_logo?<img alt="公司Logo" src={companyImageUrls.brand_logo} className="float-left max-h-14 max-w-44 object-contain"/>:
-       model.brandName&&<span className="float-left text-sm">{model.brandName}</span>}
-      <h3 className="text-lg font-bold">{model.companyName}</h3>
+   <div ref={sheetRef} data-v2-print-sheet="true" className="mx-auto w-[240mm] min-h-[140mm] bg-white text-slate-900" style={{padding:'8mm 10mm',boxSizing:'border-box',fontFamily:'SimSun, serif'}}>
+    <header className="flex items-start justify-between gap-4 border-b-2 border-slate-900 pb-1">
+     <div>{model.companyImages?.brand_logo?<img src={model.companyImages.brand_logo} alt="公司Logo" className="max-h-12 max-w-[120px] object-contain"/>:<strong className="text-lg">{model.brandName}</strong>}</div>
+     <div className="text-right">
+     <h3 className="text-lg font-bold">{model.companyName}</h3>
      {model.companyLines.map((line,i)=><p key={i} className="text-xs">{line}</p>)}
+     </div>
     </header>
-    <h2 className="my-4 text-center text-xl font-bold">{model.title}</h2>
-    <div className="mb-3 flex justify-between text-xs">
-     <span>NO：{model.docNo}　收货单位：{model.customerName}</span><span>{model.dateText}</span>
+    <h2 className="my-1 text-center text-base font-black tracking-[0.5em]">{model.title}</h2>
+    <div className="mb-1 flex items-end justify-between gap-3 text-xs">
+     <div className="min-w-0 break-all"><p>NO：{model.docNo}</p><p>收货单位：{model.customerName}</p></div><span className="shrink-0 whitespace-nowrap">日期：{model.dateText}</span>
     </div>
-    <table className="w-full table-fixed border-collapse text-[10px]">
-     <thead><tr>{model.columns.map(c=><th key={c.key} className="border border-slate-500 px-1 py-1">{c.label}</th>)}</tr></thead>
-     <tbody>{model.rows.map((row,i)=><tr key={i}>{row.map((value,j)=><td key={j}
-      className="break-words border border-slate-300 px-1 py-2 text-center">{value}</td>)}</tr>)}</tbody>
-    </table>
-    <div className="mt-3 space-y-1">{model.summaries.map((s,i)=><div key={i} className="flex justify-between gap-4 text-xs font-medium">
-     <span>{s.left}</span><span>{s.right??''}</span></div>)}</div>
+    <DocumentPrintTable model={model}/>
     <p className="mt-3 border border-slate-200 p-2 text-xs">备注条款：{model.terms}</p>
-    <footer className="mt-3 text-xs">{model.signatureLabels?.issuer??'开单人签字'}：{model.signature.issuer}　{model.signatureLabels?.receiver??'收货人签字'}：{model.signature.receiver}　电话：{model.signature.phone}
-     {model.signature.receiverAddress&&<p>收货地址：{model.signature.receiverAddress}</p>}
-      <div className="mt-3 flex gap-8">
-       {companyImageUrls.wechat_qr&&<figure><img alt="微信收款码" src={companyImageUrls.wechat_qr} className="h-20 w-20 object-contain"/><figcaption>微信收款</figcaption></figure>}
-       {companyImageUrls.alipay_qr&&<figure><img alt="支付宝收款码" src={companyImageUrls.alipay_qr} className="h-20 w-20 object-contain"/><figcaption>支付宝收款</figcaption></figure>}
-      </div>
+    <div className="mt-3 flex justify-between gap-4"><footer className="min-w-0 flex-1 text-xs">{model.signatureLabels?.issuer??'开单人签字'}：{model.signature.issuer}　{model.signatureLabels?.receiver??'收货人签字'}：{model.signature.receiver}　电话：{model.signature.phone}
+     {(model.type==='deposit'||model.signature.receiverAddress)&&<p className="mt-1 min-h-5 whitespace-pre-wrap break-words">收货地址：{model.signature.receiverAddress}</p>}
     </footer>
+     <div className="flex gap-3">{(['wechat_qr','alipay_qr'] as const).map(role=>model.companyImages?.[role]?<figure key={role} className="text-center text-[9px]"><img src={model.companyImages[role]} alt={role==='wechat_qr'?'微信收款码':'支付宝收款码'} className="h-16 w-16 object-contain"/><figcaption>{role==='wechat_qr'?'微信收款':'支付宝收款'}</figcaption></figure>:null)}</div>
+    </div>
    </div>
   </div>}
  </section>;

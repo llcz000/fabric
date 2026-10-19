@@ -10,10 +10,11 @@ const record={id:'27',ownerId:'7',orderNo:'XS-DOC',date:'2026-10-12',type:'bulk'
  items:[{id:'51',productId:'200',source:'catalog',snapshot:{weightUnit:'mm',productNo:'G027'},productNo:'G027',
  productName:'提花',colorNo:'2',composition:'棉/丝',weight:15.5,widthCm:150,meters:7,unitPrice:12.5,
  amount:81.25,remark:'保存的',pieceMeters:[3.5,3.5],deductionMeters:0.5}]};
-test('P6-2b read API response renders frozen display/header and keeps stable ID/source',()=>{
+test('current company settings override saved display while product and trade fields remain frozen',()=>{
  const d=fromV2DocumentRecord(record,profile);
- assert.equal(d.type,DocType.SALES);assert.equal(d.companyName,'历史公司');
- assert.equal(d.companyAddress,'历史地址');assert.equal(d.terms,'历史条款');
+ assert.equal(d.type,DocType.SALES);assert.equal(d.companyName,profile.name);
+ assert.equal(d.companyAddress,profile.address);assert.equal(d.terms,profile.defaultTerms);
+ assert.equal(record.displaySnapshot.companyName,'历史公司');
  assert.equal(d.styleNo,'ST-22');assert.equal(d.issuer,'小王');
  assert.equal(d.receiver,'签收甲');assert.equal(d.receiverAddress,'仓库2');assert.equal(d.settled,true);
  const row=d.items[0] as typeof d.items[0]&{rollNo:string;v2ProductId:string;v2SelectionChanged:boolean};
@@ -31,11 +32,11 @@ test('P6-2b create and edit payload retain header fields and no computed totals'
  const input=toV2CreatePayload(d,'sales');
  for(const name of ['styleNo','issuer','receiver','receiverPhone','receiverAddress','settled','displaySnapshot'])
   assert(name in input,name);
- assert.deepEqual(input.displaySnapshot,record.displaySnapshot);
+ assert.equal(input.displaySnapshot.companyName,profile.name);
  const updated=toV2EditPayload(d,'sales',[]);
  assert.equal(updated.receiverPhone,'13333333');
  assert.equal(updated.settled,true);
- assert.deepEqual(updated.displaySnapshot,record.displaySnapshot);
+ assert(!('displaySnapshot' in updated),'ordinary edit preserves hidden historical company snapshot');
  assert(!('ownerId' in input));
  assert(!('totalAmount' in updated));
 });

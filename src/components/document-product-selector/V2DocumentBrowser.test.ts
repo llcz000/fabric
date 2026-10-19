@@ -40,3 +40,13 @@ test('editing and printing share the actual V2 collection route without duplicat
  assert.equal(documentResourceUrl('47'),'/api/v2/documents/47');
  assert.throws(()=>documentResourceUrl('../47'));
 });
+
+test('user layout correction keeps date first, splits type, uses named icon actions and shows saved sales deduction',()=>{
+ const state=structuredClone(ready);(state.page!.items[0] as any).deductionMeters=1.25;
+ const html=renderToStaticMarkup(React.createElement(DocumentSearchResults,{state,expanded:'47',onToggle:noop,onEdit:noop,onPreview:noop,onCopy:noop,onDelete:noop}));
+ const headings=[...html.matchAll(/<th[^>]*>(.*?)<\/th>/g)].map(m=>m[1].replace(/<[^>]*>/g,''));
+ assert.deepEqual(headings.slice(0,4),['','开单日期','单据编号','类型']);
+ assert(html.includes('扣损 1.25'));assert(html.includes('colSpan="10"')||html.includes('colspan="10"'));
+ for(const name of ['收起命中明细','编辑单据','预览 / Excel','复制为新单','确认删除'])assert(html.includes('aria-label="'+name+'"'));
+ assert(!html.includes('>编辑单据</button>'));assert(!html.includes('单据编号 / 类型'));
+});

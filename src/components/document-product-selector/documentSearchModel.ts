@@ -5,7 +5,7 @@ export interface DocumentSearchFilters{
 export const emptySearchFilters=():DocumentSearchFilters=>({customer:'',productNo:'',colorNo:'',productName:'',type:'',from:'',to:'',settled:''});
 export interface DocumentSummary{
  id:string;orderNo:string;date:string;receivingUnit:string;type:'sample'|'bulk'|'deposit';
- totalMeters:number;totalPieces:number;totalAmount:number;settled:boolean;
+ totalMeters:number;totalPieces:number;totalAmount:number;deductionMeters?:number;settled:boolean;
 }
 export interface DocumentPage{total:number;limit:number;offset:number;items:DocumentSummary[]}
 export interface MatchingTotals{matchingLineCount:number;metersTotal:number;amountTotal:number;piecesTotal:number}
@@ -47,7 +47,7 @@ const pageShape=(v:unknown):v is Record<string,unknown>&{total:number;limit:numb
 function parsePage(value:unknown):DocumentPage{
  if(!pageShape(value)||value.items.some(v=>!row(v)||!id(v.id)||typeof v.orderNo!=='string'||typeof v.date!=='string'||
   typeof v.receivingUnit!=='string'||!['sample','bulk','deposit'].includes(String(v.type))||
-  !finite(v.totalMeters)||!finite(v.totalPieces)||!finite(v.totalAmount)||typeof v.settled!=='boolean'))throw Error('单据列表数据不完整，请重试');
+  !finite(v.totalMeters)||!finite(v.totalPieces)||!finite(v.totalAmount)||(v.deductionMeters!==undefined&&!finite(v.deductionMeters))||typeof v.settled!=='boolean'))throw Error('单据列表数据不完整，请重试');
  return value as unknown as DocumentPage;
 }
 function parseTotals(value:unknown):MatchingTotals{

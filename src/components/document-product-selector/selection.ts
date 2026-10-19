@@ -15,7 +15,7 @@ export type PickerDraftItem=DocItem&{v2ProductId:string;v2SourceKind:'catalog';v
  */
 export function applySelectedProductToDraft(type:DocType,old:DocItem,product:PickerProduct):PickerDraftItem{
  const common={...old,itemNo:product.productNo,colorNo:String(product.colorwayNo),
-  productName:product.fabricName,v2ProductId:product.id,v2SourceKind:'catalog' as const,v2SelectionChanged:true as const};
+  productName:product.fabricName,composition:product.composition??'',weight:product.weight==null?'':`${product.weight} ${product.weightUnit??''}`.trim(),width:product.widthCm==null?'':String(product.widthCm),v2ProductId:product.id,v2SourceKind:'catalog' as const,v2SelectionChanged:true as const};
  if(type===DocType.SAMPLE)return {...common,
    composition:product.composition??'',weight:product.weight==null?'':`${product.weight} ${product.weightUnit??''}`.trim(),
    width:product.widthCm==null?'':String(product.widthCm)} as SampleItem&PickerDraftItem;

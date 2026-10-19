@@ -167,3 +167,7 @@ a, button, input, select, textarea {
     opacity: 1;
   }
 }
+
+/* A phone can request a desktop-width viewport while retaining touch input. */
+@media (min-width: 768px) { .v2-sample-scanner { display: none; } }
+@media (any-pointer: coarse) { .v2-sample-scanner { display: flex; } }

@@ -1,0 +1,16 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import * as removals from './sessionRemove';
+const removeSampleSessionItems=(removals as unknown as {removeSampleSessionItems:(pool:any,actor:any,id:string,ids:unknown)=>Promise<unknown>})['removeSampleSessionItems'];
+const actor={userId:'6',sessionId:'9',role:'sales'} as never;
+class Db{items=[{id:'1',product_id:'11',removed_at:null},{id:'2',product_id:'12',removed_at:null},{id:'3',product_id:'13',removed_at:null}];events:string[]=[];grant=true;closed=false;fail=false;rolled=0;commits=0;
+ async getConnection(){const before=structuredClone(this.items);return {beginTransaction:async()=>{},commit:async()=>{this.commits++;},rollback:async()=>{this.items=before;this.events=[];this.rolled++;},release(){},query:async(sql:string,args:unknown[]=[]):Promise<[unknown,unknown]>=>{
+ if(sql.includes('FROM v2_access_users'))return [[{role:'sales',is_active:1}],[]];if(sql.includes('FROM v2_access_sessions'))return [[{id:'9'}],[]];
+ if(sql.includes('FROM customer_sample_sessions'))return [[{id:'3',status:this.closed?'closed':'open'}],[]];if(sql.includes('SELECT can_manage'))return [this.grant?[{can_manage:1}]:[],[]];
+ if(sql.startsWith('SELECT i.id,i.product_id')){assert(sql.includes('i.session_id=?'));assert(sql.includes('i.removed_at IS NULL'));assert(sql.includes('ORDER BY i.id FOR UPDATE'));return [this.items.filter(i=>args.slice(1).includes(i.id)&&i.removed_at===null).map(i=>({...i})),[]];}
+ if(sql.startsWith('UPDATE customer_sample_items')){const item=this.items.find(i=>i.id===args[2])!;item.removed_at='now' as never;return [{affectedRows:1},[]];}
+ if(sql.startsWith('INSERT INTO customer_sample_item_removal_events')){if(this.fail&&this.events.length)throw Error('audit failure');this.events.push(String(args[1]));return [{affectedRows:1},[]];}
+ throw Error('Unexpected SQL '+sql);}};}
+}
+test('item batch removes only checked identities, including cross-page choices, and preserves siblings',async()=>{const db=new Db();assert.deepEqual(await removeSampleSessionItems(db,actor,'3',['1','3']),{sessionId:'3',removedCount:2});assert.equal(db.items[1].removed_at,null);assert.deepEqual(db.events,['1','3']);assert.equal(db.commits,1);});
+test('foreign/removed IDs, invalid lists, closed sessions and revoked grant never partially remove valid items',async()=>{for(const ids of [['1','999'],['1','2'],[],['1','1'],['bad']]){const db=new Db();if(ids.includes('2'))db.items[1].removed_at='earlier' as never;const before=structuredClone(db.items);await assert.rejects(removeSampleSessionItems(db,actor,'3',ids));assert.deepEqual(db.items,before);assert.equal(db.commits,0);}for(const key of ['grant','closed']){const db=new Db();if(key==='grant')db.grant=false;else db.closed=true;await assert.rejects(removeSampleSessionItems(db,actor,'3',['1']));assert(db.items.every(i=>i.removed_at===null));}});
+test('second audit failure rolls back the entire batch with source/history tables untouched',async()=>{const db=new Db();db.fail=true;await assert.rejects(removeSampleSessionItems(db,actor,'3',['1','2']));assert(db.items.every(i=>i.removed_at===null));assert.deepEqual(db.events,[]);assert.equal(db.rolled,1);});

@@ -1,7 +1,9 @@
 import type {AppPrincipal} from '../access/types';
 import {canManageOrder} from '../access/policy';
 import type {Pool,TxConn} from './lines';
+import {assertActiveDocumentProduct} from './lines';
 import {freshWriter,DocumentWriteError} from './documents';
+import {recordAdminDocumentAction} from './documentAudit';
 
 /** DOC-01: real V2 copy/delete. Operates only on explicitly authorized,
  * locked V2 orders; source line snapshots are copied in SQL, not resampled
@@ -55,10 +57,14 @@ export async function copyV2Document(pool:Pool,actor:AppPrincipal,sourceId:strin
   // transaction write-conflict remain mandatory release/schema prerequisites.
   const [existing]=await db.query('SELECT id FROM orders WHERE order_no=? LIMIT 1 FOR UPDATE',[input.orderNo]);
   if(rows(existing).length)throw new DocumentWriteError('Document number already exists',409);
-  const [lockedItems]=await db.query('SELECT id FROM order_items WHERE order_id=? ORDER BY id FOR UPDATE',[sourceId]);
+  const [lockedItems]=await db.query('SELECT id,v2_product_id,v2_source_kind FROM order_items WHERE order_id=? ORDER BY id FOR UPDATE',[sourceId]);
   const expected=rows(lockedItems).length;
   if(!Number.isSafeInteger(expected)||expected<1||expected>200)
    throw new DocumentWriteError('Source order items unavailable',409);
+  for(const line of rows(lockedItems)){
+   if(line.v2_source_kind!=='catalog'||line.v2_product_id==null)throw new DocumentWriteError('复制需选择有效库内产品；原单含未关联或手工明细，请普通新建后重新选品',422);
+   await assertActiveDocumentProduct(db,String(line.v2_product_id));
+  }
   const [newHeader]=await db.query(
    'INSERT INTO orders (order_no,order_date,receiving_unit,template_type,deposit,created_by_user_id,style_no,sign_person,receiver,receiver_phone,receiver_address,settled,v2_display_snapshot,total_meters,total_pieces,total_amount,deduction_meters) SELECT ?,?,receiving_unit,template_type,deposit,?,style_no,sign_person,receiver,receiver_phone,receiver_address,settled,v2_display_snapshot,total_meters,total_pieces,total_amount,deduction_meters FROM orders WHERE id=?',
    [input.orderNo,input.date,writer.userId,sourceId]);
@@ -85,7 +91,8 @@ export async function deleteV2Document(pool:Pool,actor:AppPrincipal,orderId:stri
   throw new DocumentWriteError('Explicit deletion confirmation required');
  return transact(pool,async db=>{
   const writer=await freshWriter(db,actor);
-  await lockedSource(db,writer,orderId);
+  const original=await lockedSource(db,writer,orderId);
+  await recordAdminDocumentAction(db,writer,orderId,original.created_by_user_id==null?null:String(original.created_by_user_id),'delete');
   await db.query('DELETE FROM order_items WHERE order_id=?',[orderId]);
   const [outcome]=await db.query('DELETE FROM orders WHERE id=?',[orderId]);
   if(Number((outcome as {affectedRows?:number}).affectedRows)!==1)

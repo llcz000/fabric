@@ -1,0 +1,68 @@
+{
+  "passed": 19,
+  "checks": [
+    "sample fixed 240mm sheet",
+    "sample JSON document identity, current company lines, terms and signature match preview",
+    "sample downloaded JSON matches all displayed rows/summaries and public print projection",
+    "sample actual PNG matches paper dimensions at scale 2 and contains visible content",
+    "sample narrow viewport exports identical complete paper pixels",
+    "deposit fixed 240mm sheet",
+    "deposit JSON document identity, current company lines, terms and signature match preview",
+    "deposit downloaded JSON matches all displayed rows/summaries and public print projection",
+    "deposit actual PNG matches paper dimensions at scale 2 and contains visible content",
+    "deposit narrow viewport exports identical complete paper pixels",
+    "deposit JSON/preview uses rounded monetary deposit and receivable",
+    "export failure restores actions",
+    "retrying local JSON clears prior export failure",
+    "bulk fixed 240mm sheet",
+    "bulk JSON document identity, current company lines, terms and signature match preview",
+    "bulk downloaded JSON matches all displayed rows/summaries and public print projection",
+    "bulk actual PNG matches paper dimensions at scale 2 and contains visible content",
+    "bulk narrow viewport exports identical complete paper pixels",
+    "no browser runtime errors"
+  ],
+  "files": [
+    {
+      "name": "V2-15-print.json",
+      "bytes": 2220
+    },
+    {
+      "name": "V2-15.png",
+      "bytes": 175644
+    },
+    {
+      "name": "V2-15.png",
+      "bytes": 175644
+    },
+    {
+      "name": "V2-14-print.json",
+      "bytes": 1651
+    },
+    {
+      "name": "V2-14.png",
+      "bytes": 157014
+    },
+    {
+      "name": "V2-14.png",
+      "bytes": 157014
+    },
+    {
+      "name": "V2-14-print.json",
+      "bytes": 1651
+    },
+    {
+      "name": "V2-13-print.json",
+      "bytes": 3059
+    },
+    {
+      "name": "V2-13.png",
+      "bytes": 177988
+    },
+    {
+      "name": "V2-13.png",
+      "bytes": 177988
+    }
+  ],
+  "scope": "Current isolated React UI and memory fixture; no production DB, COS, physical printer or formal App.",
+  "userUIAccepted": false
+}

@@ -6,7 +6,7 @@ export class FabricCatalogError extends Error{
  constructor(message:string){super(message);}
 }
 export interface FabricCatalogQuery{
- query:string;includeInactive:boolean;limit:number;offset:number;
+ query:string;fabricNo?:string;fabricName?:string;composition?:string;includeInactive:boolean;limit:number;offset:number;
 }
 export interface FabricCatalogItem extends Fabric{productCount:number}
 export interface FabricCatalogPage{
@@ -35,14 +35,20 @@ const numeric=(x:unknown,name:string,defaultValue:number,min:number,max:number):
 export function parseFabricCatalogQuery(raw:unknown):FabricCatalogQuery{
  if(!raw||typeof raw!=='object'||Array.isArray(raw))throw new FabricCatalogError('Invalid filters');
  const query=raw as Record<string,unknown>;
- if(Object.keys(query).some(x=>!['query','includeInactive','limit','offset'].includes(x)))
+ if(Object.keys(query).some(x=>!['query','fabricNo','fabricName','composition','includeInactive','limit','offset'].includes(x)))
   throw new FabricCatalogError('Unexpected fabric filter');
  if(query.query!==undefined&&(typeof query.query!=='string'||
   [...query.query].length>100||/[\p{Cc}\p{Cf}]/u.test(query.query)))
   throw new FabricCatalogError('Invalid fabric search');
  if(query.includeInactive!==undefined&&query.includeInactive!=='true')
   throw new FabricCatalogError('Invalid inactive filter');
- return {query:(query.query as string|undefined)?.trim()??'',
+ const fields:Partial<Pick<FabricCatalogQuery,'fabricNo'|'fabricName'|'composition'>>={};
+ for(const key of ['fabricNo','fabricName','composition'] as const){
+  if(query[key]===undefined)continue;
+  if(typeof query[key]!=='string'||[...query[key]].length>100||/[\p{Cc}\p{Cf}]/u.test(query[key]))throw new FabricCatalogError('Invalid '+key);
+  fields[key]=query[key].trim();
+ }
+ return {...fields,query:(query.query as string|undefined)?.trim()??'',
   includeInactive:query.includeInactive==='true',
   limit:numeric(query.limit,'limit',50,1,100),
   offset:numeric(query.offset,'offset',0,0,1000000)};
@@ -54,6 +60,9 @@ function filter(input:FabricCatalogQuery):{where:string;params:unknown[]}{
   const escaped='%'+input.query.replace(/[!%_]/g,c=>'!'+c)+'%';
   terms.push("(fabric_no LIKE ? ESCAPE '!' OR fabric_name LIKE ? ESCAPE '!' OR composition LIKE ? ESCAPE '!')");
   params.push(escaped,escaped,escaped);
+ }
+ for(const [key,column] of [['fabricNo','fabric_no'],['fabricName','fabric_name'],['composition','composition']] as const){
+  if(input[key]){terms.push(column+" LIKE ? ESCAPE '!'");params.push('%'+input[key].replace(/[!%_]/g,c=>'!'+c)+'%');}
  }
  return {where:' WHERE '+terms.join(' AND '),params};
 }

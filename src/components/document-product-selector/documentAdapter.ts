@@ -13,6 +13,7 @@ export function fromV2DocumentRecord(record:unknown,profile:CompanyProfile):Docu
  const items:DocItem[]=order.items.map(line=>{
   const common={id:line.id,itemNo:line.productNo,colorNo:line.colorNo,productName:line.productName,
    meters:line.meters,price:line.unitPrice,amount:line.amount,remark:line.remark,
+   composition:line.composition??'',weight:line.weight==null?'':`${line.weight}${line.snapshot?.weightUnit?' '+line.snapshot.weightUnit:''}`,width:line.widthCm==null?'':String(line.widthCm),
    v2ProductId:line.productId??undefined,v2SourceKind:line.source,v2SelectionChanged:false};
   if(type===DocType.SAMPLE)return {...common,composition:line.composition,
    weight:line.weight==null?'':`${line.weight}${line.snapshot?.weightUnit?' '+line.snapshot.weightUnit:''}`,
@@ -25,8 +26,8 @@ export function fromV2DocumentRecord(record:unknown,profile:CompanyProfile):Docu
  return {id:order.id,docNo:order.orderNo,type,date:order.date,customerName:order.receivingUnit,
   items,styleNo:order.styleNo??'',issuer:order.issuer??'',receiver:order.receiver??'',
   receiverAddress:order.receiverAddress??'',bottomPhone:order.receiverPhone??'',settled:type===DocType.DEPOSIT?false:order.settled??false,
-  companyName:display?.companyName??profile.name,companyAddress:display?.companyAddress??profile.address,
-  companyPhone:display?.companyPhone??profile.phone,terms:display?.terms??(type===DocType.DEPOSIT?profile.depositTerms:profile.defaultTerms),
+  companyName:profile.name,companyAddress:profile.address,
+  companyPhone:profile.phone,terms:type===DocType.DEPOSIT?profile.depositTerms:profile.defaultTerms,
   deposit,totalMeters:order.totalMeters,totalRolls:type===DocType.DEPOSIT?0:type===DocType.SAMPLE?items.length:order.totalPieces,totalAmount:total,
   receivableAmount:calculateDocumentPayment(order.type,total,deposit).receivableAmount,
   deductionMeters:order.deductionMeters,createdAt:'',updatedAt:''};
@@ -107,10 +108,11 @@ export function toV2CreatePayload(document:DocumentData,role:Role){
 export function toV2EditPayload(document:DocumentData,role:Role,removeIds:string[]):EditDocument{
  if(!Array.isArray(removeIds)||removeIds.some(id=>!stableLineId(id)))
   throw new V2DraftMappingError('Invalid removal IDs');
- const header=displayHeader(document),{settled,...withoutSettlement}=header;
+ const {displaySnapshot:_historicalDisplay,...header}=displayHeader(document),{settled,...withoutSettlement}=header;
  return {
   ...(document.type===DocType.SAMPLE?{}:{deposit:document.deposit??0}),
   ...(document.type===DocType.DEPOSIT?withoutSettlement:header),
+  orderNo:document.docNo,date:document.date,receivingUnit:document.customerName,
   items:document.items.map(i=>lineBody(document.type,i,role,false)),
   removeIds
  };

@@ -4,6 +4,8 @@ import React from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import V2DocumentPrintView from './V2DocumentPrintView';
 import {serializeV2PrintJson} from './V2DocumentPrintView';
+import {DocumentPrintTable} from './V2DocumentPrintView';
+import type {DocumentPrintModel} from '../../lib/documentPrintModel';
 
 test('P6-4 independent V2 preview only loads authorized endpoint, never legacy Excel route',()=>{
  const html=renderToStaticMarkup(React.createElement(V2DocumentPrintView,{
@@ -25,4 +27,14 @@ test('OUTPUT-01 JSON print export serializes the validated shared print model ra
  const value=JSON.parse(json);
  assert.equal(value.companyName,'当前公司');assert.equal(value.terms,'当前条款');
  assert(!('ownerId' in value));
+});
+
+test('all three previews keep totals inside the detail table with full-width merged summary rows',()=>{
+ for(const count of [10,7,16]){
+  const model={columns:Array.from({length:count},(_,i)=>({key:String(i),label:'列'+i,webFraction:1,excelWidth:10})),rows:[Array(count).fill('明细')],summaries:[{left:'总计米数：10.00',right:'应收金额：20.00'}]} as DocumentPrintModel;
+  const html=renderToStaticMarkup(React.createElement(DocumentPrintTable,{model}));
+  assert.match(html,/<tfoot[^>]*>.*总计米数：10.00.*应收金额：20.00.*<\/tfoot>/s);
+  const spans=[...html.matchAll(/colSpan="(\d+)"/g)].map(m=>Number(m[1]));assert.equal(spans.reduce((a,b)=>a+b,0),count);
+  assert(!html.includes('flex justify-between'));
+ }
 });

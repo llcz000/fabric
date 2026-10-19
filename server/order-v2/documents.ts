@@ -1,9 +1,10 @@
 import type {AppPrincipal} from '../access/types';
-import {canCreateOwnOrder,canReadOrder} from '../access/policy';
+import {canCreateOwnOrder,canReadOrder,canManageOrder} from '../access/policy';
 import type {TxConn,Pool,Update} from './lines';
 import {reconcileOrderLinesInTransaction} from './lines';
 import {calculateAndPersistOrderTotals} from './calculatedSave';
-import {normalizePieceMeters} from './calculations';
+import {normalizeStoredPieceMeters} from './calculations';
+import {recordAdminDocumentAction} from './documentAudit';
 import {readHeaderFields,HEADER_COLUMNS,headerSqlValue,type HeaderCreate,type HeaderEdit,type DisplaySnapshot} from './headerFields';
 
 type Row=Record<string,unknown>;
@@ -17,7 +18,7 @@ export interface CreateDocument{
  deposit:number;items:Update['items'];
 }
 export type CompleteCreateDocument=CreateDocument&HeaderCreate;
-export type EditDocument=HeaderEdit&{items:Update['items'];removeIds:string[];deposit?:number};
+export type EditDocument=HeaderEdit&{items:Update['items'];removeIds:string[];deposit?:number;orderNo?:string;date?:string;receivingUnit?:string};
 export interface DocumentLine{
  id:string;productId:string|null;source:'catalog'|'manual'|null;snapshot:Row|null;
  productNo:string;productName:string;colorNo:string;composition:string;
@@ -89,14 +90,17 @@ export function validateV2DocumentCreate(value:unknown):CompleteCreateDocument{
   type:v.type==='sales'?'bulk':v.type as CreateDocument['type'],deposit:v.deposit,items,...header};
 }
 export function validateV2DocumentEdit(value:unknown):EditDocument {
- const v=dict(value);keys(v,['items','removeIds','deposit',...Object.keys(HEADER_COLUMNS)]);
+ const v=dict(value);keys(v,['items','removeIds','deposit','orderNo','date','receivingUnit',...Object.keys(HEADER_COLUMNS)]);
  const items=validatedLines(v.items,true);
  if(!Array.isArray(v.removeIds)||v.removeIds.length>200||v.removeIds.some(id=>!positiveInt(id)))
   throw new DocumentWriteError('Explicit removed line ids required');
  if(v.deposit!==undefined&&!money(v.deposit,999999999.99))throw new DocumentWriteError('Invalid deposit');
  let header:HeaderEdit;
  try{header=readHeaderFields(v,false) as HeaderEdit;}catch{throw new DocumentWriteError('Invalid order display header');}
- return {items,removeIds:v.removeIds as string[],...(v.deposit!==undefined?{deposit:v.deposit as number}: {}),...header};
+ const editable:Partial<Pick<EditDocument,'orderNo'|'date'|'receivingUnit'>>={};
+ for(const key of ['orderNo','receivingUnit'] as const){if(key in v){if(typeof v[key]!=='string'||!v[key].trim()||v[key].length>100)throw new DocumentWriteError('Invalid order header');editable[key]=v[key].trim();}}
+ if('date' in v){if(!date(v.date))throw new DocumentWriteError('Invalid order date');editable.date=v.date;}
+ return {items,removeIds:v.removeIds as string[],...(v.deposit!==undefined?{deposit:v.deposit as number}: {}),...header,...editable};
 }
 function array(value:unknown):Row[]{if(!Array.isArray(value))throw Error('Database rows unavailable');return value as Row[];}
 export async function freshWriter(db:TxConn,actor:AppPrincipal):Promise<AppPrincipal>{
@@ -120,6 +124,7 @@ export async function freshWriter(db:TxConn,actor:AppPrincipal):Promise<AppPrinc
  if(!canCreateOwnOrder(current))throw new DocumentWriteError('Cannot manage own documents',403);
  return current;
 }
+export const lockV2DocumentWriter=freshWriter;
 async function transact<T>(pool:Pool,worker:(db:TxConn)=>Promise<T>):Promise<T>{
  const db=await pool.getConnection();let active=false;
  try{
@@ -131,7 +136,7 @@ async function transact<T>(pool:Pool,worker:(db:TxConn)=>Promise<T>):Promise<T>{
 export async function createV2Document(pool:Pool,actor:AppPrincipal,body:unknown):Promise<DocumentRecord>{
  const input=validateV2DocumentCreate(body);
  return transact(pool,async(db)=>{
-  const current=await freshWriter(db,actor);
+  const current=await lockV2DocumentWriter(db,actor);
   const [result]=await db.query(
    'INSERT INTO orders (order_no,order_date,receiving_unit,template_type,deposit,created_by_user_id,style_no,sign_person,receiver,receiver_phone,receiver_address,settled,v2_display_snapshot) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
    [input.orderNo,input.date,input.receivingUnit,input.type,input.deposit,current.userId,
@@ -145,13 +150,14 @@ export async function createV2Document(pool:Pool,actor:AppPrincipal,body:unknown
   return readV2Document(db,current,id);
  });
 }
+
 export async function updateV2Document(pool:Pool,actor:AppPrincipal,orderId:string,body:unknown):Promise<DocumentRecord>{
  if(!positiveInt(orderId))throw new DocumentWriteError('Order not found',404);
  const input=validateV2DocumentEdit(body);
  return transact(pool,async(db)=>{
-  const current=await freshWriter(db,actor);
+  const current=await lockV2DocumentWriter(db,actor);
   await reconcileOrderLinesInTransaction(db,current,orderId,{items:input.items,removeIds:input.removeIds},
-   async(locked,id,touched)=>{
+   async(locked,id,touched,owner)=>{
     if(input.deposit!==undefined||input.settled===true){
      const [read]=await locked.query('SELECT template_type FROM orders WHERE id=? FOR UPDATE',[id]);
      const type=array(read)[0]?.template_type;
@@ -167,6 +173,10 @@ export async function updateV2Document(pool:Pool,actor:AppPrincipal,orderId:stri
      await locked.query('UPDATE orders SET '+updates.map(x=>x.column+'=?').join(',')+' WHERE id=?',
       [...updates.map(x=>headerSqlValue(x.key,input[x.key] as HeaderCreate[keyof HeaderCreate])),id]);
     }
+    const businessHeader={orderNo:'order_no',date:'order_date',receivingUnit:'receiving_unit'} as const;
+    const changed=(Object.keys(businessHeader) as (keyof typeof businessHeader)[]).filter(key=>key in input);
+    if(changed.length)await locked.query('UPDATE orders SET '+changed.map(key=>businessHeader[key]+'=?').join(',')+' WHERE id=?',[...changed.map(key=>input[key]),id]);
+    await recordAdminDocumentAction(locked,current,id,owner,'edit');
    });
   return readV2Document(db,current,orderId);
  });
@@ -177,6 +187,11 @@ function snapshot(value:unknown):Row|null{
  const decoded=typeof value==='string'?JSON.parse(value):value;
  if(!decoded||typeof decoded!=='object'||Array.isArray(decoded))throw Error('Invalid frozen snapshot');
  return decoded as Row;
+}
+function storedPieceMeters(row:Row):number[]|null{
+ // The old form persisted fixed-length JSON arrays with empty slots as null.
+ // Only unlinked legacy rows get this read projection; SQL and V2 validation stay unchanged.
+ return normalizeStoredPieceMeters(row.piece_meters,row.v2_source_kind==null&&row.v2_product_snapshot==null);
 }
 export async function readV2Document(db:ReadDB,actor:AppPrincipal,orderId:string):Promise<DocumentRecord>{
  if(!positiveInt(orderId))throw new DocumentWriteError('Order not found',404);
@@ -209,7 +224,7 @@ export async function readV2Document(db:ReadDB,actor:AppPrincipal,orderId:string
    composition:String(r.composition??''),weight:r.weight==null?null:asNumber(r.weight),
    widthCm:r.width==null?null:asNumber(r.width),meters:asNumber(r.meters),
    unitPrice:asNumber(r.unit_price),amount:asNumber(r.amount),remark:String(r.remark??''),
-   pieceMeters:normalizePieceMeters(r.piece_meters),deductionMeters:asNumber(r.deduction_meters)
+   pieceMeters:storedPieceMeters(r),deductionMeters:asNumber(r.deduction_meters)
   }))
  };
 }

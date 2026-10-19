@@ -52,6 +52,16 @@ test('pattern image draft saves atomically, validates ready product assets and p
   }
   override async getConnection(){const assets=structuredClone(this.assets),conn=await super.getConnection();return {...conn,rollback:async()=>{this.assets=assets;await conn.rollback();}};}
  }
+ const created=new Images();const first=await createColorway(created,actor,'1',{patternImageAssetId:a});
+ assert.equal(first.patternImageAssetId,a);assert.equal(created.assets.get(a)!.ref_count,3);
+ created.assets.get(b)!.status='processing';await assert.rejects(createColorway(created,actor,'1',{patternImageAssetId:b}),hasStatus(409));
+ assert.equal(created.next,2);assert.equal(created.data.length,1);
+ const single=new Images();const pictured=await createColorway(single,actor,'1',{patternImageAssetId:b});
+ await deleteColorway(single,actor,pictured.id);assert.equal(single.data.length,0);assert.equal(single.assets.get(b)!.ref_count,0);assert.equal(single.assets.get(b)!.status,'recycled');assert.equal(single.next,2);
+ const shared=new Images();const sharedPicture=await createColorway(shared,actor,'1',{patternImageAssetId:a});
+ await deleteColorway(shared,actor,sharedPicture.id);assert.equal(shared.assets.get(a)!.ref_count,2);assert.equal(shared.assets.get(a)!.status,'ready');
+ const atomic=new Images();const protectedPicture=await createColorway(atomic,actor,'1',{patternImageAssetId:b});atomic.fkRace=true;
+ await assert.rejects(deleteColorway(atomic,actor,protectedPicture.id),hasStatus(409));assert.equal(atomic.data.length,1);assert.equal(atomic.assets.get(b)!.ref_count,1);assert.equal(atomic.data[0].pattern_image_asset_id,b);
  const db=new Images();db.data=[{id:'100',master_id:'1',colorway_no:1,pattern_image_asset_id:a,remark:'原备注',is_active:1}];
  const changed=await updateColorway(db,actor,'100',{remark:'新备注',isActive:true,patternImageAssetId:b});
  assert.equal(changed.patternImageAssetId,b);assert.equal(db.assets.get(a)!.ref_count,1);assert.equal(db.assets.get(a)!.status,'ready');assert.equal(db.assets.get(b)!.ref_count,1);
@@ -114,11 +124,10 @@ test('AC-23 inactive user or revoked session cannot allocate',async()=>{
  for(const field of ['active','session'] as const){const db=new Database();db[field]=false;
   await assert.rejects(createColorway(db,actor,'1',{}),hasStatus(401));assert.equal(db.next,1);}
 });
-test('AC-58 referenced, pictured and concurrent FK-referenced versions cannot be deleted',async()=>{
- for(const mode of ['referenced','pictured','fkRace']){
+test('AC-58 referenced and concurrent FK-referenced versions cannot be deleted',async()=>{
+ for(const mode of ['referenced','fkRace']){
   const db=new Database();const item=await createColorway(db,actor,'1',{});
   if(mode==='referenced')db.referenced=true;
-  if(mode==='pictured')db.data[0].pattern_image_asset_id='asset';
   if(mode==='fkRace')db.fkRace=true;
   await assert.rejects(deleteColorway(db,actor,item.id),hasStatus(409));assert.equal(db.data.length,1);assert.equal(db.next,2);
  }

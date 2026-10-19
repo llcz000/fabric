@@ -48,3 +48,5 @@ docs/yxm
 # OS metadata
 .DS_Store
 Thumbs.db
+
+dist-camera/

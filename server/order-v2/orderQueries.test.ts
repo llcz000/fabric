@@ -12,7 +12,7 @@ class Fake{
   if(sql.includes('COUNT(*) AS total'))return [[{total:1}],[]];
   if(sql.includes('FROM orders o')&&sql.includes('ORDER BY'))return [[{
    id:'47',order_no:'XS0047',order_date:'2026-10-12',receiving_unit:'客户A',
-   template_type:'bulk',deposit:'20',total_meters:'10',total_pieces:2,total_amount:'250',
+   template_type:'bulk',deposit:'20',total_meters:'10',total_pieces:2,total_amount:'250',deduction_meters:'1.25',
    created_by_user_id:'200',settled:1
   }],[]];
   if(sql.includes('SUM('))return [[{order_count:2,amount_total:'500.00',meters_total:'33.00',

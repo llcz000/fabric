@@ -1,0 +1,142 @@
+{
+  "projectId": "10431924406877433135",
+  "projectUrl": "https://stitch.withgoogle.com/projects/10431924406877433135",
+  "scope": "当前七页，产品列表12列含用户备注；旧11列页已可恢复移除，应用未实施",
+  "requirements": "v1.35",
+  "expectedPages": [
+    "pattern-list",
+    "pattern-editor",
+    "fabric-list",
+    "product-list",
+    "product-editor",
+    "fabric-import",
+    "document-product-picker"
+  ],
+  "pages": [
+    {
+      "key": "pattern-list",
+      "title": "花型库",
+      "screenId": "8a6e9e4e58e5447f8fd5394e7a6de9f5",
+      "html": "list.html",
+      "screenshot": "list.png",
+      "reviewRecord": "../../../../docs/product-master/product-master-v2-numeric-colorway-ui-review.md",
+      "deliveryStatus": "canvas_verified",
+      "reviewStatus": "pending",
+      "reviewNote": "数字身份及不设4个硬上限已确认；新页面效果、自动分配/不复用细则待审"
+    },
+    {
+      "key": "pattern-editor",
+      "title": "编辑母版及配色资料",
+      "screenId": "138aa243d7f548b18e92789d382482de",
+      "html": "edit.html",
+      "screenshot": "edit.png",
+      "reviewRecord": "../../../../docs/product-master/product-master-v2-numeric-colorway-ui-review.md",
+      "deliveryStatus": "canvas_verified",
+      "reviewStatus": "pending",
+      "reviewNote": "数字身份及不设4个硬上限已确认；新页面效果、自动分配/不复用细则待审"
+    },
+    {
+      "key": "fabric-list",
+      "title": "面料库｜行内维护评审",
+      "screenId": "f2c1ab5adbba4c50bb876fc2f7d75b41",
+      "html": "fabric.html",
+      "screenshot": "fabric.png",
+      "reviewRecord": "../../../../docs/product-master/product-master-v2-fabric-ui-review.md",
+      "deliveryStatus": "canvas_verified",
+      "reviewStatus": "pending"
+    },
+    {
+      "key": "product-list",
+      "title": "产品库｜列表评审",
+      "screenId": "1ac8dc0f5f65419aaa80bc264a43abde",
+      "html": "product-list.html",
+      "screenshot": "product-list.png",
+      "reviewRecord": "../../../../docs/product-master/product-master-v2-product-ui-review.md",
+      "deliveryStatus": "canvas_verified",
+      "reviewStatus": "pending",
+      "reviewNote": "用户在Stitch独立增加的产品备注已恢复为12列；页面待评审",
+      "requiredColumns": [
+        "花型图",
+        "货号",
+        "品名",
+        "成分",
+        "克重",
+        "门幅",
+        "题材",
+        "颜色标签",
+        "图片数量",
+        "备注",
+        "启用状态",
+        "操作"
+      ],
+      "columnCount": 12
+    },
+    {
+      "key": "product-editor",
+      "title": "产品维护｜新增与编辑",
+      "screenId": "4e49bb73b9ad4ea6a3bca3b3031b4805",
+      "html": "product.html",
+      "screenshot": "product.png",
+      "reviewRecord": "../../../../docs/product-master/product-master-v2-numeric-colorway-ui-review.md",
+      "deliveryStatus": "canvas_verified",
+      "reviewStatus": "pending",
+      "reviewNote": "数字身份及不设4个硬上限已确认；新页面效果、自动分配/不复用细则待审"
+    },
+    {
+      "key": "fabric-import",
+      "title": "面料库｜Excel导入预览",
+      "screenId": "18bf13584579427fbbba015239957622",
+      "html": "fabric-import.html",
+      "screenshot": "fabric-import.png",
+      "reviewRecord": "../../../../docs/product-master/product-master-v2-fabric-import-ui-review.md",
+      "deliveryStatus": "canvas_verified",
+      "reviewStatus": "approved",
+      "reviewScope": "上一轮展示UI及示例规则获允许继续；未确认全部文件格式兼容、真实解析或实施"
+    },
+    {
+      "key": "document-product-picker",
+      "title": "单据｜共用产品选择",
+      "screenId": "bab4de3e72cd44ffa4cdd4d5ff0e311c",
+      "html": "document-product.html",
+      "screenshot": "document-product.png",
+      "reviewRecord": "../../../../docs/product-master/product-master-v2-numeric-colorway-ui-review.md",
+      "deliveryStatus": "canvas_verified",
+      "reviewStatus": "pending",
+      "reviewNote": "数字身份及不设4个硬上限已确认；新页面效果、自动分配/不复用细则待审"
+    }
+  ],
+  "visualCheck": {
+    "checkedAt": "2026-10-12",
+    "screenshot": "product-remark-canvas.jpg",
+    "note": "新完整列表实际选中截图与12列文件核对；旧11列已可恢复移除，最新原生/实际DOM只保留七个当前页及设计规范"
+  },
+  "nextScope": [
+    {
+      "item": "面料Excel导入模板、字段/单位识别及预览",
+      "status": "displayed_ui_accepted_implementation_pending",
+      "note": "模板为七列结构草案；下载模板文件与真实解析未实施"
+    },
+    {
+      "item": "三种单据的产品选择",
+      "status": "ui_delivered_pending_review",
+      "reviewRecord": "product-master-v2-document-product-ui-review.md"
+    }
+  ],
+  "localInteractionRefinement": {
+    "pageKeys": [
+      "product-list",
+      "product-editor",
+      "document-product-picker"
+    ],
+    "scope": "紧凑产品维护标签页、统一保存、未开单删除、双框AND搜索；共用单据选择、资料只读、权限/手工模式、旧明细与保存引用示例",
+    "status": "local_verified_native_layout_synced",
+    "checks": [
+      "product-maintenance-checks.json",
+      "product-search-checks.json",
+      "pattern-original-checks.json",
+      "document-product-checks.json",
+      "numeric-colorway-checks.json",
+      "product-remark-checks.json"
+    ]
+  }
+}

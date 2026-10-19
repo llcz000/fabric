@@ -1,0 +1,2928 @@
+<!doctype html>
+<html lang="en" data-visualize-standalone>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; style-src 'unsafe-inline' blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; img-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; font-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; media-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; worker-src blob:; connect-src blob: data:; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Fabric Library Review</title>
+<style>:root{color-scheme:light dark;background:light-dark(rgb(255 255 255), rgb(24 24 24))}html,body{margin:0}body{box-sizing:border-box;padding:1rem;background:inherit}iframe{display:block;width:100%;height:calc(100vh - 2rem);margin:0 auto;border:0}</style>
+
+</head>
+<body>
+<iframe id="codex-visualization" sandbox="allow-scripts" referrerpolicy="no-referrer" title="Fabric Library Review" data-srcdoc="&lt;!doctype html&gt;
+&lt;html lang=&quot;en&quot; data-visualize-standalone&gt;
+&lt;head&gt;
+&lt;meta charset=&quot;utf-8&quot;&gt;
+&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;
+&lt;meta name=&quot;referrer&quot; content=&quot;no-referrer&quot;&gt;
+&lt;meta http-equiv=&quot;Content-Security-Policy&quot; content=&quot;default-src &#x27;none&#x27;; script-src &#x27;unsafe-inline&#x27; &#x27;unsafe-eval&#x27; &#x27;wasm-unsafe-eval&#x27; blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; style-src &#x27;unsafe-inline&#x27; blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; img-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; font-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; media-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; worker-src blob:; connect-src blob: data:; frame-src &#x27;none&#x27;; object-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;&quot;&gt;
+&lt;title&gt;Fabric Library Review&lt;/title&gt;
+&lt;style&gt;:root {
+  color-scheme: light dark;
+  background-color: var(
+    --background,
+    var(--color-background-primary, light-dark(rgb(255 255 255), rgb(24 24 24)))
+  ) !important;
+
+  /* Agent-facing contract; keep in sync with SKILL.md. */
+  --background: var(
+    --color-background-primary,
+    light-dark(rgb(255 255 255), rgb(24 24 24))
+  );
+  --foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --card: color-mix(in oklab, var(--foreground) 5%, var(--background));
+  --card-foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --popover: var(
+    --color-background-secondary,
+    light-dark(rgb(255 255 255), rgb(45 45 45))
+  );
+  --popover-foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --primary: var(
+    --color-text-info,
+    light-dark(rgb(51 156 255), rgb(131 195 255))
+  );
+  --primary-foreground: var(
+    --color-text-inverse,
+    light-dark(rgb(255 255 255), rgb(13 13 13))
+  );
+  --secondary: var(
+    --color-background-secondary,
+    light-dark(rgb(255 255 255 / 96%), rgb(54 54 54 / 96%))
+  );
+  --secondary-foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --muted: color-mix(in srgb, var(--foreground) 10%, transparent);
+  --muted-foreground: var(
+    --color-text-secondary,
+    light-dark(rgb(26 28 31 / 49.4%), rgb(255 255 255 / 49.8%))
+  );
+  --accent: var(
+    --color-background-info,
+    light-dark(rgb(229 242 255), rgb(13 39 63))
+  );
+  --accent-foreground: var(
+    --color-text-info,
+    light-dark(rgb(51 156 255), rgb(131 195 255))
+  );
+  --destructive: var(
+    --color-text-warning,
+    light-dark(rgb(226 85 7), rgb(255 133 73))
+  );
+  --border: var(
+    --color-border-secondary,
+    light-dark(rgb(26 28 31 / 8%), rgb(255 255 255 / 8.2%))
+  );
+  --input: var(
+    --color-border-primary,
+    light-dark(
+      rgb(26 28 31 / 11.8%),
+      color-mix(in oklab, rgb(0 0 0) 10%, transparent)
+    )
+  );
+  --ring: var(
+    --color-ring-primary,
+    light-dark(rgb(51 156 255), rgb(131 195 255 / 76%))
+  );
+  --font-size-base: var(--font-text-md-size, 16px);
+  --blue: light-dark(rgb(51 156 255), rgb(51 156 255));
+  --orange: light-dark(rgb(226 85 7), rgb(251 106 34));
+  --green: light-dark(rgb(0 162 64), rgb(64 201 119));
+  --red: light-dark(rgb(224 46 42), rgb(255 103 100));
+  --purple: light-dark(rgb(146 79 247), rgb(173 123 249));
+  --yellow: light-dark(rgb(255 195 0), rgb(255 210 64));
+  --viz-series-1: var(--primary);
+  --viz-series-2: light-dark(rgb(243 136 59), rgb(245 154 86));
+  --viz-series-3: light-dark(rgb(93 201 119), rgb(116 213 139));
+  --viz-series-4: light-dark(rgb(235 119 177), rgb(240 143 192));
+  --viz-series-5: light-dark(rgb(155 121 236), rgb(170 145 239));
+  --viz-series-6: light-dark(rgb(58 185 177), rgb(90 203 194));
+
+  /* Internal implementation variables; not part of the agent contract. */
+  --font-sans:
+    -apple-system-body, ui-sans-serif, -apple-system, system-ui, &quot;Segoe UI&quot;,
+    Helvetica, &quot;Apple Color Emoji&quot;, Arial, sans-serif, &quot;Segoe UI Emoji&quot;,
+    &quot;Segoe UI Symbol&quot;;
+  --font-mono:
+    ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, &quot;Liberation Mono&quot;,
+    monospace;
+  --font-size-normal: max(11px, var(--font-size-base));
+  --font-size-tooltip: calc(var(--font-size-base) - 1px);
+  --font-size-small: max(11px, calc(var(--font-size-base) - 2px));
+  --font-size-h1: calc(var(--font-size-normal) * 1.7142857143);
+  --font-size-h2: calc(var(--font-size-normal) * 1.4285714286);
+  --font-size-h3: calc(var(--font-size-normal) * 1.2857142857);
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --icon-size: 16px;
+  --line-height-normal: calc(var(--font-size-normal) * 1.5);
+  --line-height-tooltip: calc(var(--font-size-tooltip) * 1.4285714286);
+  --line-height-small: calc(var(--font-size-small) + 4px);
+  --corner-shape: round;
+  --radius: var(--border-radius-lg, 8px);
+  --radius-sm: calc(var(--radius) * 0.5);
+  --radius-md: calc(var(--radius) * 0.75);
+  --radius-lg: var(--radius);
+  --radius-2xl: calc(var(--radius) * 2);
+  --radius-full: 9999px;
+  --shadow-sm: 0 1px 2px -1px rgb(0 0 0 / 8%);
+  --checkmark-image: url(&quot;data:image/svg+xml,%3Csvg xmlns=&#x27;http://www.w3.org/2000/svg&#x27; viewBox=&#x27;0 0 17 17&#x27;%3E%3Cpath d=&#x27;M12.8961 3.64101C13.1297 3.41418 13.4984 3.37523 13.7779 3.56581C14.0571 3.75635 14.1554 4.11331 14.0299 4.41347L13.9615 4.53847L7.71151 13.7045C7.59411 13.8767 7.4063 13.9877 7.19881 14.0072C6.99136 14.0267 6.78564 13.9533 6.63826 13.806L2.88826 10.056L2.79842 9.9457C2.6192 9.67407 2.64927 9.30496 2.88826 9.06581C3.12738 8.82669 3.49647 8.79676 3.76815 8.97597L3.8785 9.06581L7.03084 12.2182L12.8053 3.74941L12.8961 3.64101Z&#x27;/%3E%3C/svg%3E&quot;);
+
+  /* Legacy aliases; not part of the current agent contract. */
+  --viz-bg: transparent;
+  --viz-panel: var(--card);
+  --viz-border: var(--border);
+  --viz-text: var(--foreground);
+  --viz-muted: var(--muted-foreground);
+  --viz-accent: var(--primary);
+  --viz-accent-text: var(--primary-foreground);
+  --viz-accent-bg: var(--accent);
+  --viz-font-size: var(--font-size-base);
+  --viz-warning: var(--destructive);
+}
+
+:root[data-theme=&quot;light&quot;] {
+  color-scheme: light;
+}
+
+:root[data-theme=&quot;dark&quot;] {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html &gt; body {
+  /* Preserve MCP aliases for older inline renderers without creating :root cycles. */
+  --color-background-primary: var(
+    --background,
+    light-dark(rgb(255 255 255), rgb(24 24 24))
+  );
+  --color-text-primary: var(
+    --foreground,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --color-border-secondary: var(
+    --border,
+    light-dark(rgb(26 28 31 / 8%), rgb(255 255 255 / 8.2%))
+  );
+
+  margin: 0;
+  padding: var(--visualize-paint-gutter, 0px);
+  color: var(--foreground);
+  background: transparent !important;
+  font-family: var(--font-sans) !important;
+  -webkit-font-smoothing: antialiased;
+  font-size: var(--font-size-base);
+  line-height: calc(var(--font-size-base) * 1.625);
+  font-weight: var(--font-weight-normal);
+}
+
+.cursor-interaction {
+  cursor: var(--cursor-interaction, pointer);
+}
+
+a {
+  color: color-mix(in srgb, var(--viz-accent) 80%, var(--viz-text) 20%);
+  cursor: var(--cursor-interaction, pointer);
+  text-decoration: none;
+  text-underline-offset: 2px;
+  font-weight: inherit;
+}
+
+a:is(:hover, :focus-visible) {
+  text-decoration-line: underline;
+  text-decoration-style: dashed;
+  text-decoration-thickness: 0.5px;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p {
+  margin-block: 0;
+}
+p,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+li,
+.table {
+  font-family: var(--font-sans);
+}
+
+h1 {
+  font-size: calc(var(--font-size-base) * 1.5);
+  line-height: 1.3333333333;
+}
+
+h2 {
+  font-size: calc(var(--font-size-base) * 1.25);
+  line-height: 1.4;
+}
+h3 {
+  font-size: calc(var(--font-size-base) * 1.125);
+  line-height: 1.5555555556;
+}
+h4 {
+  font-size: var(--font-size-base);
+  line-height: 1.5;
+}
+h5,
+h6 {
+  font-size: var(--font-size-base);
+  line-height: calc(var(--font-size-base) * 1.625);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+b,
+strong,
+th {
+  font-weight: 600;
+}
+
+code:not(pre code) {
+  display: inline;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  corner-shape: var(--corner-shape);
+  background: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  overflow-wrap: anywhere;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  word-break: break-word;
+}
+pre,
+pre code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.table {
+  width: 100%;
+  color: var(--foreground);
+  font: inherit;
+  text-align: start;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: calc(var(--font-size-base) * 0.875);
+  line-height: calc(var(--font-size-base) * 1.625);
+  font-family: var(--font-sans);
+}
+
+.table :is(th, td) {
+  padding-block: 10px;
+  padding-inline: 0 24px;
+  overflow-wrap: anywhere;
+  border-bottom: 1px solid var(--border);
+  text-align: start;
+  vertical-align: top;
+  border-bottom-color: color-mix(in srgb, var(--foreground) 5%, transparent);
+}
+.table :is(th, td):not(:last-child) {
+  padding-inline-end: calc(var(--font-size-base) * 1.5);
+}
+
+.table-responsive &gt; .table :is(th, td) {
+  overflow-wrap: break-word;
+}
+
+.table :is(th, td):last-child {
+  padding-inline-end: 0;
+}
+
+.table :is(caption, thead th) {
+  font-weight: 600;
+}
+
+.table thead :is(th, td) {
+  border-bottom-color: var(--border-strong, var(--input));
+  padding-block: calc(var(--font-size-base) / 2);
+  line-height: var(--font-size-base);
+}
+
+.table tbody tr:last-child :is(th, td) {
+  border-bottom: 0;
+}
+.table tbody :is(th, td) {
+  padding-block: calc(var(--font-size-base) * 0.625);
+}
+
+.table.table-sm :is(th, td) {
+  padding-block: 8px;
+}
+
+.table.table-sm :is(th, td):not(:last-child) {
+  padding-inline-end: 16px;
+}
+
+.table :is(.text-end, [align=&quot;right&quot;]) {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.table :is(.text-center, [align=&quot;center&quot;]) {
+  text-align: center;
+}
+
+.table .text-nowrap {
+  white-space: nowrap;
+}
+
+#widget {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  background: transparent !important;
+}
+
+.card {
+  min-width: 0;
+  padding: 12px;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  border-radius: var(--radius-2xl);
+  corner-shape: var(--corner-shape);
+  color: var(--card-foreground);
+  background: var(--card);
+}
+
+.widget {
+  min-width: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-lg);
+  corner-shape: var(--corner-shape);
+  box-shadow: 0 0 0 0.5px var(--border-strong, var(--border));
+  color: var(--foreground);
+  background: var(--background);
+}
+
+#widget &gt; :not(.card, .widget, .progress) {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.tooltip {
+  position: fixed;
+  z-index: 50;
+  top: 0;
+  left: 0;
+  width: max-content;
+  max-width: min(
+    20rem,
+    var(--tooltip-available-width, calc(100vw - 10px)),
+    calc(100vw - 10px)
+  );
+  max-height: min(
+    var(--tooltip-available-height, calc(100vh - 10px)),
+    calc(100vh - 10px)
+  );
+  border: 1px solid var(--border);
+  corner-shape: var(--corner-shape);
+  overflow-wrap: break-word;
+  white-space: normal;
+  pointer-events: none;
+  user-select: none;
+  font-family: var(--font-sans);
+  padding: 5px 12px;
+  border-color: color-mix(
+    in oklab,
+    light-dark(var(--primary-foreground), var(--foreground)) 5%,
+    transparent
+  );
+  border-radius: var(--radius-2xl);
+  color: light-dark(var(--primary-foreground), var(--foreground));
+  background: light-dark(var(--foreground), var(--popover));
+  box-shadow: 0 8px 18px rgb(15 23 42 / 20%);
+  letter-spacing: -0.15px;
+  font-size: calc(var(--font-size-base) * 14 / 16);
+  font-size: round(nearest, calc(var(--font-size-base) * 14 / 16), 1px);
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+}
+
+.viz-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(max(180px, 24%), 1fr));
+  gap: 10px;
+}
+
+.viz-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.viz-stat-value {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+.viz-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+hr {
+  width: 100%;
+  height: 1px;
+  margin-block: 6px;
+  border: 0;
+  background: var(--border);
+}
+
+.nav {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+.progress {
+  display: flex;
+  height: 8px;
+  margin-block: calc((var(--line-height-normal, 1.5em) - 8px) / 2);
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--muted);
+}
+
+.progress-bar:only-child {
+  border-radius: var(--radius-full);
+}
+
+.progress-bar {
+  height: 100%;
+  flex-shrink: 0;
+  border: 0;
+  background: var(--viz-series-1);
+}
+
+.viz-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  color: color-mix(in srgb, var(--foreground) 40%, var(--muted-foreground));
+  background: color-mix(in srgb, var(--foreground) 5%, transparent);
+  font-family: var(--font-sans);
+  font-size: calc(var(--font-size-base) * 14 / 16);
+  font-size: round(nearest, calc(var(--font-size-base) * 14 / 16), 1px);
+  font-weight: var(--font-weight-normal);
+  line-height: 1;
+}
+
+small,
+.text-small {
+  font-size: var(--font-size-small);
+  line-height: var(--line-height-small);
+}
+
+.text-muted {
+  color: var(--muted-foreground);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.viz-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.viz-controls &gt; .form-label {
+  display: grid;
+  min-width: min(100%, 260px);
+  flex: 1 1 280px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 2px 12px;
+  margin-bottom: 0;
+}
+
+.viz-controls &gt; .form-label &gt; :is(.form-control, .form-range, .form-select) {
+  grid-column: 1 / -1;
+}
+
+.btn,
+.nav-link,
+.form-check-input,
+.form-control,
+.form-range,
+.form-select {
+  font: inherit;
+}
+
+/* Match inline alignment without overriding a containing flex or grid layout. */
+.btn,
+.nav-link,
+.form-control,
+.form-select,
+.form-range,
+.form-check {
+  vertical-align: middle;
+}
+
+.btn,
+.nav-link {
+  appearance: button;
+  display: inline-flex;
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0 8px;
+  -webkit-app-region: no-drag;
+  border: 1px solid var(--input);
+  corner-shape: var(--corner-shape);
+  cursor: var(--cursor-interaction, pointer);
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-font-smoothing: inherit;
+  font-family: var(--font-sans);
+  height: fit-content;
+  min-height: calc(12px + 2 * var(--control-spacing, 12px));
+  padding-inline: var(--control-spacing, 12px);
+  border-color: transparent;
+  border-radius: var(--radius-full);
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 5%, transparent);
+  font-size: calc(var(--font-size-base) * 14 / 16);
+  font-size: round(nearest, calc(var(--font-size-base) * 14 / 16), 1px);
+  font-weight: var(--font-weight-normal);
+  line-height: 18px;
+}
+
+.btn {
+  border-color: var(--border);
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+}
+
+.btn:is(.btn-block, .viz-tile) {
+  inline-size: 100%;
+}
+
+.btn.viz-tile {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+a.btn {
+  cursor: var(--cursor-interaction, pointer);
+  text-decoration: none;
+}
+
+.btn:not(:disabled):hover {
+  background: light-dark(
+    color-mix(in srgb, var(--foreground) 5.5%, transparent),
+    color-mix(in srgb, var(--foreground) 8%, transparent)
+  );
+}
+
+.nav-link:not(:disabled):not([aria-disabled=&quot;true&quot;]):hover {
+  background: color-mix(in srgb, var(--foreground) 10%, transparent);
+}
+
+.btn-primary {
+  border-color: var(--border);
+  color: var(--primary-foreground);
+  background: var(--foreground);
+  background-clip: border-box;
+}
+
+.btn-primary .text-muted {
+  color: color-mix(in srgb, var(--primary-foreground) 50%, transparent);
+}
+
+.btn-primary:not(:disabled):hover {
+  background: color-mix(in srgb, var(--foreground) 80%, transparent);
+  background-clip: border-box;
+}
+
+.btn-ghost {
+  border-color: transparent;
+  color: var(--muted-foreground);
+  background: transparent;
+}
+
+.btn-ghost:not(:disabled):hover {
+  color: var(--muted-foreground);
+  background: light-dark(
+    color-mix(in srgb, var(--foreground) 5.5%, transparent),
+    color-mix(in srgb, var(--foreground) 8%, transparent)
+  );
+}
+
+.nav-pills .nav-link {
+  min-width: 0;
+  border-color: transparent;
+  color: var(--muted-foreground);
+  background: transparent;
+}
+
+.nav-justified .nav-link {
+  flex: 1 1 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.nav-pills .nav-link.active {
+  color: var(--foreground);
+  background: var(--muted);
+}
+
+/* Shared preview chrome; product styles stay inside each variant. */
+.viz-dotted-background {
+  background-image: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--foreground) 14%, transparent) 0.8px,
+    transparent 0.8px
+  );
+  background-position: center;
+  background-size: 16px 16px;
+}
+
+.viz-carousel {
+  position: relative;
+  min-width: 0;
+}
+
+.viz-carousel:has(&gt; .viz-carousel-controls) {
+  min-height: calc(60px + var(--viz-carousel-picker-height, 0px));
+  padding-bottom: 60px;
+}
+
+.viz-carousel &gt; [data-variant][hidden] {
+  display: none !important;
+}
+
+.viz-carousel &gt; [data-variant] {
+  isolation: isolate;
+}
+
+.viz-carousel-controls {
+  --viz-carousel-hover: light-dark(
+    color-mix(in srgb, var(--foreground) 5.4%, transparent),
+    color-mix(in srgb, var(--foreground) 7.8%, transparent)
+  );
+  position: absolute;
+  z-index: 2;
+  bottom: 8px;
+  left: 50%;
+  display: flex;
+  width: max-content;
+  /* Leave room for the host&#x27;s design-controls launcher at the trailing edge. */
+  max-width: calc(100% - 96px);
+  align-items: center;
+  gap: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  color: var(--foreground);
+  background: var(--background);
+  font-family: var(--font-sans);
+  /* Match the settings dropdown chrome independently of the content font size. */
+  font-size: 13px;
+  font-weight: var(--font-weight-normal);
+  line-height: 18px;
+  transform: translateX(-50%);
+  user-select: none;
+}
+
+/* Keep authored mockup button styles out of the shared carousel chrome. */
+.viz-carousel-controls button,
+.viz-carousel-picker &gt; summary {
+  display: flex !important;
+  height: auto !important;
+  min-height: 30px;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 4px;
+  padding: 0 6px !important;
+  -webkit-app-region: no-drag;
+  border: 0 !important;
+  border-radius: 14px !important;
+  color: inherit !important;
+  background: transparent !important;
+  font: inherit !important;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.viz-carousel-controls &gt; button,
+.viz-carousel-picker &gt; summary {
+  position: relative;
+  isolation: isolate;
+}
+
+.viz-carousel-controls &gt; button {
+  --icon-size: 16px;
+  width: 30px !important;
+  padding: 0 !important;
+}
+
+.viz-carousel-picker &gt; summary {
+  padding-inline: 12px !important;
+}
+
+.viz-carousel-controls .viz-carousel-caret {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  margin: 0;
+  color: inherit;
+  transform: rotate(180deg);
+}
+
+.viz-carousel-controls &gt; button &gt; svg,
+.viz-carousel-controls .viz-carousel-caret,
+.viz-carousel-count {
+  opacity: 0.5;
+}
+
+.viz-carousel-controls &gt; button::before,
+.viz-carousel-picker &gt; summary::before {
+  position: absolute;
+  z-index: -1;
+  inset: 3px;
+  border-radius: 12px;
+  content: &quot;&quot;;
+  pointer-events: none;
+}
+
+.viz-carousel-controls &gt; button:hover::before,
+.viz-carousel-picker &gt; summary:hover::before {
+  background: var(--viz-carousel-hover);
+}
+
+.viz-carousel-controls &gt; button,
+.viz-carousel-controls [data-lucide],
+.viz-carousel-controls .lucide {
+  flex-shrink: 0;
+}
+
+.viz-carousel-picker {
+  min-width: 0;
+}
+
+.viz-carousel-picker &gt; summary {
+  min-width: 0;
+  list-style: none;
+}
+
+.viz-carousel-picker &gt; summary::-webkit-details-marker {
+  display: none;
+}
+
+.viz-carousel-count {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.viz-carousel-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.viz-carousel-options {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 4px);
+  left: 0;
+  display: flex;
+  max-height: 240px;
+  flex-direction: column;
+  gap: 2px;
+  overflow: auto;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--background);
+  box-shadow: 0 4px 12px light-dark(rgb(0 0 0 / 6%), rgb(0 0 0 / 25%));
+}
+
+.viz-carousel-options &gt; button {
+  border-radius: max(0px, calc(var(--radius-lg) - 5px)) !important;
+  width: 100% !important;
+  min-height: 28px;
+  justify-content: flex-start !important;
+  padding: 4px 8px !important;
+  font-size: var(--font-size-small) !important;
+  text-align: start;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.viz-carousel-options &gt; [aria-current=&quot;true&quot;],
+.viz-carousel-options &gt; button:hover {
+  background: var(--viz-carousel-hover) !important;
+}
+
+.btn:disabled,
+.nav-link:disabled,
+.nav-link[aria-disabled=&quot;true&quot;] {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+[data-lucide] {
+  stroke-width: 1.6;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--foreground);
+}
+
+.form-control {
+  display: block;
+  width: 100%;
+  padding: 0 8px;
+  outline: none;
+  border: 1px solid var(--input);
+  corner-shape: var(--corner-shape);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  height: calc(12px + 2 * var(--control-spacing, 12px));
+  min-height: calc(12px + 2 * var(--control-spacing, 12px));
+  padding-inline: calc(4px + var(--control-spacing, 12px) / 2);
+  border-color: var(--input);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--popover) 96%, transparent);
+  font-size: calc(var(--font-size-base) * 14 / 16);
+  font-size: round(nearest, calc(var(--font-size-base) * 14 / 16), 1px);
+  font-weight: var(--font-weight-normal);
+  line-height: 1.4285714286;
+}
+.form-control:is(
+  [type=&quot;file&quot;],
+  [type=&quot;date&quot;],
+  [type=&quot;datetime-local&quot;],
+  [type=&quot;month&quot;],
+  [type=&quot;week&quot;],
+  [type=&quot;color&quot;]
+) {
+  height: calc(12px + 2 * var(--control-spacing, 12px));
+  min-height: calc(12px + 2 * var(--control-spacing, 12px));
+  line-height: 18px;
+}
+.form-control:is(
+  [type=&quot;date&quot;],
+  [type=&quot;datetime-local&quot;],
+  [type=&quot;month&quot;],
+  [type=&quot;week&quot;]
+) {
+  padding-inline: var(--control-spacing, 12px);
+}
+
+.form-control::placeholder {
+  color: var(--muted-foreground);
+}
+
+.form-control[type=&quot;file&quot;] {
+  overflow: hidden;
+  cursor: var(--cursor-interaction, pointer);
+  padding: 0;
+}
+
+.form-control[type=&quot;file&quot;]::file-selector-button {
+  padding: 0 8px;
+  border: 0;
+  border-right: 1px solid var(--input);
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+  cursor: inherit;
+  font: inherit;
+  min-height: calc(10px + 2 * var(--control-spacing, 12px));
+  padding-inline: var(--control-spacing, 12px);
+  margin-inline-end: var(--control-spacing, 12px);
+}
+
+.form-control[type=&quot;file&quot;]:not(:disabled):hover::file-selector-button {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.form-control-color[type=&quot;color&quot;] {
+  width: 40px;
+  height: calc(12px + 2 * var(--control-spacing, 12px));
+  padding: 3px;
+  cursor: var(--cursor-interaction, pointer);
+}
+
+.form-control-color[type=&quot;color&quot;]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.form-control-color[type=&quot;color&quot;]::-webkit-color-swatch {
+  border: 0;
+  border-radius: calc(var(--radius-lg) - 4px);
+  corner-shape: var(--corner-shape);
+}
+
+textarea.form-control {
+  height: auto;
+  resize: vertical;
+  min-height: 96px;
+  padding: 8px 10px;
+}
+
+.form-control:focus-visible {
+  border-color: var(--ring);
+  box-shadow: none;
+}
+.form-control:disabled {
+  color: var(--muted-foreground);
+  background: color-mix(in srgb, var(--foreground) 5%, transparent);
+  opacity: 1;
+}
+.form-control[aria-invalid=&quot;true&quot;] {
+  border-color: var(--red);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--red) 20%, transparent);
+}
+
+.form-control:disabled,
+.form-select:disabled {
+  cursor: not-allowed;
+}
+
+.form-select {
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: fit-content;
+  min-height: calc(12px + 2 * var(--control-spacing, 12px));
+  margin: 0;
+  /* The secondary icon role is 14px at compact density and 16px at web density. */
+  --icon-size: calc(10px + var(--control-spacing, 12px) / 2);
+  /* Settings dropdowns retain a 12px inset and a 4px text-to-chevron gap. */
+  padding: 0 calc(16px + var(--icon-size)) 0 12px;
+  outline: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  corner-shape: var(--corner-shape);
+  color: var(--foreground);
+  background-color: var(--secondary);
+  background-image:
+    linear-gradient(
+      45deg,
+      transparent calc(50% - 0.6px),
+      var(--muted-foreground) calc(50% - 0.6px) calc(50% + 0.6px),
+      transparent calc(50% + 0.6px)
+    ),
+    linear-gradient(
+      135deg,
+      transparent calc(50% - 0.6px),
+      var(--muted-foreground) calc(50% - 0.6px) calc(50% + 0.6px),
+      transparent calc(50% + 0.6px)
+    );
+  background-position:
+    calc(100% - 12px - var(--icon-size) / 2) 50%,
+    calc(100% - 12px - var(--icon-size) * 0.18) 50%;
+  background-repeat: no-repeat;
+  background-size: calc(var(--icon-size) * 0.32) calc(var(--icon-size) * 0.32);
+  cursor: var(--cursor-interaction, default);
+  font-size: calc(var(--font-size-base) * 14 / 16);
+  font-size: round(nearest, calc(var(--font-size-base) * 14 / 16), 1px);
+  font-weight: var(--font-weight-normal);
+  line-height: 18px;
+}
+
+.form-select option {
+  color: var(--popover-foreground);
+  background-color: var(--popover);
+}
+
+.form-select:not(:disabled):hover {
+  background-color: light-dark(
+    color-mix(in srgb, var(--foreground) 5.5%, transparent),
+    color-mix(in srgb, var(--foreground) 8%, transparent)
+  );
+}
+
+.form-select:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+.form-select:disabled {
+  opacity: 0.4;
+}
+
+.form-check {
+  display: flex;
+  min-height: calc(12px + 2 * var(--control-spacing, 12px));
+  align-items: center;
+  gap: 6px;
+}
+
+.form-check-input {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  margin: 0;
+  border: 1px solid var(--input);
+  color: var(--primary-foreground);
+  background-color: transparent;
+  cursor: var(--cursor-interaction, default);
+  transition:
+    background-color 150ms,
+    border-color 150ms,
+    box-shadow 150ms;
+}
+
+.form-check:not(.form-switch) .form-check-input[type=&quot;checkbox&quot;] {
+  corner-shape: round;
+  box-shadow: var(--shadow-sm);
+  position: relative;
+  width: calc(10px + var(--control-spacing, 12px) / 2);
+  height: calc(10px + var(--control-spacing, 12px) / 2);
+  border-color: var(--border-strong, var(--input));
+  border-radius: calc(var(--radius-sm) / 2);
+  background-color: transparent;
+  color: var(--foreground);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input:not(:disabled):not(:checked):hover {
+  background-color: var(--card);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input[type=&quot;checkbox&quot;]:is(:checked, :indeterminate) {
+  border-color: var(--border-strong, var(--input));
+  background-color: color-mix(in srgb, var(--popover) 96%, transparent);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input[type=&quot;checkbox&quot;]:checked::before {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--primary-foreground);
+  content: &quot;&quot;;
+  mask: var(--checkmark-image) center / 12px 12px no-repeat;
+  background-color: var(--foreground);
+}
+.form-check:not(.form-switch)
+  .form-check-input[type=&quot;checkbox&quot;]:indeterminate::before {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 65%;
+  height: 6.65%;
+  margin: auto;
+  border-radius: var(--radius-full);
+  background: var(--foreground);
+  mask: none;
+  content: &quot;&quot;;
+}
+
+.form-check-input[type=&quot;radio&quot;] {
+  border-radius: var(--radius-full);
+  width: 16px;
+  height: 16px;
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--input);
+}
+
+.form-check-input[type=&quot;radio&quot;]:checked {
+  border: 0;
+  background: radial-gradient(
+    circle,
+    var(--primary-foreground) 0 3px,
+    var(--foreground) 3px
+  );
+  box-shadow: none;
+}
+
+.form-check:not(.form-switch) .form-check-input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.form-check:not(.form-switch) .form-check-input[type=&quot;checkbox&quot;]:focus-visible {
+  border-color: var(--ring);
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.form-check:not(.form-switch) .form-check-input:disabled {
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.form-check:not(.form-switch) .form-check-input:disabled + .form-check-label {
+  cursor: not-allowed;
+}
+.form-check:not(.form-switch) .form-check-input[type=&quot;radio&quot;]:disabled,
+.form-check:not(.form-switch)
+  .form-check-input[type=&quot;radio&quot;]:disabled
+  + .form-check-label {
+  opacity: 0.5;
+}
+
+.form-switch .form-check-input:disabled,
+.form-switch .form-check-input:disabled + .form-check-label {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.form-check-label {
+  color: var(--foreground);
+  cursor: var(--cursor-interaction, default);
+}
+
+.form-switch .form-check-input {
+  position: relative;
+  width: 32px;
+  height: 20px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--muted);
+  box-shadow: none;
+  transition: background-color 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.form-switch .form-check-input::before {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border: 1px solid light-dark(var(--primary-foreground), var(--foreground));
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-sm);
+  content: &quot;&quot;;
+  transform: translate(2px, -50%);
+  transition: transform 200ms cubic-bezier(0, 0, 0.2, 1);
+  border-color: #fff;
+  background: #fff;
+}
+
+.form-switch .form-check-input:checked {
+  background: var(--blue);
+}
+
+.form-switch .form-check-input:checked::before {
+  transform: translate(14px, -50%);
+}
+
+.form-switch .form-check-input:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+  outline: none;
+}
+
+.form-range {
+  appearance: none;
+  display: block;
+  width: 100%;
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  accent-color: var(--primary);
+  height: calc(12px + 2 * var(--control-spacing, 12px));
+  min-height: calc(12px + 2 * var(--control-spacing, 12px));
+  outline: none;
+  border-radius: var(--radius-full);
+  color: var(--foreground);
+  background: transparent;
+}
+
+.form-range::-webkit-slider-runnable-track {
+  background: var(--form-range-track, var(--border));
+  height: 2px;
+  border-radius: var(--radius-full);
+}
+
+.form-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  margin-top: -9px;
+  border-color: transparent;
+  background: currentColor;
+  box-shadow: var(--shadow-sm);
+}
+
+/* Outline the native track and thumb, preserving the larger input hit area. */
+.form-range:focus-visible::-webkit-slider-runnable-track {
+  outline: 2px auto Highlight;
+  outline-color: -webkit-focus-ring-color;
+}
+
+.form-range::-moz-range-track {
+  background: var(--form-range-track, var(--border));
+  height: 2px;
+  border-radius: var(--radius-full);
+}
+
+.form-range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  border-color: transparent;
+  background: currentColor;
+  box-shadow: var(--shadow-sm);
+}
+
+.form-range:focus-visible::-moz-range-thumb {
+  outline: 2px solid Highlight;
+  outline-offset: 2px;
+}
+
+.form-range:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
+.btn:not(.btn-primary, .viz-tile):is(
+  [aria-pressed=&quot;true&quot;],
+  [aria-selected=&quot;true&quot;],
+  .is-selected
+) {
+  border-color: transparent;
+  color: var(--primary-foreground);
+  background: var(--blue);
+}
+
+.btn.viz-tile:is([aria-pressed=&quot;true&quot;], [aria-selected=&quot;true&quot;], .is-selected) {
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+
+.btn:focus-visible,
+.nav-link:focus-visible {
+  outline-offset: 2px;
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.viz-carousel-controls :is(button, summary):focus-visible {
+  outline: 2px solid var(--ring) !important;
+  outline-offset: 2px !important;
+}
+
+/* Web recipes are the default, including on renderers without inline style queries. */
+@supports (border-radius: if(style(--corner-shape: round): 1px; else: 2px)) {
+  /* Match the host&#x27;s proportional text-sm scale at every text preference. */
+  .tooltip,
+  .viz-badge,
+  .btn,
+  .nav-link,
+  .form-control,
+  .form-select {
+    font-size: if(
+      style(--corner-shape: round): round(
+          nearest,
+          calc(var(--font-size-base) * 14 / 16),
+          1px
+        );
+        else: round(nearest, calc(var(--font-size-base) * 13 / 14), 1px)
+    );
+  }
+
+  .btn,
+  .nav-link,
+  .form-select {
+    border-radius: if(
+      style(--corner-shape: round): var(--radius-full); else: var(--radius-lg)
+    );
+  }
+
+  .form-check:not(.form-switch) .form-check-input[type=&quot;checkbox&quot;] {
+    border-radius: if(
+      style(--corner-shape: round): calc(var(--radius-sm) / 2);
+        else: calc(var(--radius-lg) * 0.4)
+    );
+  }
+
+  .tooltip {
+    font-weight: if(
+      style(--corner-shape: round): 600; else: var(--font-weight-normal)
+    );
+  }
+}
+
+@media (pointer: coarse) {
+  .viz-carousel:has(&gt; .viz-carousel-controls) {
+    min-height: calc(76px + var(--viz-carousel-picker-height, 0px));
+    padding-bottom: 76px;
+  }
+
+  .btn,
+  .nav-link,
+  .viz-carousel-controls button,
+  .viz-carousel-picker &gt; summary,
+  .form-control,
+  .form-select {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Keep small-screen WebKit from zooming when a text field receives focus. */
+  .form-control,
+  .form-select {
+    font-size: max(16px, calc(var(--font-size-base) * 14 / 16));
+    font-size: max(
+      16px,
+      round(nearest, calc(var(--font-size-base) * 14 / 16), 1px)
+    );
+  }
+  .form-control:is(
+    [type=&quot;file&quot;],
+    [type=&quot;date&quot;],
+    [type=&quot;datetime-local&quot;],
+    [type=&quot;month&quot;],
+    [type=&quot;week&quot;],
+    [type=&quot;time&quot;],
+    [type=&quot;color&quot;]
+  ) {
+    height: 44px;
+    min-height: 44px;
+    font-size: max(16px, calc(var(--font-size-base) * 14 / 16));
+    font-size: max(
+      16px,
+      round(nearest, calc(var(--font-size-base) * 14 / 16), 1px)
+    );
+  }
+
+  .form-control[type=&quot;file&quot;]::file-selector-button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .form-control-color[type=&quot;color&quot;] {
+    width: 44px;
+    height: 44px;
+  }
+
+  .form-control:is(
+    [type=&quot;date&quot;],
+    [type=&quot;datetime-local&quot;],
+    [type=&quot;month&quot;],
+    [type=&quot;time&quot;],
+    [type=&quot;week&quot;]
+  ) {
+    min-width: 0;
+    max-width: 100%;
+    padding-block: 8px;
+  }
+
+  .form-check {
+    min-height: 44px;
+    padding-inline: 15px;
+  }
+
+  .form-check-input {
+    position: relative;
+  }
+
+  .form-check-input::after {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    content: &quot;&quot;;
+    transform: translate(-50%, -50%);
+  }
+
+  .form-check-label {
+    display: inline-flex;
+    min-width: 44px;
+    min-height: 44px;
+    align-items: center;
+  }
+
+  .form-range {
+    height: 44px;
+    touch-action: pan-y;
+  }
+}
+
+svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+#widget &gt; svg {
+  width: 100%;
+}
+
+/* Model-authored chart rules can otherwise stretch icons after these styles load. */
+svg.lucide {
+  display: block;
+  width: var(--icon-size) !important;
+  height: var(--icon-size) !important;
+  flex: none;
+  margin: 0 !important;
+  stroke-width: 1.6;
+}
+
+.text-warning,
+.text-destructive {
+  color: var(--destructive);
+}
+
+html&gt;body{padding:0}&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;script type=&quot;application/json&quot; id=&quot;codex-visualization-widget-state&quot;&gt;__CODEX_VISUALIZATION_WIDGET_STATE__&lt;/script&gt;
+&lt;script&gt;(() =&gt; {
+  const root = document.documentElement;
+  const mediaQuery = globalThis.matchMedia(&quot;(prefers-color-scheme: dark)&quot;);
+  const apply = Reflect.apply;
+  const isArray = Array.isArray;
+  const hasOwn = Object.hasOwn;
+  const parentWindow = globalThis.parent;
+  const stringify = JSON.stringify;
+  const parse = JSON.parse;
+  const encode = TextEncoder.prototype.encode.bind(new TextEncoder());
+  const initialStateElement = document.getElementById(
+    &quot;codex-visualization-widget-state&quot;,
+  );
+  const initialGlobals = parse(initialStateElement?.textContent ?? &quot;{}&quot;);
+  initialStateElement?.remove();
+  /** @type {Record&lt;string, unknown&gt; | null} */
+  let state = initialGlobals.widgetState ?? null;
+  const statePersistence = initialGlobals.statePersistence ?? &quot;none&quot;;
+  let nextStateRequestId = 0;
+  /** @type {Map&lt;number, { resolve: () =&gt; void; reject: (error: Error) =&gt; void; timeout: ReturnType&lt;typeof globalThis.setTimeout&gt;; serializedState: string }&gt;} */
+  const pendingStateWrites = new Map();
+  const persistenceError = () =&gt;
+    Object.assign(
+      new Error(&quot;The host could not persist the widget state update&quot;),
+      {
+        code: -32000,
+        data: { code: &quot;widget_state_persistence_failed&quot;, retryable: false },
+      },
+    );
+  /**
+   * @param {object} prototype
+   * @param {string} property
+   */
+  const getPrototypeGetter = (prototype, property) =&gt; {
+    // oxlint-disable-next-line typescript/unbound-method -- invoked through captured Reflect.apply
+    const getter = Object.getOwnPropertyDescriptor(prototype, property)?.get;
+    if (getter == null) {
+      throw new Error(`Missing ${property} getter`);
+    }
+    return getter;
+  };
+  const getMessageData = getPrototypeGetter(MessageEvent.prototype, &quot;data&quot;);
+  const getMessagePorts = getPrototypeGetter(MessageEvent.prototype, &quot;ports&quot;);
+  const getMessageSource = getPrototypeGetter(MessageEvent.prototype, &quot;source&quot;);
+  // oxlint-disable-next-line typescript/unbound-method -- captured before the untrusted fragment runs
+  const addHostMessageListener = MessagePort.prototype.addEventListener;
+  // oxlint-disable-next-line typescript/unbound-method -- captured before the untrusted fragment runs
+  const postHostMessage = MessagePort.prototype.postMessage;
+  // oxlint-disable-next-line typescript/unbound-method -- captured before the untrusted fragment runs
+  const startHostPort = MessagePort.prototype.start;
+  // oxlint-disable-next-line typescript/unbound-method -- captured before the untrusted fragment runs
+  const stopMessagePropagation = Event.prototype.stopImmediatePropagation;
+  /** @type {MessagePort | null} */
+  let hostPort = null;
+  const postToHost = (type, payload) =&gt; {
+    if (hostPort != null) {
+      apply(postHostMessage, hostPort, [{ type, ...payload }]);
+    }
+  };
+  const openExternal = ({ href }) =&gt; {
+    if (globalThis.navigator.userActivation?.isActive === true) {
+      postToHost(&quot;open-external&quot;, { href });
+    }
+  };
+  const sendFollowUpMessage = ({ context, prompt, title }) =&gt; {
+    if (globalThis.navigator.userActivation?.isActive === true) {
+      postToHost(&quot;follow-up&quot;, { context, prompt, title });
+    }
+    return Promise.resolve();
+  };
+  /**
+   * @param {Record&lt;string, unknown&gt; | ((previous: Record&lt;string, unknown&gt; | null) =&gt; Record&lt;string, unknown&gt;)} next
+   * @returns {Promise&lt;void&gt;}
+   */
+  const setWidgetState = async (next) =&gt; {
+    const nextState = typeof next === &quot;function&quot; ? next(state) : next;
+    if (
+      nextState == null ||
+      typeof nextState !== &quot;object&quot; ||
+      isArray(nextState)
+    ) {
+      throw new TypeError(&quot;Widget state must be a JSON object&quot;);
+    }
+    const inputState = stringify(
+      nextState,
+      (_key, /** @type {unknown} */ value) =&gt; {
+        if (
+          typeof value === &quot;undefined&quot; ||
+          typeof value === &quot;function&quot; ||
+          typeof value === &quot;symbol&quot; ||
+          (typeof value === &quot;number&quot; &amp;&amp; !Number.isFinite(value))
+        ) {
+          throw new TypeError(&quot;Widget state must be a JSON object&quot;);
+        }
+        return value;
+      },
+    );
+    const parsedState = parse(inputState);
+    if (
+      parsedState == null ||
+      typeof parsedState !== &quot;object&quot; ||
+      isArray(parsedState)
+    ) {
+      throw new TypeError(&quot;Widget state must be a JSON object&quot;);
+    }
+    const storedState = {
+      modelContent: null,
+      privateContent: null,
+      ...parsedState,
+    };
+    const serializedState = stringify(storedState);
+    if (encode(serializedState).length &gt; 16 * 1024) {
+      throw new TypeError(
+        &quot;Widget state must be a JSON object of at most 16 KiB&quot;,
+      );
+    }
+    if (
+      hasOwn(storedState, &quot;imageIds&quot;) &amp;&amp;
+      (!isArray(storedState.imageIds) ||
+        storedState.imageIds.some(
+          (/** @type {unknown} */ id) =&gt; typeof id !== &quot;string&quot;,
+        ))
+    ) {
+      throw new TypeError(&quot;Widget state imageIds must be an array of strings&quot;);
+    }
+    if (storedState.imageIds?.length &gt; 0) {
+      throw Object.assign(
+        new TypeError(&quot;Visualization state does not support image attachments&quot;),
+        { code: -32602, data: { code: &quot;images_unsupported&quot; } },
+      );
+    }
+    state = storedState;
+    globalThis.openai.widgetState = state;
+    globalThis.dispatchEvent(
+      new CustomEvent(&quot;openai:set_globals&quot;, {
+        detail: { globals: { widgetState: state } },
+      }),
+    );
+    if (statePersistence === &quot;none&quot;) {
+      throw persistenceError();
+    }
+    const id = ++nextStateRequestId;
+    return new Promise((resolve, reject) =&gt; {
+      const timeout = globalThis.setTimeout(() =&gt; {
+        pendingStateWrites.delete(id);
+        reject(persistenceError());
+      }, 30_000);
+      pendingStateWrites.set(id, { resolve, reject, timeout, serializedState });
+      postToHost(&quot;widget-state-write&quot;, { id, state: serializedState });
+    });
+  };
+  const syncTheme = () =&gt; {
+    const theme = mediaQuery.matches ? &quot;dark&quot; : &quot;light&quot;;
+    root.dataset.theme = theme;
+    globalThis.openai = {
+      ...globalThis.openai,
+      openExternal,
+      sendFollowUpMessage,
+      setWidgetState,
+      theme,
+      visualizationStyleVariables: {},
+      visualizationTheme: theme,
+      widgetState: state,
+      statePersistence,
+      stateModelContext: &quot;none&quot;,
+    };
+    globalThis.dispatchEvent(
+      new CustomEvent(&quot;openai:set_globals&quot;, {
+        detail: { globals: globalThis.openai },
+      }),
+    );
+  };
+  const sendHeight = () =&gt; {
+    postToHost(&quot;height&quot;, {
+      height: Math.ceil(
+        Math.max(
+          document.body.scrollHeight,
+          document.body.getBoundingClientRect().height,
+        ),
+      ),
+    });
+  };
+
+  globalThis.addEventListener(
+    &quot;message&quot;,
+    (event) =&gt; {
+      const data = apply(getMessageData, event, []);
+      const ports = apply(getMessagePorts, event, []);
+      const source = apply(getMessageSource, event, []);
+      if (
+        hostPort != null ||
+        source !== parentWindow ||
+        typeof data !== &quot;object&quot; ||
+        data?.type !== &quot;codex-visualization-initialize&quot; ||
+        !isArray(ports) ||
+        ports.length !== 1
+      ) {
+        return;
+      }
+      apply(stopMessagePropagation, event, []);
+      const nextHostPort = ports[0];
+      try {
+        apply(addHostMessageListener, nextHostPort, [
+          &quot;message&quot;,
+          (event) =&gt; {
+            const data = apply(getMessageData, event, []);
+            if (typeof data === &quot;object&quot; &amp;&amp; data?.type === &quot;measure&quot;) {
+              sendHeight();
+            } else if (
+              typeof data === &quot;object&quot; &amp;&amp;
+              data?.type === &quot;widget-state-result&quot;
+            ) {
+              /** @type {unknown} */
+              const id = data.id;
+              if (typeof id !== &quot;number&quot;) {
+                return;
+              }
+              const pending = pendingStateWrites.get(id);
+              if (pending != null) {
+                pendingStateWrites.delete(id);
+                globalThis.clearTimeout(pending.timeout);
+                if (data.ok === true) {
+                  pending.resolve();
+                } else {
+                  pending.reject(persistenceError());
+                }
+              }
+            }
+          },
+        ]);
+        apply(startHostPort, nextHostPort, []);
+      } catch {
+        return;
+      }
+      hostPort = nextHostPort;
+      for (const [id, { serializedState }] of pendingStateWrites) {
+        postToHost(&quot;widget-state-write&quot;, { id, state: serializedState });
+      }
+      sendHeight();
+    },
+    { capture: true },
+  );
+  document.currentScript?.remove();
+  mediaQuery.addEventListener(&quot;change&quot;, syncTheme);
+  globalThis.addEventListener(&quot;click&quot;, (event) =&gt; {
+    if (event.defaultPrevented) {
+      return;
+    }
+    let element = null;
+    if (event.target instanceof globalThis.Element) {
+      element = event.target;
+    } else if (event.target instanceof globalThis.Node) {
+      element = event.target.parentElement;
+    }
+    const link = element?.closest(&quot;a[href]&quot;);
+    const href = link?.getAttribute(&quot;href&quot;);
+    if (href == null) {
+      return;
+    }
+    if (href.startsWith(&quot;#&quot;)) {
+      let id;
+      try {
+        id = decodeURIComponent(href.slice(1));
+      } catch {
+        return;
+      }
+      const target = id.length === 0 ? root : document.getElementById(id);
+      if (
+        target == null ||
+        globalThis.navigator.userActivation?.isActive !== true
+      ) {
+        return;
+      }
+      event.preventDefault();
+      postToHost(&quot;scroll-to&quot;, {
+        top: target.getBoundingClientRect().top + globalThis.scrollY,
+      });
+      return;
+    }
+    event.preventDefault();
+    openExternal({ href });
+  });
+  new ResizeObserver(sendHeight).observe(document.body);
+  syncTheme();
+})();
+&lt;/script&gt;
+&lt;div id=&quot;fabric-library-review&quot;&gt;
+  &lt;style&gt;
+    #fabric-library-review{position:relative;color-scheme:light dark;--fl-bg:light-dark(#f8fafc,#151b25);--fl-panel:light-dark(#fff,#202836);--fl-text:light-dark(#1e293b,#e4eaf3);--fl-muted:light-dark(#64748b,#a7b5c8);--fl-line:light-dark(#e2e8f0,#3a4659);--fl-accent:light-dark(#2563eb,#8babff);--fl-tint:light-dark(#eff6ff,#263956);--fl-error:light-dark(#b91c1c,#fca5a5);font:13px/1.5 system-ui,&quot;Microsoft YaHei&quot;,sans-serif;color:var(--fl-text);background:var(--fl-bg);padding:16px;box-sizing:border-box}
+    #fabric-library-review *{box-sizing:border-box}
+    #fabric-library-review h2{font-size:20px;line-height:1.4;font-weight:600;margin:0}
+    #fabric-library-review h3{font-size:14px;line-height:1.5;font-weight:600;margin:0}
+    #fabric-library-review .fl-btn{font:inherit;background:var(--fl-panel);color:var(--fl-text);border:1px solid var(--fl-line);border-radius:4px;padding:5px 10px;white-space:nowrap;cursor:var(--cursor-interaction,pointer)}
+    #fabric-library-review .fl-btn-primary{background:var(--fl-accent);border-color:var(--fl-accent);color:light-dark(#fff,#142348)}
+    #fabric-library-review .fl-btn-quiet{color:var(--fl-accent);background:transparent;border-color:transparent}
+    #fabric-library-review .fl-btn[aria-pressed=true]{color:var(--fl-accent);background:var(--fl-tint);border-color:var(--fl-accent)}
+    #fabric-library-review .fl-btn:disabled{opacity:.45;cursor:default}
+    #fabric-library-review button:focus-visible,#fabric-library-review input:focus-visible,#fabric-library-review select:focus-visible{outline:2px solid var(--fl-accent);outline-offset:2px}
+    #fabric-library-review .fl-input,#fabric-library-review .fl-select{display:block;width:100%;min-width:0;font:inherit;padding:6px 8px;border:1px solid var(--fl-line);border-radius:4px;background:var(--fl-panel);color:var(--fl-text)}
+    #fabric-library-review .fl-input[readonly],#fabric-library-review .fl-input:disabled,#fabric-library-review .fl-select:disabled{background:var(--fl-bg);color:var(--fl-muted)}
+    #fabric-library-review .fl-label{display:flex;flex-direction:column;gap:4px;margin:0}
+    #fabric-library-review .fl-check{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+    #fabric-library-review .fl-check-input{accent-color:var(--fl-accent)}
+    #fabric-library-review .fl-card{background:var(--fl-panel);border:1px solid var(--fl-line);border-radius:6px;padding:14px}
+    #fabric-library-review .fl-badge{display:inline-block;background:var(--fl-bg);color:var(--fl-muted);padding:1px 5px;border-radius:3px;font-size:12px}
+    #fabric-library-review .fl-small{font-size:12px}
+    #fabric-library-review .fl-muted{color:var(--fl-muted)}
+    #fabric-library-review .fl-error{color:var(--fl-error)}
+    #fabric-library-review .fl-numbers{font-variant-numeric:tabular-nums}
+    #fabric-library-review .fl-sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+    #fabric-library-review .fl-table-scroll{overflow-x:auto;background:var(--fl-panel)}
+    #fabric-library-review .fl-data-table{border-collapse:collapse;width:100%;font:inherit}
+    #fabric-library-review th,#fabric-library-review td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--fl-line);vertical-align:middle}
+    #fabric-library-review th{font-weight:500;color:var(--fl-muted);background:var(--fl-bg);white-space:nowrap}
+    #fabric-library-review #fl-overlay{position:absolute;top:76px;left:16px;right:16px;z-index:20;background:var(--fl-panel);box-shadow:0 12px 60px light-dark(#33415533,#0008);max-width:680px;margin:auto}
+    #fabric-library-review #fl-message:not(:empty){padding:8px 0}
+    @media(pointer:coarse){#fabric-library-review .fl-btn{min-height:44px}#fabric-library-review .fl-input,#fabric-library-review .fl-select{font-size:16px}}
+
+    #fabric-library-review .fl-shell{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:8px 0 16px;margin-right:90px}
+    #fabric-library-review .fl-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+    #fabric-library-review .fl-between{justify-content:space-between;margin:12px 0}
+    #fabric-library-review .fl-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+    #fabric-library-review .fl-images{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:16px}
+    #fabric-library-review .fl-field{display:flex;flex-direction:column;gap:6px;min-width:0}
+    #fabric-library-review .fl-summary{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 12px;margin:12px 0}
+    #fabric-library-review .fl-summary dt{color:var(--fl-muted)}
+    #fabric-library-review .fl-summary dd{margin:0;overflow-wrap:anywhere}
+    #fabric-library-review .fl-fill{flex:1;min-width:200px}
+    #fabric-library-review .fl-nowrap{white-space:nowrap}
+    #fabric-library-review .fl-thumb{display:block;width:64px;height:56px;object-fit:contain}
+    #fabric-library-review .fl-empty{min-height:56px;display:flex;align-items:center;justify-content:center;color:var(--fl-muted)}
+    #fabric-library-review .fl-image{position:relative;margin:12px 0}
+    #fabric-library-review .fl-image img{width:100%;height:120px;object-fit:contain}
+    #fabric-library-review .fl-image-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+    #fabric-library-review .fl-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+    #fabric-library-review .fl-pagination{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin:16px 0}
+    #fabric-library-review .fl-tags{display:flex;gap:4px;flex-wrap:wrap}
+    #fabric-library-review .fl-toolbar{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin:16px 0}
+    #fabric-library-review .fl-caption{margin:8px 0}
+    #fabric-library-review .fl-lightbox img{display:block;max-width:100%;max-height:480px;margin:auto;object-fit:contain}
+    #fabric-library-review .fl-lightbox img[hidden]{display:none}
+    #fabric-library-review .fl-table{min-width:1100px}
+    #fabric-library-review .fl-fabric-table{min-width:970px}
+    #fabric-library-review .fl-edit-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:12px 0}
+    @media(max-width:740px){#fabric-library-review .fl-grid,#fabric-library-review .fl-images{grid-template-columns:1fr}#fabric-library-review .fl-edit-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(max-width:420px){#fabric-library-review .fl-edit-fields{grid-template-columns:1fr}}
+    #fabric-library-review .fl-pattern-missing{display:flex;align-items:center;justify-content:center;width:64px;min-height:48px;text-align:center;background:var(--fl-bg)}
+    #fabric-library-review #fl-overlay.fl-gallery-open{max-width:1080px}
+    #fabric-library-review .fl-gallery{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+    #fabric-library-review .fl-gallery-images{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,130px),1fr));gap:10px;margin-top:10px}
+    #fabric-library-review .fl-gallery figure{margin:0;min-width:0}
+    #fabric-library-review .fl-gallery img{display:block;width:100%;height:160px;object-fit:contain;background:var(--fl-bg)}
+    #fabric-library-review .fl-gallery figcaption{overflow-wrap:anywhere}
+    @media(max-width:740px){#fabric-library-review .fl-gallery{grid-template-columns:1fr}}
+
+    #fabric-library-review .fl-compact-selectors{gap:12px}
+    #fabric-library-review .fl-association-summary{display:flex;align-items:center;gap:8px 16px;flex-wrap:wrap;margin:8px 0;overflow-wrap:anywhere}
+    #fabric-library-review .fl-product-fields{margin:12px 0}
+    #fabric-library-review .fl-image-tabs{display:flex;flex-wrap:wrap;gap:6px;border-bottom:1px solid var(--fl-line);padding:6px 0}
+    #fabric-library-review .fl-image-tabs [aria-selected=true]{color:var(--fl-accent);background:var(--fl-tint);border-color:var(--fl-accent)}
+    #fabric-library-review .fl-product-image-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,240px),1fr));gap:10px}
+    #fabric-library-review .fl-product-image-grid .fl-image{margin:0;min-width:0}
+    #fabric-library-review .fl-product-image-grid .fl-image&gt;button{width:100%}
+    #fabric-library-review [role=tabpanel][hidden]{display:none}
+
+    #fabric-library-review .fl-import-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));gap:10px;margin:12px 0}
+    #fabric-library-review .fl-import-mapping{padding:8px 0;border-bottom:1px solid var(--fl-line)}
+    #fabric-library-review .fl-import-table{min-width:1000px}
+    #fabric-library-review .fl-import-table td{padding:7px 8px}
+  #fabric-library-review #fl-overlay.fl-picker-open{max-width:1080px}
+    #fabric-library-review .fl-picker-table{min-width:860px}
+    #fabric-library-review .fl-doc-table{min-width:1100px}
+    #fabric-library-review .fl-doc-table .fl-input{min-width:85px}
+    #fabric-library-review .fl-doc-table [data-doc-fact=&quot;itemNo&quot;]{min-width:145px}
+    #fabric-library-review .fl-master-row,#fabric-library-review .fl-master-head{display:grid;grid-template-columns:140px minmax(0,1fr) 72px;gap:12px;align-items:center;padding:10px 8px;border-bottom:1px solid var(--fl-line);background:var(--fl-panel)}
+    #fabric-library-review .fl-master-head{background:var(--fl-bg);color:var(--fl-muted)}
+    #fabric-library-review .fl-pattern-strip{display:flex;flex-wrap:wrap;gap:8px}
+    #fabric-library-review .fl-variant-tile{display:flex;flex-direction:column;align-items:center;gap:3px;width:88px}
+    #fabric-library-review .fl-pattern-editor-table{min-width:920px}
+    #fabric-library-review .fl-pattern-editor-table input[type=file]{max-width:130px}
+    @media(max-width:600px){#fabric-library-review .fl-master-row{grid-template-columns:minmax(0,1fr) 72px}#fabric-library-review .fl-master-row&gt;.fl-pattern-strip{grid-column:1 / 3;grid-row:2}#fabric-library-review .fl-master-head{display:none}}
+    #fabric-library-review .fl-remark-cell{min-width:130px;max-width:180px}
+    #fabric-library-review .fl-remark-text{display:block;max-width:160px;overflow:hidden;text-overflow:ellipsis;text-align:left;padding:0;white-space:nowrap}
+    #fabric-library-review .fl-remark-full{white-space:pre-wrap;overflow-wrap:anywhere}
+  &lt;/style&gt;
+  &lt;header class=&quot;fl-shell&quot;&gt;
+    &lt;strong&gt;Fabric&lt;/strong&gt;
+    &lt;nav class=&quot;fl-row&quot; aria-label=&quot;资料库&quot;&gt;&lt;button type=&quot;button&quot; class=&quot;fl-btn&quot; data-action=&quot;nav&quot; data-view=&quot;pattern&quot;&gt;花型库&lt;/button&gt;
+      &lt;button type=&quot;button&quot; class=&quot;fl-btn&quot; data-action=&quot;nav&quot; data-view=&quot;fabric&quot;&gt;面料库&lt;/button&gt;
+      &lt;button type=&quot;button&quot; class=&quot;fl-btn&quot; data-action=&quot;nav&quot; data-view=&quot;product&quot;&gt;产品库&lt;/button&gt;
+    &lt;/nav&gt;
+    &lt;button type=&quot;button&quot; class=&quot;fl-btn&quot; data-action=&quot;nav&quot; data-view=&quot;document&quot;&gt;开单评审&lt;/button&gt;&lt;span class=&quot;fl-small fl-muted&quot;&gt;交互评审 · 示例数据&lt;/span&gt;
+    &lt;label class=&quot;fl-label&quot;&gt;权限预览
+      &lt;select class=&quot;fl-select&quot; id=&quot;fl-role&quot;&gt;&lt;option value=&quot;admin&quot;&gt;管理员&lt;/option&gt;&lt;option value=&quot;sales_read&quot;&gt;业务员：只读&lt;/option&gt;&lt;option value=&quot;sales_manage&quot;&gt;业务员：已授权管理三库&lt;/option&gt;&lt;/select&gt;
+    &lt;/label&gt;
+  &lt;/header&gt;
+  &lt;div id=&quot;fl-message&quot; aria-live=&quot;polite&quot;&gt;&lt;/div&gt;
+  &lt;main id=&quot;fl-main&quot;&gt;&lt;/main&gt;
+  &lt;div id=&quot;fl-overlay&quot; hidden&gt;&lt;/div&gt;
+&lt;/div&gt;
+&lt;script&gt;
+(()=&gt;{
+  const root=document.getElementById(&#x27;fabric-library-review&#x27;),main=root.querySelector(&#x27;#fl-main&#x27;),message=root.querySelector(&#x27;#fl-message&#x27;),overlay=root.querySelector(&#x27;#fl-overlay&#x27;);
+  const esc=x=&gt;String(x??&#x27;&#x27;).replace(/[&amp;&lt;&gt;&quot;&#x27;]/g,c=&gt;({&#x27;&amp;&#x27;:&#x27;&amp;amp;&#x27;,&#x27;&lt;&#x27;:&#x27;&amp;lt;&#x27;,&#x27;&gt;&#x27;:&#x27;&amp;gt;&#x27;,&#x27;&quot;&#x27;:&#x27;&amp;quot;&#x27;,&quot;&#x27;&quot;:&#x27;&amp;#39;&#x27;}[c]));
+  const copy=x=&gt;JSON.parse(JSON.stringify(x));
+  const initialFabrics=[
+    {id:&#x27;f23&#x27;,no:&#x27;S23&#x27;,name:&#x27;示例面料01&#x27;,composition:&#x27;100%涤纶&#x27;,weight:&#x27;120&#x27;,unit:&#x27;gsm&#x27;,width:&#x27;150&#x27;,remark:&#x27;&#x27;,active:true},
+    {id:&#x27;f24&#x27;,no:&#x27;S24&#x27;,name:&#x27;示例面料02&#x27;,composition:&#x27;100%真丝&#x27;,weight:&#x27;16&#x27;,unit:&#x27;mm&#x27;,width:&#x27;140&#x27;,remark:&#x27;&#x27;,active:true},
+    {id:&#x27;f25&#x27;,no:&#x27;S25&#x27;,name:&#x27;示例面料03&#x27;,composition:&#x27;95%涤纶 5%氨纶&#x27;,weight:&#x27;180&#x27;,unit:&#x27;gsm&#x27;,width:&#x27;150&#x27;,remark:&#x27;&#x27;,active:true},
+    {id:&#x27;f26&#x27;,no:&#x27;S26&#x27;,name:&#x27;示例面料04&#x27;,composition:&#x27;&#x27;,weight:&#x27;&#x27;,unit:&#x27;gsm&#x27;,width:&#x27;&#x27;,remark:&#x27;&#x27;,active:true},
+    {id:&#x27;f27&#x27;,no:&#x27;S27&#x27;,name:&#x27;示例面料05&#x27;,composition:&#x27;70%粘胶 30%亚麻&#x27;,weight:&#x27;150&#x27;,unit:&#x27;gsm&#x27;,width:&#x27;145&#x27;,remark:&#x27;&#x27;,active:true},
+    {id:&#x27;f28&#x27;,no:&#x27;S28&#x27;,name:&#x27;示例面料06&#x27;,composition:&#x27;100%棉&#x27;,weight:&#x27;110&#x27;,unit:&#x27;gsm&#x27;,width:&#x27;150&#x27;,remark:&#x27;&#x27;,active:false}
+  ];
+  const patterns=[
+    {id:&#x27;c1&#x27;,no:&#x27;1234-1&#x27;,master:&#x27;1234&#x27;,seq:1,topics:[&#x27;花卉&#x27;,&#x27;植物&#x27;],tags:[&#x27;藏蓝&#x27;,&#x27;米白&#x27;],active:true},
+    {id:&#x27;c2&#x27;,no:&#x27;1234-2&#x27;,master:&#x27;1234&#x27;,seq:2,topics:[&#x27;花卉&#x27;,&#x27;植物&#x27;],tags:[&#x27;米白&#x27;,&#x27;藏蓝&#x27;],active:true},
+    {id:&#x27;c3&#x27;,no:&#x27;5678-1&#x27;,master:&#x27;5678&#x27;,seq:1,topics:[&#x27;几何&#x27;],tags:[&#x27;红色&#x27;],active:true},
+    {id:&#x27;c4&#x27;,no:&#x27;8890-1&#x27;,master:&#x27;8890&#x27;,seq:1,topics:[&#x27;植物&#x27;],tags:[&#x27;橙色&#x27;],active:false},
+    {id:&#x27;c5&#x27;,no:&#x27;1234-3&#x27;,master:&#x27;1234&#x27;,seq:3,topics:[&#x27;花卉&#x27;,&#x27;植物&#x27;],tags:[],active:true},
+    ...[2,3,4].map(seq=&gt;({id:&#x27;c6-&#x27;+seq,no:&#x27;5678-&#x27;+seq,master:&#x27;5678&#x27;,seq,topics:[&#x27;几何&#x27;],tags:[],active:true})),
+    {id:&#x27;c9&#x27;,no:&#x27;8890-2&#x27;,master:&#x27;8890&#x27;,seq:2,topics:[&#x27;植物&#x27;],tags:[],active:true}
+  ];
+  const seedProducts=[[&#x27;c1&#x27;,&#x27;f24&#x27;,true],[&#x27;c2&#x27;,&#x27;f23&#x27;,true],[&#x27;c3&#x27;,&#x27;f25&#x27;,true],[&#x27;c1&#x27;,&#x27;f26&#x27;,true],[&#x27;c2&#x27;,&#x27;f27&#x27;,true],[&#x27;c3&#x27;,&#x27;f23&#x27;,true],[&#x27;c1&#x27;,&#x27;f28&#x27;,true],[&#x27;c2&#x27;,&#x27;f24&#x27;,false],[&#x27;c4&#x27;,&#x27;f23&#x27;,true]]
+    .map((x,i)=&gt;({id:&#x27;p&#x27;+(i+1),patternId:x[0],fabricId:x[1],active:x[2],remark:[&#x27;2026早春主推款&#x27;,&#x27;常规现货供应&#x27;,&#x27;限定胶囊系列&#x27;,&#x27;&#x27;,&#x27;外贸常备品&#x27;][i]||&#x27;&#x27;,images:[[],[],[]],orderRef:i===0}));
+  let state={view:&#x27;product&#x27;,role:&#x27;admin&#x27;,search:&#x27;&#x27;,productNoSearch:&#x27;&#x27;,productNameSearch:&#x27;&#x27;,relatedFabricId:&#x27;&#x27;,inactive:false,topic:&#x27;&#x27;,tag:&#x27;&#x27;,color:&#x27;&#x27;,page:1,fabrics:copy(initialFabrics),products:copy(seedProducts)};
+  const remembered=window.openai?.widgetState?.privateContent;
+  if(remembered?.schema===&#x27;fabric-review-135&#x27;)state={...state,...Object.fromEntries([&#x27;view&#x27;,&#x27;role&#x27;,&#x27;search&#x27;,&#x27;productNoSearch&#x27;,&#x27;productNameSearch&#x27;,&#x27;inactive&#x27;,&#x27;topic&#x27;,&#x27;tag&#x27;,&#x27;color&#x27;,&#x27;page&#x27;].filter(k=&gt;k in remembered).map(k=&gt;[k,remembered[k]]))};
+  let draft=null,fabricDraft=null,dirty=false,selectionQuery={pattern:&#x27;&#x27;,fabric:&#x27;&#x27;},dialog=null,drag=null,activeImageTab=0;
+  const hasDocumentRef=p=&gt;Boolean(p?.orderRef||p?.documentRefs?.length);
+  const canManage=()=&gt;state.role!==&#x27;sales_read&#x27;;
+  const findPattern=id=&gt;patterns.find(x=&gt;x.id===id),findFabric=id=&gt;state.fabrics.find(x=&gt;x.id===id);
+  const number=p=&gt;[findPattern(p.patternId)?.no,findFabric(p.fabricId)?.no].filter(Boolean).join(&#x27;-&#x27;);
+  const usable=p=&gt;p.active&amp;&amp;findPattern(p.patternId)?.active&amp;&amp;findFabric(p.fabricId)?.active;
+  const saveState=()=&gt;{if(window.openai?.setWidgetState)window.openai.setWidgetState({modelContent:{page:state.view,productNoSearch:state.productNoSearch,productNameSearch:state.productNameSearch,search:state.search},privateContent:{schema:&#x27;fabric-review-135&#x27;,view:state.view,role:state.role,search:state.search,productNoSearch:state.productNoSearch,productNameSearch:state.productNameSearch,inactive:state.inactive,topic:state.topic,tag:state.tag,color:state.color,page:state.page}}).catch(()=&gt;{});};
+  const say=(text,error=false)=&gt;{message.className=error?&#x27;fl-error&#x27;:&#x27;fl-small&#x27;;message.setAttribute(&#x27;role&#x27;,error?&#x27;alert&#x27;:&#x27;status&#x27;);message.textContent=text;};
+  const button=(text,action,extra=&#x27;&#x27;,disabled=false,primary=false)=&gt;`&lt;button type=&quot;button&quot; class=&quot;fl-btn ${primary?&#x27;fl-btn-primary&#x27;:&#x27;fl-btn-quiet&#x27;}&quot; data-action=&quot;${action}&quot; ${extra} ${disabled?&#x27;disabled&#x27;:&#x27;&#x27;}&gt;${text}&lt;/button&gt;`;
+  const chips=items=&gt;items.map(t=&gt;`&lt;span class=&quot;fl-badge&quot;&gt;${esc(t)}&lt;/span&gt;`).join(&#x27; &#x27;);
+  const input=(label,name,value,type=&#x27;text&#x27;,extra=&#x27;&#x27;)=&gt;`&lt;label class=&quot;fl-field fl-label&quot;&gt;${label}&lt;input class=&quot;fl-input&quot; name=&quot;${name}&quot; type=&quot;${type}&quot; value=&quot;${esc(value)}&quot; ${extra}&gt;&lt;/label&gt;`;
+  function confirmAction(text,action){dialog=action;overlay.hidden=false;overlay.innerHTML=`&lt;section class=&quot;fl-card&quot; role=&quot;dialog&quot; aria-modal=&quot;true&quot; aria-label=&quot;确认操作&quot;&gt;&lt;p&gt;${esc(text)}&lt;/p&gt;&lt;div class=&quot;fl-row&quot;&gt;${button(&#x27;取消&#x27;,&#x27;cancel-dialog&#x27;)}${button(&#x27;确认&#x27;,&#x27;confirm-dialog&#x27;,&#x27;&#x27;,false,true)}&lt;/div&gt;&lt;/section&gt;`;overlay.querySelector(&#x27;button&#x27;).focus();}
+  function closeDialog(){overlay.classList.remove(&#x27;fl-gallery-open&#x27;,&#x27;fl-picker-open&#x27;);root.style.minHeight=&#x27;&#x27;;main.inert=false;root.querySelector(&#x27;header&#x27;).inert=false;picker=null;overlay.hidden=true;overlay.innerHTML=&#x27;&#x27;;dialog=null;}
+  function leave(next){if(dirty)confirmAction(&#x27;有未保存修改，确认放弃吗？&#x27;,()=&gt;{draft=null;fabricDraft=null;patternDraft=null;dirty=false;next();});else{draft=null;fabricDraft=null;patternDraft=null;next();}}
+  function paginate(rows){const pages=Math.max(1,Math.ceil(rows.length/5));state.page=Math.min(state.page,pages);return {rows:rows.slice((state.page-1)*5,state.page*5),pages,total:rows.length};}
+  function footer(p){return `&lt;div class=&quot;fl-pagination&quot;&gt;&lt;span class=&quot;fl-small&quot;&gt;共 ${p.total} 条记录&lt;/span&gt;&lt;div class=&quot;fl-row&quot;&gt;${button(&#x27;上一页&#x27;,&#x27;page&#x27;,&#x27;data-step=&quot;-1&quot;&#x27;,state.page&lt;=1)}&lt;span class=&quot;fl-numbers&quot;&gt;${state.page} / ${p.pages}&lt;/span&gt;${button(&#x27;下一页&#x27;,&#x27;page&#x27;,&#x27;data-step=&quot;1&quot;&#x27;,state.page&gt;=p.pages)}&lt;/div&gt;&lt;/div&gt;`;}
+  function toolbar(product){return `&lt;div class=&quot;fl-toolbar&quot;&gt;${product?`&lt;label class=&quot;fl-label fl-fill&quot;&gt;货号&lt;input class=&quot;fl-input&quot; id=&quot;fl-search-product-no&quot; value=&quot;${esc(state.productNoSearch)}&quot; placeholder=&quot;请输入货号&quot;&gt;&lt;/label&gt;&lt;label class=&quot;fl-label fl-fill&quot;&gt;品名&lt;input class=&quot;fl-input&quot; id=&quot;fl-search-product-name&quot; value=&quot;${esc(state.productNameSearch)}&quot; placeholder=&quot;请输入品名&quot;&gt;&lt;/label&gt;`:`&lt;label class=&quot;fl-label fl-fill&quot;&gt;&lt;span class=&quot;fl-sr-only&quot;&gt;搜索品号、品名或成分&lt;/span&gt;&lt;input class=&quot;fl-input&quot; id=&quot;fl-search&quot; value=&quot;${esc(state.search)}&quot; placeholder=&quot;搜索品号、品名或成分…&quot;&gt;&lt;/label&gt;`}${product?`&lt;label class=&quot;fl-label&quot;&gt;题材&lt;select class=&quot;fl-select&quot; id=&quot;fl-topic&quot;&gt;&lt;option value=&quot;&quot;&gt;全部&lt;/option&gt;${[&#x27;花卉&#x27;,&#x27;植物&#x27;,&#x27;几何&#x27;].map(v=&gt;`&lt;option ${state.topic===v?&#x27;selected&#x27;:&#x27;&#x27;}&gt;${v}&lt;/option&gt;`).join(&#x27;&#x27;)}&lt;/select&gt;&lt;/label&gt;&lt;label class=&quot;fl-label&quot;&gt;颜色标签&lt;select class=&quot;fl-select&quot; id=&quot;fl-tag&quot;&gt;&lt;option value=&quot;&quot;&gt;全部&lt;/option&gt;${[&#x27;藏蓝&#x27;,&#x27;米白&#x27;,&#x27;红色&#x27;,&#x27;橙色&#x27;].map(v=&gt;`&lt;option ${state.tag===v?&#x27;selected&#x27;:&#x27;&#x27;}&gt;${v}&lt;/option&gt;`).join(&#x27;&#x27;)}&lt;/select&gt;&lt;/label&gt;`:&#x27;&#x27;}&lt;label class=&quot;fl-check&quot;&gt;&lt;input type=&quot;checkbox&quot; class=&quot;fl-check-input&quot; id=&quot;fl-inactive&quot; ${state.inactive?&#x27;checked&#x27;:&#x27;&#x27;}&gt;&lt;span class=&quot;fl-check-label&quot;&gt;包含停用&lt;/span&gt;&lt;/label&gt;&lt;/div&gt;`;}
+  function productList(){
+    const noTerm=state.productNoSearch.trim().toUpperCase(),nameTerm=state.productNameSearch.trim().toUpperCase();
+    const filtered=state.products.filter(p=&gt;{const f=findFabric(p.fabricId),v=findPattern(p.patternId);return (state.inactive||p.active)&amp;&amp;(!state.topic||v.topics.includes(state.topic))&amp;&amp;(!state.tag||v.tags.includes(state.tag))&amp;&amp;(!state.relatedFabricId||p.fabricId===state.relatedFabricId)&amp;&amp;number(p).toUpperCase().includes(noTerm)&amp;&amp;f.name.toUpperCase().includes(nameTerm);});
+    const p=paginate(filtered);
+    main.innerHTML=`&lt;div class=&quot;fl-row fl-between&quot;&gt;&lt;h2&gt;产品库&lt;/h2&gt;${button(&#x27;新增产品&#x27;,&#x27;new-product&#x27;,&#x27;&#x27;,!canManage(),true)}&lt;/div&gt;${toolbar(true)}&lt;div class=&quot;fl-table-scroll&quot;&gt;&lt;table class=&quot;fl-data-table fl-table-sm fl-table&quot;&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;花型图&lt;/th&gt;&lt;th&gt;货号&lt;/th&gt;&lt;th&gt;品名&lt;/th&gt;&lt;th&gt;成分&lt;/th&gt;&lt;th&gt;克重&lt;/th&gt;&lt;th&gt;门幅 / cm&lt;/th&gt;&lt;th&gt;题材&lt;/th&gt;&lt;th&gt;颜色标签&lt;/th&gt;&lt;th&gt;图片数量&lt;/th&gt;&lt;th&gt;备注&lt;/th&gt;&lt;th&gt;启用状态&lt;/th&gt;&lt;th&gt;操作&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;${p.rows.map(x=&gt;{const f=findFabric(x.fabricId),v=findPattern(x.patternId);return `&lt;tr&gt;&lt;td&gt;${v.image?.thumbnailUrl?`&lt;button class=&quot;fl-btn fl-btn-quiet&quot; type=&quot;button&quot; data-action=&quot;preview-pattern&quot; data-id=&quot;${v.id}&quot; aria-label=&quot;查看 ${esc(v.no)} 花型原图&quot;&gt;&lt;img class=&quot;fl-thumb&quot; src=&quot;${esc(v.image.thumbnailUrl)}&quot; alt=&quot;${esc(v.no)} 花型缩略图&quot; loading=&quot;lazy&quot;&gt;&lt;/button&gt;`:&#x27;&lt;span class=&quot;fl-pattern-missing fl-small fl-muted&quot;&gt;待上传&lt;br&gt;花型图&lt;/span&gt;&#x27;}&lt;/td&gt;&lt;td class=&quot;fl-nowrap&quot;&gt;${esc(number(x))}&lt;/td&gt;&lt;td&gt;${esc(f.name)}&lt;/td&gt;&lt;td&gt;${esc(f.composition)||&#x27;—&#x27;}&lt;/td&gt;&lt;td class=&quot;fl-nowrap&quot;&gt;${f.weight?`${esc(f.weight)} ${esc(f.unit)}`:&#x27;—&#x27;}&lt;/td&gt;&lt;td&gt;${esc(f.width)||&#x27;—&#x27;}&lt;/td&gt;&lt;td&gt;${chips(v.topics)}&lt;/td&gt;&lt;td&gt;${chips(v.tags)}&lt;/td&gt;&lt;td class=&quot;fl-small fl-nowrap&quot;&gt;大图 ${x.images[0].length}&lt;br&gt;细节 ${x.images[1].length} · 效果 ${x.images[2].length}&lt;/td&gt;&lt;td class=&quot;fl-remark-cell&quot;&gt;${x.remark?`&lt;button type=&quot;button&quot; class=&quot;fl-btn fl-btn-quiet fl-remark-text&quot; data-action=&quot;product-remark&quot; data-id=&quot;${x.id}&quot; aria-label=&quot;查看产品备注&quot;&gt;${esc(x.remark)}&lt;/button&gt;`:&#x27;—&#x27;}&lt;/td&gt;&lt;td&gt;${x.active?&#x27;已启用&#x27;:&#x27;已停用&#x27;}${x.active&amp;&amp;!usable(x)?&#x27;&lt;div class=&quot;fl-small fl-muted&quot;&gt;关联资料停用&lt;br&gt;不可新开单选用&lt;/div&gt;&#x27;:&#x27;&#x27;}&lt;/td&gt;&lt;td class=&quot;fl-nowrap&quot;&gt;${button(&#x27;产品图&#x27;,&#x27;product-images&#x27;,`data-id=&quot;${x.id}&quot;`)}${button(canManage()?&#x27;编辑&#x27;:&#x27;查看&#x27;,&#x27;edit-product&#x27;,`data-id=&quot;${x.id}&quot;`)}${canManage()?button(&#x27;删除&#x27;,&#x27;delete-product&#x27;,`data-id=&quot;${x.id}&quot; ${hasDocumentRef(x)?&#x27;aria-label=&quot;已开单，可停用&quot;&#x27;:&#x27;&#x27;}`,hasDocumentRef(x)):&#x27;&#x27;}&lt;/td&gt;&lt;/tr&gt;`;}).join(&#x27;&#x27;)||&#x27;&lt;tr&gt;&lt;td colspan=&quot;12&quot;&gt;没有匹配产品&lt;/td&gt;&lt;/tr&gt;&#x27;}&lt;/tbody&gt;&lt;/table&gt;&lt;/div&gt;${footer(p)}`;
+  }
+  function fabricList(){
+    const q=state.search.toUpperCase(),p=paginate(state.fabrics.filter(f=&gt;(state.inactive||f.active)&amp;&amp;`${f.no} ${f.name} ${f.composition}`.toUpperCase().includes(q)));
+    main.innerHTML=`&lt;div class=&quot;fl-row fl-between&quot;&gt;&lt;h2&gt;面料库&lt;/h2&gt;&lt;div class=&quot;fl-row&quot;&gt;${button(&#x27;Excel 导入&#x27;,&#x27;import&#x27;,&#x27;&#x27;,!canManage())}${button(&#x27;新增面料&#x27;,&#x27;new-fabric&#x27;,&#x27;&#x27;,!canManage(),true)}&lt;/div&gt;&lt;/div&gt;${toolbar(false)}&lt;div class=&quot;fl-table-scroll&quot;&gt;&lt;table class=&quot;fl-data-table fl-table-sm fl-fabric-table&quot;&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;品号&lt;/th&gt;&lt;th&gt;品名&lt;/th&gt;&lt;th&gt;成分&lt;/th&gt;&lt;th&gt;克重&lt;/th&gt;&lt;th&gt;门幅 / cm&lt;/th&gt;&lt;th&gt;备注&lt;/th&gt;&lt;th&gt;启用状态&lt;/th&gt;&lt;th&gt;关联产品&lt;/th&gt;&lt;th&gt;操作&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;${p.rows.map(f=&gt;fabricDraft?.id===f.id?fabricEditor():`&lt;tr&gt;&lt;td&gt;${esc(f.no)}&lt;/td&gt;&lt;td&gt;${esc(f.name)}&lt;/td&gt;&lt;td&gt;${esc(f.composition)||&#x27;—&#x27;}&lt;/td&gt;&lt;td class=&quot;fl-nowrap&quot;&gt;${f.weight?`${esc(f.weight)} ${esc(f.unit)}`:&#x27;—&#x27;}&lt;/td&gt;&lt;td&gt;${esc(f.width)||&#x27;—&#x27;}&lt;/td&gt;&lt;td&gt;${esc(f.remark)||&#x27;—&#x27;}&lt;/td&gt;&lt;td&gt;${f.active?&#x27;已启用&#x27;:&#x27;已停用&#x27;}&lt;/td&gt;&lt;td&gt;${button(String(state.products.filter(x=&gt;x.fabricId===f.id).length),&#x27;related&#x27;,`data-id=&quot;${f.id}&quot;`)}&lt;/td&gt;&lt;td class=&quot;fl-nowrap&quot;&gt;${button(&#x27;编辑&#x27;,&#x27;edit-fabric&#x27;,`data-id=&quot;${f.id}&quot;`,!canManage())}&lt;/td&gt;&lt;/tr&gt;`).join(&#x27;&#x27;)}${fabricDraft?.id===&#x27;new&#x27;?fabricEditor():&#x27;&#x27;}&lt;/tbody&gt;&lt;/table&gt;&lt;/div&gt;${footer(p)}`;
+  }
+  function fabricEditor(){
+    const f=fabricDraft,locked=f.id!==&#x27;new&#x27;&amp;&amp;state.products.some(p=&gt;p.fabricId===f.id);
+    const field=(name,value,type=&#x27;text&#x27;,extra=&#x27;&#x27;)=&gt;`&lt;input class=&quot;fl-input&quot; data-fabric=&quot;${name}&quot; aria-label=&quot;${({no:&#x27;品号&#x27;,name:&#x27;品名&#x27;,composition:&#x27;成分&#x27;,weight:&#x27;克重数值&#x27;,width:&#x27;门幅&#x27;,remark:&#x27;备注&#x27;})[name]}&quot; type=&quot;${type}&quot; value=&quot;${esc(value)}&quot; ${extra}&gt;`;
+    return `&lt;tr&gt;&lt;td&gt;${field(&#x27;no&#x27;,f.no,&#x27;text&#x27;,locked?&#x27;readonly&#x27;:&#x27;required&#x27;)}${locked?&#x27;&lt;span class=&quot;fl-small fl-muted&quot;&gt;已引用 · 锁定&lt;/span&gt;&#x27;:&#x27;&#x27;}&lt;/td&gt;&lt;td&gt;${field(&#x27;name&#x27;,f.name,&#x27;text&#x27;,&#x27;required&#x27;)}&lt;/td&gt;&lt;td&gt;${field(&#x27;composition&#x27;,f.composition)}&lt;/td&gt;&lt;td&gt;${field(&#x27;weight&#x27;,f.weight,&#x27;number&#x27;,&#x27;min=&quot;0.01&quot; step=&quot;any&quot;&#x27;)}&lt;select class=&quot;fl-select&quot; data-fabric=&quot;unit&quot; aria-label=&quot;克重单位&quot;&gt;&lt;option ${f.unit===&#x27;gsm&#x27;?&#x27;selected&#x27;:&#x27;&#x27;}&gt;gsm&lt;/option&gt;&lt;option ${f.unit===&#x27;mm&#x27;?&#x27;selected&#x27;:&#x27;&#x27;}&gt;mm&lt;/option&gt;&lt;/select&gt;&lt;/td&gt;&lt;td&gt;${field(&#x27;width&#x27;,f.width,&#x27;number&#x27;,&#x27;min=&quot;0.01&quot; step=&quot;any&quot;&#x27;)}&lt;/td&gt;&lt;td&gt;${field(&#x27;remark&#x27;,f.remark)}&lt;/td&gt;&lt;td&gt;&lt;label class=&quot;fl-check&quot;&gt;&lt;input class=&quot;fl-check-input&quot; type=&quot;checkbox&quot; data-fabric=&quot;active&quot; ${f.active?&#x27;checked&#x27;:&#x27;&#x27;}&gt;&lt;span class=&quot;fl-check-label&quot;&gt;启用&lt;/span&gt;&lt;/label&gt;&lt;/td&gt;&lt;td&gt;${f.id===&#x27;new&#x27;?0:state.products.filter(x=&gt;x.fabricId===f.id).length}&lt;/td&gt;&lt;td&gt;&lt;div class=&quot;fl-actions&quot;&gt;${button(&#x27;保存&#x27;,&#x27;save-fabric&#x27;,&#x27;&#x27;,false,true)}${button(&#x27;取消&#x27;,&#x27;cancel-fabric&#x27;)}&lt;/div&gt;&lt;/td&gt;&lt;/tr&gt;`;
+  }
+  function selector(kind){const isPattern=kind===&#x27;pattern&#x27;,value=isPattern?draft.patternId:draft.fabricId,selected=isPattern?findPattern(value):findFabric(value),lock=hasDocumentRef(draft)||!canManage();const candidates=(isPattern?patterns:state.fabrics).filter(x=&gt;x.active||x.id===value).filter(x=&gt;`${x.no} ${isPattern?x.master:x.name}`.toUpperCase().includes(selectionQuery[kind].toUpperCase()));return `&lt;label class=&quot;fl-field fl-label&quot;&gt;${isPattern?&#x27;花型编号&#x27;:&#x27;面料品号&#x27;} *&lt;input class=&quot;fl-input&quot; data-selector=&quot;${kind}&quot; value=&quot;${esc(selectionQuery[kind])}&quot; placeholder=&quot;搜索${isPattern?&#x27;花型编号或母版编号&#x27;:&#x27;品号或品名&#x27;}&quot; ${lock?&#x27;disabled&#x27;:&#x27;&#x27;}&gt;&lt;select class=&quot;fl-select&quot; name=&quot;${kind}Id&quot; aria-label=&quot;选择${isPattern?&#x27;花型&#x27;:&#x27;面料&#x27;}&quot; ${lock?&#x27;disabled&#x27;:&#x27;&#x27;}&gt;&lt;option value=&quot;&quot;&gt;请选择&lt;/option&gt;${[...new Map([...(selected?[selected]:[]),...candidates].map(x=&gt;[x.id,x])).values()].map(x=&gt;`&lt;option value=&quot;${x.id}&quot; ${value===x.id?&#x27;selected&#x27;:&#x27;&#x27;}&gt;${esc(x.no)}${isPattern?&#x27;&#x27;:&#x27; · &#x27;+esc(x.name)}${x.active?&#x27;&#x27;:&#x27;（已停用）&#x27;}&lt;/option&gt;`).join(&#x27;&#x27;)}&lt;/select&gt;&lt;/label&gt;`;}
+  function productEditor(){
+    const v=findPattern(draft.patternId),f=findFabric(draft.fabricId),locked=hasDocumentRef(draft),names=[&#x27;面料大图&#x27;,&#x27;面料细节图&#x27;,&#x27;效果图&#x27;];
+    const summary=[v?`${v.no} · 配色 ${v.seq} · ${v.topics.join(&#x27;、&#x27;)} · ${v.tags.join(&#x27;、&#x27;)}`:&#x27;&#x27;,f?`${f.name} · ${f.composition||&#x27;成分未填&#x27;} · ${f.weight?f.weight+&#x27; &#x27;+f.unit:&#x27;克重未填&#x27;} · ${f.width?f.width+&#x27; cm&#x27;:&#x27;门幅未填&#x27;}`:&#x27;&#x27;].filter(Boolean);
+    main.innerHTML=`&lt;div class=&quot;fl-row fl-between&quot;&gt;&lt;div class=&quot;fl-row&quot;&gt;${button(&#x27;返回产品库&#x27;,&#x27;close-product&#x27;)}&lt;h2&gt;${draft.id?(canManage()?&#x27;编辑产品&#x27;:&#x27;查看产品&#x27;):&#x27;新增产品&#x27;}&lt;/h2&gt;&lt;/div&gt;&lt;div class=&quot;fl-actions&quot;&gt;${button(&#x27;取消&#x27;,&#x27;close-product&#x27;)}${button(&#x27;保存产品&#x27;,&#x27;save-product&#x27;,&#x27;&#x27;,!canManage(),true)}&lt;/div&gt;&lt;/div&gt;${locked?&#x27;&lt;p class=&quot;fl-small fl-muted&quot;&gt;已开单：花型与面料已锁定，备注、状态和图片仍可维护。&lt;/p&gt;&#x27;:&#x27;&#x27;}&lt;div class=&quot;fl-grid fl-compact-selectors&quot;&gt;${selector(&#x27;pattern&#x27;)}${selector(&#x27;fabric&#x27;)}&lt;/div&gt;${summary.length?`&lt;div class=&quot;fl-association-summary fl-small fl-muted&quot;&gt;${summary.map(x=&gt;`&lt;span&gt;${esc(x)}&lt;/span&gt;`).join(&#x27;&#x27;)}${v?button(&#x27;维护花型&#x27;,&#x27;pattern-maintenance&#x27;):&#x27;&#x27;}${f?button(&#x27;维护面料&#x27;,&#x27;fabric-maintenance&#x27;,`data-id=&quot;${f.id}&quot;`,!canManage()):&#x27;&#x27;}&lt;/div&gt;`:&#x27;&#x27;}&lt;div class=&quot;fl-toolbar fl-product-fields&quot;&gt;&lt;label class=&quot;fl-field fl-label&quot;&gt;货号&lt;input class=&quot;fl-input&quot; id=&quot;fl-product-number&quot; value=&quot;${esc(v&amp;&amp;f?number(draft):&#x27;选择后自动生成&#x27;)}&quot; readonly&gt;&lt;/label&gt;&lt;label class=&quot;fl-field fl-label fl-fill&quot;&gt;备注&lt;input class=&quot;fl-input&quot; name=&quot;productRemark&quot; value=&quot;${esc(draft.remark)}&quot; ${canManage()?&#x27;&#x27;:&#x27;readonly&#x27;}&gt;&lt;/label&gt;&lt;label class=&quot;fl-check&quot;&gt;&lt;input type=&quot;checkbox&quot; class=&quot;fl-check-input&quot; name=&quot;productActive&quot; ${draft.active?&#x27;checked&#x27;:&#x27;&#x27;} ${canManage()?&#x27;&#x27;:&#x27;disabled&#x27;}&gt;&lt;span class=&quot;fl-check-label&quot;&gt;启用&lt;/span&gt;&lt;/label&gt;&lt;/div&gt;${draft.id&amp;&amp;number(draft)!==number(state.products.find(x=&gt;x.id===draft.id))?`&lt;p class=&quot;fl-small&quot;&gt;货号将由 ${esc(number(state.products.find(x=&gt;x.id===draft.id)))} 改为 ${esc(number(draft))}。&lt;/p&gt;`:&#x27;&#x27;}&lt;div class=&quot;fl-image-tabs&quot; role=&quot;tablist&quot; aria-label=&quot;产品图片分类&quot;&gt;${names.map((name,cat)=&gt;`&lt;button type=&quot;button&quot; class=&quot;fl-btn&quot; role=&quot;tab&quot; id=&quot;fl-image-tab-${cat}&quot; aria-controls=&quot;fl-image-panel-${cat}&quot; aria-selected=&quot;${activeImageTab===cat}&quot; data-action=&quot;image-tab&quot; data-cat=&quot;${cat}&quot;&gt;${name} &lt;span class=&quot;fl-small fl-numbers&quot;&gt;${draft.images[cat].length}/10&lt;/span&gt;&lt;/button&gt;`).join(&#x27;&#x27;)}&lt;/div&gt;${names.map((name,cat)=&gt;`&lt;section role=&quot;tabpanel&quot; id=&quot;fl-image-panel-${cat}&quot; aria-labelledby=&quot;fl-image-tab-${cat}&quot; ${activeImageTab===cat?&#x27;&#x27;:&#x27;hidden&#x27;}&gt;&lt;div class=&quot;fl-row fl-between&quot;&gt;&lt;div class=&quot;fl-actions&quot;&gt;${button(&#x27;上传一张&#x27;,&#x27;upload&#x27;,`data-cat=&quot;${cat}&quot;`,!canManage()||draft.images[cat].length&gt;=10)}${button(&#x27;删除所选&#x27;,&#x27;delete-selected&#x27;,`data-cat=&quot;${cat}&quot;`,!canManage())}&lt;/div&gt;&lt;span class=&quot;fl-small fl-muted&quot;&gt;首张为本类主图 · 可拖动排序&lt;/span&gt;&lt;/div&gt;&lt;input type=&quot;file&quot; accept=&quot;image/*&quot; data-file=&quot;${cat}&quot; aria-label=&quot;上传${name}&quot; hidden&gt;&lt;div class=&quot;fl-product-image-grid&quot;&gt;${draft.images[cat].map((img,i)=&gt;`&lt;div class=&quot;fl-image&quot; draggable=&quot;${canManage()}&quot; data-drag-cat=&quot;${cat}&quot; data-index=&quot;${i}&quot;&gt;&lt;button class=&quot;fl-btn fl-btn-quiet&quot; type=&quot;button&quot; data-action=&quot;preview&quot; data-cat=&quot;${cat}&quot; data-index=&quot;${i}&quot;&gt;&lt;img src=&quot;${esc(img.url)}&quot; alt=&quot;${esc(img.name)}&quot;&gt;&lt;/button&gt;&lt;div class=&quot;fl-image-actions&quot;&gt;&lt;label class=&quot;fl-check&quot;&gt;&lt;input class=&quot;fl-check-input&quot; type=&quot;checkbox&quot; data-image-select=&quot;${cat}:${i}&quot; ${canManage()?&#x27;&#x27;:&#x27;disabled&#x27;}&gt;&lt;span class=&quot;fl-check-label&quot;&gt;${i===0?&#x27;主图&#x27;:&#x27;图片 &#x27;+(i+1)}&lt;/span&gt;&lt;/label&gt;${button(&#x27;前移&#x27;,&#x27;image-up&#x27;,`data-cat=&quot;${cat}&quot; data-index=&quot;${i}&quot;`,i===0||!canManage())}${button(&#x27;替换&#x27;,&#x27;replace&#x27;,`data-cat=&quot;${cat}&quot; data-index=&quot;${i}&quot;`,!canManage())}${button(&#x27;删除&#x27;,&#x27;delete-image&#x27;,`data-cat=&quot;${cat}&quot; data-index=&quot;${i}&quot;`,!canManage())}&lt;/div&gt;&lt;/div&gt;`).join(&#x27;&#x27;)||&#x27;&lt;div class=&quot;fl-empty fl-small&quot;&gt;暂无图片&lt;/div&gt;&#x27;}&lt;/div&gt;&lt;/section&gt;`).join(&#x27;&#x27;)}`;
+  }
+  const importFields=[[&#x27;no&#x27;,&#x27;品号&#x27;],[&#x27;name&#x27;,&#x27;品名&#x27;],[&#x27;composition&#x27;,&#x27;成分&#x27;],[&#x27;weight&#x27;,&#x27;克重&#x27;],[&#x27;unit&#x27;,&#x27;克重单位&#x27;],[&#x27;width&#x27;,&#x27;门幅(cm)&#x27;],[&#x27;remark&#x27;,&#x27;备注&#x27;]];
+  const importSample=[
+    {row:2,no:&#x27;S31&#x27;,name:&#x27;面料示例A&#x27;,composition:&#x27;100%棉&#x27;,weight:&#x27;120&#x27;,unit:&#x27;gsm&#x27;,width:&#x27;150&#x27;,remark:&#x27;&#x27;},
+    {row:3,no:&#x27;S32&#x27;,name:&#x27;面料示例B&#x27;,composition:&#x27;&#x27;,weight:&#x27;&#x27;,unit:&#x27;&#x27;,width:&#x27;&#x27;,remark:&#x27;&#x27;},
+    {row:4,no:&#x27;S23&#x27;,name:&#x27;示例面料01&#x27;,composition:&#x27;100%涤纶&#x27;,weight:&#x27;130&#x27;,unit:&#x27;gsm&#x27;,width:&#x27;150&#x27;,remark:&#x27;&#x27;},
+    {row:5,no:&#x27;S24&#x27;,name:&#x27;&#x27;,composition:&#x27;&#x27;,weight:&#x27;18&#x27;,unit:&#x27;mm&#x27;,width:&#x27;&#x27;,remark:&#x27;&#x27;},
+    {row:6,no:&#x27;S33&#x27;,name:&#x27;重复面料A&#x27;,composition:&#x27;&#x27;,weight:&#x27;&#x27;,unit:&#x27;&#x27;,width:&#x27;&#x27;,remark:&#x27;&#x27;},
+    {row:7,no:&#x27; s33 &#x27;,name:&#x27;重复面料B&#x27;,composition:&#x27;&#x27;,weight:&#x27;&#x27;,unit:&#x27;&#x27;,width:&#x27;&#x27;,remark:&#x27;&#x27;},
+    {row:8,no:&#x27;S34&#x27;,name:&#x27;&#x27;,composition:&#x27;&#x27;,weight:&#x27;&#x27;,unit:&#x27;&#x27;,width:&#x27;&#x27;,remark:&#x27;&#x27;},
+    {row:9,no:&#x27;S35&#x27;,name:&#x27;无效克重示例&#x27;,composition:&#x27;&#x27;,weight:&#x27;-1&#x27;,unit:&#x27;gsm&#x27;,width:&#x27;&#x27;,remark:&#x27;&#x27;}
+  ];
+  let importDraft=null;
+  function startImport(){importDraft={rows:copy(importSample),mapping:Object.fromEntries(importFields.map(([k])=&gt;[k,k])),confirmed:true,actions:{},filter:&#x27;&#x27;,diffRow:null,defaultUnit:&#x27;&#x27;,result:null};}
+  function importRows(){
+    const mapped=importDraft.rows.map(raw=&gt;({row:raw.row,...Object.fromEntries(importFields.map(([k])=&gt;[k,String(raw[importDraft.mapping[k]]??&#x27;&#x27;).trim()]))}));
+    const groups=new Map();for(const r of mapped){r.no=r.no.toUpperCase();if(r.no)groups.set(r.no,[...(groups.get(r.no)||[]),r.row]);}
+    return mapped.map(r=&gt;{
+      const original=state.fabrics.find(f=&gt;f.no===r.no),duplicate=groups.get(r.no)||[],mode=original?(state.role===&#x27;admin&#x27;&amp;&amp;importDraft.actions[r.row]===&#x27;update&#x27;?&#x27;update&#x27;:&#x27;skip&#x27;):&#x27;new&#x27;;
+      if(duplicate.length&gt;1)return {r,original,type:&#x27;skip&#x27;,reason:&#x27;文件内重复：行 &#x27;+duplicate.join(&#x27;、&#x27;)};
+      const effective=original?{...original,...Object.fromEntries(Object.entries(r).filter(([k,v])=&gt;k!==&#x27;row&#x27;&amp;&amp;v!==&#x27;&#x27;))}:{...r,active:true};
+      let reason=&#x27;&#x27;;if(!/^[A-Z0-9]+$/.test(r.no))reason=&#x27;品号必填且仅字母数字&#x27;;else if(!effective.name)reason=&#x27;品名必填&#x27;;
+      const aliases={&#x27;gsm&#x27;:&#x27;gsm&#x27;,&#x27;g/m²&#x27;:&#x27;gsm&#x27;,&#x27;克/平方米&#x27;:&#x27;gsm&#x27;,&#x27;mm&#x27;:&#x27;mm&#x27;,&#x27;姆米&#x27;:&#x27;mm&#x27;};
+      let weight=String(effective.weight??&#x27;&#x27;).trim(),unit=String(effective.unit??&#x27;&#x27;).trim().toLowerCase();
+      const embedded=weight.match(/^([+-]?\d+(?:\.\d+)?)\s*(gsm|g\/m²|克\/平方米|mm|姆米)$/i);
+      if(embedded){weight=embedded[1];const detected=aliases[embedded[2].toLowerCase()];if(r.unit&amp;&amp;aliases[r.unit.toLowerCase()]!==detected)reason=reason||&#x27;克重数值与单位列冲突&#x27;;unit=detected;}
+      // 未填单位的非空新克重不能从旧记录静默沿用：必须明确确认文件单位。
+      if(r.weight&amp;&amp;!r.unit&amp;&amp;!embedded)unit=importDraft.defaultUnit;
+      if(weight!==&#x27;&#x27;&amp;&amp;!/^[+]?(?:\d+(?:\.\d+)?|\.\d+)$/.test(weight))reason=reason||&#x27;克重应为正数&#x27;;
+      if(weight!==&#x27;&#x27;&amp;&amp;!(Number(weight)&gt;0))reason=reason||&#x27;克重应为正数&#x27;;
+      if(weight!==&#x27;&#x27;&amp;&amp;!aliases[unit])reason=reason||&#x27;克重单位缺失或无法识别&#x27;;
+      if(r.unit&amp;&amp;!aliases[r.unit.toLowerCase()])reason=reason||&#x27;克重单位无法识别&#x27;;
+      if(effective.width!==&#x27;&#x27;&amp;&amp;!(Number(effective.width)&gt;0))reason=reason||&#x27;门幅应为正数（cm）&#x27;;
+      effective.weight=weight;effective.unit=weight?aliases[unit]||unit:(original?.unit||&#x27;&#x27;);
+      if(reason)return {r,original,effective,type:&#x27;error&#x27;,reason};
+      return {r,original,effective,type:mode,reason:mode===&#x27;skip&#x27;?&#x27;已有品号，默认跳过&#x27;:mode===&#x27;update&#x27;?&#x27;仅非空字段更新，空值保留&#x27;:&#x27;新增面料&#x27;};
+    });
+  }
+  function importPage(){
+    if(!importDraft)startImport();const entries=importRows(),counts=Object.fromEntries([&#x27;new&#x27;,&#x27;update&#x27;,&#x27;skip&#x27;,&#x27;error&#x27;].map(t=&gt;[t,entries.filter(e=&gt;e.type===t).length])),labels={new:&#x27;新增&#x27;,update:&#x27;更新&#x27;,skip:&#x27;跳过&#x27;,error:&#x27;失败&#x27;},ready=canManage()&amp;&amp;importDraft.confirmed&amp;&amp;importDraft.mapping.no&amp;&amp;importDraft.mapping.name&amp;&amp;(counts.new+counts.update)&gt;0;
+    main.innerHTML=`&lt;div class=&quot;fl-row fl-between&quot;&gt;&lt;div class=&quot;fl-row&quot;&gt;${button(&#x27;返回面料库&#x27;,&#x27;close-import&#x27;)}&lt;h2&gt;面料 Excel 导入&lt;/h2&gt;&lt;/div&gt;&lt;div class=&quot;fl-actions&quot;&gt;${button(&#x27;模板字段&#x27;,&#x27;import-template&#x27;)}${button(&#x27;重新加载示例&#x27;,&#x27;reload-import&#x27;)}&lt;/div&gt;&lt;/div&gt;&lt;div class=&quot;fl-row fl-between fl-small fl-muted&quot;&gt;&lt;span&gt;选择文件 → 确认字段 → ${importDraft.result?&#x27;导入结果&#x27;:&#x27;预览导入&#x27;}&lt;/span&gt;&lt;span&gt;示例预览 · 不读取真实文件&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;fl-row fl-between&quot;&gt;&lt;span&gt;面料导入示例.xlsx · 面料资料 · 表头第 1 行&lt;/span&gt;&lt;/div&gt;${importDraft.result?`&lt;div class=&quot;fl-row fl-between&quot; role=&quot;status&quot;&gt;&lt;strong&gt;示例导入完成&lt;/strong&gt;&lt;span&gt;${Object.entries(labels).map(([k,v])=&gt;v+&#x27; &#x27;+importDraft.result[k]).join(&#x27; · &#x27;)}&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;fl-table-scroll&quot;&gt;&lt;table class=&quot;fl-data-table&quot;&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;Excel行&lt;/th&gt;&lt;th&gt;品号&lt;/th&gt;&lt;th&gt;结果&lt;/th&gt;&lt;th&gt;说明&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;${importDraft.result.entries.map(x=&gt;`&lt;tr&gt;&lt;td&gt;${x.r.row}&lt;/td&gt;&lt;td&gt;${esc(x.r.no)||&#x27;—&#x27;}&lt;/td&gt;&lt;td&gt;${labels[x.type]}&lt;/td&gt;&lt;td&gt;${esc(x.reason)}&lt;/td&gt;&lt;/tr&gt;`).join(&#x27;&#x27;)}&lt;/tbody&gt;&lt;/table&gt;&lt;/div&gt;${button(&#x27;返回面料库&#x27;,&#x27;close-import&#x27;)}`:`&lt;details class=&quot;fl-import-mapping&quot; ${importDraft.confirmed?&#x27;&#x27;:&#x27;open&#x27;}&gt;&lt;summary&gt;字段与单位 · ${importDraft.confirmed?&#x27;已确认&#x27;:&#x27;待确认&#x27;}&lt;/summary&gt;&lt;div class=&quot;fl-import-fields&quot;&gt;${importFields.map(([k,label])=&gt;`&lt;label class=&quot;fl-label&quot;&gt;${label}${[&#x27;no&#x27;,&#x27;name&#x27;].includes(k)?&#x27; *&#x27;:&#x27;&#x27;}&lt;select class=&quot;fl-select&quot; data-import-map=&quot;${k}&quot;&gt;&lt;option value=&quot;&quot;&gt;不导入此列&lt;/option&gt;${importFields.map(([source,text])=&gt;`&lt;option value=&quot;${source}&quot; ${importDraft.mapping[k]===source?&#x27;selected&#x27;:&#x27;&#x27;}&gt;${text}&lt;/option&gt;`).join(&#x27;&#x27;)}&lt;/select&gt;&lt;/label&gt;`).join(&#x27;&#x27;)}&lt;/div&gt;&lt;div class=&quot;fl-row fl-between&quot;&gt;&lt;label class=&quot;fl-label&quot;&gt;无明确单位的克重&lt;select id=&quot;fl-import-default-unit&quot; class=&quot;fl-select&quot;&gt;&lt;option value=&quot;&quot;&gt;不指定，标明错误行&lt;/option&gt;&lt;option value=&quot;gsm&quot; ${importDraft.defaultUnit===&#x27;gsm&#x27;?&#x27;selected&#x27;:&#x27;&#x27;}&gt;我确认使用 gsm&lt;/option&gt;&lt;option value=&quot;mm&quot; ${importDraft.defaultUnit===&#x27;mm&#x27;?&#x27;selected&#x27;:&#x27;&#x27;}&gt;我确认使用 mm（姆米）&lt;/option&gt;&lt;/select&gt;&lt;/label&gt;${button(&#x27;确认字段&#x27;,&#x27;confirm-import-fields&#x27;,&#x27;&#x27;,!canManage(),true)}&lt;/div&gt;&lt;/details&gt;&lt;div class=&quot;fl-row fl-between&quot;&gt;&lt;span class=&quot;fl-numbers&quot; id=&quot;fl-import-counts&quot;&gt;共 ${entries.length} 行 · 新增 ${counts.new} · 更新 ${counts.update} · 跳过 ${counts.skip} · 失败 ${counts.error}&lt;/span&gt;&lt;label class=&quot;fl-label&quot;&gt;行类型&lt;select class=&quot;fl-select&quot; id=&quot;fl-import-filter&quot;&gt;&lt;option value=&quot;&quot;&gt;全部&lt;/option&gt;${Object.entries(labels).map(([k,v])=&gt;`&lt;option value=&quot;${k}&quot; ${importDraft.filter===k?&#x27;selected&#x27;:&#x27;&#x27;}&gt;${v}&lt;/option&gt;`).join(&#x27;&#x27;)}&lt;/select&gt;&lt;/label&gt;&lt;/div&gt;&lt;div class=&quot;fl-table-scroll&quot;&gt;&lt;table class=&quot;fl-data-table fl-import-table&quot;&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;Excel行&lt;/th&gt;&lt;th&gt;品号&lt;/th&gt;&lt;th&gt;品名&lt;/th&gt;&lt;th&gt;成分&lt;/th&gt;&lt;th&gt;克重&lt;/th&gt;&lt;th&gt;门幅/cm&lt;/th&gt;&lt;th&gt;处理&lt;/th&gt;&lt;th&gt;说明&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;${entries.filter(e=&gt;!importDraft.filter||e.type===importDraft.filter).map(e=&gt;`&lt;tr data-import-row=&quot;${e.r.row}&quot;&gt;&lt;td&gt;${e.r.row}&lt;/td&gt;&lt;td&gt;${esc(e.r.no)||&#x27;—&#x27;}&lt;/td&gt;&lt;td&gt;${esc(e.effective?.name||e.r.name)||&#x27;—&#x27;}${e.original&amp;&amp;!e.r.name?&#x27;&lt;span class=&quot;fl-small fl-muted&quot;&gt;（保留原值）&lt;/span&gt;&#x27;:&#x27;&#x27;}&lt;/td&gt;&lt;td&gt;${esc(e.effective?.composition||e.r.composition)||&#x27;—&#x27;}&lt;/td&gt;&lt;td class=&quot;fl-nowrap&quot;&gt;${esc(e.effective?.weight||e.r.weight)||&#x27;—&#x27;} ${esc(e.effective?.unit||e.r.unit)}&lt;/td&gt;&lt;td&gt;${esc(e.effective?.width||e.r.width)||&#x27;—&#x27;}&lt;/td&gt;&lt;td&gt;${e.original&amp;&amp;e.type!==&#x27;error&#x27;&amp;&amp;!e.reason.startsWith(&#x27;文件内&#x27;)?`&lt;select class=&quot;fl-select&quot; data-import-action=&quot;${e.r.row}&quot; aria-label=&quot;第${e.r.row}行处理&quot; ${state.role===&#x27;admin&#x27;?&#x27;&#x27;:&#x27;disabled&#x27;}&gt;&lt;option value=&quot;skip&quot; ${e.type===&#x27;skip&#x27;?&#x27;selected&#x27;:&#x27;&#x27;}&gt;跳过&lt;/option&gt;${state.role===&#x27;admin&#x27;?`&lt;option value=&quot;update&quot; ${e.type===&#x27;update&#x27;?&#x27;selected&#x27;:&#x27;&#x27;}&gt;更新&lt;/option&gt;`:&#x27;&#x27;}&lt;/select&gt;`:labels[e.type]}&lt;/td&gt;&lt;td&gt;${esc(e.reason)}${e.original&amp;&amp;e.effective?button(&#x27;查看差异&#x27;,&#x27;import-diff&#x27;,`data-row=&quot;${e.r.row}&quot;`):&#x27;&#x27;}&lt;/td&gt;&lt;/tr&gt;${importDraft.diffRow===e.r.row&amp;&amp;e.original&amp;&amp;e.effective?`&lt;tr&gt;&lt;td colspan=&quot;8&quot;&gt;&lt;table class=&quot;fl-data-table fl-small&quot; aria-label=&quot;更新差异&quot;&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;字段&lt;/th&gt;&lt;th&gt;原值&lt;/th&gt;&lt;th&gt;生效值&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;${importFields.filter(([k])=&gt;k!==&#x27;no&#x27;&amp;&amp;String(e.original[k]??&#x27;&#x27;)!==String(e.effective[k]??&#x27;&#x27;)).map(([k,label])=&gt;`&lt;tr&gt;&lt;td&gt;${label}&lt;/td&gt;&lt;td&gt;${esc(e.original[k])||&#x27;—&#x27;}&lt;/td&gt;&lt;td&gt;${esc(e.effective[k])||&#x27;—&#x27;}&lt;/td&gt;&lt;/tr&gt;`).join(&#x27;&#x27;)||&#x27;&lt;tr&gt;&lt;td colspan=&quot;3&quot;&gt;没有字段变化&lt;/td&gt;&lt;/tr&gt;&#x27;}&lt;/tbody&gt;&lt;/table&gt;&lt;/td&gt;&lt;/tr&gt;`:&#x27;&#x27;}`).join(&#x27;&#x27;)||&#x27;&lt;tr&gt;&lt;td colspan=&quot;8&quot;&gt;没有此类行&lt;/td&gt;&lt;/tr&gt;&#x27;}&lt;/tbody&gt;&lt;/table&gt;&lt;/div&gt;&lt;div class=&quot;fl-row fl-between&quot;&gt;&lt;span class=&quot;fl-small fl-muted&quot;&gt;重复组、错误行不写入；更新空值保留原资料&lt;/span&gt;&lt;div class=&quot;fl-actions&quot;&gt;${button(&#x27;取消&#x27;,&#x27;close-import&#x27;)}${button(&#x27;导入合法行（&#x27;+(counts.new+counts.update)+&#x27;）&#x27;,&#x27;submit-import&#x27;,&#x27;&#x27;,!ready,true)}&lt;/div&gt;&lt;/div&gt;`}`;
+  }
+  function commitImport(){
+    if(!canManage()||!importDraft?.confirmed)return;const entries=importRows(),writes=entries.filter(e=&gt;[&#x27;new&#x27;,&#x27;update&#x27;].includes(e.type));if(!writes.length)return;
+    const updates=writes.filter(e=&gt;e.type===&#x27;update&#x27;);if(updates.length&amp;&amp;state.role!==&#x27;admin&#x27;)return say(&#x27;业务员不能通过导入更新已有面料。&#x27;,true);
+    confirmAction(`本次示例新增 ${writes.length-updates.length} 条、更新 ${updates.length} 条。${updates.length?&#x27;已选择更新：&#x27;+updates.map(e=&gt;e.r.no+&#x27;（&#x27;+importFields.filter(([k])=&gt;k!==&#x27;no&#x27;&amp;&amp;String(e.original[k]??&#x27;&#x27;)!==String(e.effective[k]??&#x27;&#x27;)).map(([k,label])=&gt;label+&#x27; &#x27;+(e.original[k]||&#x27;空&#x27;)+&#x27; → &#x27;+(e.effective[k]||&#x27;空&#x27;)).join(&#x27;，&#x27;)+&#x27;）&#x27;).join(&#x27;；&#x27;)+&#x27;。&#x27;:&#x27;&#x27;}确认导入？`,()=&gt;{
+      if(!canManage())return say(&#x27;没有管理权限。&#x27;,true);
+      const latest=importRows();if(latest.filter(e=&gt;[&#x27;new&#x27;,&#x27;update&#x27;].includes(e.type)).length!==writes.length)return say(&#x27;资料冲突已变化，请重新预览。&#x27;,true);
+      const result={new:0,update:0,skip:0,error:0,entries:copy(latest)};
+      for(const e of latest){result[e.type]++;if(e.type===&#x27;new&#x27;)state.fabrics.push({...copy(e.effective),id:&#x27;fi&#x27;+e.r.row+&#x27;-&#x27;+Date.now()});else if(e.type===&#x27;update&#x27;){if(state.role!==&#x27;admin&#x27;)return say(&#x27;没有更新权限。&#x27;,true);Object.assign(e.original,copy(e.effective));}}
+      importDraft.result=result;render();say(&#x27;仅已写入本次评审示例。&#x27;);
+    });
+  }
+
+  let ordersManage=true,docType=&#x27;sample&#x27;,docRows=[],docSaved=[],docDirty=false,picker=null,docScenario=&#x27;new&#x27;;
+  const docNames={sample:&#x27;样布码单&#x27;,deposit:&#x27;定金单&#x27;,sales:&#x27;销售发货码单&#x27;};
+  const canEditDoc=()=&gt;state.role===&#x27;admin&#x27;||ordersManage;
+  const facts=p=&gt;{const f=findFabric(p.fabricId),v=findPattern(p.patternId);return {itemNo:number(p),colorNo:String(v.seq),productName:f.name,composition:f.composition,weight:f.weight?f.weight+&#x27; &#x27;+f.unit:&#x27;&#x27;,width:f.width};};
+  const freshDocRow=()=&gt;({rowId:&#x27;row-&#x27;+Date.now()+&#x27;-&#x27;+Math.random().toString(36).slice(2),mode:&#x27;library&#x27;,productId:null,facts:{},meters:&#x27;&#x27;,price:&#x27;&#x27;,remark:&#x27;&#x27;,rolls:&#x27;&#x27;,deductionMeters:&#x27;&#x27;});
+  function docField(r,index,key){const editable=canEditDoc()&amp;&amp;state.role===&#x27;admin&#x27;&amp;&amp;r.mode===&#x27;manual&#x27;;return `&lt;input class=&quot;fl-input&quot; aria-label=&quot;第${index+1}行${key}&quot; data-doc-fact=&quot;${key}&quot; data-row=&quot;${index}&quot; value=&quot;${esc(r.facts[key])}&quot; ${editable?&#x27;&#x27;:&#x27;readonly&#x27;}&gt;`;}
+  function docBusiness(r,index,key,label){return `&lt;input class=&quot;fl-input&quot; type=&quot;${[&#x27;meters&#x27;,&#x27;price&#x27;,&#x27;deductionMeters&#x27;].includes(key)?&#x27;number&#x27;:&#x27;text&#x27;}&quot; ${[&#x27;meters&#x27;,&#x27;price&#x27;,&#x27;deductionMeters&#x27;].includes(key)?&#x27;min=&quot;0&quot; step=&quot;0.01&quot;&#x27;:&#x27;&#x27;} aria-label=&quot;第${index+1}行${label}&quot; data-doc-business=&quot;${key}&quot; data-row=&quot;${index}&quot; value=&quot;${esc(r[key])}&quot; ${!canEditDoc()?&#x27;disabled&#x27;:&#x27;&#x27;}&gt;`;}
+  function docAmount(r){return Math.max(0,Number(r.meters||0)-(docType===&#x27;sales&#x27;?Number(r.deductionMeters||0):0))*Number(r.price||0);}
+  function documentPage(){main.innerHTML=`&lt;div class=&quot;fl-toolbar&quot;&gt;&lt;label class=&quot;fl-label&quot;&gt;单据类型&lt;select class=&quot;fl-select&quot; id=&quot;fl-doc-type&quot;&gt;${Object.entries(docNames).map(([v,n])=&gt;`&lt;option value=&quot;${v}&quot; ${docType===v?&#x27;selected&#x27;:&#x27;&#x27;}&gt;${n}&lt;/option&gt;`).join(&#x27;&#x27;)}&lt;/select&gt;&lt;/label&gt;&lt;label class=&quot;fl-label&quot;&gt;评审场景&lt;select class=&quot;fl-select&quot; id=&quot;fl-doc-scenario&quot;&gt;&lt;option value=&quot;new&quot; ${docScenario===&#x27;new&#x27;?&#x27;selected&#x27;:&#x27;&#x27;}&gt;新单据示例&lt;/option&gt;&lt;option value=&quot;legacy&quot; ${docScenario===&#x27;legacy&#x27;?&#x27;selected&#x27;:&#x27;&#x27;}&gt;已保存旧明细示例&lt;/option&gt;&lt;/select&gt;&lt;/label&gt;&lt;label class=&quot;fl-check&quot;&gt;&lt;input type=&quot;checkbox&quot; id=&quot;fl-orders-manage&quot; ${ordersManage?&#x27;checked&#x27;:&#x27;&#x27;}&gt;单据权限预览：管理本人单据&lt;/label&gt;&lt;/div&gt;&lt;div class=&quot;fl-row fl-between&quot;&gt;&lt;h2&gt;${docNames[docType]}&lt;/h2&gt;&lt;div class=&quot;fl-actions&quot;&gt;${button(&#x27;取消修改&#x27;,&#x27;doc-cancel&#x27;)}${button(&#x27;保存单据&#x27;,&#x27;doc-save&#x27;,&#x27;&#x27;,!canEditDoc(),true)}&lt;/div&gt;&lt;/div&gt;&lt;div class=&quot;fl-row fl-between&quot;&gt;&lt;span class=&quot;fl-small fl-muted&quot;&gt;产品资料自动带入，业务字段在单据内填写&lt;/span&gt;&lt;div class=&quot;fl-actions&quot;&gt;${state.role===&#x27;admin&#x27;?button(&#x27;手工录入&#x27;,&#x27;doc-manual&#x27;):&#x27;&#x27;}${button(&#x27;选择产品添加&#x27;,&#x27;doc-add&#x27;,&#x27;&#x27;,!canEditDoc(),true)}&lt;/div&gt;&lt;/div&gt;&lt;div class=&quot;fl-table-scroll&quot;&gt;&lt;table class=&quot;fl-data-table fl-doc-table&quot; aria-label=&quot;单据明细&quot;&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;序号&lt;/th&gt;&lt;th&gt;货号&lt;/th&gt;&lt;th&gt;色号&lt;/th&gt;&lt;th&gt;品名&lt;/th&gt;${docType===&#x27;sample&#x27;?&#x27;&lt;th&gt;成分&lt;/th&gt;&lt;th&gt;克重&lt;/th&gt;&lt;th&gt;门幅/cm&lt;/th&gt;&#x27;:&#x27;&#x27;}${docType===&#x27;sales&#x27;?&#x27;&lt;th&gt;各匹米数&lt;/th&gt;&#x27;:&#x27;&#x27;}&lt;th&gt;米数&lt;/th&gt;${docType===&#x27;sales&#x27;?&#x27;&lt;th&gt;扣损&lt;/th&gt;&#x27;:&#x27;&#x27;}&lt;th&gt;单价&lt;/th&gt;&lt;th&gt;金额&lt;/th&gt;${docType!==&#x27;deposit&#x27;?&#x27;&lt;th&gt;备注&lt;/th&gt;&#x27;:&#x27;&#x27;}&lt;th&gt;操作&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;${docRows.map((r,i)=&gt;`&lt;tr data-doc-row=&quot;${i}&quot;&gt;&lt;td&gt;${i+1}&lt;div class=&quot;fl-small fl-muted&quot;&gt;${r.mode===&#x27;manual&#x27;?&#x27;手工&#x27;:r.mode===&#x27;legacy&#x27;?&#x27;旧明细&#x27;:&#x27;库内&#x27;}&lt;/div&gt;&lt;/td&gt;&lt;td&gt;${docField(r,i,&#x27;itemNo&#x27;)}&lt;/td&gt;&lt;td&gt;${docField(r,i,&#x27;colorNo&#x27;)}&lt;/td&gt;&lt;td&gt;${docField(r,i,&#x27;productName&#x27;)}&lt;/td&gt;${docType===&#x27;sample&#x27;?[&#x27;composition&#x27;,&#x27;weight&#x27;,&#x27;width&#x27;].map(k=&gt;`&lt;td&gt;${docField(r,i,k)}&lt;/td&gt;`).join(&#x27;&#x27;):&#x27;&#x27;}${docType===&#x27;sales&#x27;?`&lt;td&gt;${docBusiness(r,i,&#x27;rolls&#x27;,&#x27;各匹米数&#x27;)}&lt;span class=&quot;fl-small fl-muted&quot;&gt;用逗号分隔各匹米数&lt;/span&gt;&lt;/td&gt;`:&#x27;&#x27;}&lt;td&gt;${docBusiness(r,i,&#x27;meters&#x27;,&#x27;米数&#x27;)}&lt;/td&gt;${docType===&#x27;sales&#x27;?`&lt;td&gt;${docBusiness(r,i,&#x27;deductionMeters&#x27;,&#x27;扣损&#x27;)}&lt;/td&gt;`:&#x27;&#x27;}&lt;td&gt;${docBusiness(r,i,&#x27;price&#x27;,&#x27;单价&#x27;)}&lt;/td&gt;&lt;td class=&quot;fl-numbers&quot; data-doc-amount=&quot;${i}&quot;&gt;${docAmount(r).toFixed(2)}&lt;/td&gt;${docType!==&#x27;deposit&#x27;?`&lt;td&gt;${docBusiness(r,i,&#x27;remark&#x27;,&#x27;备注&#x27;)}&lt;/td&gt;`:&#x27;&#x27;}&lt;td&gt;&lt;div class=&quot;fl-actions&quot;&gt;${button(&#x27;更换产品&#x27;,&#x27;doc-replace&#x27;,`data-row=&quot;${i}&quot;`,!canEditDoc())}${state.role===&#x27;admin&#x27;&amp;&amp;r.mode===&#x27;library&#x27;?button(&#x27;改为手工&#x27;,&#x27;doc-mode&#x27;,`data-row=&quot;${i}&quot;`):&#x27;&#x27;}${button(&#x27;删除明细&#x27;,&#x27;doc-remove&#x27;,`data-row=&quot;${i}&quot;`,!canEditDoc())}&lt;/div&gt;&lt;/td&gt;&lt;/tr&gt;`).join(&#x27;&#x27;)||&#x27;&lt;tr&gt;&lt;td colspan=&quot;15&quot;&gt;请添加产品&lt;/td&gt;&lt;/tr&gt;&#x27;}&lt;/tbody&gt;&lt;/table&gt;&lt;/div&gt;&lt;div class=&quot;fl-row fl-between&quot;&gt;&lt;span&gt;${docRows.length} 行明细&lt;/span&gt;&lt;span&gt;合计金额：&lt;strong id=&quot;fl-doc-total&quot; class=&quot;fl-numbers&quot;&gt;${docRows.reduce((n,r)=&gt;n+docAmount(r),0).toFixed(2)}&lt;/strong&gt;&lt;/span&gt;&lt;/div&gt;`;}
+  function openPicker(target=null){if(!canEditDoc())return;picker={target,no:&#x27;&#x27;,name:&#x27;&#x27;,page:1};pickerPage();overlay.querySelector(&#x27;#fl-picker-no&#x27;).focus();}
+  function pickerPage(){const rows=state.products.filter(p=&gt;usable(p)&amp;&amp;number(p).toUpperCase().includes(picker.no.trim().toUpperCase())&amp;&amp;findFabric(p.fabricId).name.toUpperCase().includes(picker.name.trim().toUpperCase()));const pages=Math.max(1,Math.ceil(rows.length/5));picker.page=Math.min(picker.page,pages);overlay.classList.add(&#x27;fl-picker-open&#x27;);main.inert=true;root.querySelector(&#x27;header&#x27;).inert=true;overlay.hidden=false;overlay.innerHTML=`&lt;section class=&quot;fl-card&quot; role=&quot;dialog&quot; aria-modal=&quot;true&quot; aria-label=&quot;选择产品&quot;&gt;&lt;div class=&quot;fl-row fl-between&quot;&gt;&lt;h3&gt;选择产品&lt;/h3&gt;${button(&#x27;关闭&#x27;,&#x27;picker-close&#x27;)}&lt;/div&gt;&lt;div class=&quot;fl-toolbar&quot;&gt;&lt;label class=&quot;fl-label fl-fill&quot;&gt;货号&lt;input class=&quot;fl-input&quot; id=&quot;fl-picker-no&quot; value=&quot;${esc(picker.no)}&quot;&gt;&lt;/label&gt;&lt;label class=&quot;fl-label fl-fill&quot;&gt;品名&lt;input class=&quot;fl-input&quot; id=&quot;fl-picker-name&quot; value=&quot;${esc(picker.name)}&quot;&gt;&lt;/label&gt;&lt;/div&gt;&lt;div class=&quot;fl-table-scroll&quot;&gt;&lt;table class=&quot;fl-data-table fl-picker-table&quot;&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;花型图&lt;/th&gt;&lt;th&gt;货号&lt;/th&gt;&lt;th&gt;品名&lt;/th&gt;&lt;th&gt;配色&lt;/th&gt;&lt;th&gt;成分&lt;/th&gt;&lt;th&gt;克重&lt;/th&gt;&lt;th&gt;门幅/cm&lt;/th&gt;&lt;th&gt;操作&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;${rows.slice((picker.page-1)*5,picker.page*5).map(p=&gt;{const f=facts(p);return `&lt;tr&gt;&lt;td&gt;&lt;span class=&quot;fl-pattern-missing fl-small&quot;&gt;待上传&lt;br&gt;花型图&lt;/span&gt;&lt;/td&gt;${[&#x27;itemNo&#x27;,&#x27;productName&#x27;,&#x27;colorNo&#x27;,&#x27;composition&#x27;,&#x27;weight&#x27;,&#x27;width&#x27;].map(k=&gt;`&lt;td&gt;${esc(f[k])||&#x27;—&#x27;}&lt;/td&gt;`).join(&#x27;&#x27;)}&lt;td&gt;${button(&#x27;选用&#x27;,&#x27;picker-select&#x27;,`data-id=&quot;${p.id}&quot;`,false,true)}&lt;/td&gt;&lt;/tr&gt;`;}).join(&#x27;&#x27;)||&#x27;&lt;tr&gt;&lt;td colspan=&quot;8&quot;&gt;没有匹配产品&lt;/td&gt;&lt;/tr&gt;&#x27;}&lt;/tbody&gt;&lt;/table&gt;&lt;/div&gt;&lt;div class=&quot;fl-pagination&quot;&gt;&lt;span&gt;共 ${rows.length} 个可选产品&lt;/span&gt;&lt;div class=&quot;fl-actions&quot;&gt;${button(&#x27;上一页&#x27;,&#x27;picker-page&#x27;,&#x27;data-step=&quot;-1&quot;&#x27;,picker.page&lt;=1)}&lt;span&gt;${picker.page} / ${pages}&lt;/span&gt;${button(&#x27;下一页&#x27;,&#x27;picker-page&#x27;,&#x27;data-step=&quot;1&quot;&#x27;,picker.page&gt;=pages)}&lt;/div&gt;&lt;/div&gt;&lt;/section&gt;`;}
+  new ResizeObserver(()=&gt;{if(!overlay.hidden&amp;&amp;overlay.classList.contains(&#x27;fl-picker-open&#x27;))root.style.minHeight=(overlay.offsetTop+overlay.offsetHeight+24)+&#x27;px&#x27;;}).observe(overlay);
+  function selectDocProduct(id){if(!canEditDoc())return;const p=state.products.find(x=&gt;x.id===id);if(!p||!usable(p))return say(&#x27;该产品当前不可选用。&#x27;,true);const target=picker.target;const apply=()=&gt;{const row=target===null?freshDocRow():docRows[target];Object.assign(row,{productId:p.id,mode:&#x27;library&#x27;,facts:facts(p)});if(target===null)docRows.push(row);docDirty=true;closeDialog();render();say(&#x27;产品资料已带入，请保存单据。&#x27;);};if(target!==null&amp;&amp;docRows[target].mode!==&#x27;library&#x27;){closeDialog();return confirmAction(&#x27;更换后使用库内产品资料，保留当前业务字段，确认更换？&#x27;,apply);}apply();}
+  function saveDoc(){if(!canEditDoc())return say(&#x27;没有管理本人单据权限。&#x27;,true);if(!docRows.length)return say(&#x27;请添加产品。&#x27;,true);for(const r of docRows){if(r.mode===&#x27;library&#x27;){const old=docSaved.find(x=&gt;x.rowId===r.rowId&amp;&amp;x.productId===r.productId&amp;&amp;JSON.stringify(x.facts)===JSON.stringify(r.facts));const p=state.products.find(x=&gt;x.id===r.productId);if(!old&amp;&amp;(!p||!usable(p)))return say(&#x27;产品或关联资料已停用，请重新选用。&#x27;,true);}else if(r.mode===&#x27;manual&#x27;&amp;&amp;state.role!==&#x27;admin&#x27;)return say(&#x27;业务员不能手工录入。&#x27;,true);else if(r.mode===&#x27;legacy&#x27;&amp;&amp;!docSaved.some(x=&gt;x.rowId===r.rowId&amp;&amp;x.mode===&#x27;legacy&#x27;&amp;&amp;JSON.stringify(x.facts)===JSON.stringify(r.facts)))return say(&#x27;新增明细不能使用旧手工资料。&#x27;,true);if(!r.facts.itemNo||!r.facts.productName)return say(&#x27;货号和品名必填。&#x27;,true);if(docType===&#x27;sales&#x27;&amp;&amp;r.rolls.split(/[,，]/).some(x=&gt;!Number.isFinite(Number(x.trim()))||Number(x.trim())&lt;0))return say(&#x27;各匹米数须为非负数。&#x27;,true);if([&#x27;meters&#x27;,&#x27;price&#x27;,&#x27;deductionMeters&#x27;].some(k=&gt;r[k]!==&#x27;&#x27;&amp;&amp;(!Number.isFinite(Number(r[k]))||Number(r[k])&lt;0)))return say(&#x27;米数、扣损和单价须为非负数。&#x27;,true);}const ref=&#x27;review-doc-&#x27;+docType+&#x27;-&#x27;+docScenario;for(const product of state.products){product.documentRefs=(product.documentRefs||[]).filter(x=&gt;x!==ref);if(docRows.some(r=&gt;r.mode===&#x27;library&#x27;&amp;&amp;r.productId===product.id))product.documentRefs.push(ref);}docSaved=copy(docRows);docDirty=false;render();say(&#x27;单据已保存到本次评审示例。&#x27;);}
+  function resetDoc(){docRows=docScenario===&#x27;legacy&#x27;?[{...freshDocRow(),mode:&#x27;legacy&#x27;,facts:{itemNo:&#x27;OLD-001&#x27;,colorNo:&#x27;原色号&#x27;,productName:&#x27;旧品名&#x27;,composition:&#x27;旧成分&#x27;,weight:&#x27;旧克重&#x27;,width:&#x27;旧门幅&#x27;},meters:&#x27;10&#x27;,price:&#x27;20&#x27;,remark:&#x27;旧备注&#x27;}]:[];docSaved=copy(docRows);docDirty=false;}
+  root.addEventListener(&#x27;click&#x27;,e=&gt;{const b=e.target.closest(&#x27;[data-action]&#x27;);if(!b||b.disabled)return;const a=b.dataset.action,i=Number(b.dataset.row);if(a===&#x27;doc-add&#x27;)openPicker();if(a===&#x27;doc-replace&#x27;)openPicker(i);if(a===&#x27;picker-select&#x27;)selectDocProduct(b.dataset.id);if(a===&#x27;picker-close&#x27;)closeDialog();if(a===&#x27;picker-page&#x27;){picker.page+=Number(b.dataset.step);pickerPage();}if(a===&#x27;doc-save&#x27;)saveDoc();if(a===&#x27;doc-cancel&#x27;){const go=()=&gt;{docRows=copy(docSaved);docDirty=false;render();say(&#x27;&#x27;);};if(docDirty)confirmAction(&#x27;放弃未保存的单据修改？&#x27;,go);else go();}if(a===&#x27;doc-remove&#x27;&amp;&amp;canEditDoc())confirmAction(&#x27;确认删除这一行明细？&#x27;,()=&gt;{docRows.splice(i,1);docDirty=true;render();});if(a===&#x27;doc-manual&#x27;&amp;&amp;state.role===&#x27;admin&#x27;){docRows.push({...freshDocRow(),mode:&#x27;manual&#x27;});docDirty=true;render();}if(a===&#x27;doc-mode&#x27;&amp;&amp;state.role===&#x27;admin&#x27;)confirmAction(&#x27;改为手工后取消产品关联，保留当前显示资料，不会新增产品，确认切换？&#x27;,()=&gt;{docRows[i].mode=&#x27;manual&#x27;;docRows[i].productId=null;docDirty=true;render();});});
+  root.addEventListener(&#x27;input&#x27;,e=&gt;{const el=e.target;if([&#x27;fl-picker-no&#x27;,&#x27;fl-picker-name&#x27;].includes(el.id)&amp;&amp;picker){const id=el.id,pos=el.selectionStart;picker[id===&#x27;fl-picker-no&#x27;?&#x27;no&#x27;:&#x27;name&#x27;]=el.value;picker.page=1;pickerPage();const n=overlay.querySelector(&#x27;#&#x27;+id);n.focus();n.setSelectionRange(pos,pos);}if(el.dataset.docBusiness&amp;&amp;canEditDoc()){const row=docRows[Number(el.dataset.row)],key=el.dataset.docBusiness;row[key]=el.value;if(key===&#x27;rolls&#x27;){const rolls=el.value.split(/[,，]/).map(x=&gt;Number(x.trim()));if(rolls.some(x=&gt;!Number.isFinite(x)||x&lt;0)){say(&#x27;各匹米数须为非负数。&#x27;,true);return;}row.meters=rolls.reduce((a,b)=&gt;a+b,0).toFixed(2);root.querySelector(`[data-doc-business=&quot;meters&quot;][data-row=&quot;${el.dataset.row}&quot;]`).value=row.meters;}docDirty=true;root.querySelector(`[data-doc-amount=&quot;${el.dataset.row}&quot;]`).textContent=docAmount(row).toFixed(2);root.querySelector(&#x27;#fl-doc-total&#x27;).textContent=docRows.reduce((n,r)=&gt;n+docAmount(r),0).toFixed(2);}if(el.dataset.docFact&amp;&amp;state.role===&#x27;admin&#x27;&amp;&amp;docRows[Number(el.dataset.row)]?.mode===&#x27;manual&#x27;){docRows[Number(el.dataset.row)].facts[el.dataset.docFact]=el.value;docDirty=true;}});
+  root.addEventListener(&#x27;change&#x27;,e=&gt;{const el=e.target;if(el.id===&#x27;fl-orders-manage&#x27;){ordersManage=el.checked;render();}if([&#x27;fl-doc-type&#x27;,&#x27;fl-doc-scenario&#x27;].includes(el.id)){const go=()=&gt;{if(el.id===&#x27;fl-doc-type&#x27;)docType=el.value;else docScenario=el.value;resetDoc();render();};if(docDirty)confirmAction(&#x27;切换评审场景会放弃未保存修改，确认切换？&#x27;,go);else go();}});
+
+  let patternMaster=null,patternDraft=null,patternQuery=&#x27;&#x27;;
+  const issuedNumbers=new Map([...new Set(patterns.map(v=&gt;v.master))].map(m=&gt;[m,Math.max(...patterns.filter(v=&gt;v.master===m).map(v=&gt;v.seq))]));
+  const nextSequence=m=&gt;(issuedNumbers.get(m)||0)+1;
+  function patternThumb(v){return v.image?.thumbnailUrl?`&lt;button type=&quot;button&quot; class=&quot;fl-btn fl-btn-quiet&quot; data-action=&quot;preview-pattern&quot; data-id=&quot;${v.id}&quot; aria-label=&quot;查看 ${esc(v.no)} 花型原图&quot;&gt;&lt;img class=&quot;fl-thumb&quot; src=&quot;${esc(v.image.thumbnailUrl)}&quot; alt=&quot;${esc(v.no)}&quot;&gt;&lt;/button&gt;`:&#x27;&lt;span class=&quot;fl-pattern-missing fl-small&quot;&gt;待上传&lt;br&gt;花型图&lt;/span&gt;&#x27;;}
+  function patternList(){const q=patternQuery.trim().toUpperCase();const mothers=[...new Set(patterns.map(v=&gt;v.master))].map(m=&gt;({m,versions:patterns.filter(v=&gt;v.master===m&amp;&amp;(state.inactive||v.active)&amp;&amp;(`${v.no} ${v.tags.join(&#x27; &#x27;)} ${v.topics.join(&#x27; &#x27;)}`).toUpperCase().includes(q))})).filter(x=&gt;x.versions.length);main.innerHTML=`&lt;div class=&quot;fl-row fl-between&quot;&gt;&lt;h2&gt;花型库&lt;/h2&gt;&lt;/div&gt;&lt;div class=&quot;fl-toolbar&quot;&gt;&lt;label class=&quot;fl-label fl-fill&quot;&gt;编号、题材或颜色标签&lt;input class=&quot;fl-input&quot; id=&quot;fl-pattern-query&quot; value=&quot;${esc(patternQuery)}&quot; placeholder=&quot;搜索花型编号或标签&quot;&gt;&lt;/label&gt;&lt;label class=&quot;fl-check&quot;&gt;&lt;input type=&quot;checkbox&quot; id=&quot;fl-inactive&quot; ${state.inactive?&#x27;checked&#x27;:&#x27;&#x27;}&gt;包含停用&lt;/label&gt;&lt;/div&gt;&lt;div class=&quot;fl-master-head&quot;&gt;&lt;span&gt;母版&lt;/span&gt;&lt;span&gt;配色版本&lt;/span&gt;&lt;span&gt;操作&lt;/span&gt;&lt;/div&gt;${mothers.map(({m,versions})=&gt;`&lt;div class=&quot;fl-master-row&quot; data-master=&quot;${m}&quot;&gt;&lt;div&gt;&lt;strong&gt;${esc(m)}&lt;/strong&gt;&lt;div class=&quot;fl-tags&quot;&gt;${chips(versions[0].topics)}&lt;/div&gt;&lt;/div&gt;&lt;div class=&quot;fl-pattern-strip&quot;&gt;${versions.map(v=&gt;`&lt;div class=&quot;fl-variant-tile&quot; data-version=&quot;${v.id}&quot;&gt;${patternThumb(v)}&lt;span class=&quot;fl-small fl-numbers&quot;&gt;${esc(v.no)}&lt;/span&gt;${!v.active?&#x27;&lt;span class=&quot;fl-small fl-muted&quot;&gt;已停用&lt;/span&gt;&#x27;:&#x27;&#x27;}&lt;/div&gt;`).join(&#x27;&#x27;)}&lt;/div&gt;&lt;div&gt;${button(canManage()?&#x27;编辑&#x27;:&#x27;查看&#x27;,&#x27;pattern-master&#x27;,`data-master=&quot;${m}&quot;`)}&lt;/div&gt;&lt;/div&gt;`).join(&#x27;&#x27;)||&#x27;&lt;div class=&quot;fl-empty&quot;&gt;没有匹配花型&lt;/div&gt;&#x27;}`;}
+  function patternEditor(){const versions=patterns.filter(v=&gt;v.master===patternMaster),rows=patternDraft?.id?versions:patternDraft?[...versions,patternDraft]:versions;main.innerHTML=`&lt;div class=&quot;fl-row fl-between&quot;&gt;&lt;h2&gt;编辑母版及配色资料&lt;/h2&gt;&lt;div class=&quot;fl-actions&quot;&gt;${button(&#x27;添加配色&#x27;,&#x27;pattern-add&#x27;,&#x27;&#x27;,!canManage(),true)}${button(&#x27;完成&#x27;,&#x27;pattern-done&#x27;)}&lt;/div&gt;&lt;/div&gt;&lt;div class=&quot;fl-toolbar&quot;&gt;&lt;span&gt;母版编号：&lt;strong&gt;${esc(patternMaster)}&lt;/strong&gt;&lt;/span&gt;&lt;span class=&quot;fl-tags&quot;&gt;${chips(versions[0]?.topics||[])}&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;fl-table-scroll&quot;&gt;&lt;table class=&quot;fl-data-table fl-pattern-editor-table&quot; aria-label=&quot;配色资料&quot;&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;花型图&lt;/th&gt;&lt;th&gt;配色序号&lt;/th&gt;&lt;th&gt;花型编号&lt;/th&gt;&lt;th&gt;颜色标签&lt;/th&gt;&lt;th&gt;版本备注&lt;/th&gt;&lt;th&gt;启用状态&lt;/th&gt;&lt;th&gt;操作&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;${rows.map(v=&gt;{const edit=patternDraft&amp;&amp;(patternDraft.id?patternDraft.id===v.id:v===patternDraft),x=edit?patternDraft:v,referenced=state.products.some(p=&gt;p.patternId===v.id);return `&lt;tr data-pattern-row=&quot;${esc(v.id||&#x27;new&#x27;)}&quot;&gt;&lt;td&gt;${x.id?patternThumb(x):&#x27;&lt;span class=&quot;fl-pattern-missing fl-small&quot;&gt;待上传&lt;br&gt;花型图&lt;/span&gt;&#x27;}${edit?`&lt;input type=&quot;file&quot; accept=&quot;image/*&quot; data-pattern-file=&quot;true&quot; aria-label=&quot;上传本配色花型图&quot;&gt;${x.image?button(&#x27;移除&#x27;,&#x27;pattern-remove-image&#x27;):&#x27;&#x27;}`:&#x27;&#x27;}&lt;/td&gt;&lt;td&gt;&lt;span class=&quot;fl-numbers&quot;&gt;${x.seq}&lt;/span&gt;&lt;/td&gt;&lt;td class=&quot;fl-nowrap&quot;&gt;${esc(x.no)}&lt;/td&gt;&lt;td&gt;${edit?`&lt;input class=&quot;fl-input&quot; data-pattern-field=&quot;tags&quot; aria-label=&quot;颜色标签&quot; value=&quot;${esc(x.tags.join(&#x27;，&#x27;))}&quot; placeholder=&quot;可自定义，用逗号分隔&quot;&gt;`:chips(x.tags)||&#x27;—&#x27;}&lt;/td&gt;&lt;td&gt;${edit?`&lt;input class=&quot;fl-input&quot; data-pattern-field=&quot;remark&quot; aria-label=&quot;版本备注&quot; value=&quot;${esc(x.remark||&#x27;&#x27;)}&quot;&gt;`:esc(x.remark)||&#x27;—&#x27;}&lt;/td&gt;&lt;td&gt;${edit?`&lt;label class=&quot;fl-check&quot;&gt;&lt;input type=&quot;checkbox&quot; data-pattern-field=&quot;active&quot; ${x.active?&#x27;checked&#x27;:&#x27;&#x27;}&gt;启用&lt;/label&gt;`:x.active?&#x27;已启用&#x27;:&#x27;已停用&#x27;}&lt;/td&gt;&lt;td&gt;&lt;div class=&quot;fl-actions&quot;&gt;${edit?button(&#x27;保存&#x27;,&#x27;pattern-save&#x27;,&#x27;&#x27;,false,true)+button(&#x27;取消&#x27;,&#x27;pattern-cancel&#x27;):button(&#x27;修改&#x27;,&#x27;pattern-edit&#x27;,`data-id=&quot;${x.id}&quot;`,!canManage())+button(&#x27;删除&#x27;,&#x27;pattern-delete&#x27;,`data-id=&quot;${x.id}&quot; ${referenced?&#x27;aria-label=&quot;已引用，不能删除&quot;&#x27;:&#x27;&#x27;}`,referenced||!canManage())}&lt;/div&gt;&lt;/td&gt;&lt;/tr&gt;`;}).join(&#x27;&#x27;)}&lt;/tbody&gt;&lt;/table&gt;&lt;/div&gt;`;}
+  function savePattern(){if(!canManage()||!patternDraft)return;const row=patternDraft;if(row.tags.length&gt;10||row.tags.some(t=&gt;!t.trim()||t.length&gt;32))return say(&#x27;颜色标签最多10个，每个1～32个字符。&#x27;,true);row.tags=[...new Set(row.tags.map(t=&gt;t.trim()))];if(row.id){const old=findPattern(row.id);if(old.seq!==row.seq||old.master!==row.master)return say(&#x27;配色编号不能改写。&#x27;,true);Object.assign(old,copy(row));}else{row.seq=nextSequence(patternMaster);row.no=patternMaster+&#x27;-&#x27;+row.seq;row.id=&#x27;c&#x27;+Date.now();issuedNumbers.set(patternMaster,row.seq);patterns.push(copy(row));}patternDraft=null;dirty=false;render();say(&#x27;配色已保存到本次评审示例。&#x27;);}
+  root.addEventListener(&#x27;click&#x27;,e=&gt;{const b=e.target.closest(&#x27;[data-action]&#x27;);if(!b||b.disabled)return;const a=b.dataset.action;if(a===&#x27;pattern-master&#x27;)leave(()=&gt;{patternMaster=b.dataset.master;patternDraft=null;state.view=&#x27;pattern-editor&#x27;;render();});if(a===&#x27;pattern-done&#x27;)leave(()=&gt;{patternDraft=null;state.view=&#x27;pattern&#x27;;render();});if(a===&#x27;pattern-add&#x27;&amp;&amp;canManage())leave(()=&gt;{const seq=nextSequence(patternMaster);patternDraft={master:patternMaster,seq,no:patternMaster+&#x27;-&#x27;+seq,topics:copy(patterns.find(v=&gt;v.master===patternMaster)?.topics||[]),tags:[],remark:&#x27;&#x27;,active:true};state.view=&#x27;pattern-editor&#x27;;render();});if(a===&#x27;pattern-edit&#x27;&amp;&amp;canManage())leave(()=&gt;{patternDraft=copy(findPattern(b.dataset.id));render();});if(a===&#x27;pattern-save&#x27;)savePattern();if(a===&#x27;pattern-cancel&#x27;){patternDraft=null;dirty=false;render();}if(a===&#x27;pattern-delete&#x27;&amp;&amp;canManage()){const v=findPattern(b.dataset.id);if(state.products.some(p=&gt;p.patternId===v.id))return say(&#x27;配色已被产品引用，可停用。&#x27;,true);confirmAction(`确认删除 ${v.no}？其他配色编号保持，已分配序号不复用。`,()=&gt;{if(state.products.some(p=&gt;p.patternId===v.id))return say(&#x27;配色已被引用，不能删除。&#x27;,true);patterns.splice(patterns.indexOf(v),1);render();});}if(a===&#x27;pattern-remove-image&#x27;&amp;&amp;canManage()){delete patternDraft.image;dirty=true;render();}});
+  root.addEventListener(&#x27;input&#x27;,e=&gt;{const el=e.target;if(el.id===&#x27;fl-pattern-query&#x27;){const pos=el.selectionStart;patternQuery=el.value;render();const n=root.querySelector(&#x27;#fl-pattern-query&#x27;);n.focus();n.setSelectionRange(pos,pos);}if(el.dataset.patternField&amp;&amp;patternDraft&amp;&amp;canManage()){const k=el.dataset.patternField;if(k===&#x27;tags&#x27;)patternDraft.tags=el.value?el.value.split(/[,，]/).map(t=&gt;t.trim()).filter(Boolean):[];else if(k===&#x27;remark&#x27;)patternDraft.remark=el.value;dirty=true;}});
+  root.addEventListener(&#x27;change&#x27;,async e=&gt;{const el=e.target;if(el.dataset.patternField===&#x27;active&#x27;&amp;&amp;patternDraft&amp;&amp;canManage()){patternDraft.active=el.checked;dirty=true;}if(el.dataset.patternFile&amp;&amp;patternDraft&amp;&amp;canManage()){const f=el.files[0];if(!f)return;if(!f.type.startsWith(&#x27;image/&#x27;))return say(&#x27;请选择图片。&#x27;,true);const row=patternDraft;const url=await new Promise(resolve=&gt;{const r=new FileReader();r.onload=()=&gt;resolve(r.result);r.readAsDataURL(f);});if(patternDraft!==row)return;row.image={thumbnailUrl:url,originalUrl:url};dirty=true;render();}});
+
+  function render(){root.querySelector(&#x27;#fl-role&#x27;).value=state.role;root.querySelectorAll(&#x27;[data-action=&quot;nav&quot;]&#x27;).forEach(b=&gt;b.setAttribute(&#x27;aria-pressed&#x27;,String(b.dataset.view===state.view)));if(draft)productEditor();else if(state.view===&#x27;document&#x27;)documentPage();else if(state.view===&#x27;pattern&#x27;)patternList();else if(state.view===&#x27;pattern-editor&#x27;)patternEditor();else if(state.view===&#x27;fabric-import&#x27;)importPage();else if(state.view===&#x27;fabric&#x27;)fabricList();else productList();}
+  function readFabric(){if(!fabricDraft)return;for(const el of root.querySelectorAll(&#x27;[data-fabric]&#x27;))fabricDraft[el.dataset.fabric]=el.type===&#x27;checkbox&#x27;?el.checked:el.value;}
+  function commitProduct(){if(!canManage())return;const v=findPattern(draft.patternId),f=findFabric(draft.fabricId);if(!v||!f)return say(&#x27;请选择具体花型和面料。&#x27;,true);if(state.products.some(x=&gt;x.id!==draft.id&amp;&amp;x.patternId===draft.patternId&amp;&amp;x.fabricId===draft.fabricId))return say(`组合已存在：${number(draft)}，请查看已有产品。`,true);const original=state.products.find(x=&gt;x.id===draft.id);if(hasDocumentRef(original)&amp;&amp;(draft.patternId!==original.patternId||draft.fabricId!==original.fabricId))return say(&#x27;已被订单引用，不能更换产品身份。&#x27;,true);if((!original||original.patternId!==draft.patternId||original.fabricId!==draft.fabricId)&amp;&amp;(!v.active||!f.active))return say(&#x27;新增或更换身份时，请选择已启用资料。&#x27;,true);const perform=()=&gt;{const saved=copy(draft);if(original)Object.assign(original,saved);else state.products.push({...saved,id:&#x27;p&#x27;+Date.now()});draft=null;dirty=false;state.view=&#x27;product&#x27;;state.page=1;saveState();render();say(&#x27;产品已保存到本次评审示例。&#x27;);};if(original&amp;&amp;number(original)!==number(draft))return confirmAction(`确认产品编号由 ${number(original)} 改为 ${number(draft)}？`,perform);perform();}
+  root.addEventListener(&#x27;click&#x27;,event=&gt;{
+    const b=event.target.closest(&#x27;[data-action]&#x27;);if(!b||b.disabled)return;const a=b.dataset.action,cat=Number(b.dataset.cat),i=Number(b.dataset.index);
+    if(a===&#x27;nav&#x27;){closeDialog();}if(a===&#x27;nav&#x27;)return leave(()=&gt;{state.view=b.dataset.view;state.search=&#x27;&#x27;;state.productNoSearch=state.productNameSearch=&#x27;&#x27;;state.relatedFabricId=&#x27;&#x27;;state.topic=state.tag=state.color=&#x27;&#x27;;state.page=1;saveState();render();say(&#x27;&#x27;);});
+    if(a===&#x27;page&#x27;){state.page+=Number(b.dataset.step);saveState();render();return;}
+    if(a===&#x27;new-product&#x27;){if(!canManage())return;draft={patternId:&#x27;&#x27;,fabricId:&#x27;&#x27;,remark:&#x27;&#x27;,active:true,images:[[],[],[]],orderRef:false};selectionQuery={pattern:&#x27;&#x27;,fabric:&#x27;&#x27;};activeImageTab=0;dirty=false;render();return;}
+    if(a===&#x27;edit-product&#x27;){draft=copy(state.products.find(x=&gt;x.id===b.dataset.id));selectionQuery={pattern:&#x27;&#x27;,fabric:&#x27;&#x27;};activeImageTab=0;dirty=false;render();return;}
+    if(a===&#x27;image-tab&#x27;){activeImageTab=cat;render();root.querySelector(&#x27;#fl-image-tab-&#x27;+cat).focus();return;}
+    if(a===&#x27;delete-product&#x27;){
+      if(!canManage())return say(&#x27;没有产品管理权限。&#x27;,true);
+      const product=state.products.find(x=&gt;x.id===b.dataset.id);if(!product)return;
+      if(hasDocumentRef(product))return say(&#x27;产品已开单，不能删除，可停用。&#x27;,true);
+      return confirmAction(`确认删除产品 ${number(product)}？`,()=&gt;{
+        const current=state.products.find(x=&gt;x.id===product.id);
+        if(!canManage())return say(&#x27;没有产品管理权限。&#x27;,true);
+        if(!current)return say(&#x27;产品记录已不存在。&#x27;,true);
+        if(hasDocumentRef(current))return say(&#x27;产品已开单，不能删除，可停用。&#x27;,true);
+        state.products=state.products.filter(x=&gt;x.id!==current.id);saveState();render();say(&#x27;产品已从本次评审示例删除。&#x27;);
+      });
+    }
+    if(a===&#x27;close-product&#x27;)return leave(()=&gt;{state.view=&#x27;product&#x27;;render();say(&#x27;&#x27;);});
+    if(a===&#x27;save-product&#x27;)return commitProduct();
+    if(a===&#x27;edit-fabric&#x27;||a===&#x27;new-fabric&#x27;){if(!canManage())return;return leave(()=&gt;{fabricDraft=a===&#x27;new-fabric&#x27;?{id:&#x27;new&#x27;,no:&#x27;&#x27;,name:&#x27;&#x27;,composition:&#x27;&#x27;,weight:&#x27;&#x27;,unit:&#x27;gsm&#x27;,width:&#x27;&#x27;,remark:&#x27;&#x27;,active:true}:copy(findFabric(b.dataset.id));state.view=&#x27;fabric&#x27;;render();});}
+    if(a===&#x27;cancel-fabric&#x27;)return leave(()=&gt;render());
+    if(a===&#x27;save-fabric&#x27;)return commitFabric();
+    if(a===&#x27;related&#x27;){return leave(()=&gt;{state.view=&#x27;product&#x27;;state.search=&#x27;&#x27;;state.productNoSearch=state.productNameSearch=&#x27;&#x27;;state.relatedFabricId=b.dataset.id;state.page=1;render();});}
+    if(a===&#x27;fabric-maintenance&#x27;)return leave(()=&gt;{state.view=&#x27;fabric&#x27;;state.search=findFabric(b.dataset.id).no;fabricDraft=copy(findFabric(b.dataset.id));render();});
+    if(a===&#x27;pattern-maintenance&#x27;){const master=findPattern(draft?.patternId)?.master||&#x27;1234&#x27;;return leave(()=&gt;{patternMaster=master;state.view=&#x27;pattern-editor&#x27;;render();});}
+    if(a===&#x27;import&#x27;){if(!canManage())return;return leave(()=&gt;{startImport();state.view=&#x27;fabric-import&#x27;;render();saveState();say(&#x27;&#x27;);});}
+    if(a===&#x27;close-import&#x27;){importDraft=null;state.view=&#x27;fabric&#x27;;render();saveState();say(&#x27;&#x27;);return;}
+    if(a===&#x27;reload-import&#x27;){startImport();render();say(&#x27;&#x27;);return;}
+    if(a===&#x27;import-diff&#x27;){importDraft.diffRow=importDraft.diffRow===Number(b.dataset.row)?null:Number(b.dataset.row);render();return;}
+    if(a===&#x27;confirm-import-fields&#x27;){
+      const used=Object.values(importDraft.mapping).filter(Boolean);
+      if(!importDraft.mapping.no||!importDraft.mapping.name)return say(&#x27;请指定品号和品名来源列。&#x27;,true);
+      if(new Set(used).size!==used.length)return say(&#x27;同一来源列不能重复匹配不同字段。&#x27;,true);
+      importDraft.confirmed=true;render();say(&#x27;字段已确认。&#x27;);return;
+    }
+    if(a===&#x27;submit-import&#x27;)return commitImport();
+    if(a===&#x27;import-template&#x27;){overlay.hidden=false;overlay.innerHTML=`&lt;section class=&quot;fl-card&quot; role=&quot;dialog&quot; aria-modal=&quot;true&quot; aria-label=&quot;模板字段&quot;&gt;&lt;div class=&quot;fl-row fl-between&quot;&gt;&lt;h3&gt;面料模板字段&lt;/h3&gt;${button(&#x27;关闭&#x27;,&#x27;cancel-dialog&#x27;)}&lt;/div&gt;&lt;p&gt;品号、品名、成分、克重、克重单位、门幅(cm)、备注&lt;/p&gt;&lt;p class=&quot;fl-small&quot;&gt;品号和品名必填；品号按文本保存，规格可空。克重单位：gsm 或 mm（姆米），门幅：cm。&lt;/p&gt;&lt;/section&gt;`;overlay.querySelector(&#x27;button&#x27;).focus();return;}
+
+    if(a===&#x27;upload&#x27;||a===&#x27;replace&#x27;){if(!canManage())return;const file=root.querySelector(`[data-file=&quot;${cat}&quot;]`);file.dataset.replace=a===&#x27;replace&#x27;?String(i):&#x27;&#x27;;file.click();return;}
+    if(a===&#x27;delete-image&#x27;||a===&#x27;delete-selected&#x27;){if(!canManage())return;const selected=a===&#x27;delete-image&#x27;?[i]:[...root.querySelectorAll(`[data-image-select^=&quot;${cat}:&quot;]:checked`)].map(x=&gt;Number(x.dataset.imageSelect.split(&#x27;:&#x27;)[1]));if(!selected.length)return say(&#x27;请先选择图片。&#x27;);return confirmAction(`确认删除本类所选 ${selected.length} 张图片？`,()=&gt;{draft.images[cat]=draft.images[cat].filter((x,index)=&gt;!selected.includes(index));dirty=true;render();});}
+    if(a===&#x27;image-up&#x27;){if(!canManage()||i===0)return;[draft.images[cat][i-1],draft.images[cat][i]]=[draft.images[cat][i],draft.images[cat][i-1]];dirty=true;render();return;}
+    if(a===&#x27;preview-pattern&#x27;){const version=findPattern(b.dataset.id),originalUrl=version?.image?.originalUrl;if(!originalUrl)return say(&#x27;该配色版本的花型原图暂不可用。&#x27;,true);overlay.hidden=false;overlay.innerHTML=`&lt;section class=&quot;fl-card fl-lightbox&quot; role=&quot;dialog&quot; aria-modal=&quot;true&quot; aria-label=&quot;花型原图&quot;&gt;&lt;div class=&quot;fl-row fl-between&quot;&gt;${button(&#x27;关闭&#x27;,&#x27;cancel-dialog&#x27;)}&lt;/div&gt;&lt;img src=&quot;${esc(originalUrl)}&quot; alt=&quot;${esc(version.no)} 花型原图&quot;&gt;&lt;p class=&quot;fl-small fl-error&quot; role=&quot;alert&quot; hidden&gt;原图加载失败，请关闭后重试。&lt;/p&gt;&lt;/section&gt;`;overlay.querySelector(&#x27;img&#x27;).addEventListener(&#x27;error&#x27;,event=&gt;{event.target.hidden=true;overlay.querySelector(&#x27;[role=&quot;alert&quot;]&#x27;).hidden=false;},{once:true});overlay.querySelector(&#x27;button&#x27;).focus();return;}
+    if(a===&#x27;preview&#x27;){const img=draft.images[cat][i];if(!img)return;overlay.hidden=false;overlay.innerHTML=`&lt;section class=&quot;fl-card fl-lightbox&quot; role=&quot;dialog&quot; aria-modal=&quot;true&quot; aria-label=&quot;图片预览&quot;&gt;&lt;div class=&quot;fl-row fl-between&quot;&gt;&lt;span&gt;${esc(img.name)}&lt;/span&gt;${button(&#x27;关闭&#x27;,&#x27;cancel-dialog&#x27;)}&lt;/div&gt;&lt;img src=&quot;${esc(img.url)}&quot; alt=&quot;${esc(img.name)}&quot;&gt;&lt;/section&gt;`;overlay.querySelector(&#x27;button&#x27;).focus();return;}
+    if(a===&#x27;product-remark&#x27;){const p=state.products.find(x=&gt;x.id===b.dataset.id);if(!p)return;overlay.hidden=false;overlay.innerHTML=`&lt;section class=&quot;fl-card&quot; role=&quot;dialog&quot; aria-modal=&quot;true&quot; aria-label=&quot;产品备注&quot;&gt;&lt;div class=&quot;fl-row fl-between&quot;&gt;&lt;h3&gt;产品备注 · ${esc(number(p))}&lt;/h3&gt;${button(&#x27;关闭&#x27;,&#x27;cancel-dialog&#x27;)}&lt;/div&gt;&lt;div class=&quot;fl-remark-full&quot;&gt;${esc(p.remark)||&#x27;—&#x27;}&lt;/div&gt;&lt;/section&gt;`;overlay.querySelector(&#x27;button&#x27;).focus();return;}
+    if(a===&#x27;product-images&#x27;){
+      const product=state.products.find(x=&gt;x.id===b.dataset.id);if(!product)return;
+      overlay.classList.add(&#x27;fl-gallery-open&#x27;);overlay.hidden=false;
+      overlay.innerHTML=`&lt;section class=&quot;fl-card&quot; role=&quot;dialog&quot; aria-modal=&quot;true&quot; aria-label=&quot;产品图&quot;&gt;&lt;div class=&quot;fl-row fl-between&quot;&gt;&lt;h3&gt;产品图 · ${esc(number(product))}&lt;/h3&gt;${button(&#x27;关闭&#x27;,&#x27;cancel-dialog&#x27;)}&lt;/div&gt;&lt;div class=&quot;fl-gallery&quot;&gt;${[&#x27;面料大图&#x27;,&#x27;面料细节图&#x27;,&#x27;效果图&#x27;].map((name,category)=&gt;`&lt;section data-gallery-category=&quot;${category}&quot;&gt;&lt;h3&gt;${name} &lt;span class=&quot;fl-small fl-muted&quot;&gt;${product.images[category].length} 张&lt;/span&gt;&lt;/h3&gt;&lt;div class=&quot;fl-gallery-images&quot;&gt;${product.images[category].map((img,index)=&gt;`&lt;figure&gt;&lt;img src=&quot;${esc(img.url)}&quot; alt=&quot;${esc(img.name)}&quot;&gt;&lt;figcaption class=&quot;fl-small&quot;&gt;${index+1} · ${esc(img.name)}&lt;/figcaption&gt;&lt;/figure&gt;`).join(&#x27;&#x27;)||&#x27;&lt;div class=&quot;fl-empty fl-small&quot;&gt;暂无图片&lt;/div&gt;&#x27;}&lt;/div&gt;&lt;/section&gt;`).join(&#x27;&#x27;)}&lt;/div&gt;&lt;/section&gt;`;
+      overlay.querySelector(&#x27;button&#x27;).focus();return;
+    }
+    if(a===&#x27;cancel-dialog&#x27;){closeDialog();return;}
+    if(a===&#x27;confirm-dialog&#x27;){const action=dialog;closeDialog();action?.();}
+  });
+  root.addEventListener(&#x27;input&#x27;,event=&gt;{
+    const el=event.target;
+    if([&#x27;fl-search&#x27;,&#x27;fl-search-product-no&#x27;,&#x27;fl-search-product-name&#x27;].includes(el.id)){const pos=el.selectionStart,id=el.id,key={&#x27;fl-search&#x27;:&#x27;search&#x27;,&#x27;fl-search-product-no&#x27;:&#x27;productNoSearch&#x27;,&#x27;fl-search-product-name&#x27;:&#x27;productNameSearch&#x27;}[id];state[key]=el.value;state.relatedFabricId=&#x27;&#x27;;state.page=1;render();const next=root.querySelector(&#x27;#&#x27;+id);next.focus();next.setSelectionRange(pos,pos);saveState();}
+    else if(el.dataset.selector){const kind=el.dataset.selector,pos=el.selectionStart;selectionQuery[kind]=el.value;render();const next=root.querySelector(`[data-selector=&quot;${kind}&quot;]`);next.focus();next.setSelectionRange(pos,pos);}
+    else if(el.name===&#x27;productRemark&#x27;){draft.remark=el.value;dirty=true;}
+    else if(el.dataset.fabric){readFabric();dirty=true;}
+  });
+  root.addEventListener(&#x27;change&#x27;,async event=&gt;{
+    const el=event.target;
+    if(el.dataset.importMap){importDraft.mapping[el.dataset.importMap]=el.value;importDraft.confirmed=false;render();return;}
+    if(el.dataset.importAction){if(state.role!==&#x27;admin&#x27;)return;importDraft.actions[el.dataset.importAction]=el.value;render();return;}
+    if(el.id===&#x27;fl-import-filter&#x27;){importDraft.filter=el.value;render();return;}
+    if(el.id===&#x27;fl-import-default-unit&#x27;){importDraft.defaultUnit=el.value;importDraft.confirmed=false;render();return;}
+    if(el.id===&#x27;fl-role&#x27;){const role=el.value;leave(()=&gt;{state.role=role;saveState();render();say(&#x27;&#x27;);});return;}
+    if([&#x27;fl-inactive&#x27;,&#x27;fl-topic&#x27;,&#x27;fl-tag&#x27;,&#x27;fl-color&#x27;].includes(el.id)){if(el.id===&#x27;fl-inactive&#x27;)state.inactive=el.checked;else state[el.id.slice(3)]=el.value;state.page=1;render();saveState();return;}
+    if([&#x27;patternId&#x27;,&#x27;fabricId&#x27;].includes(el.name)){if(!canManage()||hasDocumentRef(draft))return;draft[el.name]=el.value;dirty=true;render();say(&#x27;&#x27;);return;}
+    if(el.name===&#x27;productActive&#x27;){draft.active=el.checked;dirty=true;return;}
+    if(el.dataset.file!==undefined){if(!canManage()||!draft)return;const file=el.files[0];if(!file)return;const cat=Number(el.dataset.file),replace=el.dataset.replace??&#x27;&#x27;;if(!file.type.startsWith(&#x27;image/&#x27;))return say(&#x27;请选择图片文件。&#x27;,true);if(replace===&#x27;&#x27;&amp;&amp;draft.images[cat].length&gt;=10)return say(&#x27;每类最多 10 张图片。&#x27;,true);const url=await new Promise((resolve,reject)=&gt;{const reader=new FileReader();reader.onload=()=&gt;resolve(reader.result);reader.onerror=reject;reader.readAsDataURL(file);});const img={name:file.name,url};if(replace===&#x27;&#x27;)draft.images[cat].push(img);else draft.images[cat][Number(replace)]=img;dirty=true;render();}
+    else if(el.dataset.fabric){readFabric();dirty=true;}
+  });
+  function commitFabric(){if(!canManage())return;readFabric();const f=fabricDraft,no=f.no.trim().toUpperCase();if(!/^[A-Z0-9]+$/.test(no)||!f.name.trim())return say(&#x27;品号只能为字母数字；品号和品名必填。&#x27;,true);if(state.fabrics.some(x=&gt;x.id!==f.id&amp;&amp;x.no===no))return say(&#x27;面料品号已存在。&#x27;,true);if((f.weight!==&#x27;&#x27;&amp;&amp;!(Number(f.weight)&gt;0))||(f.width!==&#x27;&#x27;&amp;&amp;!(Number(f.width)&gt;0)))return say(&#x27;填写克重或门幅时，数值应大于零。&#x27;,true);const original=findFabric(f.id);if(original&amp;&amp;state.products.some(x=&gt;x.fabricId===f.id)&amp;&amp;no!==original.no)return say(&#x27;已被产品引用，品号不可修改。&#x27;,true);if(original)Object.assign(original,{...f,no,name:f.name.trim()});else state.fabrics.push({...f,id:&#x27;f&#x27;+Date.now(),no,name:f.name.trim()});fabricDraft=null;dirty=false;saveState();render();say(&#x27;面料已保存，关联产品读取最新资料。&#x27;);}
+  root.addEventListener(&#x27;dragstart&#x27;,event=&gt;{const el=event.target.closest(&#x27;[data-drag-cat]&#x27;);if(!el||!canManage())return;drag={cat:Number(el.dataset.dragCat),index:Number(el.dataset.index)};event.dataTransfer.effectAllowed=&#x27;move&#x27;;});
+  root.addEventListener(&#x27;dragover&#x27;,event=&gt;{const el=event.target.closest(&#x27;[data-drag-cat]&#x27;);if(el&amp;&amp;drag&amp;&amp;Number(el.dataset.dragCat)===drag.cat)event.preventDefault();});
+  root.addEventListener(&#x27;drop&#x27;,event=&gt;{const el=event.target.closest(&#x27;[data-drag-cat]&#x27;);if(!el||!drag||Number(el.dataset.dragCat)!==drag.cat)return;event.preventDefault();const index=Number(el.dataset.index),list=draft.images[drag.cat],item=list.splice(drag.index,1)[0];list.splice(index,0,item);dirty=true;drag=null;render();});
+  root.addEventListener(&#x27;keydown&#x27;,event=&gt;{if(event.key===&#x27;Escape&#x27;&amp;&amp;!overlay.hidden)closeDialog();});
+  window.addEventListener(&#x27;openai:set_globals&#x27;,event=&gt;{const incoming=event.detail?.globals?.widgetState?.privateContent;if(!draft&amp;&amp;!fabricDraft&amp;&amp;incoming?.schema===&#x27;fabric-review-135&#x27;){state={...state,...Object.fromEntries([&#x27;view&#x27;,&#x27;role&#x27;,&#x27;search&#x27;,&#x27;productNoSearch&#x27;,&#x27;productNameSearch&#x27;,&#x27;inactive&#x27;,&#x27;topic&#x27;,&#x27;tag&#x27;,&#x27;color&#x27;,&#x27;page&#x27;].filter(k=&gt;k in incoming).map(k=&gt;[k,incoming[k]]))};render();}});
+  render();
+})();
+&lt;/script&gt;
+
+&lt;script src=&quot;https://unpkg.com/@floating-ui/core@1.7.3/dist/floating-ui.core.umd.min.js&quot;&gt;&lt;/script&gt;
+&lt;script src=&quot;https://unpkg.com/@floating-ui/dom@1.7.4/dist/floating-ui.dom.umd.min.js&quot;&gt;&lt;/script&gt;
+&lt;script&gt;
+(() =&gt; {
+  if (window.FloatingUIDOM == null) {
+    return;
+  }
+  const { autoUpdate, computePosition, flip, offset, shift, size } =
+    window.FloatingUIDOM;
+  const tooltipPlacements = new Set([&quot;top&quot;, &quot;right&quot;, &quot;bottom&quot;, &quot;left&quot;]);
+  const tooltipId = `codex-visualization-tooltip-${
+    window.crypto?.randomUUID?.() ?? Date.now().toString(36)
+  }`;
+  const tooltipGap = 5;
+  const hoverDelay = 700;
+  const skipDelay = 300;
+  let activeTrigger = null;
+  let pendingTrigger = null;
+  let tooltip = null;
+  let openTimeout = null;
+  let autoUpdateCleanup = null;
+  let positionRequest = 0;
+  let skipDelayUntil = 0;
+  let lastPointerWasTouch = false;
+  let pinnedByTouch = false;
+
+  const getTrigger = (event) =&gt; {
+    for (const target of event.composedPath()) {
+      if (target?.nodeType === Node.ELEMENT_NODE) {
+        const trigger = target.closest(&quot;[data-tooltip]&quot;);
+        if (trigger) return trigger;
+      }
+    }
+    return null;
+  };
+  const containsTarget = (trigger, target) =&gt;
+    target?.nodeType != null &amp;&amp; trigger.contains(target);
+  const getContent = (trigger) =&gt;
+    trigger.getAttribute(&quot;data-tooltip&quot;)?.trim() ?? &quot;&quot;;
+  const getPlacement = (trigger) =&gt; {
+    const placement = trigger.getAttribute(&quot;data-tooltip-placement&quot;);
+    return tooltipPlacements.has(placement) ? placement : &quot;top&quot;;
+  };
+  const getTooltip = () =&gt; {
+    if (tooltip == null) {
+      tooltip = document.createElement(&quot;div&quot;);
+      tooltip.id = tooltipId;
+      tooltip.className = &quot;tooltip&quot;;
+      tooltip.setAttribute(&quot;role&quot;, &quot;tooltip&quot;);
+    }
+    return tooltip;
+  };
+  const setDescribedBy = (trigger, described) =&gt; {
+    const ids = new Set(
+      (trigger.getAttribute(&quot;aria-describedby&quot;) ?? &quot;&quot;)
+        .split(/\s+/)
+        .filter(Boolean),
+    );
+    if (described) {
+      ids.add(tooltipId);
+    } else {
+      ids.delete(tooltipId);
+    }
+    if (ids.size === 0) {
+      trigger.removeAttribute(&quot;aria-describedby&quot;);
+    } else {
+      trigger.setAttribute(&quot;aria-describedby&quot;, [...ids].join(&quot; &quot;));
+    }
+  };
+  const clearOpenTimeout = () =&gt; {
+    if (openTimeout != null) {
+      window.clearTimeout(openTimeout);
+      openTimeout = null;
+    }
+    pendingTrigger = null;
+  };
+  const closeTooltip = (activateSkipDelay = true) =&gt; {
+    clearOpenTimeout();
+    pinnedByTouch = false;
+    positionRequest += 1;
+    autoUpdateCleanup?.();
+    autoUpdateCleanup = null;
+    if (activeTrigger == null) {
+      return;
+    }
+    setDescribedBy(activeTrigger, false);
+    activeTrigger = null;
+    tooltip?.remove();
+    if (activateSkipDelay) {
+      skipDelayUntil = Date.now() + skipDelay;
+    }
+  };
+  const updatePosition = (trigger, floating) =&gt; {
+    const request = ++positionRequest;
+    void computePosition(trigger, floating, {
+      middleware: [
+        offset(tooltipGap),
+        flip({ padding: tooltipGap }),
+        shift({ padding: tooltipGap }),
+        size({
+          padding: tooltipGap,
+          apply({ availableHeight, availableWidth, elements }) {
+            elements.floating.style.setProperty(
+              &quot;--tooltip-available-width&quot;,
+              `${Math.max(0, availableWidth)}px`,
+            );
+            elements.floating.style.setProperty(
+              &quot;--tooltip-available-height&quot;,
+              `${Math.max(0, availableHeight)}px`,
+            );
+          },
+        }),
+      ],
+      placement: getPlacement(trigger),
+      strategy: &quot;fixed&quot;,
+    })
+      .then(({ x, y }) =&gt; {
+        if (activeTrigger !== trigger || request !== positionRequest) {
+          return;
+        }
+        const scale = window.devicePixelRatio || 1;
+        floating.style.transform = `translate(${Math.round(x * scale) / scale}px, ${Math.round(y * scale) / scale}px)`;
+        floating.style.visibility = &quot;visible&quot;;
+      })
+      .catch(() =&gt; {
+        if (activeTrigger === trigger &amp;&amp; request === positionRequest) {
+          closeTooltip(false);
+        }
+      });
+  };
+  const openTooltip = (trigger) =&gt; {
+    const content = getContent(trigger);
+    if (!trigger.isConnected || content.length === 0) {
+      return;
+    }
+    clearOpenTimeout();
+    if (activeTrigger === trigger) {
+      return;
+    }
+    closeTooltip();
+    const floating = getTooltip();
+    floating.textContent = content;
+    floating.style.visibility = &quot;hidden&quot;;
+    floating.style.transform = &quot;translate(0, 0)&quot;;
+    document.body.appendChild(floating);
+    activeTrigger = trigger;
+    setDescribedBy(trigger, true);
+    autoUpdateCleanup = autoUpdate(trigger, floating, () =&gt; {
+      updatePosition(trigger, floating);
+    });
+  };
+  const requestOpen = (trigger, immediate = false) =&gt; {
+    if (
+      getContent(trigger).length === 0 ||
+      activeTrigger === trigger ||
+      pendingTrigger === trigger
+    ) {
+      return;
+    }
+    clearOpenTimeout();
+    pendingTrigger = trigger;
+    const delay =
+      immediate || activeTrigger != null || Date.now() &lt; skipDelayUntil
+        ? 0
+        : hoverDelay;
+    if (delay === 0) {
+      openTooltip(trigger);
+      return;
+    }
+    openTimeout = window.setTimeout(() =&gt; {
+      openTimeout = null;
+      pendingTrigger = null;
+      openTooltip(trigger);
+    }, delay);
+  };
+  const handlePointerOpen = (event) =&gt; {
+    if (event.pointerType === &quot;touch&quot;) {
+      return;
+    }
+    const trigger = getTrigger(event);
+    if (trigger == null || containsTarget(trigger, event.relatedTarget)) {
+      return;
+    }
+    requestOpen(trigger);
+  };
+  const handlePointer = (event) =&gt; {
+    lastPointerWasTouch =
+      event.type === &quot;pointerdown&quot; &amp;&amp; event.pointerType === &quot;touch&quot;;
+  };
+  const handleTouchClick = (event) =&gt; {
+    const isTouch = event.pointerType === &quot;touch&quot; || lastPointerWasTouch;
+    lastPointerWasTouch = false;
+    if (!isTouch || event.detail === 0) {
+      return;
+    }
+    const trigger = getTrigger(event);
+    if (
+      trigger == null ||
+      !trigger.isConnected ||
+      getContent(trigger).length === 0 ||
+      (pinnedByTouch &amp;&amp; activeTrigger === trigger)
+    ) {
+      if (pinnedByTouch) {
+        closeTooltip();
+      }
+      return;
+    }
+    openTooltip(trigger);
+    pinnedByTouch = activeTrigger === trigger;
+    window.setTimeout(() =&gt; {
+      if (activeTrigger === trigger &amp;&amp; !trigger.isConnected) {
+        closeTooltip(false);
+      }
+    }, 0);
+  };
+  const handleLeave = (event) =&gt; {
+    if (pinnedByTouch) {
+      return;
+    }
+    const trigger = getTrigger(event);
+    if (trigger == null || containsTarget(trigger, event.relatedTarget)) {
+      return;
+    }
+    if (activeTrigger === trigger || pendingTrigger === trigger) {
+      closeTooltip();
+    }
+  };
+  const handleFocusIn = (event) =&gt; {
+    const trigger = getTrigger(event);
+    if (trigger?.matches(&quot;:focus-visible&quot;)) {
+      requestOpen(trigger, true);
+    }
+  };
+  const handleKeyDown = (event) =&gt; {
+    if (event.key === &quot;Escape&quot;) {
+      closeTooltip();
+    }
+  };
+  const handleContextMenu = (event) =&gt; {
+    lastPointerWasTouch = false;
+    const trigger = getTrigger(event);
+    if (activeTrigger === trigger || pendingTrigger === trigger) {
+      closeTooltip();
+    }
+  };
+  const handlers = {
+    pointerover: handlePointerOpen,
+    pointerdown: handlePointer,
+    pointercancel: handlePointer,
+    click: handleTouchClick,
+    pointerout: handleLeave,
+    focusin: handleFocusIn,
+    focusout: handleLeave,
+    keydown: handleKeyDown,
+    contextmenu: handleContextMenu,
+  };
+  const roots = new Map();
+  const handledEvents = new WeakSet();
+  const handleEvent = (event) =&gt; {
+    if (handledEvents.has(event)) return;
+    handledEvents.add(event);
+    handlers[event.type](event);
+  };
+  const discoverRoots = (node) =&gt; {
+    if (node.shadowRoot) listen(node.shadowRoot);
+    for (const element of node.querySelectorAll(&quot;*&quot;)) {
+      if (element.shadowRoot) listen(element.shadowRoot);
+    }
+  };
+  const listen = (root) =&gt; {
+    if (roots.has(root)) return;
+    for (const type of Object.keys(handlers)) root.addEventListener(type, handleEvent);
+    const observer = new window.MutationObserver((records) =&gt; {
+      for (const { addedNodes } of records) {
+        for (const node of addedNodes) {
+          if (node.nodeType === Node.ELEMENT_NODE) discoverRoots(node);
+        }
+      }
+      for (const [root, cleanup] of roots) {
+        if (root.host &amp;&amp; !root.host.isConnected) {
+          cleanup();
+          roots.delete(root);
+        }
+      }
+      if (activeTrigger &amp;&amp; !activeTrigger.isConnected) closeTooltip(false);
+    });
+    observer.observe(root, { childList: true, subtree: true });
+    roots.set(root, () =&gt; {
+      observer.disconnect();
+      for (const type of Object.keys(handlers)) root.removeEventListener(type, handleEvent);
+    });
+    discoverRoots(root);
+  };
+  const destroy = () =&gt; {
+    closeTooltip(false);
+    lastPointerWasTouch = false;
+    for (const cleanup of roots.values()) cleanup();
+    roots.clear();
+    tooltip = null;
+  };
+
+  // Events between children of one shadow root never reach the document.
+  listen(document);
+  window.addEventListener(&quot;pagehide&quot;, destroy, { once: true });
+})();
+&lt;/script&gt;
+&lt;script id=&quot;codex-visualization-tabs&quot;&gt;
+(() =&gt; {
+  const selector = &#x27;.nav[role=&quot;tablist&quot;] [role=&quot;tab&quot;]&#x27;;
+  const disabled = &#x27;:disabled,[aria-disabled=&quot;true&quot;]&#x27;;
+  const selectTab = (selected) =&gt; {
+    const panelId = selected.getAttribute(&quot;aria-controls&quot;);
+    for (const tab of selected.closest(&#x27;[role=&quot;tablist&quot;]&#x27;).querySelectorAll(&#x27;[role=&quot;tab&quot;]&#x27;)) {
+      const active = tab === selected;
+      tab.classList.toggle(&quot;active&quot;, active);
+      tab.setAttribute(&quot;aria-selected&quot;, String(active));
+      const id = tab.getAttribute(&quot;aria-controls&quot;);
+      const panel = id &amp;&amp; document.getElementById(id);
+      if (panel != null) {
+        panel.hidden = id !== panelId;
+        if (!panel.hidden &amp;&amp; selected.id) {
+          panel.setAttribute(&quot;aria-labelledby&quot;, selected.id);
+        }
+      }
+    }
+  };
+  const interact = (event) =&gt; {
+    const tab = event.target?.closest?.(selector);
+    if (event.defaultPrevented || tab == null || tab.matches(disabled)) {
+      return;
+    }
+    if (event.type === &quot;click&quot;) {
+      selectTab(tab);
+      return;
+    }
+    const tabs = Array.from(
+      tab.closest(&#x27;[role=&quot;tablist&quot;]&#x27;).querySelectorAll(&#x27;[role=&quot;tab&quot;]&#x27;),
+    ).filter((candidate) =&gt; !candidate.matches(disabled));
+    const current = tabs.indexOf(tab);
+    let next;
+    if (event.key === &quot;ArrowRight&quot; || event.key === &quot;ArrowDown&quot;) {
+      next = (current + 1) % tabs.length;
+    } else if (event.key === &quot;ArrowLeft&quot; || event.key === &quot;ArrowUp&quot;) {
+      next = (current + tabs.length - 1) % tabs.length;
+    } else if (event.key === &quot;Home&quot;) {
+      next = 0;
+    } else if (event.key === &quot;End&quot;) {
+      next = tabs.length - 1;
+    } else {
+      return;
+    }
+    event.preventDefault();
+    tabs[next].focus();
+    selectTab(tabs[next]);
+  };
+
+  for (const list of document.querySelectorAll(&#x27;.nav[role=&quot;tablist&quot;]&#x27;)) {
+    const selected =
+      list.querySelector(&#x27;[role=&quot;tab&quot;][aria-selected=&quot;true&quot;]&#x27;) ??
+      list.querySelector(&#x27;[role=&quot;tab&quot;].active&#x27;) ??
+      list.querySelector(&#x27;[role=&quot;tab&quot;]&#x27;);
+    if (selected != null) {
+      selectTab(selected);
+    }
+  }
+  document.addEventListener(&quot;click&quot;, interact);
+  document.addEventListener(&quot;keydown&quot;, interact);
+  window.addEventListener(&quot;pagehide&quot;, () =&gt; {
+    document.removeEventListener(&quot;click&quot;, interact);
+    document.removeEventListener(&quot;keydown&quot;, interact);
+  }, { once: true });
+})();
+&lt;/script&gt;
+&lt;script id=&quot;codex-visualization-carousel&quot;&gt;
+  (() =&gt; {
+    for (const root of document.querySelectorAll(&quot;.viz-carousel&quot;)) {
+      const panels = Array.from(
+        root.querySelectorAll(&quot;:scope &gt; [data-variant]&quot;),
+      );
+      if (panels.length === 0) {
+        continue;
+      }
+      root.setAttribute(&quot;role&quot;, &quot;group&quot;);
+      panels.forEach((panel, index) =&gt; {
+        panel.hidden = index !== 0;
+        panel.setAttribute(&quot;role&quot;, &quot;group&quot;);
+        if (!panel.hasAttribute(&quot;aria-label&quot;)) {
+          panel.setAttribute(&quot;aria-label&quot;, panel.dataset.variant);
+        }
+      });
+      root.dataset.activeVariant = panels[0].dataset.variant;
+      if (panels.length === 1) {
+        continue;
+      }
+
+      const controls = document.createElement(&quot;div&quot;);
+      controls.className = &quot;viz-carousel-controls&quot;;
+      // Portable copy of the settings dropdown&#x27;s legacy glyph; no 14px icon-package preset matches it.
+      // https://github.com/openai/openai/blob/master/codex/codex-apps/webview/src/icons/chevron.svg
+      controls.innerHTML = `
+      &lt;button type=&quot;button&quot; class=&quot;viz-carousel-previous cursor-interaction&quot;&gt;&lt;i data-lucide=&quot;chevron-left&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;/button&gt;
+      &lt;details class=&quot;viz-carousel-picker&quot;&gt;
+        &lt;summary class=&quot;cursor-interaction&quot;&gt;
+          &lt;span class=&quot;viz-carousel-count tabular-nums&quot;&gt;&lt;/span&gt;
+          &lt;span class=&quot;viz-carousel-name&quot;&gt;&lt;/span&gt;
+          &lt;svg class=&quot;viz-carousel-caret&quot; width=&quot;14&quot; height=&quot;14&quot; viewBox=&quot;0 0 20 21&quot; fill=&quot;none&quot; aria-hidden=&quot;true&quot; focusable=&quot;false&quot;&gt;
+            &lt;path d=&quot;M15.2793 7.71101C15.539 7.45131 15.961 7.45131 16.2207 7.71101C16.4804 7.97071 16.4804 8.39272 16.2207 8.65242L10.4707 14.4024C10.211 14.6621 9.78902 14.6621 9.52932 14.4024L3.77932 8.65242L3.69436 8.54792C3.52385 8.28979 3.55205 7.93828 3.77932 7.71101C4.00659 7.48374 4.3581 7.45554 4.61623 7.62605L4.72073 7.71101L10 12.9903L15.2793 7.71101Z&quot; fill=&quot;currentColor&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;0.6&quot; /&gt;
+          &lt;/svg&gt;
+        &lt;/summary&gt;
+        &lt;div class=&quot;viz-carousel-options&quot;&gt;&lt;/div&gt;
+      &lt;/details&gt;
+      &lt;button type=&quot;button&quot; class=&quot;viz-carousel-next cursor-interaction&quot;&gt;&lt;i data-lucide=&quot;chevron-right&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;/button&gt;`;
+      const previous = controls.querySelector(&quot;.viz-carousel-previous&quot;);
+      const next = controls.querySelector(&quot;.viz-carousel-next&quot;);
+      const picker = controls.querySelector(&quot;.viz-carousel-picker&quot;);
+      const summary = picker.querySelector(&quot;summary&quot;);
+      const count = controls.querySelector(&quot;.viz-carousel-count&quot;);
+      const name = controls.querySelector(&quot;.viz-carousel-name&quot;);
+      const options = controls.querySelector(&quot;.viz-carousel-options&quot;);
+      const status = document.createElement(&quot;span&quot;);
+      status.className = &quot;sr-only&quot;;
+      status.setAttribute(&quot;role&quot;, &quot;status&quot;);
+      status.setAttribute(&quot;aria-live&quot;, &quot;polite&quot;);
+      status.setAttribute(&quot;aria-atomic&quot;, &quot;true&quot;);
+      previous.setAttribute(
+        &quot;aria-label&quot;,
+        root.dataset.previousLabel ?? &quot;Previous variant&quot;,
+      );
+      next.setAttribute(&quot;aria-label&quot;, root.dataset.nextLabel ?? &quot;Next variant&quot;);
+
+      let active = 0;
+      let mousePointerId = null;
+      let summaryPointerHandled = false;
+      summary.addEventListener(&quot;pointerdown&quot;, (event) =&gt; {
+        summaryPointerHandled =
+          event.pointerType === &quot;mouse&quot; &amp;&amp; event.button === 0 &amp;&amp; !event.ctrlKey;
+        if (!summaryPointerHandled) {
+          return;
+        }
+        event.preventDefault();
+        summary.focus({ preventScroll: true });
+        picker.open = !picker.open;
+        mousePointerId = picker.open ? event.pointerId : null;
+      });
+      summary.addEventListener(&quot;click&quot;, (event) =&gt; {
+        if (summaryPointerHandled &amp;&amp; event.detail &gt; 0) {
+          event.preventDefault();
+        }
+      });
+      const choices = panels.map((panel, index) =&gt; {
+        const choice = document.createElement(&quot;button&quot;);
+        choice.type = &quot;button&quot;;
+        choice.className = &quot;cursor-interaction&quot;;
+        choice.textContent = panel.dataset.variant;
+        choice.addEventListener(&quot;click&quot;, () =&gt; {
+          select(index);
+          summary.focus();
+        });
+        choice.addEventListener(&quot;pointerup&quot;, (event) =&gt; {
+          if (
+            picker.open &amp;&amp;
+            event.pointerType === &quot;mouse&quot; &amp;&amp;
+            event.button === 0 &amp;&amp;
+            event.pointerId === mousePointerId
+          ) {
+            choice.click();
+          }
+        });
+        options.appendChild(choice);
+        return choice;
+      });
+      const select = (index) =&gt; {
+        const changed = active !== index;
+        active = index;
+        panels.forEach((panel, position) =&gt; {
+          panel.hidden = position !== active;
+          choices[position].setAttribute(
+            &quot;aria-current&quot;,
+            String(position === active),
+          );
+        });
+        root.dataset.activeVariant = panels[active].dataset.variant;
+        count.textContent = `${active + 1} / ${panels.length}`;
+        name.textContent = panels[active].dataset.variant;
+        picker.open = false;
+        mousePointerId = null;
+        if (changed) {
+          status.textContent = `${count.textContent}: ${name.textContent}`;
+        }
+      };
+      previous.addEventListener(&quot;click&quot;, () =&gt;
+        select((active + panels.length - 1) % panels.length),
+      );
+      next.addEventListener(&quot;click&quot;, () =&gt;
+        select((active + 1) % panels.length),
+      );
+      picker.addEventListener(&quot;keydown&quot;, (event) =&gt; {
+        if (event.key === &quot;Escape&quot; &amp;&amp; picker.open) {
+          event.preventDefault();
+          picker.open = false;
+          mousePointerId = null;
+          summary.focus();
+          return;
+        }
+        if (event.altKey || event.ctrlKey || event.metaKey) {
+          return;
+        }
+        const index = choices.indexOf(document.activeElement);
+        let nextIndex;
+        if (event.key === &quot;ArrowDown&quot;) {
+          nextIndex = index &lt; 0 ? active : (index + 1) % choices.length;
+        } else if (event.key === &quot;ArrowUp&quot;) {
+          nextIndex = index &lt; 0 ? active : (index + choices.length - 1) % choices.length;
+        } else if (picker.open &amp;&amp; event.key === &quot;Home&quot;) {
+          nextIndex = 0;
+        } else if (picker.open &amp;&amp; event.key === &quot;End&quot;) {
+          nextIndex = choices.length - 1;
+        } else {
+          return;
+        }
+        event.preventDefault();
+        picker.open = true;
+        choices[nextIndex].focus();
+      });
+      picker.addEventListener(&quot;focusout&quot;, (event) =&gt; {
+        if (!picker.contains(event.relatedTarget)) {
+          picker.open = false;
+          mousePointerId = null;
+        }
+      });
+      const dismiss = (event) =&gt; {
+        if (!summary.contains(event.target)) {
+          mousePointerId = null;
+        }
+        if (!picker.contains(event.target)) {
+          picker.open = false;
+        }
+      };
+      const endPointerSelection = () =&gt; {
+        mousePointerId = null;
+      };
+      const sizePicker = () =&gt; {
+        root.style.setProperty(
+          &quot;--viz-carousel-picker-height&quot;,
+          `${picker.open ? options.offsetHeight : 0}px`,
+        );
+      };
+      picker.addEventListener(&quot;toggle&quot;, sizePicker);
+      window.addEventListener(&quot;resize&quot;, sizePicker);
+      document.addEventListener(&quot;pointerdown&quot;, dismiss);
+      document.addEventListener(&quot;pointerup&quot;, endPointerSelection);
+      document.addEventListener(&quot;pointercancel&quot;, endPointerSelection);
+      window.addEventListener(&quot;blur&quot;, endPointerSelection);
+      window.addEventListener(
+        &quot;pagehide&quot;,
+        () =&gt; {
+          document.removeEventListener(&quot;pointerdown&quot;, dismiss);
+          document.removeEventListener(&quot;pointerup&quot;, endPointerSelection);
+          document.removeEventListener(&quot;pointercancel&quot;, endPointerSelection);
+          window.removeEventListener(&quot;blur&quot;, endPointerSelection);
+          window.removeEventListener(&quot;resize&quot;, sizePicker);
+        },
+        { once: true },
+      );
+      root.append(controls, status);
+      select(0);
+    }
+  })();
+&lt;/script&gt;
+&lt;script id=&quot;codex-visualization-lucide&quot; async src=&quot;https://unpkg.com/lucide@1.17.0/dist/umd/lucide.js&quot;&gt;&lt;/script&gt;
+&lt;script&gt;
+(() =&gt; {
+  const initialize = () =&gt; {
+    globalThis.lucide?.createIcons({ attrs: { width: 16, height: 16 } });
+  };
+  if (globalThis.lucide != null) {
+    initialize();
+    return;
+  }
+  document
+    .getElementById(&quot;codex-visualization-lucide&quot;)
+    ?.addEventListener(&quot;load&quot;, initialize, { once: true });
+})();
+&lt;/script&gt;
+
+&lt;/body&gt;
+&lt;/html&gt;
+"></iframe>
+
+<script>(() => {
+  const frame = document.getElementById("codex-visualization");
+  if (!(frame instanceof HTMLIFrameElement)) {
+    return;
+  }
+  let viewportHeight = globalThis.innerHeight;
+  const storageKey = `codex:visualization-widget-state-v2:${JSON.stringify([
+    globalThis.location.pathname,
+    globalThis.location.search,
+  ])}`;
+  const parseState = (serializedState) => {
+    if (
+      typeof serializedState !== "string" ||
+      new TextEncoder().encode(serializedState).length > 16 * 1024
+    ) {
+      throw new TypeError(
+        "Widget state must be a JSON object of at most 16 KiB",
+      );
+    }
+    /** @type {unknown} */
+    const state = JSON.parse(serializedState);
+    if (
+      state == null ||
+      typeof state !== "object" ||
+      Array.isArray(state) ||
+      ("imageIds" in state &&
+        (!Array.isArray(state.imageIds) || state.imageIds.length > 0))
+    ) {
+      throw new TypeError("Widget state must be a JSON object");
+    }
+    const storedState = { modelContent: null, privateContent: null, ...state };
+    const canonicalState = JSON.stringify(
+      storedState,
+      (_key, /** @type {unknown} */ value) => {
+        if (typeof value === "number" && !Number.isFinite(value)) {
+          throw new TypeError("Widget state must contain finite numbers");
+        }
+        return value;
+      },
+    );
+    if (new TextEncoder().encode(canonicalState).length > 16 * 1024) {
+      throw new TypeError(
+        "Widget state must be a JSON object of at most 16 KiB",
+      );
+    }
+    return storedState;
+  };
+  let storage = null;
+  let state = null;
+  try {
+    const localStorage = globalThis.localStorage;
+    const probeKey = `${storageKey}:probe`;
+    localStorage.setItem(probeKey, "1");
+    localStorage.removeItem(probeKey);
+    storage = localStorage;
+    const savedState = storage.getItem(storageKey);
+    if (savedState != null) {
+      try {
+        state = parseState(savedState);
+      } catch {
+        // Invalid saved state does not disable future writes.
+      }
+    }
+  } catch {
+    storage = null;
+  }
+  const initialGlobals = {
+    widgetState: state,
+    statePersistence: storage == null ? "none" : "local",
+  };
+
+  const channel = new MessageChannel();
+  channel.port1.addEventListener("message", (event) => {
+    const data = event.data;
+    if (typeof data !== "object" || data == null) {
+      return;
+    }
+    if (data.type === "widget-state-write") {
+      if (!Number.isSafeInteger(data.id) || data.id <= 0) {
+        return;
+      }
+      let ok = false;
+      try {
+        if (storage != null) {
+          const state = parseState(data.state);
+          storage.setItem(storageKey, JSON.stringify(state));
+          ok = true;
+        }
+      } catch {
+        // Storage denial, quota limits, and invalid state return a failed receipt.
+      }
+      channel.port1.postMessage({
+        type: "widget-state-result",
+        id: data.id,
+        ok,
+      });
+      return;
+    }
+    if (data.type === "height") {
+      const height = data.height;
+      if (
+        typeof height === "number" &&
+        Number.isFinite(height) &&
+        height >= 0 &&
+        height <= 10_000
+      ) {
+        frame.style.height = Math.ceil(height) + "px";
+      }
+      return;
+    }
+    if (data.type === "scroll-to") {
+      const top = data.top;
+      if (
+        typeof top === "number" &&
+        Number.isFinite(top) &&
+        top >= 0 &&
+        globalThis.navigator.userActivation?.isActive === true
+      ) {
+        globalThis.scrollTo({
+          top: Math.ceil(
+            globalThis.scrollY + frame.getBoundingClientRect().top + top,
+          ),
+        });
+      }
+      return;
+    }
+    if (data.type === "open-external") {
+      const rawHref = data.href;
+      if (typeof rawHref !== "string") {
+        return;
+      }
+      let href;
+      try {
+        const url = new URL(rawHref, document.baseURI);
+        if (url.protocol !== "https:") {
+          return;
+        }
+        href = url.href;
+      } catch {
+        return;
+      }
+      if (globalThis.navigator.userActivation?.isActive === true) {
+        const anchor = document.createElement("a");
+        anchor.href = href;
+        anchor.rel = "noopener noreferrer";
+        anchor.target = "_blank";
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+      }
+      return;
+    }
+    if (data.type === "follow-up") {
+      const prompt = data.prompt;
+      if (
+        typeof prompt !== "string" ||
+        globalThis.navigator.userActivation?.isActive !== true
+      ) {
+        return;
+      }
+      const title = data.title;
+      globalThis.prompt(typeof title === "string" ? title : prompt, prompt);
+    }
+  });
+  channel.port1.start();
+  const srcdoc = frame.dataset.srcdoc;
+  if (srcdoc == null) {
+    return;
+  }
+  globalThis.addEventListener("resize", () => {
+    const height = Number.parseFloat(frame.style.height);
+    if (!Number.isFinite(height) || height <= viewportHeight) {
+      frame.style.removeProperty("height");
+    }
+    viewportHeight = globalThis.innerHeight;
+    channel.port1.postMessage({ type: "measure" });
+  });
+  frame.addEventListener(
+    "load",
+    () => {
+      frame.contentWindow?.postMessage(
+        { type: "codex-visualization-initialize" },
+        "*",
+        [channel.port2],
+      );
+    },
+    { once: true },
+  );
+  // Match the trusted bootstrap element, not the same text in an authored title.
+  frame.srcdoc = srcdoc.replace(
+    '<script type="application/json" id="codex-visualization-widget-state">__CODEX_VISUALIZATION_WIDGET_STATE__<\/script>',
+    () =>
+      '<script type="application/json" id="codex-visualization-widget-state">' +
+      JSON.stringify(initialGlobals).replaceAll("<", "\\u003c") +
+      "<\/script>",
+  );
+  delete frame.dataset.srcdoc;
+})();
+</script>
+</body>
+</html>

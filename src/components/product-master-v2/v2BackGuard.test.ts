@@ -1,0 +1,13 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {installV2BackGuard} from './v2BackGuard';
+function browser(answers:boolean[]=[]){
+ const events=new EventTarget(),entries:unknown[]=[{outside:true},null];let index=1,questions=0;
+ const history={get state(){return entries[index];},replaceState(value:unknown){entries[index]=value;},pushState(value:unknown){entries.splice(++index);entries.push(value);},back(){if(index===0)return;index--;const event=new Event('popstate');Object.assign(event,{state:entries[index]});events.dispatchEvent(event);}};
+ const host={history,location:{href:'http://127.0.0.1/'},document:{querySelector:()=>null},confirm:()=>{questions++;return answers.shift()??false;},addEventListener:events.addEventListener.bind(events),removeEventListener:events.removeEventListener.bind(events)} as unknown as Window;
+ return {host,history,entries,restoreFromCache(){index=1;const show=new Event('pageshow');Object.assign(show,{persisted:true});events.dispatchEvent(show);const pop=new Event('popstate');Object.assign(pop,{state:entries[1]});events.dispatchEvent(pop);},get index(){return index;},get questions(){return questions;}};
+}
+test('cancelled system back retains the current page and reuses one guard pair',()=>{const b=browser();const cleanup=installV2BackGuard(b.host,()=>{throw Error('Do not discard drafts before exit confirmation');});b.history.back();b.history.back();assert.equal(b.index,2);assert.equal(b.entries.length,3);assert.equal(b.questions,2);cleanup();installV2BackGuard(b.host,()=>true);assert.equal(b.entries.length,3);});
+test('accepted exit reaches the previous page instead of trapping the user',()=>{const b=browser([true]);installV2BackGuard(b.host,()=>true);b.history.back();assert.equal(b.index,0);assert.equal(b.questions,1);});
+test('a pending write or rejected existing leave guard prevents confirmed exit',()=>{const b=browser([true]);installV2BackGuard(b.host,()=>false);b.history.back();assert.equal(b.index,2);assert.equal(b.entries.length,3);});
+test('cleanup removes interception without altering navigation or creating more entries',()=>{const b=browser();const cleanup=installV2BackGuard(b.host,()=>true);cleanup();b.history.back();assert.equal(b.index,1);assert.equal(b.questions,0);});
+
+test('BFCache return re-arms the guard and the next back still asks before leaving',()=>{const b=browser([true,false]);installV2BackGuard(b.host,()=>true);b.history.back();assert.equal(b.index,0);b.restoreFromCache();assert.equal(b.index,2);assert.equal(b.entries.length,3);b.history.back();assert.equal(b.index,2);assert.equal(b.questions,2);});

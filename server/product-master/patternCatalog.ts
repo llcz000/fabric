@@ -128,7 +128,7 @@ export async function searchPatternCatalog(db:Query,input:PatternCatalogQuery):P
  if(!total||input.offset>=total)return {items:[],total,limit:input.limit,offset:input.offset};
  const [masterRaw]=await db.query(
   'SELECT m.id,m.master_no,m.is_active,m.next_colorway_no FROM pattern_masters m'+filtered.sql+
-  ' ORDER BY m.master_no,m.id LIMIT ? OFFSET ?',
+  ' ORDER BY m.created_at DESC,m.id DESC LIMIT ? OFFSET ?',
   [...filtered.params,input.limit,input.offset]);
  const data=rows(masterRaw);
  if(data.length>input.limit)throw Error('Unbounded pattern master page');

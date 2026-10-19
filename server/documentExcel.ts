@@ -29,6 +29,14 @@ export function buildDocumentWorkbookFromModel(
  model:DocumentPrintModel,
  images:DocumentWorkbookInput['images']={}
 ):ExcelJS.Workbook{
+  images={...images};
+  for(const role of ['brand_logo','wechat_qr','alipay_qr'] as const){
+    const value=model.companyImages?.[role];if(!value||images[role])continue;
+    const found=/^data:(image\/(?:png|jpeg));base64,([A-Za-z0-9+/]+={0,2})$/.exec(value);
+    if(!found||found[2].length>3*1024*1024)throw Error('Invalid print raster image');
+    const body=Buffer.from(found[2],'base64');if(body.toString('base64')!==found[2])throw Error('Invalid print raster encoding');
+    images[role]={body,mime:found[1] as 'image/png'|'image/jpeg'};
+  }
   const columns = model.columns;
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('打印单据');
@@ -41,6 +49,7 @@ export function buildDocumentWorkbookFromModel(
   sheet.views = [{ showGridLines: false }];
 
   sheet.mergeCells(1, 1, 2, 2);
+  if(!images.brand_logo&&model.brandName)styledCell(sheet.getCell(1,1),model.brandName,18,true,'left');
   sheet.mergeCells(1, 3, 1, lastColumn);
   sheet.mergeCells(2, 3, 2, lastColumn);
   styledCell(sheet.getCell(1, 3), model.companyName, 18, true, 'right');
@@ -80,6 +89,12 @@ export function buildDocumentWorkbookFromModel(
     });
   });
 
+  for(const group of model.rowGroups??[]){
+    if(group.rowCount<2)continue;
+    columns.forEach((column,index)=>{
+      if(!/^roll\d+$/.test(column.key))sheet.mergeCells(headerRowNumber+1+group.start,index+1,headerRowNumber+group.start+group.rowCount,index+1);
+    });
+  }
   const summaryRow = headerRowNumber + 1 + model.rows.length;
   model.summaries.forEach((summary, index) => addSummaryRow(sheet, summaryRow + index, lastColumn, summary.left, summary.right ?? ''));
 
@@ -106,7 +121,13 @@ export function buildDocumentWorkbookFromModel(
   sheet.mergeCells(footerRow + 3, lastColumn - 1, footerRow + 3, lastColumn);
   styledCell(sheet.getCell(footerRow + 3, lastColumn - 1), '支付宝收款', 9, false, 'center');
 
-  const printEndRow = footerRow + 3;
+  const printEndRow = footerRow + (model.type==='deposit'?4:3);
+  if(model.type==='deposit'){
+    const address='收货地址：'+model.signature.receiverAddress;
+    sheet.mergeCells(printEndRow,1,printEndRow,lastColumn);
+    styledCell(sheet.getCell(printEndRow,1),address,11,false,'left');
+    sheet.getRow(printEndRow).height=Math.max(22,address.split(/\r\n|[\r\n]/).reduce((lines,line)=>lines+Math.max(1,Math.ceil(line.length/45)),0)*16);
+  }
   sheet.pageSetup = {
     orientation: 'landscape',
     fitToPage: false,
@@ -129,9 +150,10 @@ function styledCell(cell: ExcelJS.Cell, value: unknown, size: number, bold: bool
 
 function addSummaryRow(sheet: ExcelJS.Worksheet, rowNumber: number, lastColumn: number, left: string, right: string): void {
   const half = Math.floor(lastColumn / 2);
-  sheet.mergeCells(rowNumber, 1, rowNumber, half);
-  sheet.mergeCells(rowNumber, half + 1, rowNumber, lastColumn);
-  for (const [column, value] of [[1, left], [half + 1, right]] as const) {
+  const pairs:readonly (readonly [number,string])[]=right?[[1,left],[half+1,right]]:[[1,left]];
+  if(right){sheet.mergeCells(rowNumber,1,rowNumber,half);sheet.mergeCells(rowNumber,half+1,rowNumber,lastColumn);}
+  else sheet.mergeCells(rowNumber,1,rowNumber,lastColumn);
+  for (const [column, value] of pairs) {
     const cell = sheet.getCell(rowNumber, column);
     styledCell(cell, value, 10, true, 'left');
     cell.border = THIN_BORDER;

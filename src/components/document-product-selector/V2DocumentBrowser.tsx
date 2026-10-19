@@ -1,4 +1,5 @@
 import React,{useEffect,useRef,useState} from 'react';
+import {ChevronRight,ChevronDown,Pencil,FileSearch,Copy,Trash2} from 'lucide-react';
 import type {CompanyProfile} from '../../types';
 import V2DocumentWorkspace from './V2DocumentWorkspace';
 import V2DocumentPrintView from './V2DocumentPrintView';
@@ -30,22 +31,21 @@ export function DocumentSearchResults({state,expanded,onToggle,onEdit,onPreview,
   {state.page.items.length===0?<p className="rounded-lg border bg-white p-6 text-sm text-slate-600">没有符合条件的单据，可清除筛选后重试。</p>:
   <div className="overflow-x-auto rounded-xl border border-[#c3c6d7] bg-white">
    <table className="w-full min-w-[1050px] text-left text-sm">
-    <thead className="bg-[#f3f4fa] text-xs text-[#434655]"><tr>{['单据编号 / 类型','开单日期','客户','整单米数','整单匹数','整单金额','结清状态','操作'].map(label=><th key={label} className="px-4 py-3 font-semibold">{label}</th>)}</tr></thead>
+    <thead className="bg-[#f3f4fa] text-xs text-[#434655]"><tr>{['','开单日期','单据编号','类型','客户','整单米数','整单匹数','整单金额','结清状态','操作'].map(label=><th key={label} className="px-3 py-2 font-semibold">{label}</th>)}</tr></thead>
     <tbody>{state.page.items.map(item=><React.Fragment key={item.id}>
      <tr className="border-t border-[#ededf9] align-top hover:bg-[#f8f9ff]">
-      <td className="px-4 py-3"><strong className="block font-medium">{item.orderNo}</strong><span className="text-xs text-slate-500">{names[item.type]}</span></td>
-      <td className="px-4 py-3 whitespace-nowrap">{item.date}</td><td className="max-w-[200px] break-words px-4 py-3">{item.receivingUnit||'—'}</td>
-      <td className="px-4 py-3 tabular-nums">{money(item.totalMeters)}</td><td className="px-4 py-3 tabular-nums">{item.type==='deposit'?'—':item.totalPieces}</td>
+      <td className="w-9 px-2 py-2"><button type="button" className="rounded p-1 hover:bg-blue-50" aria-label={expanded===item.id?'收起命中明细':'展开命中明细'} title={expanded===item.id?'收起命中明细':'展开命中明细'} aria-expanded={expanded===item.id} onClick={()=>onToggle(item.id)}>{expanded===item.id?<ChevronDown size={16}/>:<ChevronRight size={16}/>}</button></td>
+      <td className="px-3 py-2 whitespace-nowrap">{item.date}</td><td className="px-3 py-2 font-medium">{item.orderNo}</td><td className="px-3 py-2 whitespace-nowrap">{names[item.type]}</td><td className="max-w-[180px] break-words px-3 py-2">{item.receivingUnit||'—'}</td>
+      <td className="px-3 py-2 tabular-nums">{money(item.totalMeters)}{item.type==='bulk'&&(item.deductionMeters??0)>0&&<span className="block whitespace-nowrap text-xs text-amber-700">扣损 {money(item.deductionMeters!)} 米</span>}</td><td className="px-3 py-2 tabular-nums">{item.type==='deposit'?'—':item.totalPieces}</td>
       <td className="px-4 py-3 tabular-nums">¥ {money(item.totalAmount)}{item.type==='deposit'&&<span className="block text-xs text-slate-500">合同金额</span>}</td>
       <td className="px-4 py-3">{item.type==='deposit'?'不适用':item.settled?'已结清':'未结清'}</td>
       <td className="px-4 py-3"><div className="flex flex-wrap gap-x-3 gap-y-2 text-xs text-[#0053da]">
-       <button type="button" aria-expanded={expanded===item.id} onClick={()=>onToggle(item.id)}>{expanded===item.id?'收起命中明细':'展开命中明细'}</button>
-       <button type="button" onClick={()=>onEdit(item.id)}>编辑单据</button><button type="button" onClick={()=>onPreview(item.id)}>预览 / Excel</button>
-        {onCopy&&<button type="button" onClick={()=>onCopy(item.id,item.orderNo)}>复制为新单</button>}
-        {onDelete&&<button type="button" onClick={()=>onDelete(item.id,item.orderNo)}>确认删除</button>}
+       <button type="button" className="rounded p-1 hover:bg-blue-50" aria-label="编辑单据" title="编辑单据" onClick={()=>onEdit(item.id)}><Pencil size={16}/></button><button type="button" className="rounded p-1 hover:bg-blue-50" aria-label="预览 / Excel" title="预览 / Excel" onClick={()=>onPreview(item.id)}><FileSearch size={16}/></button>
+        {onCopy&&<button type="button" className="rounded p-1 hover:bg-blue-50" aria-label="复制为新单" title="复制为新单" onClick={()=>onCopy(item.id,item.orderNo)}><Copy size={16}/></button>}
+        {onDelete&&<button type="button" className="rounded p-1 text-rose-700 hover:bg-rose-50" aria-label="确认删除" title="确认删除" onClick={()=>onDelete(item.id,item.orderNo)}><Trash2 size={16}/></button>}
       </div></td>
      </tr>
-     {expanded===item.id&&<tr><td colSpan={8} className="border-t bg-[#f8f9ff] p-4">{renderDetails?.(item.id)}</td></tr>}
+     {expanded===item.id&&<tr><td colSpan={10} className="border-t bg-[#f8f9ff] px-3 py-1">{renderDetails?.(item.id)}</td></tr>}
     </React.Fragment>)}</tbody>
    </table>
   </div>}
@@ -68,7 +68,6 @@ function MatchingDetails({apiFetch,orderId,filters,onDenied}:{apiFetch:typeof fe
  if(error)return <div role="alert" className="text-sm text-rose-800">{error} <button type="button" className={button} onClick={()=>setRetry(v=>v+1)}>重试明细</button></div>;
  if(!page)return null;
  return <section aria-label="命中明细">
-  <p className="mb-2 text-xs text-slate-500">仅展示同一条明细同时满足货号、色号、品名条件的记录 · 共 {page.total} 行</p>
   <table className="w-full text-left text-xs"><thead><tr>{['货号','色号','品名','米数','匹数','金额'].map(label=><th key={label} className="p-2">{label}</th>)}</tr></thead>
    <tbody>{page.items.map(item=><tr key={item.id} className="border-t border-slate-200"><td className="p-2">{item.productNo||'—'}</td><td className="p-2">{item.colorNo||'—'}</td><td className="p-2">{item.productName||'—'}</td><td className="p-2">{money(item.meters)}</td><td className="p-2">{item.pieces||'—'}</td><td className="p-2">¥ {money(item.amount)}</td></tr>)}</tbody>
   </table>
@@ -86,29 +85,39 @@ export function V2DocumentBrowser({apiFetch,role,companyProfile,initialFilters}:
  const [confirmation,setConfirmation]=useState('');
  const [actionBusy,setActionBusy]=useState(false);
  const [actionError,setActionError]=useState('');
+ const activeAction=useRef<AbortController|null>(null),[exporting,setExporting]=useState(false);
  const act=async()=>{
-  if(!action||actionBusy)return;
+  if(!action||actionBusy||activeAction.current)return;
   if(action.kind==='delete'&&confirmation!==action.orderNo){setActionError('请准确输入原单据编号以确认删除');return;}
   if(action.kind==='copy'&&(!newOrderNo.trim()||newOrderNo===action.orderNo)){setActionError('请输入不同于原单号的新编号');return;}
   setActionBusy(true);setActionError('');
+  const current=new AbortController();activeAction.current=current;
   try{
    const response=await apiFetch('/api/v2/documents/'+encodeURIComponent(action.id)+(action.kind==='copy'?'/copy':''),
-    {method:action.kind==='copy'?'POST':'DELETE',headers:{'Content-Type':'application/json'},
+    {method:action.kind==='copy'?'POST':'DELETE',signal:current.signal,headers:{'Content-Type':'application/json'},
      body:JSON.stringify(action.kind==='copy'?{orderNo:newOrderNo.trim(),date:copyDate}:{confirm:true})});
-   if(!response.ok)throw Error(response.status===404?'单据不存在或无权限':response.status===409?'单号重复或业务状态变化，请重新检查':'保存失败，请重试');
+   if(!response.ok)throw Error(response.status===404?'单据不存在或无权限':response.status===422?'原单含未关联、手工或已停用产品，请新增单据后重新选品':response.status===409?'单号重复或业务状态变化，请重新检查':'保存失败，请重试');
+   if(current.signal.aborted)return;
    if(action.kind==='copy'){
     const result=await response.json() as {id:string};
     setAction(null);setSelected({id:result.id,mode:'edit'});
-   }else{setAction(null);search(applied,Math.max(0,offset));}
-  }catch(e){setActionError(e instanceof Error?e.message:'操作失败');}
-  finally{setActionBusy(false);}
+   }else{setAction(null);search(applied,state.page?.items.length===1?Math.max(0,offset-limit):offset);}
+  }catch(e){if(!current.signal.aborted)setActionError(e instanceof Error?e.message:'操作失败');}
+  finally{if(activeAction.current===current)activeAction.current=null;if(!current.signal.aborted)setActionBusy(false);}
+ };
+ const exportDocuments=async()=>{
+  if(activeAction.current)return;const current=new AbortController();activeAction.current=current;setExporting(true);setActionError('');
+  try{const response=await apiFetch('/api/v2/documents/export.json',{signal:current.signal});if(!response.ok)throw Error('单据快照导出失败');const snapshot=await response.json();if(snapshot.format!=='fabric-v2-documents-export-v1'||!Array.isArray(snapshot.documents))throw Error('单据快照不完整');if(current.signal.aborted)return;
+   const url=URL.createObjectURL(new Blob([JSON.stringify(snapshot,null,2)],{type:'application/json'})),link=document.createElement('a');link.href=url;link.download='Fabric-单据快照.json';document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }catch(e){if(!current.signal.aborted)setActionError(e instanceof Error?e.message:'单据快照导出失败');}finally{if(activeAction.current===current)activeAction.current=null;if(!current.signal.aborted)setExporting(false);}
  };
 
  const controller=useRef<ReturnType<typeof createDocumentSearchController>|null>(null);
  useEffect(()=>{
   const next=createDocumentSearchController(apiFetch,setState);controller.current=next;
   const initial={...emptySearchFilters(),...initialFilters};setFilters(initial);setApplied(initial);setOffset(0);setLimit(20);setExpanded(null);setSelected(null);
-  void next.search(initial);return ()=>next.dispose();
+  setAction(null);setActionError('');setActionBusy(false);setExporting(false);activeAction.current?.abort();activeAction.current=null;
+  void next.search(initial);return ()=>{next.dispose();activeAction.current?.abort();};
  },[apiFetch,role,initialFilters?.customer,initialFilters?.productName,initialFilters?.productNo,initialFilters?.colorNo,initialFilters?.type,initialFilters?.from,initialFilters?.to,initialFilters?.settled]);
  const search=(next:DocumentSearchFilters,nextOffset=0,nextLimit=limit)=>{
   setApplied(next);setOffset(nextOffset);setLimit(nextLimit);setExpanded(null);void controller.current?.search(next,nextOffset,nextLimit);
@@ -119,7 +128,7 @@ export function V2DocumentBrowser({apiFetch,role,companyProfile,initialFilters}:
   onCancel={()=>setSelected(null)} onSaved={()=>{setSelected(null);search(applied,offset);}}/>;
  if(selected?.mode==='preview')return <V2DocumentPrintView apiFetch={apiFetch} documentId={selected.id} onBack={()=>setSelected(null)} backLabel="返回查询"/>;
  return <section aria-label="V2单据查询工作区" className="space-y-4 p-3 text-[#191b24] sm:p-6">
-  <header><h2 className="text-xl font-semibold">单据查询</h2><p className="mt-1 text-xs text-slate-500">{role==='admin'?'查看全公司单据':'仅查看本人单据'} · 按开单日期倒序</p></header>
+  <header className="flex flex-wrap justify-between gap-3"><div><h2 className="text-xl font-semibold">单据查询</h2><p className="mt-1 text-xs text-slate-500">{role==='admin'?'查看全公司单据':'仅查看本人单据'} · 按开单日期倒序</p></div><button className={button} disabled={exporting} onClick={()=>void exportDocuments()}>{exporting?'正在导出…':role==='admin'?'导出全公司单据 JSON':'导出全部本人单据 JSON'}</button></header>
   <form className="rounded-xl border border-[#c3c6d7] bg-white p-4" onSubmit={event=>{event.preventDefault();search(filters);}}>
    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
     {([['customer','客户'],['productNo','货号'],['colorNo','色号'],['productName','品名']] as const).map(([key,label])=><label key={key} className="text-xs font-medium">{label}<input name={key} className={input} maxLength={100} value={filters[key]} onChange={e=>setFilters(v=>({...v,[key]:e.target.value}))}/></label>)}
@@ -139,7 +148,7 @@ export function V2DocumentBrowser({apiFetch,role,companyProfile,initialFilters}:
    {action.kind==='copy'?<div className="flex flex-wrap gap-3">
     <label className="text-sm">新单据编号<input className={input} value={newOrderNo} maxLength={100} onChange={e=>setNewOrderNo(e.target.value)}/></label>
     <label className="text-sm">开单日期<input type="date" className={input} value={copyDate} onChange={e=>setCopyDate(e.target.value)}/></label>
-    <p className="w-full text-xs">保留原单的产品资料和金额快照，生成独立新单；不修改原单。</p>
+    <p className="w-full text-xs">保留原单的产品资料和金额快照，生成独立新单。仅支持有效库内产品；未关联、手工或停用产品请新增单据后重新选品。</p>
    </div>:<label className="block text-sm">请输入完整原单编号确认永久删除
     <input className={input} value={confirmation} onChange={e=>setConfirmation(e.target.value)}/>
    </label>}
@@ -151,6 +160,7 @@ export function V2DocumentBrowser({apiFetch,role,companyProfile,initialFilters}:
    onEdit={id=>setSelected({id,mode:'edit'})} onPreview={id=>setSelected({id,mode:'preview'})}
    onCopy={(id,orderNo)=>{setAction({id,orderNo,kind:'copy'});setNewOrderNo('');setActionError('');}} onDelete={(id,orderNo)=>{setAction({id,orderNo,kind:'delete'});setConfirmation('');setActionError('');}}
    renderDetails={id=><MatchingDetails key={id} apiFetch={apiFetch} orderId={id} filters={applied} onDenied={onDenied}/>}/>
+  {!action&&actionError&&<p role="alert">{actionError}</p>}
   {state.error&&<button type="button" className={button} onClick={()=>search(applied,offset)}>重试查询</button>}
   {state.page&&<footer className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600">
    <span>共 {state.page.total} 张单据 · 第 {Math.floor(offset/limit)+1} / {Math.max(1,Math.ceil(state.page.total/limit))} 页</span>

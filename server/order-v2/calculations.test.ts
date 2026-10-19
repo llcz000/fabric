@@ -13,12 +13,12 @@ test('P6-1 sample amounts and header totals use cents arithmetic and fixed two d
 test('P6-1 deposit uses percent but stores full line amount as order.total_amount',()=>{
  const r=calculateDocumentTotals('deposit',[{meters:10,unitPrice:30,amount:300}],25);
  assert.deepEqual(r,{totalMeters:10,totalPieces:0,totalAmount:300,totalDeductionMeters:0,
-  depositAmount:75,receivableAmount:225});
+  depositAmount:75,receivableAmount:0});
  assert.equal(calculateDocumentTotals('deposit',[{meters:10,unitPrice:30,amount:300}],100).receivableAmount,0);
  assert.throws(()=>calculateDocumentTotals('deposit',[],101),DocumentCalculationError);
 });
 
-test('DOC-07 rounds deposit money before subtraction at the half-cent boundary',()=>{
+test('DOC-07 rounds deposit money and never treats contract balance as receivable',()=>{
  const totals=calculateDocumentTotals('deposit',[{meters:0.01,unitPrice:1,amount:0.01}],50);
  assert.equal(totals.depositAmount,0.01);assert.equal(totals.receivableAmount,0);assert.equal(totals.totalPieces,0);
 });

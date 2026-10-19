@@ -218,7 +218,7 @@ export default function CompanyProfileEditor({ profile, onSave, apiFetch }: Comp
           <Field label="开单人签字栏文本" id="company-issuer-label-input" value={issuerLabel} onChange={setIssuerLabel} required icon={<PenTool className="w-3.5 h-3.5 text-slate-400" />} />
           <Field label="收货人签字栏文本" id="company-receiver-label-input" value={receiverLabel} onChange={setReceiverLabel} required icon={<PenTool className="w-3.5 h-3.5 text-slate-400" />} />
         </div>
-        <TextArea label="默认备注条款 - 样布码单" id="company-default-terms-input" value={defaultTerms} onChange={setDefaultTerms} />
+        <TextArea label="默认备注条款 - 样布码单 / 销售发货码单" id="company-default-terms-input" value={defaultTerms} onChange={setDefaultTerms} />
         <TextArea label="默认备注条款 - 定金单" id="company-deposit-terms-input" value={depositTerms} onChange={setDepositTerms} amber />
         <div className="flex items-center justify-between pt-4 border-t border-slate-100">
           <button type="button" id="btn-reset-profile" onClick={resetToDefault} className="flex items-center gap-1 px-3 py-1.5 border border-slate-200 hover:border-slate-300 rounded-lg text-xs font-medium text-slate-500 hover:text-slate-700 bg-slate-50 cursor-pointer"><RefreshCw className="w-3.5 h-3.5" />恢复系统预设</button>
