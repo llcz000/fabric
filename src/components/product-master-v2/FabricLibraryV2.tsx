@@ -1,4 +1,6 @@
+import {useV2LeaveProtection} from './useV2LeaveProtection';
 import {CatalogExportButton} from './CatalogExportButton';
+import {ActionIcon} from './ActionIcon';
 import React,{useEffect,useRef,useState} from 'react';
 import {ChevronLeft,ChevronRight,Plus,Search,X} from 'lucide-react';
 import {
@@ -23,6 +25,7 @@ export function FabricV2InlineDraft({original,mode,busy=false,onCancel,onSave}:F
  const [draft,setDraft]=useState<FabricDraft>(initial);
  const [saving,setSaving]=useState(false),[error,setError]=useState('');
  const waiting=busy||saving;
+ useV2LeaveProtection(JSON.stringify(draft)!==JSON.stringify(initial),waiting);
  const change=<K extends keyof FabricDraft>(key:K,value:FabricDraft[K])=>setDraft(d=>({...d,[key]:value}));
  const cancel=()=>{
   if(waiting)return;
@@ -78,9 +81,9 @@ export function FabricV2InlineDraft({original,mode,busy=false,onCancel,onSave}:F
   <td className="px-2 py-2 text-right">
    <div className="flex items-center justify-end gap-2 whitespace-nowrap">
     <button type="button" disabled={waiting} onClick={submit}
-     className="rounded bg-[#346ef6] px-2 py-1 text-xs text-white disabled:opacity-60">
+     className="rounded bg-[#346ef6] px-2 py-1 text-xs text-white disabled:opacity-60"><ActionIcon name="save"/>
      {waiting?'保存中…':'保存'}</button>
-    <button type="button" disabled={waiting} onClick={cancel} className={editText}>取消</button>
+    <button type="button" disabled={waiting} onClick={cancel} className={editText}><ActionIcon name="close"/>取消</button>
    </div>
    {error?<div role="alert" className="mt-1 max-w-48 break-words text-left text-[11px] text-rose-700">{error}</div>:null}
   </td>
@@ -133,10 +136,10 @@ export function FabricV2Table({
        </td>
        <td className="px-3 py-3 text-right">
         {canManage?<div className="inline-flex gap-2">
-         {onEdit?<button type="button" className={editText} onClick={()=>onEdit(item)}>编辑</button>:null}
-         {onDelete?<button type="button" className={editText+' text-rose-600'}
-          title={item.productCount>0?'已有产品引用，不可删除；可停用':undefined}
-          disabled={item.productCount>0} onClick={()=>onDelete(item)}>删除</button>:null}
+         {onEdit?<button type="button" className="v2-icon-button" aria-label="编辑" title="编辑面料" onClick={()=>onEdit(item)}><ActionIcon name="edit"/></button>:null}
+         {onDelete?<button type="button" className="v2-icon-button v2-icon-danger" aria-label="删除"
+          title={item.productCount>0?'已有产品引用，不可删除；可停用':'删除面料'}
+          disabled={item.productCount>0} onClick={()=>onDelete(item)}><ActionIcon name="delete"/></button>:null}
         </div>:<span className="text-slate-400">只读</span>}
        </td>
       </tr>)}
@@ -184,18 +187,18 @@ export function ConfirmFabricDelete({item,onCancel,onConfirm,busy=false}:{
     服务器会在执行时再次检查引用，不会删除关联产品。</p>
    <div className="mt-5 flex justify-end gap-2">
     <button ref={ref} type="button" disabled={busy} onClick={onCancel}
-     className="rounded border px-3 py-1.5 text-xs">取消</button>
+     className="rounded border px-3 py-1.5 text-xs"><ActionIcon name="close"/>取消</button>
     <button type="button" disabled={busy||item.productCount>0} onClick={onConfirm}
      className="rounded bg-rose-700 px-3 py-1.5 text-xs text-white disabled:opacity-40">
-     {busy?'正在删除…':'确认删除'}</button>
+     <ActionIcon name="delete"/>{busy?'正在删除…':'确认删除'}</button>
    </div>
   </div>
  </div>;
 }
 export interface FabricLibraryV2Props{
- apiFetch:typeof fetch;canManage?:boolean;allowExport?:boolean;onViewProducts?(item:FabricCatalogItem):void;
+ apiFetch:typeof fetch;canManage?:boolean;allowExport?:boolean;onViewProducts?(item:FabricCatalogItem):void;onImport?():void;
 }
-export function FabricLibraryV2({apiFetch,canManage=false,allowExport=true,onViewProducts}:FabricLibraryV2Props){
+export function FabricLibraryV2({apiFetch,canManage=false,allowExport=true,onViewProducts,onImport}:FabricLibraryV2Props){
  const [filters,setFilters]=useState<FabricFilters>({...emptyFabricFilters});
  const [page,setPage]=useState<FabricCatalogPage|null>(null);
  const [loading,setLoading]=useState(false),[failure,setFailure]=useState('');
@@ -238,15 +241,19 @@ export function FabricLibraryV2({apiFetch,canManage=false,allowExport=true,onVie
   catch(e){setDeleteError(e instanceof Error?e.message:'删除失败，请重试。');}
   finally{setDeletingBusy(false);}
  };
- return <section className="flex min-h-[520px] flex-col gap-3 bg-[#faf8ff] p-3 text-[#191b24] sm:p-5" aria-label="V2 面料库">
+ return <section className="v2-fabric flex min-h-[520px] flex-col gap-3 bg-[#faf8ff] p-3 text-[#191b24] sm:p-5" aria-label="V2 面料库">
   <header className="flex flex-wrap items-center justify-between gap-2">
    <div><h1 className="text-xl font-semibold">面料库</h1>
     <p className="mt-1 text-xs text-slate-500">面料品号、品名、成分与规格统一管理</p></div>
+   <div className="v2-page-actions">
+   {allowExport?<CatalogExportButton apiFetch={apiFetch} listUrl={buildFabricCatalogUrl(filters)} filename="面料资料.xlsx"/>:null}
+   {canManage&&onImport?<button type="button" onClick={onImport} disabled={isEditing||deletingBusy} title={isEditing?'请先保存或取消面料编辑':undefined} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-[#0053da] disabled:opacity-40"><ActionIcon name="excel"/>从Excel导入</button>:null}
    {canManage?<button type="button" className="inline-flex items-center gap-1 rounded-lg bg-[#346ef6] px-3 py-2 text-xs text-white disabled:opacity-50"
     disabled={creating||editingId!==null} onClick={()=>{setEditingId(null);setCreating(true);}}>
     <Plus size={15}/>新增面料</button>:null}
+   </div>
   </header>
-  <div className={border+' flex flex-wrap items-center gap-3 p-3'}>
+  <div className={border+' v2-library-filters flex flex-wrap items-center gap-3 p-3'}>
    {([['fabricNo','品号'],['fabricName','品名'],['composition','成分']] as const).map(([key,label])=><label key={key} className="flex items-center gap-2 text-xs">
     <Search size={15} className="text-slate-500"/>
     <input aria-label={'搜索'+label} maxLength={100}
@@ -257,12 +264,11 @@ export function FabricLibraryV2({apiFetch,canManage=false,allowExport=true,onVie
     <input type="checkbox" aria-label="包含停用" checked={filters.includeInactive}
      onChange={e=>dispatch({type:'inactive',value:e.target.checked})}/>包含停用</label>
    <button type="button" className="text-xs text-[#0053da] hover:underline"
-    onClick={()=>dispatch({type:'reset'})}>清空筛选</button>
+    onClick={()=>dispatch({type:'reset'})}><ActionIcon name="reset"/>清空筛选</button>
   </div>
-  {allowExport?<CatalogExportButton apiFetch={apiFetch} listUrl={buildFabricCatalogUrl(filters)} filename="面料资料.xlsx"/>:null}
   {loading?<p role="status" className="rounded border bg-white p-3 text-sm text-slate-500">正在查找面料…</p>:null}
   {failure?<p role="alert" className="rounded border border-rose-200 bg-white p-3 text-sm text-rose-700">
-   {failure}<button type="button" onClick={refresh} className="ml-3 underline">重试</button></p>:null}
+   {failure}<button type="button" onClick={refresh} className="ml-3 underline"><ActionIcon name="refresh"/>重试</button></p>:null}
   {!loading&&!failure&&page?<FabricV2Table page={page} canManage={canManage}
    creating={creating} editingId={editingId}
    onEdit={item=>{

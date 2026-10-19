@@ -1,3 +1,4 @@
+import {ActionIcon} from './ActionIcon';
 import React,{useRef,useState} from 'react';
 export function buildCatalogExportUrl(listUrl:string):string{
  const url=new URL(listUrl,'https://local.invalid');
@@ -21,7 +22,7 @@ export function CatalogExportButton({apiFetch,listUrl,filename}:{apiFetch:typeof
  };
  return <div className="flex flex-wrap items-center gap-2 text-xs">
   <button type="button" disabled={busy} onClick={()=>void download()} title="导出全部匹配记录，不含图片"
-   className="rounded border border-[#c3c6d7] bg-white px-3 py-1.5 text-[#0053da] disabled:opacity-40">{busy?'正在导出…':'导出筛选结果'}</button>
+   className="rounded border border-[#c3c6d7] bg-white px-3 py-1.5 text-[#0053da] disabled:opacity-40"><ActionIcon name="download"/>{busy?'正在导出…':'导出筛选结果'}</button>
   {error?<span role="alert" className="text-rose-700">{error}</span>:null}
  </div>;
 }

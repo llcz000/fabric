@@ -1,3 +1,4 @@
+import {ActionIcon} from './ActionIcon';
 import React,{useEffect,useRef,useState} from 'react';
 import type {SelectionCard,SelectionCardPage,ManualFilters} from './manualSelectionModel';
 import {selectionAccessRevoked} from './sampleSelectionClient';
@@ -39,7 +40,7 @@ function CardRow({card,disabled,add,resolveThumbnails,onAccessLost}:{card:Select
    <td className="px-3 py-3">{card.fabricName}</td><td className="px-3 py-3">{card.composition??'—'}</td>
    <td className="px-3 py-3">{card.weightValue===null?'—':`${card.weightValue} ${card.weightUnit??''}`}</td><td className="px-3 py-3">{card.widthCm??'—'}</td>
    <td className="px-3 py-2">{selected.size} / {card.products.length}</td>
-   <td className="px-3 py-2"><button type="button" disabled={disabled||selected.size===0} aria-label={`加入色卡 ${card.cardNo}`} onClick={()=>void add(card,card.products.filter(p=>selected.has(p.id)).map(p=>p.id))} className="rounded bg-[#0053da] px-3 py-1.5 text-white disabled:opacity-40">加入</button></td>
+   <td className="px-3 py-2"><button type="button" disabled={disabled||selected.size===0} aria-label={`加入色卡 ${card.cardNo}`} onClick={()=>void add(card,card.products.filter(p=>selected.has(p.id)).map(p=>p.id))} className="rounded bg-[#0053da] px-3 py-1.5 text-white disabled:opacity-40"><ActionIcon name="add"/>加入</button></td>
   </tr>
   {expanded&&<tr id={'card-colors-'+card.id}><td colSpan={7} className="border-t bg-[#f8f9ff] px-4 py-2">
    <fieldset disabled={disabled}><legend className="sr-only">{card.cardNo} 的花型配色</legend>
@@ -76,25 +77,25 @@ export function ManualSelectionPane({sessionId,search,add,resolveThumbnails,disa
  return <dialog ref={dialog} aria-label="人工补选" aria-modal="true" className="m-auto max-h-[90vh] w-[min(96vw,1100px)] overflow-auto rounded-xl border p-0 shadow-xl backdrop:bg-black/30" onCancel={event=>{if(event.target!==event.currentTarget)return;event.preventDefault();if(!disabled)onClose();}}><section aria-label="人工补选色卡" aria-busy={loading||disabled} className="rounded-lg border border-[#c3c6d7] bg-[#f8f9ff] p-4">
   <header className="mb-3 flex items-start justify-between gap-3"><div><h3 className="font-semibold">人工补选 · 搜索色卡</h3>
    <p className="mt-1 text-xs text-slate-600">点击色卡编号查看花型，默认全选；可取消部分勾选后加入，重复加入不会新增一行。</p></div>
-   <button type="button" disabled={disabled} onClick={onClose} className="shrink-0 rounded border px-3 py-1 text-sm disabled:opacity-40">关闭补选</button></header>
+   <button type="button" disabled={disabled} onClick={onClose} className="shrink-0 rounded border px-3 py-1 text-sm disabled:opacity-40"><ActionIcon name="close"/>关闭补选</button></header>
   {customerReference&&<p className="mb-2 text-sm text-slate-600">客户：{customerReference}</p>}
   {actionError&&<p role="alert" className="mb-2 text-sm text-rose-700">{actionError}</p>}{actionNotice&&<p role="status" className="mb-2 text-sm text-emerald-800">{actionNotice}</p>}
   <form onSubmit={e=>{e.preventDefault();if(!locked)apply(query);}} className="mb-3 flex flex-wrap items-end gap-3">
    <label className="min-w-[180px] flex-1 text-sm">色卡搜索<input ref={firstInput} value={query} maxLength={100} disabled={disabled} onChange={e=>setQuery(e.target.value)} placeholder="色卡编号、花型编号、面料品号或品名"
     className="mt-1 block w-full rounded border border-[#c3c6d7] bg-white px-3 py-2 focus:outline-[#346ef6]"/></label>
-   <button type="submit" disabled={locked} className="rounded bg-[#0053da] px-4 py-2 text-sm text-white disabled:opacity-40">搜索色卡</button>
-   <button type="button" disabled={locked} onClick={()=>{setQuery('');apply('');}} className="rounded border px-3 py-2 text-sm disabled:opacity-40">清除筛选</button>
+   <button type="submit" disabled={locked} className="rounded bg-[#0053da] px-4 py-2 text-sm text-white disabled:opacity-40"><ActionIcon name="search"/>搜索色卡</button>
+   <button type="button" disabled={locked} onClick={()=>{setQuery('');apply('');}} className="rounded border px-3 py-2 text-sm disabled:opacity-40"><ActionIcon name="reset"/>清除筛选</button>
   </form>
   {loading&&<p role="status" className="py-4 text-sm">正在检索色卡…</p>}
-  {error&&<div role="alert" className="py-3 text-sm text-red-700">{error} <button type="button" disabled={locked} onClick={()=>setRevision(x=>x+1)} className="underline">重试检索</button></div>}
+  {error&&<div role="alert" className="py-3 text-sm text-red-700">{error} <button type="button" disabled={locked} onClick={()=>setRevision(x=>x+1)} className="underline"><ActionIcon name="refresh"/>重试检索</button></div>}
   {!loading&&page&&!page.items.length&&<p className="py-6 text-center text-sm text-slate-600">{filters.query?'没有匹配的可选色卡，请调整或清除筛选':'暂无可选色卡，请先在色卡库建卡并确认存在可供样配色'}</p>}
   {!loading&&!!page?.items.length&&<div className="overflow-x-auto rounded border border-[#c3c6d7] bg-white"><table className="w-full min-w-[780px] text-left text-sm">
    <thead className="bg-[#f3f4fa] text-[#434655]"><tr>{['色卡编号','品名','成分','克重','门幅 / cm','可选配色','操作'].map(x=><th key={x} className="px-3 py-2 font-medium">{x}</th>)}</tr></thead>
    <tbody>{page.items.map(card=><CardRow key={card.id} card={card} disabled={locked} add={add} resolveThumbnails={resolveThumbnails} onAccessLost={onAccessLost}/>)}</tbody>
   </table></div>}
   {page&&!loading&&<footer className="mt-3 flex items-center justify-between gap-3 text-sm"><span>共 {page.total} 张色卡 · 第 {Math.floor(page.offset/20)+1} 页</span><div className="flex gap-2">
-   <button type="button" disabled={locked||page.offset===0} onClick={()=>{setPage(null);setFilters({...filters,offset:Math.max(0,page.offset-20)});}} className="rounded border px-3 py-1.5 disabled:opacity-40">上一页色卡</button>
-   <button type="button" disabled={locked||page.offset+page.limit>=page.total} onClick={()=>{setPage(null);setFilters({...filters,offset:page.offset+20});}} className="rounded border px-3 py-1.5 disabled:opacity-40">下一页色卡</button>
+   <button type="button" disabled={locked||page.offset===0} onClick={()=>{setPage(null);setFilters({...filters,offset:Math.max(0,page.offset-20)});}} className="rounded border px-3 py-1.5 disabled:opacity-40"><ActionIcon name="back"/>上一页色卡</button>
+   <button type="button" disabled={locked||page.offset+page.limit>=page.total} onClick={()=>{setPage(null);setFilters({...filters,offset:page.offset+20});}} className="rounded border px-3 py-1.5 disabled:opacity-40"><ActionIcon name="next"/>下一页色卡</button>
   </div></footer>}
  </section></dialog>;
 }

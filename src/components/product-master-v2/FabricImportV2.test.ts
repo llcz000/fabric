@@ -80,7 +80,7 @@ test('P5 UI unconnected preview is inert until real .xlsx file and previous stag
  const html=renderToStaticMarkup(React.createElement(FabricImportV2,{
   apiFetch:fetch,canManage:true,isAdmin:false,onCancel:()=>{}
  }));
- assert(html.includes('面料 XLSX 导入')&&html.includes('.xlsx'));
+ assert(html.includes('从Excel导入面料')&&html.includes('.xlsx'));
  assert(html.includes('工作表')&&html.includes('表头行')&&html.includes('克重缺省单位'));
  assert(html.includes('生成预览'));
  assert(!html.includes('确认导入'),'cannot confirm before a valid server preview exists');
@@ -92,5 +92,5 @@ test('P5 UI unconnected preview is inert until real .xlsx file and previous stag
  const workspace=renderToStaticMarkup(React.createElement(FabricWorkspaceV2,{
   apiFetch:fetch,canManage:true,isAdmin:false
  }));
- assert(workspace.includes('面料库')&&workspace.includes('导入 XLSX'));
+ assert(workspace.includes('面料库')&&workspace.includes('从Excel导入'));
 });

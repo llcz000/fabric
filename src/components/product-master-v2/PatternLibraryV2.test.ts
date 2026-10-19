@@ -222,3 +222,10 @@ test('P4-2 list has search state, per-dimension tags and no fake approved contro
  assert(!html.includes('配色序号筛选'));
  assert(!html.includes('新增母版')&&!html.includes('删除母版'));
 });
+test('pattern library has shared catalog filters and omits the export action',()=>{
+ const html=renderToStaticMarkup(React.createElement(PatternLibraryV2,{apiFetch:fetch,canManage:true,onCreateMaster(){}}));
+ assert(!html.includes('导出筛选结果'));
+ assert(html.includes('v2-library-filters'));
+ assert(html.includes('aria-label="搜索编号"'));
+ assert(html.includes('新增花型'));
+});

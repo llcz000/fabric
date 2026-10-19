@@ -22,7 +22,6 @@ export function ProductCatalogWorkspaceV2({apiFetch,canManage=false,onUploadImag
  const [view,setView]=useState<View>({type:'list'});
  const [refresh,setRefresh]=useState(0);
  const [savedCode,setSavedCode]=useState('');
- const [deleteError,setDeleteError]=useState('');
  if(view.type!=='list'){
   return <ProductEditorV2 key={view.type==='edit'?view.id:'new'} apiFetch={apiFetch}
    mode={view.type} productId={view.type==='edit'?view.id:undefined} canManage={canManage}
@@ -31,15 +30,12 @@ export function ProductCatalogWorkspaceV2({apiFetch,canManage=false,onUploadImag
    onSaved={item=>{setSavedCode(item.productNo);setRefresh(n=>n+1);setView({type:'list'});onEditorStateChange?.(false);}}/>;
  }
  return <>
-  {deleteError?<p role="alert">{deleteError}</p>:null}
   {savedCode?<p role="status" className="m-3 rounded border border-emerald-200 bg-white p-2 text-xs text-emerald-700">
    产品已保存：{savedCode}</p>:null}
   <ProductCatalogV2 key={refresh} apiFetch={apiFetch} canManage={canManage} resolveImages={resolveImages}
    onCreate={canManage?()=>{setSavedCode('');setView({type:'create'});onEditorStateChange?.(true);}:undefined}
    onEdit={canManage?(item:CatalogProduct)=>{setSavedCode('');setView({type:'edit',id:item.id});onEditorStateChange?.(true);}:undefined}
-   onDeleteRequest={canManage&&onDeleteProduct?item=>{setDeleteError('');
-    void onDeleteProduct(item).then(()=>{setSavedCode('');setRefresh(n=>n+1);})
-     .catch(error=>setDeleteError(error instanceof Error?error.message:'产品删除失败'));}:undefined}/>
+   onDeleteRequest={canManage&&onDeleteProduct?async item=>{await onDeleteProduct(item);setSavedCode('');setRefresh(n=>n+1);}:undefined}/>
  </>;
 }
 export default ProductCatalogWorkspaceV2;

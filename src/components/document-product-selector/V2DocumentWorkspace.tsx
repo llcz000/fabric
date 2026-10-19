@@ -1,7 +1,9 @@
+import {ActionIcon} from '../product-master-v2/ActionIcon';
 import {DocumentItemsTable} from './DocumentItemsTable';
 import {documentDraftTotals} from './documentDraftTotals';
 import {parseDocumentNumber} from './DocumentNumberInput';
 import React,{useEffect,useState} from 'react';
+import {useV2LeaveProtection} from '../product-master-v2/useV2LeaveProtection';
 import {DocType,type CompanyProfile,type DocumentData,type DocItem} from '../../types';
 import type {DocumentRecord} from '../../../server/order-v2/documents';
 import ProductSelectorDialog from './ProductSelectorDialog';
@@ -44,6 +46,7 @@ function formatError(code:number):string {
  return '单据保存或读取失败，请检查数据后重试';
 }
 export default function V2DocumentWorkspace({apiFetch,role,companyProfile,documentId,initialDraft,onSaved,onCancel}:V2DocumentWorkspaceProps){
+ const [dirty,setDirty]=useState(false);
  const [draft,setDraft]=useState<DocumentData>(()=>emptyDocument(companyProfile));
  const [removed,setRemoved]=useState<string[]>([]);
  const [picker,setPicker]=useState<{rowId:string;mode:'add'|'replace'}|null>(null);
@@ -55,9 +58,11 @@ export default function V2DocumentWorkspace({apiFetch,role,companyProfile,docume
  const [depositText,setDepositText]=useState('');
  const [initialized,setInitialized]=useState(false),[autoNumber,setAutoNumber]=useState(true),[numberRevision,setNumberRevision]=useState(0),[numberBusy,setNumberBusy]=useState(false),[numberError,setNumberError]=useState('');
  const [customers,setCustomers]=useState<string[]>([]);
+ const canLeave=useV2LeaveProtection(dirty,saving);
+ const cancel=()=>{if(canLeave())onCancel();};
  useEffect(()=>{
   let active=true;
-  setSavedId(documentId??null);setPreviewOpen(false);
+  setDirty(false);setSavedId(documentId??null);setPreviewOpen(false);
   if(!documentId){const initial=initialDraft?structuredClone(initialDraft):emptyDocument(companyProfile);setDraft(initial);setDepositText(initial.deposit?String(initial.deposit):'');setRemoved([]);setLoading(false);setInitialized(true);setAutoNumber(!initial.docNo);return;}
   const controller=new AbortController();
   setLoading(true);setError('');
@@ -92,20 +97,20 @@ export default function V2DocumentWorkspace({apiFetch,role,companyProfile,docume
    }).catch(()=>{});
   },250);return()=>{clearTimeout(timer);abort.abort();};
  },[apiFetch,draft.customerName]);
- const change=(field:keyof DocumentData,value:unknown)=>{setError('');setDraft(before=>({...before,[field]:value}));};
- const updateItem=(id:string,patch:Record<string,unknown>)=>{setError('');setDraft(before=>({...before,items:before.items.map(item=>item.id===id?
+ const change=(field:keyof DocumentData,value:unknown)=>{setDirty(true);setError('');setDraft(before=>({...before,[field]:value}));};
+ const updateItem=(id:string,patch:Record<string,unknown>)=>{setDirty(true);setError('');setDraft(before=>({...before,items:before.items.map(item=>item.id===id?
    ({...item,...patch} as DocItem):item)}));};
- const removeItem=(id:string)=>{
+ const removeItem=(id:string)=>{setDirty(true);
   setError('');
   setDraft(before=>({...before,items:before.items.filter(item=>item.id!==id)}));
   if(idPattern.test(id))setRemoved(before=>before.includes(id)?before:[...before,id]);
  };
  const openPicker=(id:string,mode:'add'|'replace')=>setPicker({rowId:id,mode});
- const addItem=()=>{
+ const addItem=()=>{setDirty(true);
   const item=newItem();setDraft(before=>({...before,items:[...before.items,item]}));openPicker(item.id,'add');
  };
  const pickProduct=(product:Parameters<typeof applySelectedProductToDraft>[2])=>{
-  if(!picker)return;setError('');
+  if(!picker)return;setDirty(true);setError('');
   setDraft(before=>({...before,items:before.items.map(item=>item.id===picker.rowId?
    applySelectedProductToDraft(before.type,item,product):item)}));
   setPicker(null);
@@ -136,7 +141,7 @@ export default function V2DocumentWorkspace({apiFetch,role,companyProfile,docume
    if(!response.ok)throw Error(formatError(response.status));
    const serverDocument=fromV2DocumentRecord(await response.json(),companyProfile);
    setDraft(serverDocument);setDepositText(serverDocument.deposit?String(serverDocument.deposit):'');setRemoved([]);
-   setSavedId(serverDocument.id);
+   setDirty(false);setSavedId(serverDocument.id);
    onSaved(serverDocument);
   }catch(e){setError(e instanceof Error?e.message:'保存失败');}
   finally{setSaving(false);}
@@ -154,18 +159,18 @@ export default function V2DocumentWorkspace({apiFetch,role,companyProfile,docume
    <div><h2 className="text-xl font-semibold">{savedId?'编辑单据':'新建单据'}</h2>
     <p className="text-xs text-slate-500">修改已存明细的米数和价格，会保留原产品资料。</p></div>
    {savedId&&<button type="button" disabled={!canEdit} onClick={()=>setPreviewOpen(true)}
-    className="rounded-lg border border-emerald-300 px-4 py-2 text-sm text-emerald-800">预览已保存版本 / Excel</button>}
-   <button type="button" disabled={!canEdit} onClick={onCancel}
-    className="rounded-lg border px-4 py-2 text-sm">取消并返回</button>
+    className="rounded-lg border border-emerald-300 px-4 py-2 text-sm text-emerald-800"><ActionIcon name="view"/>预览已保存版本 / Excel</button>}
+   <button type="button" disabled={!canEdit} onClick={cancel}
+    className="rounded-lg border px-4 py-2 text-sm"><ActionIcon name="back"/>取消并返回</button>
   </header>
   {loading&&<div role="status" className="text-sm text-slate-600">正在读取V2单据…</div>}
   {error&&<div role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{error}</div>}
-  {numberError&&<p role="alert" className="text-sm text-rose-700">{numberError} <button type="button" onClick={()=>{setAutoNumber(true);setNumberRevision(n=>n+1);}}>重新获取编号</button></p>}
+  {numberError&&<p role="alert" className="text-sm text-rose-700">{numberError} <button type="button" onClick={()=>{setAutoNumber(true);setNumberRevision(n=>n+1);}}><ActionIcon name="refresh"/>重新获取编号</button></p>}
   {initialDraft&&!savedId&&<p className="text-sm text-slate-600">正在新建副本。未关联产品的历史明细需重新选品；保存时使用当前产品资料，原单据保留。</p>}
   {!loading&&<>
    <section className="rounded-xl border border-slate-100 p-4"><h3 className="mb-3 border-l-4 border-sky-500 pl-3 text-sm font-semibold">基本信息</h3><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
     {!savedId&&<label className="text-xs font-semibold">单据类型
-     <select disabled={!canEdit} className={input} value={draft.type} onChange={e=>{
+     <select disabled={!canEdit} className={input} value={draft.type} onChange={e=>{setDirty(true);
       const type=e.target.value as DocType;
       if(draft.items.length>0){setError('请先清除当前明细再切换单据类型');return;}
       setError('');setDraft(before=>({...before,type,deposit:0,settled:false,terms:type===DocType.DEPOSIT?companyProfile.depositTerms:companyProfile.defaultTerms}));setDepositText('');
@@ -181,7 +186,7 @@ export default function V2DocumentWorkspace({apiFetch,role,companyProfile,docume
     <datalist id="v2-customer-suggestions">{customers.map(value=><option key={value} value={value}/>)}</datalist>
     {draft.type!==DocType.SAMPLE&&<label className="text-xs font-semibold">{draft.type===DocType.DEPOSIT?'定金比例（%）':'定金金额（元）'}
      <input className={input} name="deposit" type="text" inputMode="decimal" maxLength={14}
-      disabled={!canEdit} value={depositText} onChange={e=>{setError('');setDepositText(e.target.value);}}/></label>}
+      disabled={!canEdit} value={depositText} onChange={e=>{setDirty(true);setError('');setDepositText(e.target.value);}}/></label>}
     {draft.type!==DocType.DEPOSIT&&<label className="flex items-center gap-2 text-sm">
      <input type="checkbox" checked={Boolean(draft.settled)} disabled={!canEdit}
       onChange={e=>change('settled',e.target.checked)}/>已结清</label>}
@@ -190,8 +195,8 @@ export default function V2DocumentWorkspace({apiFetch,role,companyProfile,docume
     <h3 className="font-semibold">产品明细（{draft.items.length}）</h3>
     <div className="flex gap-2"><button type="button" className="rounded border px-3 py-2 text-sm" disabled={!canEdit||!draft.items.length} onClick={()=>{
      const removedIds=draft.items.filter(item=>idPattern.test(item.id)).map(item=>item.id);setRemoved(before=>[...new Set([...before,...removedIds])]);setDraft(before=>({...before,items:[]}));
-    }}>清空明细</button><button type="button" disabled={!canEdit} onClick={addItem}
-     className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">从产品库添加</button>
+    }}><ActionIcon name="delete"/>清空明细</button><button type="button" disabled={!canEdit} onClick={addItem}
+     className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"><ActionIcon name="add"/>从产品库添加</button>
     </div>
    </div>
    <DocumentItemsTable draft={draft} role={role} disabled={!canEdit} onChange={updateItem} onReplace={id=>openPicker(id,'replace')} onRemove={removeItem}/>
@@ -204,7 +209,7 @@ export default function V2DocumentWorkspace({apiFetch,role,companyProfile,docume
    <footer className="flex flex-wrap items-center justify-between gap-3">
     <p className="text-xs text-slate-600"></p>
     <button type="button" disabled={!canEdit} onClick={()=>void save()}
-     className="rounded-lg bg-sky-600 px-6 py-3 text-sm font-semibold text-white disabled:opacity-40">
+     className="rounded-lg bg-sky-600 px-6 py-3 text-sm font-semibold text-white disabled:opacity-40"><ActionIcon name="save"/>
      {saving?'正在保存…':savedId?'保存修改':'创建单据'}
     </button>
    </footer>

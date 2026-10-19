@@ -1,3 +1,4 @@
+import {ActionIcon} from './ActionIcon';
 import React,{useRef,useState} from 'react';
 import {createLatestRequestGuard} from './catalogModel';
 import {ArrowLeft,FileSpreadsheet,Upload} from 'lucide-react';
@@ -125,7 +126,7 @@ export function FabricImportV2({apiFetch,canManage,isAdmin,onCancel,onFinished}:
  };
  return <section aria-label="V2 面料XLSX导入" className="min-h-[540px] bg-[#faf8ff] p-3 text-[#1e293b] sm:p-4">
   <header className="mb-3 flex flex-wrap items-center justify-between gap-2">
-   <div><h1 className="flex items-center gap-2 text-lg font-semibold"><FileSpreadsheet size={22}/>面料 XLSX 导入</h1>
+   <div><h1 className="flex items-center gap-2 text-lg font-semibold"><FileSpreadsheet size={22}/>从Excel导入面料</h1>
     <p className="mt-1 text-xs text-slate-500">只支持 .xlsx · 七列模板 · 先预览确认，后写入面料库</p></div>
    <button type="button" onClick={onCancel} className="inline-flex items-center gap-1 text-xs text-[#0053da]">
     <ArrowLeft size={14}/>返回面料库</button>
@@ -191,7 +192,7 @@ export function FabricImportV2({apiFetch,canManage,isAdmin,onCancel,onFinished}:
        更新 {chosen.length} 条。重复或错误行不会写入，预览后资料改变会被阻止。</p>
       <button type="button" onClick={commit} disabled={busy||preview.counts.create+chosen.length===0}
        className="rounded-md bg-[#346ef6] px-3 py-1.5 text-xs text-white disabled:opacity-40">
-       {busy?'正在提交…':'确认导入'}</button>
+       <ActionIcon name="upload"/>{busy?'正在提交…':'确认导入'}</button>
      </footer>
     </div>:null}
     {result?<section className="mt-4 rounded-xl border bg-white p-4" aria-label="导入结果">
@@ -215,12 +216,7 @@ export function FabricWorkspaceV2({apiFetch,canManage=false,isAdmin=false,allowE
   onCancel={()=>setImporting(false)}
   onFinished={()=>setRevision(n=>n+1)}/>:
  <div>
-  {canManage?<div className="flex justify-end bg-[#faf8ff] px-5 pt-3">
-   <button type="button" onClick={()=>setImporting(true)}
-    className="rounded-lg border border-[#346ef6] bg-white px-3 py-1.5 text-xs text-[#0053da]">
-    导入 XLSX</button>
-  </div>:null}
-  <FabricLibraryV2 key={revision} apiFetch={apiFetch} canManage={canManage} allowExport={allowExport} onViewProducts={setLinked}/>
+  <FabricLibraryV2 key={revision} apiFetch={apiFetch} canManage={canManage} allowExport={allowExport} onViewProducts={setLinked} onImport={()=>setImporting(true)}/>
   {linked&&<FabricProductsDialog key={linked.id} apiFetch={apiFetch} fabric={linked} onClose={()=>setLinked(null)}/>}
  </div>;
 }

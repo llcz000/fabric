@@ -16,15 +16,16 @@ test('sandbox has seven unique read-only navigation entries without mock or prod
  assert.equal(new Set(sandboxPages.map(x=>x.id)).size,7);
  assert(Object.isFrozen(sandboxPages));
 });
-test('existing three catalog components keep production review exports but sandbox opts out',()=>{
+test('fabric/product exports remain opt-in in sandbox; pattern export is temporarily removed',()=>{
+ const pattern=renderToStaticMarkup(React.createElement(PatternLibraryV2,{apiFetch:neverFetch,canManage:false}));
+ assert.doesNotMatch(pattern,/导出筛选结果/);
  for(const make of [
-  (allowExport:boolean)=>React.createElement(PatternLibraryV2,{apiFetch:neverFetch,allowExport,canManage:false}),
   (allowExport:boolean)=>React.createElement(FabricWorkspaceV2,{apiFetch:neverFetch,allowExport,canManage:false}),
   (allowExport:boolean)=>React.createElement(ProductCatalogV2,{apiFetch:neverFetch,allowExport,canManage:false})
  ]){
   const sandbox=renderToStaticMarkup(make(false));
   assert.doesNotMatch(sandbox,/导出筛选结果/);
-  assert.doesNotMatch(sandbox,/新增产品|新增面料|新增母版|导入 XLSX/);
+  assert.doesNotMatch(sandbox,/新增产品|新增面料|新增母版|从Excel导入/);
   const normal=renderToStaticMarkup(make(true));
   assert.match(normal,/导出筛选结果/);
  }

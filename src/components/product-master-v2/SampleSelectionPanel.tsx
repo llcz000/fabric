@@ -1,3 +1,4 @@
+import {ActionIcon} from './ActionIcon';
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import type {SampleSessionPage} from '../../../server/customer-samples/sessionRead';
 import {selectionAccessRevoked,type SelectionApi} from './sampleSelectionClient';
@@ -105,7 +106,7 @@ export function SampleSelectionPanel({sessionId,load,removeItems,readOnly=false,
  if(!page)return <section aria-label="客户选样明细" className="rounded-xl border p-5">
   <h2 className="font-semibold">客户选样明细</h2>
   <p role={message?'alert':'status'}>{message||'正在读取选样资料…'}</p>
-  {message&&<button type="button" disabled={busy} onClick={()=>void refresh(0)} className="mt-3 rounded border px-3 py-2 text-sm">重试读取</button>}
+  {message&&<button type="button" disabled={busy} onClick={()=>void refresh(0)} className="mt-3 rounded border px-3 py-2 text-sm"><ActionIcon name="refresh"/>重试读取</button>}
  </section>;
  const closed=readOnly||page.session.status==='closed';
  const pageIds=page.items.map(item=>item.id);
@@ -124,14 +125,14 @@ export function SampleSelectionPanel({sessionId,load,removeItems,readOnly=false,
     <p className="text-sm text-slate-500">{page.session.customerReference} · 已选产品 {page.total} 款 · 色卡 {page.selectedCardCount} 张</p></div>
    <div className="flex items-center gap-2">
     {!readOnly&&manualAction&&searchManual&&<button type="button" disabled={busy||closed} onClick={()=>{setManualOpen(true);setNotice('');setMessage('');}}
-     className="rounded bg-[#0053da] px-3 py-1.5 text-sm text-white disabled:opacity-40">人工补选</button>}
+     className="rounded bg-[#0053da] px-3 py-1.5 text-sm text-white disabled:opacity-40"><ActionIcon name="add"/>人工补选</button>}
     {closed?<span className="rounded bg-slate-100 px-2 py-1 text-xs">{readOnly?'查看 · 只读':'已结束 · 只读'}</span>:<>
-     {onRescan&&<button type="button" disabled={busy} onClick={()=>void rescan()} className="rounded border px-3 py-1.5 text-sm">重新扫码补选</button>}
+     {onRescan&&<button type="button" disabled={busy} onClick={()=>void rescan()} className="rounded border px-3 py-1.5 text-sm"><ActionIcon name="scan"/>重新扫码补选</button>}
     </>}
-    <button type="button" disabled={busy} onClick={()=>void refresh(page.offset)} className="rounded border px-3 py-1.5 text-sm">刷新</button>
+    <button type="button" disabled={busy} onClick={()=>void refresh(page.offset)} className="rounded border px-3 py-1.5 text-sm"><ActionIcon name="refresh"/>刷新</button>
    </div>
   </header>
-  {!closed&&removeItems&&<div className="mb-3 flex items-center gap-3 text-sm"><label className="flex items-center gap-2"><input type="checkbox" aria-label="全选当前页货号" disabled={busy||!pageIds.length} checked={allChecked} ref={element=>{if(element)element.indeterminate=!allChecked&&pageIds.some(id=>selectedItems.includes(id));}} onChange={event=>setSelectedItems(before=>event.target.checked?[...new Set([...before,...pageIds])]:before.filter(id=>!pageIds.includes(id)))}/>全选当前页货号</label><button type="button" disabled={busy||!selectedItems.length} className="rounded border px-3 py-1 text-rose-700 disabled:opacity-40" onClick={()=>void removeSelected()}>移除所选{selectedItems.length?'（'+selectedItems.length+'）':''}</button></div>}
+  {!closed&&removeItems&&<div className="mb-3 flex items-center gap-3 text-sm"><label className="flex items-center gap-2"><input type="checkbox" aria-label="全选当前页货号" disabled={busy||!pageIds.length} checked={allChecked} ref={element=>{if(element)element.indeterminate=!allChecked&&pageIds.some(id=>selectedItems.includes(id));}} onChange={event=>setSelectedItems(before=>event.target.checked?[...new Set([...before,...pageIds])]:before.filter(id=>!pageIds.includes(id)))}/>全选当前页货号</label><button type="button" disabled={busy||!selectedItems.length} className="rounded border px-3 py-1 text-rose-700 disabled:opacity-40" onClick={()=>void removeSelected()}><ActionIcon name="delete"/>移除所选{selectedItems.length?'（'+selectedItems.length+'）':''}</button></div>}
 
   {message&&<p role="alert" className="mb-3 text-sm text-red-700">{message}</p>}
   {notice&&<p role="status" className="mb-3 rounded bg-[#eef1fd] p-3 text-sm text-[#31447b]">{notice}</p>}
@@ -158,8 +159,8 @@ export function SampleSelectionPanel({sessionId,load,removeItems,readOnly=false,
   <footer className="mt-4 flex items-center justify-between gap-3 text-sm">
    <span>{page.total===0?'0':page.offset+1}–{Math.min(page.total,page.offset+page.items.length)} / {page.total}</span>
    <div className="flex gap-2">
-    <button type="button" disabled={busy||page.offset===0} onClick={()=>void refresh(Math.max(0,page.offset-LIMIT))} className="rounded border px-3 py-1.5 disabled:opacity-40">上一页</button>
-    <button type="button" disabled={busy||page.offset>=max} onClick={()=>void refresh(Math.min(max,page.offset+LIMIT))} className="rounded border px-3 py-1.5 disabled:opacity-40">下一页</button>
+    <button type="button" disabled={busy||page.offset===0} onClick={()=>void refresh(Math.max(0,page.offset-LIMIT))} className="rounded border px-3 py-1.5 disabled:opacity-40"><ActionIcon name="back"/>上一页</button>
+    <button type="button" disabled={busy||page.offset>=max} onClick={()=>void refresh(Math.min(max,page.offset+LIMIT))} className="rounded border px-3 py-1.5 disabled:opacity-40"><ActionIcon name="next"/>下一页</button>
    </div>
   </footer>
  </section>;

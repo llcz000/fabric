@@ -1,3 +1,4 @@
+import {ActionIcon} from './ActionIcon';
 import React,{useEffect,useId,useRef,useState} from 'react';
 import type {CatalogProductImages} from './catalogModel';
 
@@ -49,7 +50,7 @@ export function ProductImageTabs({images,resolveImages}:{images:CatalogProductIm
    aria-labelledby={prefix+'-tab-'+key} hidden={role!==key} tabIndex={0}>
    {role===key&&loading?<p role="status" className="mb-3 text-sm text-slate-500">正在加载原图…</p>:null}
    {role===key&&(error||loadFailed)?<p role="alert" className="mb-3 text-sm text-rose-700">{error||'原图加载失败，请重试。'}
-    <button type="button" onClick={reload} className="ml-2 underline">重试原图</button></p>:null}
+    <button type="button" onClick={reload} className="ml-2 underline"><ActionIcon name="refresh"/>重试原图</button></p>:null}
    {!images[key].length?<p className="py-8 text-center text-sm text-slate-500">暂无{label}</p>:
     <div className="space-y-4">{images[key].map((id,index)=>urls.has(id)?<figure key={id}>
      {failed.has(id)?<div className="rounded border bg-slate-50 p-6 text-center text-sm text-slate-500">图片暂不可用</div>:

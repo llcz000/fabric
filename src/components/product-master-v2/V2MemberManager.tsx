@@ -1,3 +1,4 @@
+import {ActionIcon} from './ActionIcon';
 import React,{useEffect,useRef,useState} from 'react';
 type Member={id:string;username:string;display_name:string;role:'admin'|'sales';is_active:number};
 export default function V2MemberManager({apiFetch,onProfileChanged}:{apiFetch:typeof fetch;onProfileChanged?():Promise<void>}){
@@ -18,12 +19,12 @@ export default function V2MemberManager({apiFetch,onProfileChanged}:{apiFetch:ty
    <label>姓名<input required name="displayName" maxLength={100} className="ml-2 rounded border p-2" value={displayName} onChange={e=>setDisplayName(e.target.value)}/></label>
    <label>密码<input required type="password" name="password" autoComplete="new-password" minLength={8} className="ml-2 rounded border p-2" value={password} onChange={e=>setPassword(e.target.value)}/></label>
    <label>角色<select className="ml-2 rounded border p-2" value={role} onChange={e=>setRole(e.target.value as typeof role)}><option value="sales">业务员</option><option value="admin">管理员</option></select></label>
-   <button disabled={busy} className="rounded bg-blue-700 px-4 py-2 text-white">新增账号</button>
+   <button disabled={busy} className="rounded bg-blue-700 px-4 py-2 text-white"><ActionIcon name="member"/>新增账号</button>
   </form>
   <div className="overflow-x-auto"><table className="w-full border-collapse bg-white text-sm"><thead><tr>{['登录名','姓名','角色','状态','操作'].map(t=><th key={t} className="border p-3 text-left">{t}</th>)}</tr></thead><tbody>{members.map(m=><tr key={m.id}>
    <td className="border p-3">{m.username}</td><td className="border p-3">{m.display_name}</td>
    <td className="border p-3"><select aria-label={m.username+'角色'} disabled={busy} value={m.role} onChange={e=>void save('/api/v2/access/members/'+m.id,'PATCH',{role:e.target.value})}><option value="sales">业务员</option><option value="admin">管理员</option></select></td>
-   <td className="border p-3">{m.is_active?'启用':'停用'}</td><td className="space-x-3 border p-3"><button disabled={busy} onClick={()=>{setEditing(m);setError('');setNotice('');}}>编辑资料</button><button disabled={busy} onClick={()=>void save('/api/v2/access/members/'+m.id,'PATCH',{isActive:!m.is_active})}>{m.is_active?'停用':'启用'}</button><button disabled={busy} onClick={()=>{setResetId(m.id);}}>重设密码</button></td>
+   <td className="border p-3">{m.is_active?'启用':'停用'}</td><td className="space-x-3 border p-3"><button className="v2-icon-button" aria-label="编辑资料" title="编辑成员资料" disabled={busy} onClick={()=>{setEditing(m);setError('');setNotice('');}}><ActionIcon name="edit"/></button><button disabled={busy} onClick={()=>void save('/api/v2/access/members/'+m.id,'PATCH',{isActive:!m.is_active})}><ActionIcon name="power"/>{m.is_active?'停用':'启用'}</button><button className="v2-icon-button" aria-label="重设密码" title="重设密码" disabled={busy} onClick={()=>{setResetId(m.id);}}><ActionIcon name="password"/></button></td>
   </tr>)}</tbody></table></div>
   {editing&&<EditMemberProfile member={editing} busy={busy} error={error} onClose={()=>{if(!busy){setEditing(null);setError('');}}} onSave={async value=>{
    const ok=await save('/api/v2/access/members/'+editing.id,'PATCH',value);if(ok){setEditing(null);setNotice('成员资料已更新，下次登录使用新的登录名。');try{await onProfileChanged?.();}catch{setError('资料已保存，当前账号显示未刷新，请刷新页面核对');}}return ok;
@@ -41,7 +42,7 @@ export function ResetMemberPassword({member,busy,error,onClose,onSave}:{member:M
    <label className="block text-sm">新密码<input autoFocus disabled={busy} required minLength={8} maxLength={128} type="password" autoComplete="new-password" className="mt-1 w-full rounded border p-2" value={password} onChange={event=>setPassword(event.target.value)}/></label>
    <label className="block text-sm">确认新密码<input disabled={busy} required minLength={8} maxLength={128} type="password" autoComplete="new-password" className="mt-1 w-full rounded border p-2" value={confirmation} onChange={event=>setConfirmation(event.target.value)}/></label>
    <p className="text-xs text-slate-500">至少8位；保存后该成员须使用新密码重新登录。</p>{(failure||error)&&<p role="alert" className="text-sm text-rose-700">{failure||error}</p>}
-   <div className="flex justify-end gap-3"><button type="button" disabled={busy} onClick={onClose}>取消</button><button disabled={busy} className="rounded bg-blue-700 px-3 py-2 text-sm text-white">{busy?'正在保存…':'保存密码'}</button></div>
+   <div className="flex justify-end gap-3"><button type="button" disabled={busy} onClick={onClose}><ActionIcon name="close"/>取消</button><button disabled={busy} className="rounded bg-blue-700 px-3 py-2 text-sm text-white"><ActionIcon name="save"/>{busy?'正在保存…':'保存密码'}</button></div>
   </form>
  </dialog>;
 }
@@ -54,7 +55,7 @@ export function EditMemberProfile({member,busy,error,onClose,onSave}:{member:Mem
    <label className="block text-sm">登录名<input autoFocus required minLength={3} maxLength={64} pattern="[A-Za-z0-9._]{3,64}" disabled={busy} className="mt-1 w-full rounded border p-2" value={username} onChange={event=>setUsername(event.target.value)}/></label>
    <label className="block text-sm">姓名<input required maxLength={100} disabled={busy} className="mt-1 w-full rounded border p-2" value={name} onChange={event=>setName(event.target.value)}/></label>
    <p className="text-xs text-slate-500">登录名为3–64位字母、数字、点或下划线。修改后下次登录使用新名称；原单据及选样归属保留。</p>{error&&<p role="alert" className="text-sm text-rose-700">{error}</p>}
-   <div className="flex justify-end gap-3"><button type="button" disabled={busy} onClick={onClose}>取消</button><button disabled={busy} className="rounded bg-blue-700 px-3 py-2 text-sm text-white">{busy?'正在保存…':'保存资料'}</button></div>
+   <div className="flex justify-end gap-3"><button type="button" disabled={busy} onClick={onClose}><ActionIcon name="close"/>取消</button><button disabled={busy} className="rounded bg-blue-700 px-3 py-2 text-sm text-white"><ActionIcon name="save"/>{busy?'正在保存…':'保存资料'}</button></div>
   </form>
  </dialog>;
 }

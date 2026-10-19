@@ -1,4 +1,4 @@
-import {CatalogExportButton} from './CatalogExportButton';
+import {ActionIcon} from './ActionIcon';
 import React,{useState,useEffect,useRef,useCallback} from 'react';
 import {ChevronLeft,ChevronRight,Image as ImageIcon,Plus,Search,X,Edit3} from 'lucide-react';
 import type {CatalogTag} from './catalogModel';
@@ -7,7 +7,7 @@ import {createLatestRequestGuard,loadCatalogTags,resolveImageUrls} from './catal
 import {
  initialPatternFilters,reducePatternFilters,fetchPatternPage,fetchMasterColorways,
  createNextColorway,saveColorwayProperties,saveMasterTopicTags,addColorTagChoice,
- buildPatternUrl,patchMasterStatus,deleteUnreferencedColorway,saveMasterColorTags,fetchMasterColorTags,
+ patchMasterStatus,deleteUnreferencedColorway,saveMasterColorTags,fetchMasterColorTags,
  type PatternMasterItem,type PatternVersionItem,type PatternPage,type PatternFilters
 } from './patternModel';
 const box='rounded-lg border border-[#c3c6d7] bg-white';
@@ -53,7 +53,7 @@ export function PatternMasterRows({items,thumbnailUrls,onPreview,onEdit,onShare,
     <button type="button" aria-label={'编辑花型及配色 '+master.masterNo} onClick={()=>onEdit(master)}
      className="inline-flex items-center gap-1 rounded p-2 text-[#0053da] hover:bg-[#eef1fd]"
      title={canManage?'编辑花型及配色':'查看花型及配色'}><Edit3 size={15}/></button>
-    {onShare&&<button type="button" className="rounded px-1 py-2 text-xs text-[#0053da]" aria-label={'分享花型 '+master.masterNo} onClick={()=>onShare(master)}>分享</button>}
+    {onShare&&<button type="button" className="v2-icon-button" title="分享花型" aria-label={'分享花型 '+master.masterNo} onClick={()=>onShare(master)}><ActionIcon name="share"/></button>}
    </div>
   </div>)}
   {!items.length?<p className="py-16 text-center text-sm text-[#737686]">没有匹配的花型，可调整或清空筛选条件。</p>:null}
@@ -101,7 +101,7 @@ export function InlineColorTagEditor({options,tagIds,newColorTags,onChange,disab
     onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();add();}}}
     placeholder="输入自定义颜色" className="w-32 min-w-0 rounded border border-[#c3c6d7] px-1.5 py-1 text-[11px]"/>
    <button type="button" disabled={disabled||tagIds.length+newColorTags.length>=10}
-    onClick={add} className="whitespace-nowrap rounded border px-1.5 py-1 text-[11px] text-[#0053da]">添加颜色</button>
+    onClick={add} className="whitespace-nowrap rounded border px-1.5 py-1 text-[11px] text-[#0053da]"><ActionIcon name="add"/>添加颜色</button>
   </div>
   {error?<span role="alert" className="block text-[11px] text-rose-700">{error}</span>:null}
  </div>;
@@ -186,24 +186,24 @@ export function PatternColorwayEditor({
     <span className={master.isActive?'text-emerald-700':'text-slate-500'}>{master.isActive?'已启用':'已停用'}</span>
     {canManage&&onToggleMaster?<button type="button" disabled={working}
       onClick={()=>call(()=>onToggleMaster(!master.isActive))}
-      className="text-[#0053da] underline">{master.isActive?'停用花型':'启用花型'}</button>:null}
+      className="text-[#0053da] underline"><ActionIcon name="power"/>{master.isActive?'停用花型':'启用花型'}</button>:null}
     <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
      <strong>题材标签</strong>
      {topicEditing?<><TagSelector ariaLabel="修改题材标签" options={[...topics,...master.topicTags.filter(t=>!topics.some(x=>x.id===t.id))]} selected={topicDraft} onChange={setTopicDraft} disabled={working}/>
       <button type="button" disabled={working} onClick={()=>call(()=>onSaveMasterTags(topicDraft),()=>setTopicEditing(false))}
-       className="rounded bg-[#346ef6] px-2 py-1 text-white">保存题材</button>
-      <button type="button" onClick={()=>setTopicEditing(false)}>取消</button></>:
+       className="rounded bg-[#346ef6] px-2 py-1 text-white"><ActionIcon name="save"/>保存题材</button>
+      <button type="button" onClick={()=>setTopicEditing(false)}><ActionIcon name="close"/>取消</button></>:
       <><span>{asTags(master.topicTags)}</span>
       {canManage?<button type="button" onClick={()=>{setTopicDraft(master.topicTags.map(x=>x.id));setTopicEditing(true);}}
-       className="text-[#0053da] underline">维护</button>:null}</>}
+       className="text-[#0053da] underline"><ActionIcon name="edit"/>维护</button>:null}</>}
     </div>
     <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
      <strong>颜色标签</strong>
      {colorEditing?<><InlineColorTagEditor label="花型颜色标签" options={[...colors,...(master.colorTags??[]).filter(tag=>!colors.some(option=>option.id===tag.id))]}
        tagIds={colorDraft} newColorTags={newPatternColors} onChange={value=>{setColorDraft(value.tagIds);setNewPatternColors(value.newColorTags);}} disabled={working}/>
-      <button type="button" disabled={working} onClick={()=>call(()=>onSaveMasterColorTags!(colorDraft,newPatternColors),()=>setColorEditing(false))} className="rounded bg-[#346ef6] px-2 py-1 text-white">保存颜色</button>
-      <button type="button" disabled={working} onClick={()=>setColorEditing(false)}>取消</button></>:
-      <><span>{asTags(master.colorTags??[])}</span>{canManage&&onSaveMasterColorTags?<button type="button" onClick={()=>{setColorDraft((master.colorTags??[]).map(tag=>tag.id));setNewPatternColors([]);setColorEditing(true);}} className="text-[#0053da] underline">维护颜色</button>:null}</>}
+      <button type="button" disabled={working} onClick={()=>call(()=>onSaveMasterColorTags!(colorDraft,newPatternColors),()=>setColorEditing(false))} className="rounded bg-[#346ef6] px-2 py-1 text-white"><ActionIcon name="save"/>保存颜色</button>
+      <button type="button" disabled={working} onClick={()=>setColorEditing(false)}><ActionIcon name="close"/>取消</button></>:
+      <><span>{asTags(master.colorTags??[])}</span>{canManage&&onSaveMasterColorTags?<button type="button" onClick={()=>{setColorDraft((master.colorTags??[]).map(tag=>tag.id));setNewPatternColors([]);setColorEditing(true);}} className="text-[#0053da] underline"><ActionIcon name="edit"/>维护颜色</button>:null}</>}
     </div>
    </div>
    {error?<p role="alert" className="px-4 py-2 text-sm text-rose-700">{error}</p>:null}
@@ -223,7 +223,7 @@ export function PatternColorwayEditor({
          <img src={imageUrl} alt={'配色 '+version.patternNo}
           className="h-14 w-14 rounded border object-cover" loading="lazy"/></button>:
         <button type="button" disabled={!canManage||working||adding||editing!==null&&editing!==version.id} aria-label={'编辑花型图 '+version.patternNo} onClick={()=>{setDraft({remark:version.remark,isActive:version.isActive,patternImageAssetId:version.patternImageAssetId});setEditing(version.id);}}
-         className="flex h-14 w-14 items-center justify-center rounded border border-dashed bg-slate-50 text-[10px] text-blue-700 disabled:text-slate-400">{imageId?'更换图片':'上传花型图'}</button>}
+         className="flex h-14 w-14 items-center justify-center rounded border border-dashed bg-slate-50 text-[10px] text-blue-700 disabled:text-slate-400"><ActionIcon name="upload"/>{imageId?'更换图片':'上传花型图'}</button>}
         {editing===version.id&&canManage?<div className="mt-2 flex w-36 flex-wrap gap-2 text-xs">
          {onUploadPatternImage?<label className={'text-[#0053da] '+(working?'opacity-50':'cursor-pointer')}>
           {imageId?'更换花型图':'上传花型图'}<input type="file" className="sr-only" disabled={working} accept="image/jpeg,image/png,image/webp,image/gif"
@@ -238,7 +238,7 @@ export function PatternColorwayEditor({
             });
            }}/></label>:<span className="text-slate-500">上传服务未连接</span>}
          {imageId?<button type="button" disabled={working} aria-label={'删除花型图 '+version.patternNo} className="text-rose-700"
-          onClick={()=>setDraft(before=>({...before,patternImageAssetId:null}))}>删除花型图</button>:null}
+          onClick={()=>setDraft(before=>({...before,patternImageAssetId:null}))}><ActionIcon name="delete"/>删除花型图</button>:null}
          <span className="w-full text-[10px] text-slate-500">点击“保存配色”后生效</span>
         </div>:null}
        </td>
@@ -259,12 +259,12 @@ export function PatternColorwayEditor({
        <td className="px-3 py-3 whitespace-nowrap">
         {editing===version.id?<><button type="button" disabled={working}
           onClick={()=>call(()=>onSaveVersion(version,draft),()=>setEditing(null))}
-          className="rounded bg-[#346ef6] px-2 py-1 text-white">保存配色</button>
-         <button type="button" disabled={working} onClick={()=>setEditing(null)} className="ml-1">取消</button></>:
+          className="rounded bg-[#346ef6] px-2 py-1 text-white"><ActionIcon name="save"/>保存配色</button>
+         <button type="button" disabled={working} onClick={()=>setEditing(null)} className="ml-1"><ActionIcon name="close"/>取消</button></>:
          canManage?<><button type="button" disabled={working||adding||editing!==null} className="text-[#0053da] disabled:opacity-40" onClick={()=>{
           setDraft({remark:version.remark,isActive:version.isActive,patternImageAssetId:version.patternImageAssetId});
-          setEditing(version.id);}}>编辑</button>
-          <button type="button" disabled={working||adding||editing!==null} className="ml-2 text-rose-600 disabled:opacity-40" onClick={()=>setConfirmRemove(version)}>删除</button></>:<span className="text-slate-400">只读</span>}
+          setEditing(version.id);}}><ActionIcon name="edit"/>编辑</button>
+          <button type="button" disabled={working||adding||editing!==null} className="ml-2 text-rose-600 disabled:opacity-40" onClick={()=>setConfirmRemove(version)}><ActionIcon name="delete"/>删除</button></>:<span className="text-slate-400">只读</span>}
        </td>
       </tr>;})}
       {adding&&canManage?<tr className="bg-[#f3f2ff]">
@@ -274,7 +274,7 @@ export function PatternColorwayEditor({
          void call(async()=>{if(!['image/jpeg','image/png','image/webp','image/gif'].includes(file.type)||!file.size||file.size>20*1024*1024)throw Error('请选择20MB以内的图片');
           const id=await onUploadPatternImage(file);const url=URL.createObjectURL(file);stagedUrls.current.push(url);setStagedThumbs(before=>new Map(before).set(id,url));setNewDraft(before=>({...before,patternImageAssetId:id}));});
         }}/></label>}
-        {newDraft.patternImageAssetId&&<button disabled={working} className="ml-2 text-rose-700" onClick={()=>setNewDraft(before=>({...before,patternImageAssetId:null}))}>移除图片</button>}
+        {newDraft.patternImageAssetId&&<button disabled={working} className="ml-2 text-rose-700" onClick={()=>setNewDraft(before=>({...before,patternImageAssetId:null}))}><ActionIcon name="delete"/>移除图片</button>}
        </td>
        <td className="px-3 py-2 text-xs" title="保存时由服务端分配最终配色序号">下一配色 {nextColorwayNo}</td>
        <td className="px-3 py-2 text-xs">{master.masterNo}-{nextColorwayNo} (预计)</td>
@@ -285,8 +285,8 @@ export function PatternColorwayEditor({
         onChange={e=>setNewDraft({...newDraft,isActive:e.target.checked})}/></td>
        <td className="px-3 py-2 whitespace-nowrap">
         <button disabled={working} type="button" className="rounded bg-[#346ef6] px-2 py-1 text-white"
-         onClick={()=>call(()=>onAdd(newDraft),()=>setAdding(false))}>保存新配色</button>
-        <button type="button" disabled={working} onClick={()=>setAdding(false)} className="ml-2">取消</button>
+         onClick={()=>call(()=>onAdd(newDraft),()=>setAdding(false))}><ActionIcon name="save"/>保存新配色</button>
+        <button type="button" disabled={working} onClick={()=>setAdding(false)} className="ml-2"><ActionIcon name="close"/>取消</button>
        </td>
       </tr>:null}
      </tbody>
@@ -297,20 +297,20 @@ export function PatternColorwayEditor({
     <p>确认删除 {confirmRemove.patternNo} 及其花型图？已关联产品的配色不能删除；删除后该配色序号永久不复用。</p>
     <div className="mt-2 flex gap-2">
      <button type="button" className="rounded bg-rose-700 px-2 py-1 text-white"
-      disabled={working} onClick={()=>call(()=>onDeleteVersion(confirmRemove),()=>setConfirmRemove(null))}>确认删除</button>
-     <button type="button" onClick={()=>setConfirmRemove(null)}>取消</button>
+      disabled={working} onClick={()=>call(()=>onDeleteVersion(confirmRemove),()=>setConfirmRemove(null))}><ActionIcon name="delete"/>确认删除</button>
+     <button type="button" onClick={()=>setConfirmRemove(null)}><ActionIcon name="close"/>取消</button>
     </div></div>:null}
    <footer className="border-t px-4 py-2 text-[11px] text-slate-500">题材与颜色标签由花型统一维护。每个配色保留独立花型图；上传、删除图片与备注、启停一起保存，取消不改变原关联。配色序号保存后永久只读。</footer>
   </div>
  </div>;
 }
 export interface PatternLibraryV2Props{
- apiFetch:typeof fetch;canManage?:boolean;allowExport?:boolean;onCreateMaster?():void;onEditorStateChange?(active:boolean):void;
+ apiFetch:typeof fetch;canManage?:boolean;onCreateMaster?():void;onEditorStateChange?(active:boolean):void;
  onShareMaster?(master:PatternMasterItem):void;
  onUploadPatternImage?(file:File):Promise<string>;
  resolvePatternImages?(ids:string[],variant:'thumbnail'|'display'|'original',signal?:AbortSignal):Promise<Map<string,string>>;
 }
-export function PatternLibraryV2({apiFetch,canManage=false,allowExport=true,onCreateMaster,onEditorStateChange,onUploadPatternImage,resolvePatternImages,onShareMaster}:PatternLibraryV2Props){
+export function PatternLibraryV2({apiFetch,canManage=false,onCreateMaster,onEditorStateChange,onUploadPatternImage,resolvePatternImages,onShareMaster}:PatternLibraryV2Props){
  const imageResolver=useCallback((ids:string[],variant:'thumbnail'|'display'|'original',signal?:AbortSignal)=>resolvePatternImages?resolvePatternImages(ids,variant,signal):resolveImageUrls(apiFetch,ids,variant,signal),[apiFetch,resolvePatternImages]);
  const [filters,setFilters]=useState<PatternFilters>({...initialPatternFilters});
  const [page,setPage]=useState<PatternPage|null>(null),[loading,setLoading]=useState(false);
@@ -449,19 +449,25 @@ export function PatternLibraryV2({apiFetch,canManage=false,allowExport=true,onCr
   await patchMasterStatus(apiFetch,selected.id,enabled);setSelected({...selected,isActive:enabled});
   setRetry(x=>x+1);
  };
- return <section aria-label="V2 花型库" className="flex min-h-[520px] flex-col gap-3 bg-[#faf8ff] p-3 text-[#191b24] sm:p-5">
-  <header className="flex items-center justify-between gap-3">
-   <h1 className="text-xl font-semibold">花型库</h1>
-   {allowExport?<CatalogExportButton apiFetch={apiFetch} listUrl={buildPatternUrl("/api/v2/pattern-catalog",filters)} filename="花型资料.xlsx"/>:null}
+ return <section aria-label="V2 花型库" className="v2-pattern flex min-h-[520px] flex-col gap-3 bg-[#faf8ff] p-3 text-[#191b24] sm:p-5">
+  <header className="flex flex-wrap items-center justify-between gap-3">
+   <div><h1 className="text-xl font-semibold">花型库</h1><p className="mt-1 text-xs text-slate-500">花型、配色与标签统一管理</p></div>
    {canManage&&onCreateMaster?<button onClick={onCreateMaster} type="button"
-    className="rounded bg-[#346ef6] px-3 py-2 text-xs text-white">新增花型</button>:null}
+    className="rounded-lg bg-[#346ef6] px-3 py-2 text-sm text-white"><ActionIcon name="add"/>新增花型</button>:null}
   </header>
-  <div className={box+' flex flex-wrap items-center gap-2 px-3 py-2'}>
-   <label className="flex items-center gap-1">
-    <Search size={14} className="text-[#737686]"/>
-    <input aria-label="搜索编号" placeholder="搜索编号..." value={filters.number}
-     onChange={e=>dispatch({type:'number',value:e.target.value})} className="w-40 px-2 py-1 text-xs outline-[#346ef6]"/>
+  <div className={box+' v2-library-filters flex flex-col'}>
+   <div className="flex flex-wrap items-center gap-3">
+   <label className="flex items-center gap-2">
+    <Search size={15} aria-hidden="true" className="text-slate-500"/>
+    <input aria-label="搜索编号" placeholder="花型编号" value={filters.number}
+     onChange={e=>dispatch({type:'number',value:e.target.value})} className="w-40 rounded border border-slate-300 bg-white px-2 py-1.5 outline-[#346ef6]"/>
    </label>
+   <label className="flex items-center gap-2 text-sm text-slate-600">
+    <input type="checkbox" checked={filters.includeInactive} onChange={e=>dispatch({type:'includeInactive',value:e.target.checked})}/>
+    包含停用</label>
+   <button type="button" onClick={()=>dispatch({type:'reset'})} className="rounded px-2 py-1.5 text-sm text-[#0053da] hover:bg-[#eef1fd]"><ActionIcon name="reset"/>清空筛选</button>
+   </div>
+   <div className="grid gap-3 border-t border-slate-100 pt-3">
    <div className="flex flex-wrap items-center gap-1 text-xs" aria-label="题材标签">
     <span className="text-slate-500">题材标签</span>{topics.map(t=><button key={t.id} type="button"
      aria-pressed={filters.topicTagIds.includes(t.id)} onClick={()=>dispatch({type:'topic',id:t.id})}
@@ -472,15 +478,12 @@ export function PatternLibraryV2({apiFetch,canManage=false,allowExport=true,onCr
      aria-pressed={filters.colorTagIds.includes(t.id)} onClick={()=>dispatch({type:'color',id:t.id})}
      className={'rounded-full px-2 py-1 '+(filters.colorTagIds.includes(t.id)?'bg-[#346ef6] text-white':'bg-[#eef1fd] text-[#31447b]')}>{t.name}</button>)}
    </div>
-   <label className="ml-auto flex items-center gap-1 text-xs">
-    <input type="checkbox" checked={filters.includeInactive} onChange={e=>dispatch({type:'includeInactive',value:e.target.checked})}/>
-    包含停用</label>
-   <button type="button" onClick={()=>dispatch({type:'reset'})} className="text-xs text-[#0053da] underline">清空筛选</button>
+   </div>
   </div>
   {tagsError?<p role="status" className="text-xs text-amber-700">{tagsError}</p>:null}
   {loading?<p role="status" className="p-3 text-sm text-slate-500">正在加载花型…</p>:null}
   {error?<p role="alert" className="p-3 text-sm text-rose-700">{error}
-   <button type="button" onClick={()=>setRetry(n=>n+1)} className="ml-2 underline">重试</button></p>:null}
+   <button type="button" onClick={()=>setRetry(n=>n+1)} className="ml-2 underline"><ActionIcon name="refresh"/>重试</button></p>:null}
   {!loading&&!error&&page?<><PatternMasterRows items={page.items} thumbnailUrls={thumbs} onShare={onShareMaster}
    onPreview={setPreview} onEdit={openEdit} canManage={canManage}/>
    <footer className="flex items-center justify-between gap-2 text-xs text-slate-600">
@@ -495,8 +498,8 @@ export function PatternLibraryV2({apiFetch,canManage=false,allowExport=true,onCr
   {selected?<>{editorLoading?<div role="status" className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 text-white">正在加载配色…</div>:
    editorError?<div role="alert" className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
     <div className="rounded bg-white p-5 text-sm">{editorError}
-     <button type="button" onClick={()=>setSelected(null)} className="ml-3 underline">关闭</button>
-     <button type="button" onClick={()=>openEdit(selected)} className="ml-3 underline">重试</button>
+     <button type="button" onClick={()=>setSelected(null)} className="ml-3 underline"><ActionIcon name="close"/>关闭</button>
+     <button type="button" onClick={()=>openEdit(selected)} className="ml-3 underline"><ActionIcon name="refresh"/>重试</button>
     </div></div>:
    <PatternColorwayEditor key={selected.id} master={selected} items={editingItems}
     nextColorwayNo={next} topics={topics} colors={colors} canManage={canManage}

@@ -184,7 +184,7 @@ test('P4-5 tabs show three categories and each count /10; selected state does no
  assert(html.includes('面料大图')&&html.includes('面料细节图')&&html.includes('效果图'));
  assert(html.includes('2 / 10')&&html.includes('1 / 10')&&html.includes('0 / 10'));
  assert(html.includes('https://images.example/b'));
- assert(html.includes('批量删除选中'));
+ assert(html.includes('删除选中'));
  assert(!html.includes('上传图片'));
 });
 test('P4-5 actual upload bridge exposes add/replace only when provided, not on unauthenticated default',()=>{

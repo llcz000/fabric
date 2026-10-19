@@ -1,4 +1,5 @@
 import React,{useEffect,useRef,useState} from 'react';
+import {ActionIcon} from '../product-master-v2/ActionIcon';
 import html2canvas from 'html2canvas-pro';
 import type {DocumentPrintModel} from '../../lib/documentPrintModel';
 import {documentResourceUrl} from './documentSearchModel';
@@ -111,14 +112,14 @@ export default function V2DocumentPrintView({
  return <section className="space-y-4" aria-label="V2单据打印预览">
   <style>{`@media print{body *{visibility:hidden!important} [data-v2-print-sheet],[data-v2-print-sheet] *{visibility:visible!important}[data-v2-print-sheet]{position:absolute!important;top:0;left:0;width:240mm!important}}`}</style>
   <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
-   <button type="button" onClick={onBack} className="rounded-lg border px-4 py-2 text-sm">{backLabel}</button>
+   <button type="button" onClick={onBack} className="rounded-lg border px-4 py-2 text-sm"><ActionIcon name="back"/>{backLabel}</button>
    <div className="flex gap-2">
-    <button type="button" disabled={!model||exporting} onClick={()=>window.print()} className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50">浏览器打印</button>
-    <button type="button" disabled={!model||exporting} onClick={()=>void downloadPng()} className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50">下载 PNG</button>
-    <button type="button" disabled={!model||exporting} onClick={downloadJson} className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50">下载打印 JSON</button>
+    <button type="button" disabled={!model||exporting} onClick={()=>window.print()} className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50"><ActionIcon name="print"/>浏览器打印</button>
+    <button type="button" disabled={!model||exporting} onClick={()=>void downloadPng()} className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50"><ActionIcon name="download"/>下载 PNG</button>
+    <button type="button" disabled={!model||exporting} onClick={downloadJson} className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50"><ActionIcon name="download"/>下载打印 JSON</button>
     <button type="button" disabled={!model||exporting} onClick={()=>void download()}
      className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
-     {exporting?'正在导出…':'下载打印Excel'}</button>
+     <ActionIcon name="excel"/>{exporting?'正在导出…':'下载打印Excel'}</button>
    </div>
   </div>
   {loading&&<p role="status">正在读取打印资料…</p>}

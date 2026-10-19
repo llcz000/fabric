@@ -1,3 +1,4 @@
+import {ActionIcon} from '../product-master-v2/ActionIcon';
 import React,{useEffect,useRef,useState} from 'react';
 import {ChevronRight,ChevronDown,Pencil,FileSearch,Copy,Trash2} from 'lucide-react';
 import type {CompanyProfile} from '../../types';
@@ -65,13 +66,13 @@ function MatchingDetails({apiFetch,orderId,filters,onDenied}:{apiFetch:typeof fe
   return ()=>abort.abort();
  },[apiFetch,orderId,filters,offset,retry,onDenied]);
  if(busy)return <p role="status" className="text-sm">正在读取命中明细…</p>;
- if(error)return <div role="alert" className="text-sm text-rose-800">{error} <button type="button" className={button} onClick={()=>setRetry(v=>v+1)}>重试明细</button></div>;
+ if(error)return <div role="alert" className="text-sm text-rose-800">{error} <button type="button" className={button} onClick={()=>setRetry(v=>v+1)}><ActionIcon name="refresh"/>重试明细</button></div>;
  if(!page)return null;
  return <section aria-label="命中明细">
   <table className="w-full text-left text-xs"><thead><tr>{['货号','色号','品名','米数','匹数','金额'].map(label=><th key={label} className="p-2">{label}</th>)}</tr></thead>
    <tbody>{page.items.map(item=><tr key={item.id} className="border-t border-slate-200"><td className="p-2">{item.productNo||'—'}</td><td className="p-2">{item.colorNo||'—'}</td><td className="p-2">{item.productName||'—'}</td><td className="p-2">{money(item.meters)}</td><td className="p-2">{item.pieces||'—'}</td><td className="p-2">¥ {money(item.amount)}</td></tr>)}</tbody>
   </table>
-  {page.total>20&&<div className="mt-3 flex items-center gap-3 text-xs"><button className={button} disabled={offset===0} onClick={()=>setOffset(v=>v-20)}>上一页明细</button><span>第 {offset/20+1} 页</span><button className={button} disabled={offset+20>=page.total} onClick={()=>setOffset(v=>v+20)}>下一页明细</button></div>}
+  {page.total>20&&<div className="mt-3 flex items-center gap-3 text-xs"><button className={button} disabled={offset===0} onClick={()=>setOffset(v=>v-20)}><ActionIcon name="back"/>上一页明细</button><span>第 {offset/20+1} 页</span><button className={button} disabled={offset+20>=page.total} onClick={()=>setOffset(v=>v+20)}><ActionIcon name="next"/>下一页明细</button></div>}
  </section>;
 }
 export function V2DocumentBrowser({apiFetch,role,companyProfile,initialFilters}:{apiFetch:typeof fetch;role:'admin'|'sales';companyProfile:CompanyProfile;initialFilters?:Partial<DocumentSearchFilters>}){
@@ -128,7 +129,7 @@ export function V2DocumentBrowser({apiFetch,role,companyProfile,initialFilters}:
   onCancel={()=>setSelected(null)} onSaved={()=>{setSelected(null);search(applied,offset);}}/>;
  if(selected?.mode==='preview')return <V2DocumentPrintView apiFetch={apiFetch} documentId={selected.id} onBack={()=>setSelected(null)} backLabel="返回查询"/>;
  return <section aria-label="V2单据查询工作区" className="space-y-4 p-3 text-[#191b24] sm:p-6">
-  <header className="flex flex-wrap justify-between gap-3"><div><h2 className="text-xl font-semibold">单据查询</h2><p className="mt-1 text-xs text-slate-500">{role==='admin'?'查看全公司单据':'仅查看本人单据'} · 按开单日期倒序</p></div><button className={button} disabled={exporting} onClick={()=>void exportDocuments()}>{exporting?'正在导出…':role==='admin'?'导出全公司单据 JSON':'导出全部本人单据 JSON'}</button></header>
+  <header className="flex flex-wrap justify-between gap-3"><div><h2 className="text-xl font-semibold">单据查询</h2><p className="mt-1 text-xs text-slate-500">{role==='admin'?'查看全公司单据':'仅查看本人单据'} · 按开单日期倒序</p></div><button className={button} disabled={exporting} onClick={()=>void exportDocuments()}><ActionIcon name="download"/>{exporting?'正在导出…':role==='admin'?'导出全公司单据 JSON':'导出全部本人单据 JSON'}</button></header>
   <form className="rounded-xl border border-[#c3c6d7] bg-white p-4" onSubmit={event=>{event.preventDefault();search(filters);}}>
    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
     {([['customer','客户'],['productNo','货号'],['colorNo','色号'],['productName','品名']] as const).map(([key,label])=><label key={key} className="text-xs font-medium">{label}<input name={key} className={input} maxLength={100} value={filters[key]} onChange={e=>setFilters(v=>({...v,[key]:e.target.value}))}/></label>)}
@@ -138,8 +139,8 @@ export function V2DocumentBrowser({apiFetch,role,companyProfile,initialFilters}:
     <label className="text-xs font-medium">结清状态<select name="settled" className={input} disabled={filters.type==='deposit'} value={filters.settled} onChange={e=>setFilters(v=>({...v,settled:e.target.value as DocumentSearchFilters['settled']}))}>
      <option value="">全部状态</option><option value="false">未结清</option><option value="true">已结清</option></select></label>
    </div>
-   <div className="mt-4 flex flex-wrap items-center gap-3"><button type="submit" className="rounded-lg bg-[#0053da] px-5 py-2 text-sm font-semibold text-white">查询</button>
-    <button type="button" className={button} onClick={()=>{const next=emptySearchFilters();setFilters(next);search(next);}}>清除筛选</button>
+   <div className="mt-4 flex flex-wrap items-center gap-3"><button type="submit" className="rounded-lg bg-[#0053da] px-5 py-2 text-sm font-semibold text-white"><ActionIcon name="search"/>查询</button>
+    <button type="button" className={button} onClick={()=>{const next=emptySearchFilters();setFilters(next);search(next);}}><ActionIcon name="reset"/>清除筛选</button>
     <p className="text-xs text-slate-500">多个明细条件由同一行同时满足；定金单不参与结清筛选。</p>
    </div>
   </form>
@@ -154,19 +155,19 @@ export function V2DocumentBrowser({apiFetch,role,companyProfile,initialFilters}:
    </label>}
    {actionError&&<p role="alert" className="text-sm text-red-700">{actionError}</p>}
    <div className="flex gap-3"><button type="button" className={button} disabled={actionBusy} onClick={()=>void act()}>{actionBusy?'处理中…':action.kind==='copy'?'确认创建副本':'确认永久删除'}</button>
-    <button className={button} type="button" disabled={actionBusy} onClick={()=>{setAction(null);setActionError('');}}>取消</button></div>
+    <button className={button} type="button" disabled={actionBusy} onClick={()=>{setAction(null);setActionError('');}}><ActionIcon name="close"/>取消</button></div>
   </section>}
   <DocumentSearchResults state={state} expanded={expanded} onToggle={id=>setExpanded(v=>v===id?null:id)}
    onEdit={id=>setSelected({id,mode:'edit'})} onPreview={id=>setSelected({id,mode:'preview'})}
    onCopy={(id,orderNo)=>{setAction({id,orderNo,kind:'copy'});setNewOrderNo('');setActionError('');}} onDelete={(id,orderNo)=>{setAction({id,orderNo,kind:'delete'});setConfirmation('');setActionError('');}}
    renderDetails={id=><MatchingDetails key={id} apiFetch={apiFetch} orderId={id} filters={applied} onDenied={onDenied}/>}/>
   {!action&&actionError&&<p role="alert">{actionError}</p>}
-  {state.error&&<button type="button" className={button} onClick={()=>search(applied,offset)}>重试查询</button>}
+  {state.error&&<button type="button" className={button} onClick={()=>search(applied,offset)}><ActionIcon name="refresh"/>重试查询</button>}
   {state.page&&<footer className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600">
    <span>共 {state.page.total} 张单据 · 第 {Math.floor(offset/limit)+1} / {Math.max(1,Math.ceil(state.page.total/limit))} 页</span>
    <div className="flex items-center gap-2"><label>每页 <select aria-label="每页单据数" className="rounded border bg-white p-2" value={limit} onChange={e=>search(applied,0,Number(e.target.value))}><option value={20}>20 张</option><option value={50}>50 张</option></select></label>
-    <button type="button" className={button} disabled={offset===0} onClick={()=>search(applied,offset-limit)}>上一页</button>
-    <button type="button" className={button} disabled={offset+limit>=state.page.total} onClick={()=>search(applied,offset+limit)}>下一页</button>
+    <button type="button" className={button} disabled={offset===0} onClick={()=>search(applied,offset-limit)}><ActionIcon name="back"/>上一页</button>
+    <button type="button" className={button} disabled={offset+limit>=state.page.total} onClick={()=>search(applied,offset+limit)}><ActionIcon name="next"/>下一页</button>
    </div>
   </footer>}
  </section>;

@@ -1,3 +1,4 @@
+import {ActionIcon} from './ActionIcon';
 import React,{useEffect,useRef,useState,useSyncExternalStore} from 'react';
 import QRCode from 'qrcode';
 import {SampleCardPatternsDialog} from './SampleCardPatternsDialog';
@@ -102,7 +103,7 @@ export function SampleCardCreateDialog({controller,onClose,onCreate,imageUrls=ne
     {!loading&&!page.items.length?<p className="p-2 text-xs text-slate-500">没有匹配记录</p>:null}
     {failure?<p role="alert" className="p-2 text-xs text-rose-700">{failure}</p>:null}
     {page.offset+page.limit<page.total?<button type="button" disabled={loading||busy} onClick={()=>void controller.loadMore(kind)}
-      className="w-full border-t p-2 text-xs text-[#0053da]">加载更多候选</button>:null}
+      className="w-full border-t p-2 text-xs text-[#0053da]"><ActionIcon name="add"/>加载更多候选</button>:null}
    </div>:null}
   </div>;
  };
@@ -119,7 +120,7 @@ export function SampleCardCreateDialog({controller,onClose,onCreate,imageUrls=ne
     }
    }}>
    <header className="flex items-center justify-between border-b border-[#c3c6d7] bg-[#fbfcfd] px-4 py-2.5">
-    <h2 className="text-sm font-semibold">新增色卡</h2><button type="button" disabled={busy} aria-label="关闭新增色卡" onClick={close}>×</button>
+    <h2 className="text-sm font-semibold">新增色卡</h2><button type="button" disabled={busy} aria-label="关闭新增色卡" onClick={close} title="关闭新增色卡" className="v2-icon-button"><ActionIcon name="close"/></button>
    </header>
    <div className="space-y-4 overflow-y-auto p-4">
     <p className="text-xs text-slate-500">选择已有花型母版与面料，保存唯一组合并生成稳定二维码。</p>
@@ -150,16 +151,16 @@ export function SampleCardCreateDialog({controller,onClose,onCreate,imageUrls=ne
     {error?<p role="alert" className="text-xs text-rose-700">{error}</p>:null}
    </div>
    <footer className="flex justify-end gap-2 border-t border-[#c3c6d7] bg-[#fbfcfd] px-4 py-3">
-    <button type="button" disabled={busy} onClick={close} className={button}>{state.createdCard?'关闭':'取消'}</button>
+    <button type="button" disabled={busy} onClick={close} className={button}><ActionIcon name="close"/>{state.createdCard?'关闭':'取消'}</button>
     <button type="button" disabled={busy||!controller.cardNo||Boolean(state.createdCard)} onClick={()=>void submit()} className={blue}>
-     {busy?'生成中…':'生成色卡'}</button>
+     <ActionIcon name="qr"/>{busy?'生成中…':'生成色卡'}</button>
    </footer>
   </div>
  </div>;
 }
 function CardQrZoom({card,QrRenderer,onClose}:{card:SampleCard;QrRenderer:SampleCardQrRenderer;onClose():void}){
  const ref=useRef<HTMLDialogElement>(null);useEffect(()=>{const before=document.activeElement,dialog=ref.current;dialog?.showModal();return()=>{dialog?.close();if(before instanceof HTMLElement&&before.isConnected)before.focus();};},[]);
- return <dialog ref={ref} aria-label={'色卡二维码 '+card.cardNo} onCancel={event=>{event.preventDefault();onClose();}} className="m-auto max-w-[94vw] rounded-xl border bg-white p-5 shadow-xl backdrop:bg-black/30"><header className="mb-3 flex items-center justify-between gap-4"><h3 className="font-semibold">{card.cardNo}</h3><button type="button" onClick={onClose} className={button}>关闭二维码</button></header><div className="mx-auto w-[min(76vw,420px)] [&>svg]:h-auto [&>svg]:w-full"><QrRenderer payload={card.qrPayload} size={420}/></div><p className="mt-3 text-sm text-slate-500">请对准这个二维码实时扫码</p></dialog>;
+ return <dialog ref={ref} aria-label={'色卡二维码 '+card.cardNo} onCancel={event=>{event.preventDefault();onClose();}} className="m-auto max-w-[94vw] rounded-xl border bg-white p-5 shadow-xl backdrop:bg-black/30"><header className="mb-3 flex items-center justify-between gap-4"><h3 className="font-semibold">{card.cardNo}</h3><button type="button" onClick={onClose} className="v2-icon-button" aria-label="关闭二维码" title="关闭二维码"><ActionIcon name="close"/></button></header><div className="mx-auto w-[min(76vw,420px)] [&>svg]:h-auto [&>svg]:w-full"><QrRenderer payload={card.qrPayload} size={420}/></div><p className="mt-3 text-sm text-slate-500">请对准这个二维码实时扫码</p></dialog>;
 }
 export function SampleCardTable({page,selectedIds,onToggle,onPageAll,onPage,onConfirmReprinted,onRetire,onViewPatterns,QrRenderer=SampleCardQr,busy=false}:{
  page:SampleCardPage;selectedIds:readonly string[];onToggle(id:string,selected:boolean):void;
@@ -186,16 +187,16 @@ export function SampleCardTable({page,selectedIds,onToggle,onPageAll,onPage,onCo
       {c.needsReprint===true?<span className="mt-1 inline-flex rounded bg-amber-100 px-1.5 py-0.5 text-[11px] text-amber-800">需重新打印</span>:null}
       <div className="mt-2 flex flex-wrap items-center gap-2">
        {c.needsReprint===true&&onConfirmReprinted?<button type="button" disabled={busy} className="text-xs text-[#0053da] hover:underline disabled:opacity-50"
-        aria-label={'标记已重新打印 '+c.cardNo} onClick={()=>onConfirmReprinted(c)}>标记已重新打印</button>:null}
+        aria-label={'标记已重新打印 '+c.cardNo} onClick={()=>onConfirmReprinted(c)}><ActionIcon name="check"/>标记已重新打印</button>:null}
       </div>
      </td><td className="px-3 py-3">{c.description}</td>
      <td className="px-3 py-3">{c.composition||'—'}</td><td className="whitespace-nowrap px-3 py-3">{c.weightValue===null?'—':c.weightValue+' '+c.weightUnit}</td>
      <td className="whitespace-nowrap px-3 py-3">{c.widthValue===null?'—':c.widthValue+' cm'}</td>
      <td className="whitespace-nowrap px-3 py-3">
-      <button type="button" aria-label={'放大色卡二维码 '+c.cardNo} onClick={()=>setQrCard(c)} className="mr-3 text-xs text-[#0053da] hover:underline">查看二维码</button>
-      {onViewPatterns&&<button type="button" disabled={busy} className="mr-3 text-xs text-[#0053da] hover:underline disabled:opacity-50" aria-label={'查看花型 '+c.cardNo} onClick={()=>onViewPatterns(c)}>查看花型</button>}
-      {onRetire?<button type="button" disabled={busy} className="text-xs text-rose-700 hover:underline disabled:opacity-50"
-       aria-label={'删除色卡 '+c.cardNo} onClick={()=>onRetire(c)}>删除色卡</button>:null}
+      <button type="button" aria-label={'放大色卡二维码 '+c.cardNo} onClick={()=>setQrCard(c)} className="v2-icon-button" title="查看二维码"><ActionIcon name="qr"/></button>
+      {onViewPatterns&&<button type="button" disabled={busy} className="v2-icon-button" title="查看花型" aria-label={'查看花型 '+c.cardNo} onClick={()=>onViewPatterns(c)}><ActionIcon name="view"/></button>}
+      {onRetire?<button type="button" disabled={busy} className="v2-icon-button v2-icon-danger" title="删除色卡"
+       aria-label={'删除色卡 '+c.cardNo} onClick={()=>onRetire(c)}><ActionIcon name="delete"/></button>:null}
      </td>
     </tr>)}</tbody>
    </table>
@@ -204,8 +205,8 @@ export function SampleCardTable({page,selectedIds,onToggle,onPageAll,onPage,onCo
   <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-[#c3c6d7] bg-[#fbfcfd] px-4 py-3 text-[11px] text-slate-500">
    <p>勾选所需色卡导出六列Excel，二维码列为该卡二维码的原始编码文本。</p>
    <div className="flex items-center gap-3"><span>共 {page.total} 张色卡 · 页码 {Math.floor(page.offset/page.limit)+1}/{Math.max(1,Math.ceil(page.total/page.limit))}</span>
-    <button type="button" className={button} disabled={busy||page.offset===0} onClick={()=>onPage(Math.max(0,page.offset-page.limit))}>上一页</button>
-    <button type="button" className={button} disabled={busy||page.offset+page.limit>=page.total} onClick={()=>onPage(page.offset+page.limit)}>下一页</button>
+    <button type="button" className={button} disabled={busy||page.offset===0} onClick={()=>onPage(Math.max(0,page.offset-page.limit))}><ActionIcon name="back"/>上一页</button>
+    <button type="button" className={button} disabled={busy||page.offset+page.limit>=page.total} onClick={()=>onPage(page.offset+page.limit)}><ActionIcon name="next"/>下一页</button>
    </div>
   </footer>
  </section>;
@@ -290,9 +291,9 @@ export function SampleCardLibraryV2({apiFetch,QrRenderer=SampleCardQr,resolvePat
     <label className="flex items-center gap-1.5 text-xs"><input type="checkbox" aria-label="只看需重新打印"
      checked={needsReprint} onChange={e=>{setNeedsReprint(e.target.checked);setOffset(0);}}/>只看需重新打印</label>
     <span className="text-xs">已选 <strong className="text-[#0053da]">{selectedIds.length}</strong> 张色卡（含跨页选择）</span>
-    <button type="button" disabled={!selectedIds.length||exporting} className={button} onClick={()=>void exportSelected()}>{exporting?'导出中…':'导出 Excel'}</button>
-    {selectedIds.length?<button type="button" disabled={exporting} className={button} onClick={()=>setSelectedIds([])}>清空选择</button>:null}
-    <button type="button" className={blue} onClick={()=>{setNotice('');setController(makeSampleCardDraftController(apiFetch));}}>新增色卡</button>
+    <button type="button" disabled={!selectedIds.length||exporting} className={button} onClick={()=>void exportSelected()}><ActionIcon name="download"/>{exporting?'导出中…':'导出 Excel'}</button>
+    {selectedIds.length?<button type="button" disabled={exporting} className={button} onClick={()=>setSelectedIds([])}><ActionIcon name="reset"/>清空选择</button>:null}
+    <button type="button" className={blue} onClick={()=>{setNotice('');setController(makeSampleCardDraftController(apiFetch));}}><ActionIcon name="add"/>新增色卡</button>
    </div>
   </header>
   {error?<p role="alert" className="text-xs text-rose-700">{error}</p>:null}

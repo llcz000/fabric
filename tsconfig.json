@@ -28,6 +28,7 @@
     "dist",
     "agent",
     ".agents",
-    "dist-camera"
+    "dist-camera",
+    "tmp"
   ]
 }

@@ -1,4 +1,7 @@
+import {ActionIcon} from './ActionIcon';
 import {CatalogExportButton} from './CatalogExportButton';
+import {useV2LeaveProtection} from './useV2LeaveProtection';
+import {readV2Route,v2Route} from './v2Navigation';
 import React,{useEffect,useRef,useState,useCallback} from 'react';
 import {Image as ImageIcon,Plus,Search,X,ChevronLeft,ChevronRight,Images,RotateCcw} from 'lucide-react';
 import {ProductImageTabs,type CatalogImageResolver} from './ProductImageTabs';
@@ -22,12 +25,13 @@ export interface CatalogV2TableProps{
  onEdit?(product:CatalogProduct):void;
  onDeleteRequest?(product:CatalogProduct):void;
  onRemark?(product:CatalogProduct):void;
+ updating?:boolean;
 }
 export function CatalogV2Table({
- page,patternUrls,onPatternPreview,onProductImages,onPage,canManage=false,onEdit,onDeleteRequest,onRemark
+ page,patternUrls,onPatternPreview,onProductImages,onPage,canManage=false,onEdit,onDeleteRequest,onRemark,updating=false
 }:CatalogV2TableProps){
  return <div className="flex flex-1 flex-col overflow-hidden rounded-lg border border-[#c3c6d7] bg-white">
-  <div className="overflow-x-auto">
+  <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="产品列表，可左右滚动查看全部字段">
    <table className="w-full min-w-[1000px] border-collapse text-left text-xs text-[#191b24]">
     <thead><tr className="border-b border-[#c3c6d7] bg-[#f3f4fa] text-[#434655]">
      {columns.map((col,index)=><th key={col} scope="col"
@@ -39,7 +43,7 @@ export function CatalogV2Table({
      const imageCount=product.imageCounts;
      return <tr key={product.id} className="border-b border-[#ededf9] hover:bg-[#f8f9ff]">
       <td className="px-3 py-2 text-center">
-       {picture?<button type="button" onClick={()=>onPatternPreview(product)}
+       {picture?<button type="button" disabled={updating} onClick={()=>onPatternPreview(product)}
         aria-label={'查看花型原图 '+product.productNo}
         className="inline-flex rounded border border-[#e2e1ee] focus-visible:outline-2 focus-visible:outline-[#346ef6]">
         <img src={picture} alt={'花型 '+product.masterNo+' 配色'+product.colorwayNo}
@@ -56,7 +60,7 @@ export function CatalogV2Table({
        大图 {imageCount.fabricDisplay} · 细节 {imageCount.detail} · 效果 {imageCount.aiEffect}
       </td>
       <td className="max-w-44 px-3 py-2">
-       {product.remark.trim()&&onRemark?<button type="button" onClick={()=>onRemark(product)}
+       {product.remark.trim()&&onRemark?<button type="button" disabled={updating} onClick={()=>onRemark(product)}
         title={product.remark}
         aria-label={'查看完整备注 '+product.productNo}
         className="max-w-40 truncate text-left hover:text-[#0053da] focus-visible:underline">{product.remark}</button>:
@@ -70,12 +74,12 @@ export function CatalogV2Table({
        {!product.isAvailableForSampling?<span className="mt-1 block text-[11px] text-amber-700">暂不供样</span>:null}
       </td>
       <td className="px-3 py-2 text-center"><div className="inline-flex items-center gap-2 whitespace-nowrap">
-       <button type="button" className="text-[#0053da] hover:underline"
-        onClick={()=>onProductImages(product)} aria-label={'查看产品图 '+product.productNo}>产品图</button>
-       {canManage&&onEdit?<button type="button" onClick={()=>onEdit(product)}
-        className="text-[#0053da] hover:underline">编辑</button>:null}
-       {canManage&&onDeleteRequest?<button type="button" onClick={()=>onDeleteRequest(product)}
-        className="text-[#ba1a1a] hover:underline">删除</button>:null}
+       <button type="button" disabled={updating} className="v2-icon-button" title="查看产品图"
+        onClick={()=>onProductImages(product)} aria-label={'查看产品图 '+product.productNo}><Images size={17} aria-hidden="true"/></button>
+       {canManage&&onEdit?<button type="button" disabled={updating} onClick={()=>onEdit(product)}
+        className="v2-icon-button" aria-label="编辑" title="编辑产品"><ActionIcon name="edit"/></button>:null}
+       {canManage&&onDeleteRequest?<button type="button" disabled={updating} onClick={()=>onDeleteRequest(product)}
+        className="v2-icon-button v2-icon-danger" aria-label="删除" title="删除产品"><ActionIcon name="delete"/></button>:null}
       </div></td>
      </tr>;
     })}
@@ -87,9 +91,9 @@ export function CatalogV2Table({
    <span>共 {page.total} 条产品 · 每页 {page.limit} 条 · 第 {Math.floor(page.offset/page.limit)+1} 页</span>
    <div className="flex items-center gap-2">
     <button type="button" aria-label="上一页" className={neutral+' px-2 py-1.5'}
-     disabled={page.offset===0} onClick={()=>onPage(Math.max(0,page.offset-page.limit))}><ChevronLeft size={15}/></button>
+     disabled={updating||page.offset===0} onClick={()=>onPage(Math.max(0,page.offset-page.limit))}><ChevronLeft size={15}/></button>
     <button type="button" aria-label="下一页" className={neutral+' px-2 py-1.5'}
-     disabled={page.offset+page.limit>=page.total} onClick={()=>onPage(page.offset+page.limit)}><ChevronRight size={15}/></button>
+     disabled={updating||page.offset+page.limit>=page.total} onClick={()=>onPage(page.offset+page.limit)}><ChevronRight size={15}/></button>
    </div>
   </div>
  </div>;
@@ -125,38 +129,39 @@ function ImageDialog({
   </div>
  </div>;
 }
-export function CatalogDeleteConfirmation({product,onCancel,onConfirm}:{
- product:CatalogProduct;onCancel():void;onConfirm():void;
+export function CatalogDeleteConfirmation({product,onCancel,onConfirm,busy=false,error=''}:{
+ product:CatalogProduct;onCancel():void;onConfirm():void;busy?:boolean;error?:string;
 }){
- const cancel=useRef<HTMLButtonElement>(null);
+ const cancel=useRef<HTMLButtonElement>(null),dialog=useRef<HTMLDialogElement>(null),latest=useRef({busy,onCancel});
+ latest.current={busy,onCancel};
  useEffect(()=>{
   const before=document.activeElement instanceof HTMLElement?document.activeElement:null;
-  cancel.current?.focus();
+  dialog.current?.showModal();cancel.current?.focus();
   const keydown=(event:KeyboardEvent)=>{
-   if(event.key==='Escape'){event.preventDefault();onCancel();}
+   if(event.key==='Escape'){event.preventDefault();if(!latest.current.busy)latest.current.onCancel();}
    if(event.key==='Tab'){
-    const buttons=Array.from(document.querySelectorAll<HTMLElement>('[data-v2-delete-dialog] button:not([disabled])'));
-    if(event.shiftKey&&document.activeElement===buttons[0]){event.preventDefault();buttons[buttons.length-1].focus();}
-    else if(!event.shiftKey&&document.activeElement===buttons[buttons.length-1]){event.preventDefault();buttons[0].focus();}
+    const buttons=Array.from(dialog.current?.querySelectorAll<HTMLButtonElement>('button:not([disabled])')??[]);
+    if(!buttons.length){event.preventDefault();dialog.current?.focus();}
+    else if(event.shiftKey&&document.activeElement===buttons[0]){event.preventDefault();buttons.at(-1)?.focus();}
+    else if(!event.shiftKey&&document.activeElement===buttons.at(-1)){event.preventDefault();buttons[0]?.focus();}
    }
   };
   document.addEventListener('keydown',keydown);
-  return ()=>{document.removeEventListener('keydown',keydown);before?.focus();};
- },[onCancel]);
- return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3" role="presentation">
-  <div data-v2-delete-dialog role="alertdialog" aria-modal="true" aria-label="确认删除产品"
-   className="w-full max-w-md rounded-xl bg-white p-5 shadow-2xl">
+  return ()=>{document.removeEventListener('keydown',keydown);dialog.current?.close();before?.focus();};
+ },[]);
+ useEffect(()=>{if(busy)dialog.current?.focus();else cancel.current?.focus();},[busy]);
+ return <dialog ref={dialog} tabIndex={-1} data-v2-delete-dialog role="alertdialog" aria-modal="true" aria-label="确认删除产品"
+  onCancel={event=>{event.preventDefault();if(!busy)onCancel();}}
+  className="fixed inset-0 m-auto w-[calc(100%-24px)] max-w-md rounded-xl bg-white p-5 text-[#191b24] shadow-2xl">
    <h2 className="mb-3 text-lg font-semibold">确认删除产品？</h2>
    <p className="break-words text-sm">货号：<strong>{product.productNo}</strong></p>
    <p className="my-3 text-xs text-slate-600">删除仅移除该产品及图片关联，不影响花型、面料或共享图片。已开单产品不能删除。</p>
+   {error&&<p role="alert" className="mt-3 text-sm text-rose-700">{error}</p>}
    <div className="mt-5 flex justify-end gap-2">
-    <button ref={cancel} type="button" onClick={onCancel}
-     className="rounded border border-slate-300 px-4 py-2 text-sm">取消</button>
-    <button type="button" onClick={onConfirm}
-     className="rounded bg-rose-700 px-4 py-2 text-sm text-white">确认删除</button>
+    <button ref={cancel} type="button" disabled={busy} onClick={onCancel} className="rounded border border-slate-300 px-4 py-2 text-sm"><ActionIcon name="close"/>取消</button>
+    <button type="button" disabled={busy} onClick={onConfirm} className="rounded bg-rose-700 px-4 py-2 text-sm text-white"><ActionIcon name="delete"/>{busy?'正在删除…':'确认删除'}</button>
    </div>
-  </div>
- </div>;
+ </dialog>;
 }
 interface ViewerState{type:'pattern'|'product';item:CatalogProduct}
 export interface ProductCatalogV2Props{
@@ -164,12 +169,20 @@ export interface ProductCatalogV2Props{
  resolveImages?:CatalogImageResolver;
  onCreate?():void;
  onEdit?(product:CatalogProduct):void;
- onDeleteRequest?(product:CatalogProduct):void;
+ onDeleteRequest?(product:CatalogProduct):Promise<void>|void;
 }
 /** P4 isolated component: deliberately not mounted over legacy ProductLibrary. */
 export function ProductCatalogV2({apiFetch,canManage=false,allowExport=true,onCreate,onEdit,onDeleteRequest,resolveImages}:ProductCatalogV2Props){
  const imageResolver=useCallback<CatalogImageResolver>((ids,variant,signal)=>resolveImages?resolveImages(ids,variant,signal):resolveImageUrls(apiFetch,ids,variant,signal),[apiFetch,resolveImages]);
- const [filters,setFilters]=useState<CatalogFilters>({...emptyCatalogFilters});
+ const [filters,setFilters]=useState<CatalogFilters>(()=>{
+  const route=readV2Route(typeof window==='undefined'?'':window.location.hash),q=route.params;
+  if(route.view!=='products')return {...emptyCatalogFilters};
+  const offset=Number(q.get('offset')??0),limit=Number(q.get('limit')??50);
+  return {...emptyCatalogFilters,productNo:q.get('productNo')??'',fabricName:q.get('fabricName')??'',status:q.get('status')==='all'?'all':'active',offset:Number.isSafeInteger(offset)&&offset>=0?offset:0,limit:Number.isInteger(limit)&&limit>0&&limit<=100?limit:50};
+ });
+ useEffect(()=>{if(typeof window!=='undefined'&&readV2Route(window.location.hash).view==='products'){
+  const query=buildCatalogUrl('/api/v2/products',filters).split('?')[1];window.history.replaceState(window.history.state,'',v2Route('products',Object.fromEntries(new URLSearchParams(query))));
+ }},[filters]);
  const [page,setPage]=useState<CatalogPage|null>(null),[busy,setBusy]=useState(false);
  const [failure,setFailure]=useState(''),[retry,setRetry]=useState(0);
  const [thumbnailUrls,setThumbnailUrls]=useState<Map<string,string>>(new Map());
@@ -178,20 +191,29 @@ export function ProductCatalogV2({apiFetch,canManage=false,allowExport=true,onCr
  const [viewerImages,setViewerImages]=useState<{fabricDisplay:string[];detail:string[];aiEffect:string[]}|null>(null);
  const [remark,setRemark]=useState<CatalogProduct|null>(null);
  const [pendingDelete,setPendingDelete]=useState<CatalogProduct|null>(null);
+ const [deleteBusy,setDeleteBusy]=useState(false),[deleteError,setDeleteError]=useState('');
+ const deleting=useRef(false);useV2LeaveProtection(false,deleteBusy);
+ const confirmDelete=async()=>{
+  if(!pendingDelete||!onDeleteRequest||deleting.current)return;
+  deleting.current=true;setDeleteBusy(true);setDeleteError('');
+  try{await onDeleteRequest(pendingDelete);setPendingDelete(null);}
+  catch(e){setDeleteError(e instanceof Error?e.message:'产品删除失败，请重试');}
+  finally{deleting.current=false;setDeleteBusy(false);}
+ };
  const listGuard=useRef(createLatestRequestGuard());
  const viewerGuard=useRef(createLatestRequestGuard());
  const closeViewer=useCallback(()=>{viewerGuard.current.cancel();setViewer(null);setViewerUrls(new Map());setViewerImages(null);setViewerError('');},[]);
  const dispatch=(action:Parameters<typeof reduceCatalogFilters>[1])=>setFilters(f=>reduceCatalogFilters(f,action));
  useEffect(()=>{
   const controller=new AbortController(),ticket=listGuard.current.next();
-  setBusy(true);setFailure('');setThumbnailUrls(new Map());
+  setBusy(true);setFailure('');
   // Compact debounce applies to both text inputs; non-text filters use the same latest-only protection.
   const delay=filters.productNo||filters.fabricName?220:0;
   const timer=setTimeout(async()=>{
    try{
     const result=await fetchCatalogPage(apiFetch,filters,controller.signal);
     if(controller.signal.aborted||!listGuard.current.isCurrent(ticket))return;
-    setPage(result);setBusy(false);
+    setPage(result);setThumbnailUrls(new Map());setBusy(false);
     const ids=result.items.map(x=>x.patternImageAssetId).filter((x):x is string=>Boolean(x));
     if(ids.length){
      try{
@@ -230,16 +252,18 @@ export function ProductCatalogV2({apiFetch,canManage=false,allowExport=true,onCr
   })();
   return ()=>{controller.abort();viewerGuard.current.cancel();};
  },[viewer,apiFetch,imageResolver]);
- return <section className="flex min-h-[520px] flex-col gap-3 bg-[#faf8ff] p-3 text-[#191b24] sm:p-5" aria-label="V2 产品库">
-  <div className="flex flex-wrap items-center justify-between gap-2">
+ return <section className="v2-catalog flex min-h-[520px] flex-col gap-3 bg-[#faf8ff] p-3 text-[#191b24] sm:p-5" aria-label="V2 产品库">
+  <div className="v2-catalog-toolbar">
    <div><h1 className="text-xl font-semibold tracking-tight">产品库</h1>
-    <p className="mt-1 text-xs text-[#737686]">管理印花配色与面料组合，产品编号由系统生成</p></div>
+    <p className="mt-1 text-sm text-slate-500">管理花型配色与面料组合</p></div>
+   <div className="v2-catalog-actions">
    {allowExport?<CatalogExportButton apiFetch={apiFetch} listUrl={buildCatalogUrl("/api/v2/products",filters)} filename="产品资料.xlsx"/>:null}
    {canManage&&onCreate?<button type="button" onClick={onCreate}
-    className="inline-flex items-center gap-1 rounded-lg bg-[#346ef6] px-3 py-2 text-xs font-medium text-white hover:bg-[#275ee0]">
+    className="inline-flex items-center gap-1 rounded-lg bg-[#346ef6] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#275ee0]">
     <Plus size={16}/>新增产品</button>:null}
+   </div>
   </div>
-  <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[#c3c6d7] bg-white p-2.5 text-xs">
+  <div className="v2-catalog-filters v2-library-filters flex flex-wrap items-center gap-2 rounded-lg border border-[#c3c6d7] bg-white p-2.5 text-xs">
    <label className="relative"><span className="sr-only">货号</span>
     <Search className="absolute left-2 top-2 text-[#737686]" size={14}/>
     <input aria-label="货号" value={filters.productNo} onChange={e=>dispatch({type:'productNo',value:e.target.value})}
@@ -255,17 +279,19 @@ export function ProductCatalogV2({apiFetch,canManage=false,allowExport=true,onCr
 
   </div>
 
-  {busy?<p role="status" className="rounded-lg bg-white p-3 text-sm text-[#737686]">正在查找产品…</p>:null}
+   <div className="v2-catalog-status" role="status" aria-live="polite">{busy?(page?'正在更新产品…':'正在查找产品…'):page?'共 '+page.total+' 条产品':''}</div>
   {failure?<div role="alert" className="rounded-lg border border-rose-200 bg-white p-4 text-sm text-rose-700">
-   {failure}<button type="button" onClick={()=>setRetry(n=>n+1)} className="ml-3 underline">重试</button></div>:null}
-  {!busy&&!failure&&page?<CatalogV2Table page={page} patternUrls={thumbnailUrls}
+   {failure}<button type="button" onClick={()=>setRetry(n=>n+1)} className="ml-3 underline"><ActionIcon name="refresh"/>重试</button></div>:null}
+   <div className="v2-catalog-viewport" aria-busy={busy} data-updating={busy}>
+   {page?<CatalogV2Table updating={busy||Boolean(failure)} page={page} patternUrls={thumbnailUrls}
    onPatternPreview={item=>setViewer({type:'pattern',item})}
    onProductImages={item=>setViewer({type:'product',item})}
    onPage={offset=>dispatch({type:'page',offset})} onRemark={setRemark}
-   canManage={canManage} onEdit={onEdit} onDeleteRequest={onDeleteRequest?setPendingDelete:undefined}/>:null}
+    canManage={canManage} onEdit={onEdit} onDeleteRequest={onDeleteRequest?item=>{setDeleteError('');setPendingDelete(item);}:undefined}/>:<div className="v2-catalog-skeleton" aria-hidden="true"/>}
+   </div>
   {pendingDelete&&onDeleteRequest?<CatalogDeleteConfirmation product={pendingDelete}
-   onCancel={()=>setPendingDelete(null)}
-   onConfirm={()=>{const item=pendingDelete;setPendingDelete(null);onDeleteRequest(item);}}/>:null}
+    busy={deleteBusy} error={deleteError} onCancel={()=>{if(!deleting.current)setPendingDelete(null);}}
+    onConfirm={()=>void confirmDelete()}/>:null}
   {remark?<ImageDialog title={'产品备注 · '+remark.productNo} onClose={()=>setRemark(null)}>
    <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{remark.remark}</p>
   </ImageDialog>:null}

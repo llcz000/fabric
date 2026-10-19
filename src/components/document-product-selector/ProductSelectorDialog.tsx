@@ -1,3 +1,4 @@
+import {ActionIcon} from '../product-master-v2/ActionIcon';
 import React,{useEffect,useRef,useState} from 'react';
 import type {PickerPage,PickerProduct,ProductSelectorFilters} from './selection';
 import {buildProductSelectorUrl,validateProductSelectorPage} from './selection';
@@ -34,7 +35,7 @@ export function ProductSelectorTable({items,onChoose}:{
     <td className="px-3 py-2">{item.widthCm??'—'}</td>
     <td className="px-3 py-2"><button type="button" onClick={()=>onChoose(item)}
       className="rounded-lg bg-sky-600 px-3 py-2 font-semibold text-white hover:bg-sky-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-700"
-      aria-label={`选用产品 ${item.productNo}`}>选用</button></td>
+      aria-label={`选用产品 ${item.productNo}`}><ActionIcon name="check"/>选用</button></td>
    </tr>)}</tbody>
   </table>
  </div>;
@@ -98,7 +99,7 @@ export default function ProductSelectorDialog({
      {mode==='replace'?'更换产品':'选择产品添加'}</h2>
      <p className="text-xs text-slate-500">产品带出资料为只读；选择后仅更改单行草稿，不自动保存单据</p></div>
     <button type="button" onClick={onCancel} aria-label="关闭产品选择窗口"
-      className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 focus-visible:outline">✕</button>
+      className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 focus-visible:outline"><ActionIcon name="close"/></button>
    </header>
    <form onSubmit={e=>{e.preventDefault();applySearch();}}
      className="flex flex-wrap items-end gap-3 p-4 sm:px-6">
@@ -108,7 +109,7 @@ export default function ProductSelectorDialog({
     <label className="min-w-[165px] flex-1 text-xs font-semibold text-slate-600">品名
      <input value={inputName} maxLength={255} onChange={e=>setInputName(e.target.value)}
        placeholder="输入完整或部分品名" className="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-sky-500"/></label>
-    <button type="submit" disabled={busy} className="rounded-lg bg-sky-600 px-5 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-50">搜索</button>
+    <button type="submit" disabled={busy} className="rounded-lg bg-sky-600 px-5 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-50"><ActionIcon name="search"/>搜索</button>
    </form>
    <div className="px-4 pb-4 sm:px-6">
     {error&&<div role="alert" className="mb-3 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error}</div>}
@@ -119,15 +120,15 @@ export default function ProductSelectorDialog({
      <span>共 {page?.total??0} 条 · 第 {Math.floor(offset/PAGE_SIZE)+1} 页</span>
      <div className="flex items-center gap-2">
       <button type="button" disabled={busy||offset===0} onClick={()=>setOffset(Math.max(0,offset-PAGE_SIZE))}
-       className="rounded border border-slate-200 px-3 py-2 disabled:opacity-40">上一页</button>
+       className="rounded border border-slate-200 px-3 py-2 disabled:opacity-40"><ActionIcon name="back"/>上一页</button>
       <button type="button" disabled={busy||!page||offset+PAGE_SIZE>=page.total}
        onClick={()=>setOffset(offset+PAGE_SIZE)}
-       className="rounded border border-slate-200 px-3 py-2 disabled:opacity-40">下一页</button>
+       className="rounded border border-slate-200 px-3 py-2 disabled:opacity-40"><ActionIcon name="next"/>下一页</button>
      </div>
     </div>
     {role==='admin'&&onRequestManual&&<button type="button"
      onClick={()=>{if(window.confirm('切换为管理员手工录入？该行将不再关联产品库。')){onRequestManual();onCancel();}}}
-     className="mt-3 text-xs font-semibold text-amber-700 underline">改为手工录入（仅管理员）</button>}
+     className="mt-3 text-xs font-semibold text-amber-700 underline"><ActionIcon name="edit"/>改为手工录入（仅管理员）</button>}
    </div>
   </div>
  </div>;

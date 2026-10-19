@@ -1,3 +1,4 @@
+import {ActionIcon} from './ActionIcon';
 import React,{useEffect,useRef,useState} from 'react';
 import {PatternLibraryV2,TagSelector,InlineColorTagEditor,type PatternLibraryV2Props} from './PatternLibraryV2';
 import {savePatternDraft,type PatternCreationProgress,type PatternColorDraft} from './patternCreateModel';
@@ -28,8 +29,8 @@ export function CreatePattern({apiFetch,onCancel,onSaved,onUpload}:{apiFetch:typ
     <section className="space-y-2"><h3 className="text-sm font-medium">题材标签</h3><TagSelector ariaLabel="新增花型题材标签" options={topics} selected={topicIds} onChange={setTopicIds} disabled={busy||tagsLoading||!!tagsError||!!progress.current.topicSaved}/></section>
     <section className="space-y-2"><h3 className="text-sm font-medium">颜色标签</h3><InlineColorTagEditor label="新增花型颜色标签" options={colors} tagIds={colorIds} newColorTags={newColors} onChange={value=>{setColorIds(value.tagIds);setNewColors(value.newColorTags);}} disabled={busy||tagsLoading||!!tagsError||!!progress.current.colorSaved}/></section>
    </div>
-   {tagsLoading&&<p role="status" className="text-xs text-slate-500">正在读取标签…</p>}{tagsError&&<p role="alert" className="text-sm text-rose-700">{tagsError} <button type="button" onClick={()=>setTagRevision(n=>n+1)}>重新读取标签</button></p>}
-   <div className="flex items-center justify-between"><strong className="text-sm">配色及花型图</strong><button type="button" disabled={busy||!!progress.current.master} className="text-sm text-blue-700" onClick={()=>setDrafts(items=>[...items,{key:String(++sequence.current),remark:''}])}>添加配色</button></div>
+   {tagsLoading&&<p role="status" className="text-xs text-slate-500">正在读取标签…</p>}{tagsError&&<p role="alert" className="text-sm text-rose-700">{tagsError} <button type="button" onClick={()=>setTagRevision(n=>n+1)}><ActionIcon name="refresh"/>重新读取标签</button></p>}
+   <div className="flex items-center justify-between"><strong className="text-sm">配色及花型图</strong><button type="button" disabled={busy||!!progress.current.master} className="text-sm text-blue-700" onClick={()=>setDrafts(items=>[...items,{key:String(++sequence.current),remark:''}])}><ActionIcon name="add"/>添加配色</button></div>
    {drafts.map((draft,index)=><fieldset key={draft.key} disabled={busy||progress.current.saved?.includes(draft.key)} className="flex flex-wrap items-center gap-3 rounded border p-3">
     <span className="text-sm">配色 {index+1}</span><DraftImage file={draft.file}/>
     <label className="cursor-pointer text-sm text-blue-700">{draft.file?'更换图片':'上传花型图'}<input type="file" className="sr-only" aria-label={'配色 '+(index+1)+' 花型图'} accept="image/jpeg,image/png,image/webp,image/gif" onChange={e=>{
@@ -37,12 +38,12 @@ export function CreatePattern({apiFetch,onCancel,onSaved,onUpload}:{apiFetch:typ
      if(!['image/jpeg','image/png','image/webp','image/gif'].includes(file.type)||file.size===0||file.size>20*1024*1024){setError('请选择20MB以内的JPG、PNG、WebP或GIF图片');return;}
      setDrafts(items=>items.map(item=>item.key===draft.key?{...item,file,patternImageAssetId:undefined}:item));setError('');
     }}/></label>
-    {draft.file&&<button type="button" className="text-sm text-rose-700" onClick={()=>setDrafts(items=>items.map(item=>item.key===draft.key?{...item,file:undefined,patternImageAssetId:undefined}:item))}>移除图片</button>}
+    {draft.file&&<button type="button" className="text-sm text-rose-700" onClick={()=>setDrafts(items=>items.map(item=>item.key===draft.key?{...item,file:undefined,patternImageAssetId:undefined}:item))}><ActionIcon name="delete"/>移除图片</button>}
     <input aria-label={'配色 '+(index+1)+' 备注'} maxLength={500} className="min-w-0 flex-1 rounded border p-2 text-sm" placeholder="配色备注" value={draft.remark} onChange={e=>setDrafts(items=>items.map(item=>item.key===draft.key?{...item,remark:e.target.value}:item))}/>
-    {!progress.current.master&&drafts.length>1&&<button type="button" className="text-sm text-rose-700" onClick={()=>setDrafts(items=>items.filter(item=>item.key!==draft.key))}>移除配色</button>}
+    {!progress.current.master&&drafts.length>1&&<button type="button" className="text-sm text-rose-700" onClick={()=>setDrafts(items=>items.filter(item=>item.key!==draft.key))}><ActionIcon name="delete"/>移除配色</button>}
    </fieldset>)}
    <p className="text-xs text-slate-500">保存时自动分配配色序号；题材与颜色标签属于整个花型，各最多选10项。</p>{error&&<p role="alert" className="text-sm text-rose-700">{error}</p>}
-   <div className="flex justify-end gap-3"><button type="button" disabled={busy} className="rounded border px-4 py-2 text-sm" onClick={cancel}>取消</button><button disabled={busy||tagsLoading||!!tagsError||progress.current.uncertain} className="rounded bg-blue-700 px-4 py-2 text-sm text-white">{busy?'正在保存…':'保存花型'}</button></div>
+   <div className="flex justify-end gap-3"><button type="button" disabled={busy} className="rounded border px-4 py-2 text-sm" onClick={cancel}><ActionIcon name="close"/>取消</button><button disabled={busy||tagsLoading||!!tagsError||progress.current.uncertain} className="rounded bg-blue-700 px-4 py-2 text-sm text-white"><ActionIcon name="save"/>{busy?'正在保存…':'保存花型'}</button></div>
   </form>
  </dialog>;
 }

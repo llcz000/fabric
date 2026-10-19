@@ -3,8 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import {useV2LeaveProtection} from './product-master-v2/useV2LeaveProtection';
 import React, { useEffect, useRef, useState } from 'react';
-import { Save, RefreshCw, Landmark, Phone, MapPin, ClipboardList, PenTool, Upload, Image as ImageIcon } from 'lucide-react';
+import { Trash2, Save, RefreshCw, Landmark, Phone, MapPin, ClipboardList, PenTool, Upload, Image as ImageIcon } from 'lucide-react';
 
 import type { CompanyImageRole, CompanyProfile } from '../types';
 import { ImageAssetClientError, uploadImageAsset } from '../lib/imageAssets';
@@ -132,6 +133,11 @@ export default function CompanyProfileEditor({ profile, onSave, apiFetch }: Comp
     replaceImageState(role, { dirty: hadStoredImage, uploading: false });
   };
 
+  const currentFields=JSON.stringify([name,logoText,address,phone,defaultTerms,depositTerms,issuerLabel,receiverLabel]);
+  const baselineFields=JSON.stringify([profile.name,profile.logoText,profile.address,profile.phone,profile.defaultTerms,profile.depositTerms||'',profile.issuerLabel,profile.receiverLabel]);
+  const [savedFields,setSavedFields]=useState<string|null>(null);
+  useEffect(()=>setSavedFields(null),[profile]);
+  useV2LeaveProtection(currentFields!==(savedFields??baselineFields)||COMPANY_IMAGE_ROLES.some(role=>imageState[role].dirty),isSaving||COMPANY_IMAGE_ROLES.some(role=>imageState[role].uploading));
   const hasUnreadyImage = COMPANY_IMAGE_ROLES.some((role) => imageState[role].uploading || Boolean(imageState[role].error));
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -154,6 +160,7 @@ export default function CompanyProfileEditor({ profile, onSave, apiFetch }: Comp
         aliPayUrl: profile.aliPayUrl,
         ...(profile.companyImages !== undefined ? { companyImages: profile.companyImages } : {}),
       }, buildCompanyImageMutations(imageState, imageAssetsEnabled));
+      setSavedFields(currentFields);setImageState(current=>Object.fromEntries(Object.entries(current).map(([role,image])=>[role,image===imageState[role as CompanyImageRole]?{...image,dirty:false}:image])) as CompanyImageState);
       setIsSaved(true);
       setTimeout(() => setIsSaved(false), 2000);
     } catch (error) {
@@ -200,7 +207,7 @@ export default function CompanyProfileEditor({ profile, onSave, apiFetch }: Comp
                   {image.previewUrl ? <div className="flex flex-col items-center gap-2">
                     <img src={image.previewUrl} className="max-h-20 max-w-full object-contain rounded border border-slate-200 p-0.5 bg-white shadow-xs" alt={detail.alt} />
                     {imageAssetsEnabled && <label className="text-xs text-sky-600 hover:text-sky-800 font-semibold cursor-pointer">替换图片<input type="file" accept="image/*" onChange={(event) => handleImageUpload(role, event)} className="hidden" disabled={image.uploading} /></label>}
-                    {imageAssetsEnabled && <button type="button" onClick={() => handleImageRemove(role)} className="text-xs text-rose-500 hover:text-rose-700 font-semibold" disabled={image.uploading}>{detail.removeLabel}</button>}
+                    {imageAssetsEnabled && <button type="button" onClick={() => handleImageRemove(role)} className="text-xs text-rose-500 hover:text-rose-700 font-semibold" disabled={image.uploading}><Trash2 aria-hidden="true" className="inline-block mr-1 h-3.5 w-3.5"/>{detail.removeLabel}</button>}
                   </div> : <label className={`cursor-pointer flex flex-col items-center gap-1.5 text-center w-full ${imageAssetsEnabled ? '' : 'cursor-not-allowed opacity-60'}`}>
                     <span className={`p-2 bg-white rounded-full shadow-xs ${detail.accent}`}><Upload className="w-5 h-5" /></span>
                     <span className="text-xs text-slate-500 font-medium">{detail.uploadLabel}</span>

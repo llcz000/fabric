@@ -146,6 +146,6 @@ test('B2-3 no selection or inactive records cannot create card and foreign serve
  await assert.rejects(()=>fetchSampleCardPage(fetch,'',1000001));
 });
 
-test('card list exposes QR in row operations without rendering a QR column or inline codes',()=>{const html=renderToStaticMarkup(React.createElement(SampleCardTable,{page:page([card]),selectedIds:[],onToggle(){},onPageAll(){},onPage(){}}));assert(html.includes('aria-label="放大色卡二维码 '+card.cardNo+'"'));assert(!html.includes('<svg'));assert(!/<th[^>]*>二维码<\/th>/.test(html));const cells=html.match(/<td\b[^>]*>[\s\S]*?<\/td>/g)!;assert(cells.at(-1)!.includes('查看二维码'));assert.equal(cells.length,7);});
+test('card list exposes QR in row operations without rendering a QR column or inline codes',()=>{const html=renderToStaticMarkup(React.createElement(SampleCardTable,{page:page([card]),selectedIds:[],onToggle(){},onPageAll(){},onPage(){},QrRenderer:()=>{throw Error('QR must only render after opening the dialog');}}));assert(html.includes('aria-label="放大色卡二维码 '+card.cardNo+'"'));assert(!/<svg\b[^>]*role="img"/.test(html));assert(!/<th[^>]*>二维码<\/th>/.test(html));const cells=html.match(/<td\b[^>]*>[\s\S]*?<\/td>/g)!;assert(cells.at(-1)!.includes('查看二维码'));assert.equal(cells.length,7);});
 
 test('card row offers view patterns in operations',()=>{const html=renderToStaticMarkup(React.createElement(SampleCardTable,{page:page([card]),selectedIds:[],onToggle(){},onPageAll(){},onPage(){},onViewPatterns(){}} as any));assert.match(html,/查看花型/);});

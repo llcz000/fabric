@@ -1,3 +1,4 @@
+import {ActionIcon} from '../product-master-v2/ActionIcon';
 import React,{useEffect,useRef,useState} from 'react';
 export function initialPieceSlots(value:string):string[]{
  const pieces=value.trim()?value.trim().split(/[,，\s]+/):[];
@@ -24,7 +25,7 @@ export function SalesPieceInputs({value,grossMeters,disabled,onChange}:{value:st
   <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs">
    <strong>分匹米数 · 已填 {state.pieces} 匹 · 毛米数 {grossMeters.toFixed(2)} 米</strong>
    <button type="button" disabled={disabled} onClick={()=>setSlots(previous=>[...previous,...Array.from({length:10},()=>'')])}
-    className="rounded border bg-white px-3 py-1 text-sky-700 disabled:opacity-40">增加10匹输入位</button>
+    className="rounded border bg-white px-3 py-1 text-sky-700 disabled:opacity-40"><ActionIcon name="add"/>增加10匹输入位</button>
   </div>
   <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
    {slots.map((text,index)=><label key={index} className="text-xs text-slate-600">第{index+1}匹

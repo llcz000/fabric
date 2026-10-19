@@ -1,3 +1,4 @@
+import {ActionIcon} from '../product-master-v2/ActionIcon';
 import React,{useEffect,useState} from 'react';
 import {PublicPatternGallery} from './PublicPatternGallery';
 import {parsePublicPatternResponse,publicPatternImagePath} from './publicPatternClient';
@@ -12,5 +13,5 @@ export default function PublicPatternPage({token}:{token:string}){
   return()=>controller.abort();
  },[token,revision]);
  if(loading)return <main className="p-6" role="status">正在读取花型…</main>;
- return <>{error?<main className="p-6" role="alert">{error}</main>:<PublicPatternGallery key={token} pattern={pattern} renderPreview={(previewRef,description)=><img loading="lazy" referrerPolicy="no-referrer" src={publicPatternImagePath(token,previewRef)} alt={description} className="max-h-[420px] w-full object-contain"/>}/>}<div className="mx-auto max-w-4xl px-4 pb-6"><button className="rounded border px-3 py-2 text-sm" onClick={()=>setRevision(n=>n+1)}>刷新花型</button></div></>;
+ return <>{error?<main className="p-6" role="alert">{error}</main>:<PublicPatternGallery key={token} pattern={pattern} renderPreview={(previewRef,description)=><img loading="lazy" referrerPolicy="no-referrer" src={publicPatternImagePath(token,previewRef)} alt={description} className="max-h-[420px] w-full object-contain"/>}/>}<div className="mx-auto max-w-4xl px-4 pb-6"><button className="rounded border px-3 py-2 text-sm" onClick={()=>setRevision(n=>n+1)}><ActionIcon name="refresh"/>刷新花型</button></div></>;
 }
