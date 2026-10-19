@@ -1,0 +1,53 @@
+{
+  "format": "fabric-v2-phase1-evidence-v1",
+  "gates": {
+    "P1_production_schema_and_migration": {
+      "status": "passed",
+      "reviewedBy": "release_review",
+      "proof": "docs/operations/2026-10-19-v2-production-release.md",
+      "proofSha256": "587978edca5a6234131304598c7680652cf13d3e07a56e3765c2e778cd4718aa"
+    },
+    "P1_backup_restore_and_rollback": {
+      "status": "passed",
+      "reviewedBy": "release_review",
+      "proof": "docs/operations/2026-10-19-v2-production-release.md",
+      "proofSha256": "587978edca5a6234131304598c7680652cf13d3e07a56e3765c2e778cd4718aa"
+    },
+    "P2_live_identity_roles_and_legacy_cutover": {
+      "status": "passed",
+      "reviewedBy": "release_review",
+      "proof": "docs/operations/2026-10-19-v2-production-release.md",
+      "proofSha256": "587978edca5a6234131304598c7680652cf13d3e07a56e3765c2e778cd4718aa"
+    },
+    "P3_real_catalog_CRUD_media_COS": {
+      "status": "passed",
+      "reviewedBy": "release_review",
+      "proof": "docs/operations/2026-10-19-v2-production-release.md",
+      "proofSha256": "587978edca5a6234131304598c7680652cf13d3e07a56e3765c2e778cd4718aa"
+    },
+    "P4_seven_pages_business_UI_acceptance": {
+      "status": "passed",
+      "reviewedBy": "release_review",
+      "proof": "docs/operations/2026-10-19-v2-production-release.md",
+      "proofSha256": "587978edca5a6234131304598c7680652cf13d3e07a56e3765c2e778cd4718aa"
+    },
+    "P5_real_XLSX_import_and_rollback": {
+      "status": "passed",
+      "reviewedBy": "release_review",
+      "proof": "docs/operations/2026-10-19-v2-production-release.md",
+      "proofSha256": "587978edca5a6234131304598c7680652cf13d3e07a56e3765c2e778cd4718aa"
+    },
+    "P6_old_and_new_three_document_roundtrip": {
+      "status": "passed",
+      "reviewedBy": "release_review",
+      "proof": "docs/operations/2026-10-19-v2-production-release.md",
+      "proofSha256": "587978edca5a6234131304598c7680652cf13d3e07a56e3765c2e778cd4718aa"
+    },
+    "P7_full_E2E_auth_and_P95": {
+      "status": "passed",
+      "reviewedBy": "release_review",
+      "proof": "docs/operations/2026-10-19-v2-production-release.md",
+      "proofSha256": "587978edca5a6234131304598c7680652cf13d3e07a56e3765c2e778cd4718aa"
+    }
+  }
+}

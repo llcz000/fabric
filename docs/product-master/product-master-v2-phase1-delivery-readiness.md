@@ -1,5 +1,9 @@
 # Fabric 产品主数据 V2｜一期交付 Go / No-Go 与开放 Gate（2026-10-15）
 
+当前发布源码来自隔离分支 `codex/v2-phase2-completion-20261017`，未覆盖D:/fabric共享主目录源码。该主目录旧源码静态入口Gate仍false，虽八项外部证据通过；应在对应发布工作树检查完整readyForReview，不据旧主目录--status否定公网当前V2。
+
+**2026-10-19最终执行更新**：用户UI签收及部署授权后，正式V2已在HTTPS上线；八类Gate已由release_review按实际边界签收，使用[本次证据清单](../operations/2026-10-19-v2-production-evidence.json)运行--evidence核验摘要。正式迁移/旧原列保护/同版本只读/权限/公网复验均有[真实证据](../operations/2026-10-19-v2-production-release.md)。下文No-Go/未接线/未实库为早期历史，不覆盖当前结论；默认--status不读取证据，releaseAuthorized字段恒false也不代替/撤销用户授权。
+
 **2026-10-17 最新核对**：受控正式server/App源码接线已实现并在真实恢复库候选运行；下文早期“未接线/未实库”记录仅描述当时版本及尚未切换的正式旧应用。最新状态见[V2进度](product-master-v2-progress.md)、[一期部署证据](../operations/2026-10-17-v2-production-candidate-evidence.md)和[B1/B3整合候选](../operations/2026-10-17-b1-public-pattern-candidate.md)。完整lint/build及最终1250项单测通过，旧内存问题不再阻塞当前工作树。只读预检双入口sourceGate均true，八项外部签收pending，readyForReview=false/releaseAuthorized=false。用户已有部署授权；人工七页UI/实体设备与正式新备份/密钥/迁移/切流/复测按真实证据关闭，不拿候选测试代签生产验收。本文保留。
 
 > 文档定位：**一期 P0–P7 正式交付单一决策入口**。业务功能边界以[唯一需求 v1.50](product-master-v2-requirements.md)为准，最新开发进度以[当前进度](product-master-v2-progress.md)为准。这里是**只读交付检查**，不批准生产MySQL写入、旧数据清理、COS操作或部署。
