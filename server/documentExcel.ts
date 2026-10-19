@@ -121,7 +121,13 @@ export function buildDocumentWorkbookFromModel(
   sheet.mergeCells(footerRow + 3, lastColumn - 1, footerRow + 3, lastColumn);
   styledCell(sheet.getCell(footerRow + 3, lastColumn - 1), '支付宝收款', 9, false, 'center');
 
-  const printEndRow = footerRow + 3;
+  const printEndRow = footerRow + (model.type==='deposit'?4:3);
+  if(model.type==='deposit'){
+    const address='收货地址：'+model.signature.receiverAddress;
+    sheet.mergeCells(printEndRow,1,printEndRow,lastColumn);
+    styledCell(sheet.getCell(printEndRow,1),address,11,false,'left');
+    sheet.getRow(printEndRow).height=Math.max(22,address.split(/\r\n|[\r\n]/).reduce((lines,line)=>lines+Math.max(1,Math.ceil(line.length/45)),0)*16);
+  }
   sheet.pageSetup = {
     orientation: 'landscape',
     fitToPage: false,

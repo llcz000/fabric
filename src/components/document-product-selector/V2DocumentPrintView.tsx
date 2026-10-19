@@ -138,8 +138,8 @@ export default function V2DocumentPrintView({
     </div>
     <DocumentPrintTable model={model}/>
     <p className="mt-3 border border-slate-200 p-2 text-xs">备注条款：{model.terms}</p>
-    <div className="mt-3 flex justify-between gap-4"><footer className="text-xs">{model.signatureLabels?.issuer??'开单人签字'}：{model.signature.issuer}　{model.signatureLabels?.receiver??'收货人签字'}：{model.signature.receiver}　电话：{model.signature.phone}
-     {model.signature.receiverAddress&&<p>收货地址：{model.signature.receiverAddress}</p>}
+    <div className="mt-3 flex justify-between gap-4"><footer className="min-w-0 flex-1 text-xs">{model.signatureLabels?.issuer??'开单人签字'}：{model.signature.issuer}　{model.signatureLabels?.receiver??'收货人签字'}：{model.signature.receiver}　电话：{model.signature.phone}
+     {(model.type==='deposit'||model.signature.receiverAddress)&&<p className="mt-1 min-h-5 whitespace-pre-wrap break-words">收货地址：{model.signature.receiverAddress}</p>}
     </footer>
      <div className="flex gap-3">{(['wechat_qr','alipay_qr'] as const).map(role=>model.companyImages?.[role]?<figure key={role} className="text-center text-[9px]"><img src={model.companyImages[role]} alt={role==='wechat_qr'?'微信收款码':'支付宝收款码'} className="h-16 w-16 object-contain"/><figcaption>{role==='wechat_qr'?'微信收款':'支付宝收款'}</figcaption></figure>:null)}</div>
     </div>

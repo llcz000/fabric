@@ -85,3 +85,13 @@ test('preserves jiao and fen in shared uppercase currency text', () => {
  const cells:string[]=[];sheet.eachRow(row=>row.eachCell(c=>{if(typeof c.value==='string')cells.push(c.value);}));
  assert(!cells.some(x=>/应收|应付|匹数|结清/.test(x)));
  });
+
+test('deposit workbook retains a full-width receiving address row for filled and blank addresses',()=>{
+ for(const receiverAddress of ['','浙江绍兴收货仓库8号']){
+ const sheet=buildDocumentWorkbookFromModel(buildDocumentPrintModel({...base,type:'deposit',receiverAddress})).worksheets[0];let found:any;sheet.eachRow(row=>row.eachCell(cell=>{if(Number(cell.col)===1&&cell.value==='收货地址：'+receiverAddress)found=cell;}));assert(found,'address label must exist even when blank');assert(found.isMerged);assert.equal(sheet.getCell(found.row,6).master.address,found.address);assert(Number(sheet.pageSetup.printArea?.match(/(\d+)$/)?.[1])>=Number(found.row));
+ }
+});
+
+test('deposit workbook address height accounts for explicit line breaks',()=>{
+ const sheet=buildDocumentWorkbookFromModel(buildDocumentPrintModel({...base,type:'deposit',receiverAddress:'一楼\n二楼\n三楼\n四楼'})).worksheets[0];let addressRow=0;sheet.eachRow(row=>{if(String(row.getCell(1).value).startsWith('收货地址：'))addressRow=row.number;});assert(addressRow);assert(sheet.getRow(addressRow).height>=64);
+});
