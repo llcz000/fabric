@@ -31,19 +31,20 @@ export function DocumentSearchResults({state,expanded,onToggle,onEdit,onPreview,
   </section>
   {state.page.items.length===0?<p className="rounded-lg border bg-white p-6 text-sm text-slate-600">没有符合条件的单据，可清除筛选后重试。</p>:
   <div className="overflow-x-auto rounded-xl border border-[#c3c6d7] bg-white">
-   <table className="w-full min-w-[1050px] text-left text-sm">
+   <table className="w-full min-w-[1180px] text-left text-sm">
     <thead className="bg-[#f3f4fa] text-xs text-[#434655]"><tr>{['','开单日期','单据编号','类型','客户','整单米数','整单匹数','整单金额','结清状态','操作'].map(label=><th key={label} className="px-3 py-2 font-semibold">{label}</th>)}</tr></thead>
     <tbody>{state.page.items.map(item=><React.Fragment key={item.id}>
      <tr className="border-t border-[#ededf9] align-top hover:bg-[#f8f9ff]">
-      <td className="w-9 px-2 py-2"><button type="button" className="rounded p-1 hover:bg-blue-50" aria-label={expanded===item.id?'收起命中明细':'展开命中明细'} title={expanded===item.id?'收起命中明细':'展开命中明细'} aria-expanded={expanded===item.id} onClick={()=>onToggle(item.id)}>{expanded===item.id?<ChevronDown size={16}/>:<ChevronRight size={16}/>}</button></td>
+      <td className="w-12 px-2 py-2"><button type="button" className="v2-expand-toggle" aria-label={expanded===item.id?'收起命中明细':'展开命中明细'} title={expanded===item.id?'收起命中明细':'展开命中明细'} aria-expanded={expanded===item.id} onClick={()=>onToggle(item.id)}>{expanded===item.id?<ChevronDown size={18}/>:<ChevronRight size={18}/>}<span className="v2-expand-hint">{expanded===item.id?'收起':'明细'}</span></button></td>
       <td className="px-3 py-2 whitespace-nowrap">{item.date}</td><td className="px-3 py-2 font-medium">{item.orderNo}</td><td className="px-3 py-2 whitespace-nowrap">{names[item.type]}</td><td className="max-w-[180px] break-words px-3 py-2">{item.receivingUnit||'—'}</td>
       <td className="px-3 py-2 tabular-nums">{money(item.totalMeters)}{item.type==='bulk'&&(item.deductionMeters??0)>0&&<span className="block whitespace-nowrap text-xs text-amber-700">扣损 {money(item.deductionMeters!)} 米</span>}</td><td className="px-3 py-2 tabular-nums">{item.type==='deposit'?'—':item.totalPieces}</td>
       <td className="px-4 py-3 tabular-nums">¥ {money(item.totalAmount)}{item.type==='deposit'&&<span className="block text-xs text-slate-500">合同金额</span>}</td>
       <td className="px-4 py-3">{item.type==='deposit'?'不适用':item.settled?'已结清':'未结清'}</td>
-      <td className="px-4 py-3"><div className="flex flex-wrap gap-x-3 gap-y-2 text-xs text-[#0053da]">
-       <button type="button" className="rounded p-1 hover:bg-blue-50" aria-label="编辑单据" title="编辑单据" onClick={()=>onEdit(item.id)}><Pencil size={16}/></button><button type="button" className="rounded p-1 hover:bg-blue-50" aria-label="预览 / Excel" title="预览 / Excel" onClick={()=>onPreview(item.id)}><FileSearch size={16}/></button>
-        {onCopy&&<button type="button" className="rounded p-1 hover:bg-blue-50" aria-label="复制为新单" title="复制为新单" onClick={()=>onCopy(item.id,item.orderNo)}><Copy size={16}/></button>}
-        {onDelete&&<button type="button" className="rounded p-1 text-rose-700 hover:bg-rose-50" aria-label="确认删除" title="确认删除" onClick={()=>onDelete(item.id,item.orderNo)}><Trash2 size={16}/></button>}
+      <td className="px-4 py-3"><div className="v2-row-actions">
+       <button type="button" className="v2-row-action" aria-label="编辑单据" title="编辑单据" onClick={()=>onEdit(item.id)}><Pencil size={16}/><span>编辑</span></button>
+       <button type="button" className="v2-row-action" aria-label="预览 / Excel" title="预览 / Excel" onClick={()=>onPreview(item.id)}><FileSearch size={16}/><span>预览</span></button>
+        {onCopy&&<button type="button" className="v2-row-action" aria-label="复制为新单" title="复制为新单" onClick={()=>onCopy(item.id,item.orderNo)}><Copy size={16}/><span>复制</span></button>}
+        {onDelete&&<button type="button" className="v2-row-action v2-row-action-danger" aria-label="确认删除" title="确认删除" onClick={()=>onDelete(item.id,item.orderNo)}><Trash2 size={16}/><span>删除</span></button>}
       </div></td>
      </tr>
      {expanded===item.id&&<tr><td colSpan={10} className="border-t bg-[#f8f9ff] px-3 py-1">{renderDetails?.(item.id)}</td></tr>}

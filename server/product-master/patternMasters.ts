@@ -1,7 +1,9 @@
+import {recordDeletion} from '../audit/deletionAudit';
 import type {AppPrincipal} from '../access/types';
-import {canManageProducts} from '../access/policy';
+import {withCatalogTransaction} from '../access/catalogTransaction';
 import type {Pool} from '../order-v2/lines';
 import {hasSampleCardReference} from './sampleCardReferences';
+import {replacePatternImage} from './colorwayIdentity';
 
 /** P3-1a: isolated master identity service. Tags and HTTP mounting are separate gates. */
 export class PatternMasterError extends Error {
@@ -48,31 +50,15 @@ function patchInput(body:unknown):{masterNo?:string;isActive?:boolean}{
     Object.keys(body).some(k=>!['masterNo','isActive'].includes(k)))
   throw new PatternMasterError('Only masterNo and isActive may be supplied');
  const input=body as Record<string,unknown>;
- if('isActive' in input&&typeof input.isActive!=='boolean')throw new PatternMasterError('Invalid status');
+ if('isActive' in input&&input.isActive!==true)throw new PatternMasterError('Invalid status');
  return { ...('masterNo' in input?{masterNo:normalizeNo(input.masterNo)}:{}),
   ...('isActive' in input?{isActive:input.isActive as boolean}:{}) };
 }
-async function verifyManager(db:Query,actor:AppPrincipal):Promise<void>{
- if(!actor?.userId||!actor.sessionId)throw new PatternMasterError('Authentication required',401);
- const [users]=await db.query('SELECT id,role,is_active,can_manage_products FROM v2_access_users WHERE id=? FOR SHARE',[actor.userId]);
- const user=rows(users)[0];
- if(!user||user.role!==actor.role||Number(user.is_active)!==1)
-  throw new PatternMasterError('Authentication required',401);
- const [sessions]=await db.query('SELECT id FROM v2_access_sessions WHERE id=? AND user_id=? AND revoked_at IS NULL AND expires_at>UTC_TIMESTAMP() FOR SHARE',[actor.sessionId,actor.userId]);
- if(!rows(sessions).length)throw new PatternMasterError('Authentication required',401);
- if(!canManageProducts({...actor,canManageProducts:user.role==='admin'||Number(user.can_manage_products)===1}))
-  throw new PatternMasterError('Insufficient product permissions',403);
-}
-async function transaction<T>(pool:Pool,actor:AppPrincipal,fn:(db:Query)=>Promise<T>):Promise<T>{
- const db=await pool.getConnection();let started=false;
- try{
-  await db.beginTransaction();started=true;
-  await verifyManager(db,actor);
-  const value=await fn(db);await db.commit();started=false;return value;
- }catch(error){if(started)await db.rollback();throw error;}finally{db.release();}
+async function transaction<T>(pool:Pool,actor:AppPrincipal,work:(db:Query)=>Promise<T>):Promise<T>{
+ return withCatalogTransaction(pool,actor,(message,status)=>new PatternMasterError(message,status),'Insufficient product permissions',work);
 }
 async function selected(db:Query,identity:string):Promise<Row>{
- const [raw]=await db.query('SELECT id,master_no,is_active,next_colorway_no FROM pattern_masters WHERE id=? FOR UPDATE',[identity]);
+ const [raw]=await db.query('SELECT id,master_no,is_active,next_colorway_no FROM pattern_masters WHERE id=? AND deleted_at IS NULL FOR UPDATE',[identity]);
  const row=rows(raw)[0];if(!row)throw new PatternMasterError('Pattern master not found',404);
  return row;
 }
@@ -96,7 +82,7 @@ export async function createPatternMaster(pool:Pool,actor:AppPrincipal,body:unkn
 /** Internal list only; routes must enforce bearer credentials for this read. */
 export async function listPatternMasters(db:Query,options:{includeInactive?:boolean}={}):Promise<PatternMaster[]>{
  const sql='SELECT id,master_no,is_active,next_colorway_no FROM pattern_masters'+
-  (options.includeInactive?'':' WHERE is_active=1')+' ORDER BY master_no ASC,id ASC';
+  ' WHERE deleted_at IS NULL'+(options.includeInactive?'':' AND is_active=1')+' ORDER BY master_no ASC,id ASC';
  const [raw]=await db.query(sql);
  return rows(raw).map(record);
 }
@@ -125,14 +111,25 @@ export async function deletePatternMaster(pool:Pool,actor:AppPrincipal,identity:
  positiveId(identity);
  try{
   return await transaction(pool,actor,async db=>{
-   await selected(db,identity);
-   if(await hasSampleCardReference(db,'master',identity))
-    throw new PatternMasterError('Pattern master is referenced by sample cards; deactivate instead',409);
-   const [versions]=await db.query('SELECT id FROM pattern_colorways WHERE master_id=? LIMIT 1',[identity]);
-   if(rows(versions).length)throw new PatternMasterError('Delete colorways before master',409);
+   const current=await selected(db,identity);
+   if(await hasSampleCardReference(db,'master',identity,true))
+    throw new PatternMasterError('Pattern master is referenced by sample cards',409);
+   // Lock all child rows first to serialize against concurrent product FK inserts.
+   const [versionsRaw]=await db.query(
+    'SELECT id,pattern_image_asset_id FROM pattern_colorways WHERE master_id=? ORDER BY id FOR UPDATE',[identity]);
+   const versions=rows(versionsRaw);
    const [products]=await db.query('SELECT p.id FROM v2_products p JOIN pattern_colorways c ON c.id=p.pattern_colorway_id WHERE c.master_id=? LIMIT 1',[identity]);
-   if(rows(products).length)throw new PatternMasterError('Pattern master is referenced',409);
-   const [result]=await db.query('DELETE FROM pattern_masters WHERE id=?',[identity]);
+   if(rows(products).length)throw new PatternMasterError('Pattern master is referenced by products',409);
+   await recordDeletion(db,actor,{type:'pattern',id:identity,label:String(current.master_no)});
+   // Shared asset reference counts and all deletions are in one transaction.
+   for(const version of versions)if(version.pattern_image_asset_id!=null)
+    await replacePatternImage(db,dbId(version.id),String(version.pattern_image_asset_id),null);
+   if(versions.length){
+    const [removed]=await db.query('DELETE FROM pattern_colorways WHERE master_id=?',[identity]);
+    if(Number((removed as {affectedRows?:number}).affectedRows)!==versions.length)
+     throw Error('Pattern colorway deletion count mismatch');
+   }
+   const [result]=await db.query('UPDATE pattern_masters SET deleted_at=UTC_TIMESTAMP(),is_active=0 WHERE id=? AND deleted_at IS NULL',[identity]);
    if(Number((result as {affectedRows?:number}).affectedRows)!==1)throw new PatternMasterError('Pattern master not found',404);
    return {id:identity,deleted:true as const};
   });

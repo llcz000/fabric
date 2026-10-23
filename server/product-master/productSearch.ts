@@ -7,10 +7,11 @@ export class ProductSearchError extends Error {
  constructor(message:string){super(message);}
 }
 export type ProductStatus='active'|'inactive'|'all';
+export type ProductCardAssociation='all'|'linked'|'unlinked';
 export interface ProductSearchFilters{
  fabricId?:string;masterId?:string;
  productNo:string;fabricName:string;topicTagIds:string[];colorTagIds:string[];
- status:ProductStatus;limit:number;offset:number;
+ status:ProductStatus;limit:number;offset:number;cardAssociation?:ProductCardAssociation;
 }
 export interface ProductTagLabel{id:string;name:string;isArchived:boolean}
 export interface ProductImageCounts{
@@ -25,13 +26,14 @@ export interface CatalogProduct{
  fabricActive:boolean;isSelectable:boolean;rowVersion:string;
  patternImageAssetId:string|null;topicTags:ProductTagLabel[];colorTags:ProductTagLabel[];
  imageCounts:ProductImageCounts;totalImages:number;
+ sampleCard?:{id:string;cardNo:string;isActive:boolean;needsReprint:boolean}|null;
 }
 export interface CatalogPage{items:CatalogProduct[];total:number;limit:number;offset:number}
 type Query={query(sql:string,params?:unknown[]):Promise<[unknown,unknown]>};
 type Row=Record<string,unknown>;
 const MAX_ID=18446744073709551615n;
 const FILTER_KEYS=new Set(['productNo','fabricName','topicTagIds','colorTagIds',
- 'status','includeInactive','limit','offset','fabricId','masterId']);
+ 'status','includeInactive','limit','offset','fabricId','masterId','cardAssociation']);
 const inspect=(text:unknown,key:string,max:number):string=>{
  if(text===undefined)return '';
  if(typeof text!=='string'||[...text].length>max||/[\p{Cc}\p{Cf}]/u.test(text))
@@ -79,6 +81,9 @@ export function parseProductSearchQuery(input:unknown):ProductSearchFilters{
  const status=raw.status??(raw.includeInactive==='true'?'all':'active');
  if(status!=='active'&&status!=='inactive'&&status!=='all')
   throw new ProductSearchError('Invalid status filter');
+ const cardAssociation=raw.cardAssociation===undefined?'all':raw.cardAssociation;
+ if(cardAssociation!=='all'&&cardAssociation!=='linked'&&cardAssociation!=='unlinked')
+  throw new ProductSearchError('Invalid card association filter');
  return {
   ...(raw.fabricId===undefined?{}:{fabricId:positiveId(raw.fabricId)}),
   ...(raw.masterId===undefined?{}:{masterId:positiveId(raw.masterId)}),
@@ -86,7 +91,7 @@ export function parseProductSearchQuery(input:unknown):ProductSearchFilters{
   fabricName:inspect(raw.fabricName,'fabricName',255),
   topicTagIds:selectedTags(raw.topicTagIds,'topicTagIds'),
   colorTagIds:selectedTags(raw.colorTagIds,'colorTagIds'),
-  status,limit:page(raw.limit,'limit',50,1,100),
+   status,cardAssociation,limit:page(raw.limit,'limit',50,1,100),
   offset:page(raw.offset,'offset',0,0,1000000)
  };
 }
@@ -109,6 +114,8 @@ function escapeLike(text:string):string{
 }
 function queryConditions(filter:ProductSearchFilters):{sql:string;params:unknown[]}{
  const conditions:string[]=[];const params:unknown[]=[];
+ if(filter.cardAssociation==='linked')conditions.push('sc.id IS NOT NULL');
+ if(filter.cardAssociation==='unlinked')conditions.push('sc.id IS NULL');
  if(filter.fabricId){conditions.push('p.fabric_id=?');params.push(filter.fabricId);}
  if(filter.masterId){conditions.push('m.id=?');params.push(filter.masterId);}
  if(filter.status!=='all'){
@@ -137,11 +144,22 @@ function queryConditions(filter:ProductSearchFilters):{sql:string;params:unknown
  return {sql:' WHERE '+(conditions.length?conditions.join(' AND '):'1=1'),params};
 }
 const JOINS=' FROM v2_products p JOIN pattern_colorways c ON c.id=p.pattern_colorway_id'+
- ' JOIN pattern_masters m ON m.id=c.master_id JOIN v2_fabrics f ON f.id=p.fabric_id';
+ ' JOIN pattern_masters m ON m.id=c.master_id JOIN v2_fabrics f ON f.id=p.fabric_id'+
+ ' LEFT JOIN sample_cards sc ON sc.master_id=m.id AND sc.fabric_id=p.fabric_id AND sc.deleted_at IS NULL';
 const FIELDS='p.id,p.pattern_colorway_id,p.fabric_id,p.product_no,p.remark,p.is_active,p.is_available_for_sampling,p.row_version,'+
  'c.master_id,c.colorway_no,c.pattern_image_asset_id,m.master_no,'+
  'f.fabric_no,f.fabric_name,f.composition,f.weight_value,f.weight_unit,f.width_value,'+
- 'm.is_active AS master_active,c.is_active AS colorway_active,f.is_active AS fabric_active';
+ 'm.is_active AS master_active,c.is_active AS colorway_active,f.is_active AS fabric_active,'+
+ 'sc.id AS sample_card_id,sc.card_no AS sample_card_no,sc.is_active AS sample_card_active,'+
+ 'sc.reprint_revision AS sample_card_reprint_revision,sc.printed_revision AS sample_card_printed_revision';
+function currentCard(row:Row):CatalogProduct['sampleCard']{
+ if(row.sample_card_id==null)return null;
+ const revision=String(row.sample_card_reprint_revision),printed=String(row.sample_card_printed_revision);
+ if(!/^(0|[1-9][0-9]{0,19})$/.test(revision)||!/^(0|[1-9][0-9]{0,19})$/.test(printed)||
+  BigInt(printed)>BigInt(revision)||typeof row.sample_card_no!=='string'||!row.sample_card_no.trim()||
+  row.sample_card_no.length>129||/[\p{Cc}\p{Cf}]/u.test(row.sample_card_no))throw Error('Invalid product card association');
+ return {id:positiveId(row.sample_card_id),cardNo:row.sample_card_no,isActive:boolean(row.sample_card_active),needsReprint:BigInt(revision)>BigInt(printed)};
+}
 async function labels(db:Query,dimension:'topic'|'color',ids:string[]):Promise<Map<string,ProductTagLabel[]>>{
  const result=new Map<string,ProductTagLabel[]>();
  if(ids.length===0)return result;
@@ -228,7 +246,8 @@ export async function searchProductCatalog(db:Query,filter:ProductSearchFilters)
    patternImageAssetId:row.pattern_image_asset_id==null?null:String(row.pattern_image_asset_id),
    topicTags:topic.get(positiveId(row.master_id))??[],
    colorTags:color.get(positiveId(row.master_id))??[],
-   imageCounts,totalImages:imageCounts.fabricDisplay+imageCounts.detail+imageCounts.aiEffect
+    imageCounts,totalImages:imageCounts.fabricDisplay+imageCounts.detail+imageCounts.aiEffect,
+    sampleCard:currentCard(row)
   };
  });
  return {items,total,limit:filter.limit,offset:filter.offset};

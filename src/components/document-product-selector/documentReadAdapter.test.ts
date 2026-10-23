@@ -13,7 +13,7 @@ const record={id:'27',ownerId:'7',orderNo:'XS-DOC',date:'2026-10-12',type:'bulk'
 test('current company settings override saved display while product and trade fields remain frozen',()=>{
  const d=fromV2DocumentRecord(record,profile);
  assert.equal(d.type,DocType.SALES);assert.equal(d.companyName,profile.name);
- assert.equal(d.companyAddress,profile.address);assert.equal(d.terms,profile.defaultTerms);
+ assert.equal(d.companyAddress,profile.address);assert.equal(d.terms,record.displaySnapshot.terms);
  assert.equal(record.displaySnapshot.companyName,'历史公司');
  assert.equal(d.styleNo,'ST-22');assert.equal(d.issuer,'小王');
  assert.equal(d.receiver,'签收甲');assert.equal(d.receiverAddress,'仓库2');assert.equal(d.settled,true);
@@ -36,7 +36,7 @@ test('P6-2b create and edit payload retain header fields and no computed totals'
  const updated=toV2EditPayload(d,'sales',[]);
  assert.equal(updated.receiverPhone,'13333333');
  assert.equal(updated.settled,true);
- assert(!('displaySnapshot' in updated),'ordinary edit preserves hidden historical company snapshot');
+ assert.equal(updated.displaySnapshot?.terms,'历史条款','edited terms must be persisted');
  assert(!('ownerId' in input));
  assert(!('totalAmount' in updated));
 });
@@ -54,3 +54,5 @@ test('DOC-05/07 read/edit mapping normalizes inapplicable fields and uses rounde
  assert.equal(toV2CreatePayload({...deposit,settled:true},'sales').settled,false);
  assert(!('settled' in toV2EditPayload({...deposit,settled:true},'sales',[])));
 });
+
+test('explicitly empty document terms stay empty on readback',()=>{assert.equal(fromV2DocumentRecord({...record,displaySnapshot:{...record.displaySnapshot,terms:''}},profile).terms,'');});

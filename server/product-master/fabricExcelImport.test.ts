@@ -14,7 +14,7 @@ type Row={id:string;fabric_no:string;fabric_name:string;composition:string|null;
 const row=(no:string,name:string,id='8'):Row=>({id,fabric_no:no,fabric_name:name,composition:'棉',weight_value:'98.000',weight_unit:'gsm',width_value:'150.00',remark:'原注',is_active:1});
 class DB{
  items:Row[]=[];seq=10;active=true;role:'admin'|'sales'='admin';canManage=true;
- sessions=true;failInsert=false;commits=0;rollbacks=0;reprintMarks=0;
+ sessions=true;failInsert=false;legacyCheck=false;commits=0;rollbacks=0;reprintMarks=0;
  async query(sql:string,params:unknown[]=[]):Promise<[unknown,unknown]>{
   if(sql.includes('JOIN v2_access_users')){
    if(params[0]!==hashSessionToken('a'.repeat(64))||!this.active||!this.sessions)return [[],[]];
@@ -29,6 +29,7 @@ class DB{
   if(sql.includes('FROM v2_fabrics')&&sql.includes('fabric_no=?'))return [this.items.filter(x=>x.fabric_no===String(params[0])),[]];
   if(sql.startsWith('INSERT INTO v2_fabrics')){
    if(this.failInsert)throw Error('secret connection error');
+   if(this.legacyCheck&&String(params[0]).includes('-'))throw Object.assign(Error("Check constraint 'ck_v2_fabric_no' is violated"),{code:'ER_CHECK_CONSTRAINT_VIOLATED'});
    if(this.items.some(x=>x.fabric_no===params[0]))throw Object.assign(Error('secret duplicate'),{code:'ER_DUP_ENTRY'});
    const id=String(this.seq++);
    this.items.push({id,fabric_no:String(params[0]),fabric_name:String(params[1]),composition:params[2] as string|null,
@@ -216,6 +217,22 @@ test('P5 V2 HTTP preview & commit require Bearer/valid MIME and do not write bef
  }finally{
   await new Promise<void>((resolve,reject)=>server.close(e=>e?reject(e):resolve()));
  }
+});
+test('P5 Excel preview and write accept the four real hyphenated supplier codes',async()=>{
+ const db=new DB(),svc=createFabricImportService(db as never,db as never);
+ const ids=['10151-8','10152-1','10152-2','14106-8'];
+ const preview=await svc.preview(admin,await book(ids.map(id=>[id,'测试布',null,null,null,null,null])),{filename:'底布编号 -OK.xlsx'});
+ assert.equal(preview.counts.create,4);assert.equal(preview.counts.error,0);
+ const result=await svc.commit(admin,{token:preview.token,confirm:true,updateRows:[]});
+ assert.deepEqual(result.counts,{created:4,updated:0,skipped:0,failed:0});
+ assert.deepEqual(db.items.map(x=>x.fabric_no),ids);
+});
+test('P5 old MySQL fabric check failure identifies upgrade rather than misleading permissions',async()=>{
+ const db=new DB();db.legacyCheck=true;const svc=createFabricImportService(db as never,db as never);
+ const preview=await svc.preview(admin,await book([['10151-8','测试布',null,null,null,null,null]]),{filename:'old.xlsx'});
+ const result=await svc.commit(admin,{token:preview.token,confirm:true,updateRows:[]});
+ assert.equal(result.counts.failed,1);assert.match(result.rows[0].reason,/数据库面料品号约束未升级/);
+ assert.equal(db.items.length,0);assert.equal(db.rollbacks,1);
 });
 test('P5 failed insert rolls back current row and hides DB secret',async()=>{
  const db=new DB();db.failInsert=true;const svc=createFabricImportService(db as never,db as never);

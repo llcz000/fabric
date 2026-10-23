@@ -75,7 +75,7 @@ const tables: readonly SchemaTable[] = [
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       UNIQUE KEY uq_v2_fabric_no (fabric_no),
       KEY idx_v2_fabric_name (fabric_name),
-      CONSTRAINT ck_v2_fabric_no CHECK (fabric_no REGEXP '^[A-Z0-9]+$'),
+      CONSTRAINT ck_v2_fabric_no CHECK (CHAR_LENGTH(TRIM(fabric_no)) > 0),
       CONSTRAINT ck_v2_fabric_name CHECK (CHAR_LENGTH(TRIM(fabric_name)) > 0),
       CONSTRAINT ck_v2_fabric_weight CHECK (
         (weight_value IS NULL AND weight_unit IS NULL)

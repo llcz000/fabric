@@ -18,6 +18,18 @@ const input=():PatternCandidate=>({...yes,patternNo:'0012',price:999,customerNam
 const html=(candidate:PatternCandidate|null,renderPreview?:(ref:string,alt:string)=>React.ReactNode)=>
  renderToStaticMarkup(React.createElement(PublicPatternGallery,{pattern:candidate?projectPublicPattern(candidate):null,renderPreview}));
 
+test('product share labels the selected product and three image roles without pattern design or sibling selectors',()=>{
+ const projected=projectPublicPattern(input())!;projected.colorways=projected.colorways.slice(0,1);projected.colorways[0].fabrics=projected.colorways[0].fabrics.slice(0,1);
+ const text=renderToStaticMarkup(React.createElement(PublicPatternGallery,{pattern:projected,productNo:'0012-1-F018',renderPreview:(_ref,alt)=>React.createElement('img',{alt})}));
+ for(const label of ['花型产品 0012-1-F018','面料大图','细节图','效果图','丝100%'])assert(text.includes(label),label);
+ assert(!text.includes('选择花型配色'));assert(!text.includes('花型设计图'));assert(!text.includes('F019'));
+ assert(!text.includes('max-w-[240px]'),'product photos should use the page width instead of tiny pattern preview strips');
+});
+test('unavailable product page explains product availability without referring to missing pattern colorways',()=>{
+ const text=renderToStaticMarkup(React.createElement(PublicPatternGallery,{pattern:null,productOnly:true}));
+ assert(text.includes('该产品当前暂不可用'));assert(!text.includes('可展示的配色'));
+});
+
 test('B1 public H5 read-only gallery shows current version and each fabric specific specs without leaking candidate fields',()=>{
  const text=html(input());
  for(const label of ['花型 0012','配色 1','配色 2','F018','丝绸','16 mm','140 cm','F019','棉麻','120 gsm','150 cm','面料实拍','花型设计图'])assert(text.includes(label),label);

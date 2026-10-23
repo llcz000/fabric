@@ -110,3 +110,12 @@ test('P1-C2 version planner allows only empty v1 legacy V2 sandbox upgrades and 
   assert.throws(()=>planV2SchemaUpgrade({currentVersion:0,existingRows:0}),/unknown|unsupported/i);
   assert.throws(()=>planV2SchemaUpgrade({currentVersion:3,existingRows:0}),/unknown|newer|unsupported/i);
 });
+
+test('active-number uniqueness allows deleted pattern numbers without weakening live uniqueness',async()=>{
+ const db=new Metadata();
+ db.mutate('pattern_masters','C',rows=>[...rows,{COLUMN_NAME:'deleted_at',COLUMN_TYPE:'datetime',IS_NULLABLE:'YES'},{COLUMN_NAME:'active_master_no',COLUMN_TYPE:'varchar(64)',IS_NULLABLE:'YES'}]);
+ db.mutate('pattern_masters','S',rows=>rows.map(x=>x.INDEX_NAME==='uq_v2_master_no'?{...x,COLUMN_NAME:'active_master_no'}:x));
+ await verifyV2SchemaContract(db);
+ db.mutate('pattern_masters','S',rows=>rows.map(x=>x.INDEX_NAME==='uq_v2_master_no'?{...x,NON_UNIQUE:1}:x));
+ await assert.rejects(verifyV2SchemaContract(db),/uq_v2_master_no/);
+});

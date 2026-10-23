@@ -66,6 +66,38 @@ export function composeSampleCardReviewFetch(catalogFetch:typeof fetch,role:()=>
   const request=input instanceof Request?input:null;
   const url=new URL(request?request.url:String(input),'http://127.0.0.1'),path=url.pathname;
   const method=(init?.method??request?.method??'GET').toUpperCase();
+  if(method==='GET'&&(path==='/api/v2/products'||path==='/api/v2/products/export.xlsx')){
+   if(role()===null)return json({error:'Login required'},401);
+   if(!['admin','sales'].includes(role()??''))return json({error:'Product access denied'},403);
+   const association=url.searchParams.get('cardAssociation')??'all';
+   if(!['all','linked','unlinked'].includes(association))return json({error:'Invalid association'},400);
+   const project=(product:any)=>{
+    const card=cards.find(card=>!retired.has(card.id)&&card.masterId===product.masterId&&card.fabricId===product.fabricId);
+    return {...product,sampleCard:card?{id:card.id,cardNo:card.cardNo,isActive:card.isActive,needsReprint:card.needsReprint===true}:null};
+   };
+   if(path==='/api/v2/products'&&association==='all'){
+    const response=await catalogFetch(input,init);if(!response.ok)return response;
+    const page=await response.json();return json({...page,items:page.items.map(project)});
+   }
+   const limit=Number(url.searchParams.get('limit')??50),offset=Number(url.searchParams.get('offset')??0);
+   if(!Number.isSafeInteger(limit)||limit<1||limit>100||!Number.isSafeInteger(offset)||offset<0||offset>1000000)return json({error:'Invalid page'},400);
+   const params=new URLSearchParams(url.searchParams);params.delete('cardAssociation');params.set('limit','100');
+   const items:any[]=[];
+   for(let position=0;position<=1000000;){
+    params.set('offset',String(position));const response=await catalogFetch('/api/v2/products?'+params,init);if(!response.ok)return response;
+    const page=await response.json();
+    if(!Array.isArray(page.items)||!Number.isSafeInteger(page.total)||!Number.isSafeInteger(page.limit)||page.limit<1)throw Error('Invalid catalog review page');
+    items.push(...page.items.map(project));
+    if(position+page.limit>=page.total)break;
+    if(page.items.length!==page.limit)throw Error('Catalog review changed while filtering');position+=page.limit;
+   }
+   const matched=items.filter(product=>association==='all'||(association==='linked'?product.sampleCard!==null:product.sampleCard===null));
+   if(path.endsWith('/export.xlsx')){
+    const {buildCatalogWorkbook}=await import('../../server/product-master/catalogExportWorkbook');
+    return new Response(new Uint8Array(await buildCatalogWorkbook('products',matched)),{headers:{'Content-Type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}});
+   }
+   return json({items:matched.slice(offset,offset+limit),total:matched.length,limit,offset});
+  }
   // Review-only reference guard: a card protects its parent identities even
   // before the first product is created. Keep status-only updates legal.
   const parent=/^\/api\/v2\/(pattern-masters|fabrics)\/([1-9]\d*)$/.exec(path);

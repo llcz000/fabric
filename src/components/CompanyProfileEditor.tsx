@@ -4,8 +4,10 @@
  */
 
 import {useV2LeaveProtection} from './product-master-v2/useV2LeaveProtection';
+import {useConfirm} from './ui/ConfirmDialog';
+import {useToast} from './ui/Toast';
 import React, { useEffect, useRef, useState } from 'react';
-import { Trash2, Save, RefreshCw, Landmark, Phone, MapPin, ClipboardList, PenTool, Upload, Image as ImageIcon } from 'lucide-react';
+import { Trash2, Save, RefreshCw, Landmark, Phone, MapPin, Upload, Image as ImageIcon } from 'lucide-react';
 
 import type { CompanyImageRole, CompanyProfile } from '../types';
 import { ImageAssetClientError, uploadImageAsset } from '../lib/imageAssets';
@@ -53,14 +55,12 @@ const IMAGE_FIELD_DETAILS: Record<CompanyImageRole, {
 export type { CompanyImageMutation } from '../lib/companyImageState';
 
 export default function CompanyProfileEditor({ profile, onSave, apiFetch }: CompanyProfileEditorProps) {
+  const confirm = useConfirm();
+  const toast = useToast();
   const [name, setName] = useState(profile.name);
   const [logoText, setLogoText] = useState(profile.logoText);
   const [address, setAddress] = useState(profile.address);
   const [phone, setPhone] = useState(profile.phone);
-  const [defaultTerms, setDefaultTerms] = useState(profile.defaultTerms);
-  const [depositTerms, setDepositTerms] = useState(profile.depositTerms || '');
-  const [issuerLabel, setIssuerLabel] = useState(profile.issuerLabel);
-  const [receiverLabel, setReceiverLabel] = useState(profile.receiverLabel);
   const [isSaved, setIsSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [imageState, setImageState] = useState<CompanyImageState>(() => createCompanyImageState(profile));
@@ -87,10 +87,6 @@ export default function CompanyProfileEditor({ profile, onSave, apiFetch }: Comp
     setLogoText(profile.logoText);
     setAddress(profile.address);
     setPhone(profile.phone);
-    setDefaultTerms(profile.defaultTerms);
-    setDepositTerms(profile.depositTerms || '');
-    setIssuerLabel(profile.issuerLabel);
-    setReceiverLabel(profile.receiverLabel);
     setImageState(createCompanyImageState(profile));
   }, [profile]);
 
@@ -133,8 +129,8 @@ export default function CompanyProfileEditor({ profile, onSave, apiFetch }: Comp
     replaceImageState(role, { dirty: hadStoredImage, uploading: false });
   };
 
-  const currentFields=JSON.stringify([name,logoText,address,phone,defaultTerms,depositTerms,issuerLabel,receiverLabel]);
-  const baselineFields=JSON.stringify([profile.name,profile.logoText,profile.address,profile.phone,profile.defaultTerms,profile.depositTerms||'',profile.issuerLabel,profile.receiverLabel]);
+  const currentFields=JSON.stringify([name,logoText,address,phone]);
+  const baselineFields=JSON.stringify([profile.name,profile.logoText,profile.address,profile.phone]);
   const [savedFields,setSavedFields]=useState<string|null>(null);
   useEffect(()=>setSavedFields(null),[profile]);
   useV2LeaveProtection(currentFields!==(savedFields??baselineFields)||COMPANY_IMAGE_ROLES.some(role=>imageState[role].dirty),isSaving||COMPANY_IMAGE_ROLES.some(role=>imageState[role].uploading));
@@ -152,10 +148,10 @@ export default function CompanyProfileEditor({ profile, onSave, apiFetch }: Comp
         logoUrl: profile.logoUrl,
         address,
         phone,
-        defaultTerms,
-        depositTerms,
-        issuerLabel,
-        receiverLabel,
+        defaultTerms: profile.defaultTerms,
+        depositTerms: profile.depositTerms,
+        issuerLabel: '开单人签字',
+        receiverLabel: '收货人签字',
         weChatPayUrl: profile.weChatPayUrl,
         aliPayUrl: profile.aliPayUrl,
         ...(profile.companyImages !== undefined ? { companyImages: profile.companyImages } : {}),
@@ -164,29 +160,27 @@ export default function CompanyProfileEditor({ profile, onSave, apiFetch }: Comp
       setIsSaved(true);
       setTimeout(() => setIsSaved(false), 2000);
     } catch (error) {
-      alert(formatImageError(error) || '保存失败，请重试');
+      toast.error(formatImageError(error) || '保存失败，请重试');
     } finally {
       if (mounted.current) setIsSaving(false);
     }
   };
 
-  const resetToDefault = () => {
-    if (!confirm('确认恢复系统默认设置吗？已修改的信息将会被覆盖。')) return;
+  const resetToDefault = async () => {
+    const ok = await confirm({title:'恢复系统默认设置？',message:'已修改的信息将会被覆盖。',confirmText:'恢复默认',danger:true});
+    if (!ok) return;
     setName('织梦盛世面料品贸易有限公司');
     setLogoText('织梦面料 · DREAM WEAVE');
     setAddress('浙江省绍兴市柯桥区中国轻纺城创意路88号3层');
     setPhone('0575-81234567');
-    setIssuerLabel('开单人（签字）：');
-    setReceiverLabel('收货人（签收）：');
-    setDefaultTerms('1. 质量异议提出期限：买方在收到货物之日起3日内核对数量与质量。如对品质有任何异议，请在剪样、开裁或深加工前提出，否则视为合格，深加工后恕不退换。\n2. 结算方式：本单据为结算及法律权利主张之重要凭证，请买方妥善留存并按约定账期付清货款。\n3. 签收效力：开单人与收货人签字即具有同等合同效力，开单电话可作为业务沟通与对账的主要凭证。');
-    setDepositTerms('');
   };
 
   return (
-    <div id="company-profile-editor" className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-      <div className="p-6 border-b border-slate-100 bg-linear-to-r from-sky-50 to-white">
+    <div id="company-profile-editor" className="v2-catalog v2-settings bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+      <div className="v2-settings-header p-6 border-b border-slate-100 bg-linear-to-r from-sky-50 to-white">
         <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2"><Landmark className="w-5 h-5 text-sky-600" />公司及单据排版信息配置</h3>
         <p className="text-sm text-slate-500 mt-1">设置打印单据顶部及底部的基本展示信息，新建单据时将默认加载此配置。</p>
+        <p className="v2-settings-hint mt-3">这些内容会印在每一张样布码单、销售发货码单与定金单的抬头与落款处。修改后只影响之后新建或重新打印的单据，已打印的单据不会被追溯修改。</p>
       </div>
       <form onSubmit={handleSubmit} className="p-6 space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -221,15 +215,12 @@ export default function CompanyProfileEditor({ profile, onSave, apiFetch }: Comp
             })}
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-3 border-t border-slate-50">
-          <Field label="开单人签字栏文本" id="company-issuer-label-input" value={issuerLabel} onChange={setIssuerLabel} required icon={<PenTool className="w-3.5 h-3.5 text-slate-400" />} />
-          <Field label="收货人签字栏文本" id="company-receiver-label-input" value={receiverLabel} onChange={setReceiverLabel} required icon={<PenTool className="w-3.5 h-3.5 text-slate-400" />} />
-        </div>
-        <TextArea label="默认备注条款 - 样布码单 / 销售发货码单" id="company-default-terms-input" value={defaultTerms} onChange={setDefaultTerms} />
-        <TextArea label="默认备注条款 - 定金单" id="company-deposit-terms-input" value={depositTerms} onChange={setDepositTerms} amber />
-        <div className="flex items-center justify-between pt-4 border-t border-slate-100">
-          <button type="button" id="btn-reset-profile" onClick={resetToDefault} className="flex items-center gap-1 px-3 py-1.5 border border-slate-200 hover:border-slate-300 rounded-lg text-xs font-medium text-slate-500 hover:text-slate-700 bg-slate-50 cursor-pointer"><RefreshCw className="w-3.5 h-3.5" />恢复系统预设</button>
-          <button type="submit" id="btn-save-profile" disabled={isSaving || hasUnreadyImage} className="flex items-center gap-2 px-5 py-2 bg-sky-600 hover:bg-sky-700 disabled:bg-slate-400 text-white rounded-lg text-sm font-medium shadow-xs hover:shadow-md cursor-pointer transition-all duration-150"><Save className="w-4 h-4" />{isSaving ? '保存中…' : isSaved ? '已成功保存配置！' : hasUnreadyImage ? '等待图片准备完成' : '保存配置信息'}</button>
+        <div className="flex items-center justify-between gap-3 pt-4 border-t border-slate-100 v2-settings-actions">
+          <p className="v2-settings-status" role="status">{isSaved ? '配置已保存' : '修改后需点击右侧按钮才会生效'}</p>
+          <div className="flex items-center gap-3">
+           <button type="button" id="btn-reset-profile" onClick={resetToDefault} className="flex items-center gap-1 px-3 py-1.5 border border-slate-200 hover:border-slate-300 rounded-lg text-xs font-medium text-slate-500 hover:text-slate-700 bg-slate-50 cursor-pointer"><RefreshCw className="w-3.5 h-3.5" />恢复系统预设</button>
+           <button type="submit" id="btn-save-profile" disabled={isSaving || hasUnreadyImage} className="flex items-center gap-2 px-5 py-2 bg-sky-600 hover:bg-sky-700 disabled:bg-slate-400 text-white rounded-lg text-sm font-medium shadow-xs hover:shadow-md cursor-pointer transition-all duration-150"><Save className="w-4 h-4" />{isSaving ? '保存中…' : isSaved ? '已成功保存配置！' : hasUnreadyImage ? '等待图片准备完成' : '保存配置信息'}</button>
+          </div>
         </div>
       </form>
     </div>
@@ -240,9 +231,6 @@ function Field({ label, id, value, onChange, required, wide, icon }: { label: st
   return <div className={`space-y-1 ${wide ? 'md:col-span-2' : ''}`}><label className="text-xs font-medium text-slate-600 flex items-center gap-1">{icon}{label}</label><input type="text" id={id} value={value} onChange={(event) => onChange(event.target.value)} required={required} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm text-slate-600" /></div>;
 }
 
-function TextArea({ label, id, value, onChange, amber }: { label: string; id: string; value: string; onChange(value: string): void; amber?: boolean }) {
-  return <div className="space-y-1"><label className="text-xs font-medium text-slate-600 flex items-center gap-1"><ClipboardList className={`w-3.5 h-3.5 ${amber ? 'text-amber-400' : 'text-slate-400'}`} />{label}</label><textarea id={id} value={value} onChange={(event) => onChange(event.target.value)} rows={4} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm text-slate-600 leading-relaxed font-mono" /></div>;
-}
 
 function formatImageError(error: unknown): string {
   if (error instanceof ImageAssetClientError) return error.requestId ? `${error.message}（请求 ID：${error.requestId}）` : error.message;

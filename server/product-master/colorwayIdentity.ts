@@ -1,6 +1,7 @@
+import {recordDeletion} from '../audit/deletionAudit';
 import type {AppPrincipal} from '../access/types';
 import type {Pool} from '../order-v2/lines';
-import {canManageProducts} from '../access/policy';
+import {withCatalogTransaction} from '../access/catalogTransaction';
 export class ColorwayIdentityError extends Error{constructor(message:string,readonly status:400|401|403|404|409=400){super(message);}}
 export interface ColorwayIdentity{id:string;masterId:string;masterNo:string;colorwayNo:number;patternNo:string;patternImageAssetId:string|null;remark:string;isActive:boolean}
 export interface ColorwayQuery {query(sql:string,params?:unknown[]):Promise<[unknown,unknown]>}
@@ -33,7 +34,7 @@ function attributes(body:unknown):ColorwayAttributes{
   (typeof value.patternImageAssetId!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value.patternImageAssetId)))
   throw new ColorwayIdentityError('Invalid pattern image asset');
  if(('remark' in value&&(typeof value.remark!=='string'||[...value.remark].length>500))||
-    ('isActive' in value&&typeof value.isActive!=='boolean'))throw new ColorwayIdentityError('Invalid colorway attributes');
+    ('isActive' in value&&value.isActive!==true))throw new ColorwayIdentityError('Invalid colorway attributes');
  if('tagIds' in value){
   if(!Array.isArray(value.tagIds)||value.tagIds.length>10||
    value.tagIds.some(x=>typeof x!=='string'||!/^[1-9][0-9]{0,19}$/.test(x)||BigInt(x)>MAX_ID)||
@@ -106,31 +107,18 @@ function record(row:Row,master:Row):ColorwayIdentity{
   patternImageAssetId:row.pattern_image_asset_id==null?null:String(row.pattern_image_asset_id),
   remark:String(row.remark),isActive:Number(row.is_active)===1};
 }
-async function manager(db:ColorwayQuery,actor:AppPrincipal):Promise<void>{
- if(!actor?.userId||!actor.sessionId)throw new ColorwayIdentityError('Authentication required',401);
- const [users]=await db.query('SELECT id,role,is_active,can_manage_products FROM v2_access_users WHERE id=? FOR SHARE',[actor.userId]);
- const user=rows(users)[0];
- if(!user||Number(user.is_active)!==1||user.role!==actor.role)throw new ColorwayIdentityError('Authentication required',401);
- const [sessions]=await db.query('SELECT id FROM v2_access_sessions WHERE id=? AND user_id=? AND revoked_at IS NULL AND expires_at>UTC_TIMESTAMP() FOR SHARE',[actor.sessionId,actor.userId]);
- if(!rows(sessions).length)throw new ColorwayIdentityError('Authentication required',401);
- if(!canManageProducts({...actor,canManageProducts:user.role==='admin'||Number(user.can_manage_products)===1}))
-  throw new ColorwayIdentityError('Insufficient product permissions',403);
-}
-async function transaction<T>(pool:Pool,actor:AppPrincipal,action:(db:ColorwayQuery)=>Promise<T>):Promise<T>{
- const db=await pool.getConnection();let active=false;
- try{await db.beginTransaction();active=true;await manager(db,actor);const result=await action(db);
-  await db.commit();active=false;return result;
- }catch(error){if(active)await db.rollback();throw error;}finally{db.release();}
+async function transaction<T>(pool:Pool,actor:AppPrincipal,work:(db:ColorwayQuery)=>Promise<T>):Promise<T>{
+ return withCatalogTransaction(pool,actor,(message,status)=>new ColorwayIdentityError(message,status),'Insufficient product permissions',work);
 }
 async function master(db:ColorwayQuery,masterId:string,lock=false):Promise<Row>{
- const [raw]=await db.query('SELECT id,master_no,next_colorway_no FROM pattern_masters WHERE id=?'+(lock?' FOR UPDATE':''),[masterId]);
+ const [raw]=await db.query('SELECT id,master_no,next_colorway_no FROM pattern_masters WHERE id=? AND deleted_at IS NULL'+(lock?' FOR UPDATE':''),[masterId]);
  const row=rows(raw)[0];if(!row)throw new ColorwayIdentityError('Pattern master not found',404);return row;
 }
 async function saved(db:ColorwayQuery,colorwayId:string):Promise<Row>{
  const [raw]=await db.query('SELECT id,master_id,colorway_no,pattern_image_asset_id,remark,is_active FROM pattern_colorways WHERE id=? FOR UPDATE',[colorwayId]);
  const row=rows(raw)[0];if(!row)throw new ColorwayIdentityError('Colorway not found',404);return row;
 }
-async function replacePatternImage(db:ColorwayQuery,colorwayId:string,previous:string|null,next:string|null):Promise<void>{
+export async function replacePatternImage(db:ColorwayQuery,colorwayId:string,previous:string|null,next:string|null):Promise<void>{
  if(previous===next)return;
  const identities=[...new Set([previous,next].filter((id):id is string=>id!==null))].sort();
  const [raw]=await db.query('SELECT id,status,purpose,ref_count FROM image_assets WHERE id IN ('+identities.map(()=>'?').join(',')+') ORDER BY id FOR UPDATE',identities);
@@ -192,6 +180,8 @@ export async function deleteColorway(pool:Pool,actor:AppPrincipal,colorwayId:str
   const row=await saved(db,colorwayId);
   const [references]=await db.query('SELECT id FROM v2_products WHERE pattern_colorway_id=? LIMIT 1',[colorwayId]);
   if(rows(references).length)throw new ColorwayIdentityError('Colorway is referenced by a product',409);
+  const parent=await master(db,databaseId(row.master_id));
+  await recordDeletion(db,actor,{type:'colorway',id:colorwayId,label:String(parent.master_no)+'-'+String(row.colorway_no)});
   if(row.pattern_image_asset_id!=null)await replacePatternImage(db,colorwayId,String(row.pattern_image_asset_id),null);
   const [deleted]=await db.query('DELETE FROM pattern_colorways WHERE id=?',[colorwayId]);
   if(Number((deleted as {affectedRows?:number}).affectedRows)!==1)throw new ColorwayIdentityError('Colorway not found',404);

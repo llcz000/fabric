@@ -23,11 +23,11 @@ export function fromV2DocumentRecord(record:unknown,profile:CompanyProfile):Docu
   return common;
  });
  const deposit=type===DocType.SAMPLE?0:order.deposit??0,total=order.totalAmount??0;
- return {id:order.id,docNo:order.orderNo,type,date:order.date,customerName:order.receivingUnit,
+ return {v2CustomerId:order.customerLink?.customerId??null,v2CustomerLinkVersion:order.customerLink?.linkVersion??'0',id:order.id,docNo:order.orderNo,type,date:order.date,customerName:order.receivingUnit,
   items,styleNo:order.styleNo??'',issuer:order.issuer??'',receiver:order.receiver??'',
   receiverAddress:order.receiverAddress??'',bottomPhone:order.receiverPhone??'',settled:type===DocType.DEPOSIT?false:order.settled??false,
   companyName:profile.name,companyAddress:profile.address,
-  companyPhone:profile.phone,terms:type===DocType.DEPOSIT?profile.depositTerms:profile.defaultTerms,
+  companyPhone:profile.phone,terms:display?.terms??(type===DocType.DEPOSIT?profile.depositTerms:profile.defaultTerms),
   deposit,totalMeters:order.totalMeters,totalRolls:type===DocType.DEPOSIT?0:type===DocType.SAMPLE?items.length:order.totalPieces,totalAmount:total,
   receivableAmount:calculateDocumentPayment(order.type,total,deposit).receivableAmount,
   deductionMeters:order.deductionMeters,createdAt:'',updatedAt:''};
@@ -108,7 +108,7 @@ export function toV2CreatePayload(document:DocumentData,role:Role){
 export function toV2EditPayload(document:DocumentData,role:Role,removeIds:string[]):EditDocument{
  if(!Array.isArray(removeIds)||removeIds.some(id=>!stableLineId(id)))
   throw new V2DraftMappingError('Invalid removal IDs');
- const {displaySnapshot:_historicalDisplay,...header}=displayHeader(document),{settled,...withoutSettlement}=header;
+ const header=displayHeader(document),{settled,...withoutSettlement}=header;
  return {
   ...(document.type===DocType.SAMPLE?{}:{deposit:document.deposit??0}),
   ...(document.type===DocType.DEPOSIT?withoutSettlement:header),

@@ -5,14 +5,34 @@ import {readV2Route,v2Route} from './v2Navigation';
 import React,{useEffect,useRef,useState,useCallback} from 'react';
 import {Image as ImageIcon,Plus,Search,X,ChevronLeft,ChevronRight,Images,RotateCcw} from 'lucide-react';
 import {ProductImageTabs,type CatalogImageResolver} from './ProductImageTabs';
+import {SampleCardPatternsDialog} from './SampleCardPatternsDialog';
+import {ProductCardCreateDialog} from './ProductCardCreateDialog';
 import type {CatalogFilters,CatalogPage,CatalogProduct} from './catalogModel';
 import {
  emptyCatalogFilters,reduceCatalogFilters,fetchCatalogPage,buildCatalogUrl,
  resolveImageUrls,getCatalogProductImages,createLatestRequestGuard
 } from './catalogModel';
+import {buildColumnVisibility,nextSortState,readColumnVisibility,sortRows,toggleColumnVisibility,
+ visibleColumns,writeColumnVisibility,type LibraryColumn,type SortState} from './libraryTableChromeModel';
+import {ColumnSettingsMenu,SortableHeader} from './LibraryTableChrome';
 
-const columns=['花型图','货号','品名','成分','克重','门幅 / cm',
- '图片数量','备注','启用状态','操作'] as const;
+/** 逐列列宽（px）。仅品名自适应；成分与备注固定宽度，避免长成分遮挡克重。 */
+const columnWidths=[72,120,0,210,110,88,140,112,110,176] as const;
+
+/** P1-8 列定义：顺序与 columnWidths 下标一一对应。 */
+const productColumns:LibraryColumn<CatalogProduct>[]=[
+ {key:'image',label:'花型图',locked:true},
+ {key:'productNo',label:'货号',sortable:true,value:row=>row.productNo},
+ {key:'fabricName',label:'品名',sortable:true,value:row=>row.fabricName??''},
+ {key:'composition',label:'成分',sortable:true,value:row=>row.composition??''},
+ {key:'weight',label:'克重',sortable:true,value:row=>row.weightValue},
+ {key:'width',label:'门幅 / cm',sortable:true,value:row=>row.widthCm},
+ {key:'images',label:'图片数量'},
+ {key:'remark',label:'备注',sortable:true,value:row=>row.remark??''},
+ {key:'card',label:'关联色卡',sortable:true,value:row=>row.sampleCard?.cardNo??''},
+ {key:'actions',label:'操作',locked:true},
+];
+const PRODUCT_COLUMN_KEY='fabric.v2.library.columns.product';
 const neutral='rounded-lg border border-[#c3c6d7] bg-white text-[#434655]';
 const display=(s:string|null|undefined)=>s&&s.trim()?s:'—';
 export interface CatalogV2TableProps{
@@ -25,67 +45,107 @@ export interface CatalogV2TableProps{
  onEdit?(product:CatalogProduct):void;
  onDeleteRequest?(product:CatalogProduct):void;
  onRemark?(product:CatalogProduct):void;
+ onShare?(product:CatalogProduct):void;
+  onCard?(product:CatalogProduct):void;
+  onCreateCard?(product:CatalogProduct):void;
  updating?:boolean;
 }
 export function CatalogV2Table({
- page,patternUrls,onPatternPreview,onProductImages,onPage,canManage=false,onEdit,onDeleteRequest,onRemark,updating=false
+  page,patternUrls,onPatternPreview,onProductImages,onPage,canManage=false,onEdit,onDeleteRequest,onRemark,onShare,onCard,onCreateCard,updating=false
 }:CatalogV2TableProps){
+ const [sort,setSort]=useState<SortState|null>(null);
+ const [visibility,setVisibility]=useState(()=>readColumnVisibility(productColumns,PRODUCT_COLUMN_KEY));
+ const shown=visibleColumns(productColumns,visibility);
+ const rows=sortRows(page.items,sort,productColumns);
+ const widthOf=(key:string)=>{
+  const index=productColumns.findIndex(c=>c.key===key);
+  const width=index>=0?columnWidths[index]:0;
+  return width?{width:width+'px'}:undefined;
+ };
+ const toggleSort=(key:string)=>setSort(current=>nextSortState(current,key));
+ const toggleVisibility=(key:string)=>setVisibility(current=>{
+  const next=toggleColumnVisibility(productColumns,current,key);
+  writeColumnVisibility(PRODUCT_COLUMN_KEY,next);
+  return next;
+ });
+ const resetVisibility=()=>{
+  const next=buildColumnVisibility(productColumns);
+  writeColumnVisibility(PRODUCT_COLUMN_KEY,next);
+  setVisibility(next);
+ };
+ const renderCell=(product:CatalogProduct,key:string)=>{
+  const picture=product.patternImageAssetId?patternUrls.get(product.patternImageAssetId):undefined;
+  const imageCount=product.imageCounts;
+  switch(key){
+   case 'image':return <td className="px-3 py-2 text-center">
+    {picture?<button type="button" disabled={updating} onClick={()=>onPatternPreview(product)}
+     aria-label={'查看花型原图 '+product.productNo}
+     className="inline-flex rounded border border-[#e2e1ee] focus-visible:outline-2 focus-visible:outline-[#346ef6]">
+     <img src={picture} alt={'花型 '+product.masterNo+' 配色'+product.colorwayNo}
+      loading="lazy" className="h-12 w-12 rounded object-cover"/></button>:
+     <span className="inline-flex h-12 w-12 items-center justify-center rounded bg-[#f3f2ff] text-[10px] text-[#737686]"
+      aria-label={product.patternImageAssetId?'图片暂不可用':'待上传花型图'}>{product.patternImageAssetId?'图片不可用':'待上传'}</span>}
+   </td>;
+   case 'productNo':return <td className="px-3 py-2 font-semibold text-[#003ea7]">{product.productNo}</td>;
+   case 'fabricName':return <td className="px-3 py-2">{display(product.fabricName)}</td>;
+   case 'composition':return <td className="min-w-0 px-3 py-2">
+    <span className="block min-w-0 truncate" title={product.composition??undefined}>{display(product.composition)}</span>
+   </td>;
+   case 'weight':return <td className="whitespace-nowrap px-3 py-2">{product.weightValue===null?'—':product.weightValue+' '+(product.weightUnit??'')}</td>;
+   case 'width':return <td className="px-3 py-2">{product.widthCm??'—'}</td>;
+   case 'images':return <td className="whitespace-nowrap px-3 py-2 text-center text-[11px] text-[#434655]">
+    大图 {imageCount.fabricDisplay} · 细节 {imageCount.detail} · 效果 {imageCount.aiEffect}</td>;
+   case 'remark':return <td className="min-w-0 px-3 py-2">
+    {product.remark.trim()&&onRemark?<button type="button" disabled={updating} onClick={()=>onRemark(product)}
+     title={product.remark}
+     aria-label={'查看完整备注 '+product.productNo}
+     className="block min-w-0 max-w-full truncate text-left hover:text-[#0053da] focus-visible:underline">{product.remark}</button>:
+     product.remark.trim()?<span title={product.remark} className="block min-w-0 max-w-full truncate">{product.remark}</span>:
+     <span className="text-slate-400">—</span>}
+   </td>;
+   case 'card':return <td className="whitespace-nowrap px-3 py-2">
+    {product.sampleCard?<>
+     {onCard?<button type="button" disabled={updating} className="text-[#0053da] underline" onClick={()=>onCard(product)} aria-label={'查看关联色卡 '+product.sampleCard.cardNo}>{product.sampleCard.cardNo}</button>:<span>{product.sampleCard.cardNo}</span>}
+     
+     {product.sampleCard.needsReprint&&<span className="mt-1 block text-[11px] text-amber-700">需重新打印</span>}
+    </>:product.sampleCard===null?<>
+     <span className="text-slate-500">未关联</span>
+     {canManage&&onCreateCard?<button type="button" disabled={updating||!product.masterActive||!product.fabricActive} className="ml-2 text-[#0053da] underline" onClick={()=>onCreateCard(product)} aria-label={'为产品 '+product.productNo+' 建色卡'}>去建色卡</button>:null}
+    </>:<span className="text-slate-500">关联待读取</span>}
+   </td>;
+   case 'actions':return <td className="col-actions px-3 py-2 text-center"><div className="inline-flex items-center gap-2 whitespace-nowrap">
+    <button type="button" disabled={updating} className="v2-icon-button" title="查看产品图"
+     onClick={()=>onProductImages(product)} aria-label={'查看产品图 '+product.productNo}><Images size={17} aria-hidden="true"/></button>
+    {onShare&&<button type="button" disabled={updating} className="v2-icon-button" title="分享花型产品" aria-label={'分享花型产品 '+product.productNo} onClick={()=>onShare(product)}><ActionIcon name="share"/></button>}
+    {canManage&&onEdit?<button type="button" disabled={updating} onClick={()=>onEdit(product)}
+     className="v2-icon-button" aria-label="编辑" title="编辑产品"><ActionIcon name="edit"/></button>:null}
+    {canManage&&onDeleteRequest?<button type="button" disabled={updating} onClick={()=>onDeleteRequest(product)}
+     className="v2-icon-button v2-icon-danger" aria-label="删除" title="删除产品"><ActionIcon name="delete"/></button>:null}
+   </div></td>;
+   default:return null;
+  }
+ };
  return <div className="flex flex-1 flex-col overflow-hidden rounded-lg border border-[#c3c6d7] bg-white">
+  <div className="v2-library-toolbar">
+   <span className="v2-library-toolbar-hint">点击表头可排序，列设置可隐藏不需要的字段</span>
+   <ColumnSettingsMenu columns={productColumns} visibility={visibility}
+    onToggle={toggleVisibility} onReset={resetVisibility}/>
+  </div>
   <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="产品列表，可左右滚动查看全部字段">
-   <table className="w-full min-w-[1000px] border-collapse text-left text-xs text-[#191b24]">
+   <table className="v2-library-table w-full min-w-[1400px] border-collapse text-left text-xs text-[#191b24]">
+    <colgroup>{shown.map(column=><col key={column.key} style={widthOf(column.key)}/>)}</colgroup>
     <thead><tr className="border-b border-[#c3c6d7] bg-[#f3f4fa] text-[#434655]">
-     {columns.map((col,index)=><th key={col} scope="col"
-      className={'px-3 py-3 font-medium '+([0,6,8,9].includes(index)?'text-center':'')}>{col}</th>)}
+     {shown.map(column=><SortableHeader key={column.key} column={column} sort={sort} onSort={toggleSort}
+      className={'px-3 py-3 font-medium '+(['image','images','status'].includes(column.key)?'text-center ':'')+(column.key==='actions'?'col-actions':'')}/>)}
     </tr></thead>
-    <tbody>
-    {page.items.map(product=>{
-     const picture=product.patternImageAssetId?patternUrls.get(product.patternImageAssetId):undefined;
-     const imageCount=product.imageCounts;
-     return <tr key={product.id} className="border-b border-[#ededf9] hover:bg-[#f8f9ff]">
-      <td className="px-3 py-2 text-center">
-       {picture?<button type="button" disabled={updating} onClick={()=>onPatternPreview(product)}
-        aria-label={'查看花型原图 '+product.productNo}
-        className="inline-flex rounded border border-[#e2e1ee] focus-visible:outline-2 focus-visible:outline-[#346ef6]">
-        <img src={picture} alt={'花型 '+product.masterNo+' 配色'+product.colorwayNo}
-         loading="lazy" className="h-12 w-12 rounded object-cover"/></button>:
-        <span className="inline-flex h-12 w-12 items-center justify-center rounded bg-[#f3f2ff] text-[10px] text-[#737686]"
-         aria-label={product.patternImageAssetId?'图片暂不可用':'待上传花型图'}>{product.patternImageAssetId?'图片不可用':'待上传'}</span>}
-      </td>
-      <td className="px-3 py-2 font-semibold text-[#003ea7]">{product.productNo}</td>
-      <td className="px-3 py-2">{display(product.fabricName)}</td>
-      <td className="px-3 py-2">{display(product.composition)}</td>
-      <td className="whitespace-nowrap px-3 py-2">{product.weightValue===null?'—':product.weightValue+' '+(product.weightUnit??'')}</td>
-      <td className="px-3 py-2">{product.widthCm??'—'}</td>
-      <td className="whitespace-nowrap px-3 py-2 text-center text-[11px] text-[#434655]">
-       大图 {imageCount.fabricDisplay} · 细节 {imageCount.detail} · 效果 {imageCount.aiEffect}
-      </td>
-      <td className="max-w-44 px-3 py-2">
-       {product.remark.trim()&&onRemark?<button type="button" disabled={updating} onClick={()=>onRemark(product)}
-        title={product.remark}
-        aria-label={'查看完整备注 '+product.productNo}
-        className="max-w-40 truncate text-left hover:text-[#0053da] focus-visible:underline">{product.remark}</button>:
-        product.remark.trim()?<span title={product.remark} className="block max-w-40 truncate">{product.remark}</span>:
-        <span className="text-slate-400">—</span>}
-      </td>
-      <td className="px-3 py-2 text-center">
-       <span className={'rounded-full px-2 py-0.5 text-[11px] '+(product.isActive?
-        'bg-emerald-50 text-emerald-700':'bg-slate-100 text-slate-600')}>
-        {product.isActive?'已启用':'已停用'}</span>
-       {!product.isAvailableForSampling?<span className="mt-1 block text-[11px] text-amber-700">暂不供样</span>:null}
-      </td>
-      <td className="px-3 py-2 text-center"><div className="inline-flex items-center gap-2 whitespace-nowrap">
-       <button type="button" disabled={updating} className="v2-icon-button" title="查看产品图"
-        onClick={()=>onProductImages(product)} aria-label={'查看产品图 '+product.productNo}><Images size={17} aria-hidden="true"/></button>
-       {canManage&&onEdit?<button type="button" disabled={updating} onClick={()=>onEdit(product)}
-        className="v2-icon-button" aria-label="编辑" title="编辑产品"><ActionIcon name="edit"/></button>:null}
-       {canManage&&onDeleteRequest?<button type="button" disabled={updating} onClick={()=>onDeleteRequest(product)}
-        className="v2-icon-button v2-icon-danger" aria-label="删除" title="删除产品"><ActionIcon name="delete"/></button>:null}
-      </div></td>
-     </tr>;
-    })}
+     <tbody>
+    {rows.map(product=>
+     <tr key={product.id} className="v2-library-row border-b border-[#ededf9] hover:bg-[#f8f9ff]">
+      {shown.map(column=><React.Fragment key={column.key}>{renderCell(product,column.key)}</React.Fragment>)}
+     </tr>)}
     </tbody>
    </table>
-   {!page.items.length?<div className="px-4 py-16 text-center text-sm text-slate-500">没有匹配的产品，请调整或清空筛选条件。</div>:null}
+   {!rows.length?<div className="px-4 py-16 text-center text-sm text-slate-500">没有匹配的产品，请调整或清空筛选条件。</div>:null}
   </div>
   <div className="mt-auto flex items-center justify-between gap-3 border-t border-[#ededf9] px-3 py-2.5 text-xs text-[#737686]">
    <span>共 {page.total} 条产品 · 每页 {page.limit} 条 · 第 {Math.floor(page.offset/page.limit)+1} 页</span>
@@ -170,15 +230,17 @@ export interface ProductCatalogV2Props{
  onCreate?():void;
  onEdit?(product:CatalogProduct):void;
  onDeleteRequest?(product:CatalogProduct):Promise<void>|void;
+ onShare?(product:CatalogProduct):void;
 }
 /** P4 isolated component: deliberately not mounted over legacy ProductLibrary. */
-export function ProductCatalogV2({apiFetch,canManage=false,allowExport=true,onCreate,onEdit,onDeleteRequest,resolveImages}:ProductCatalogV2Props){
+export function ProductCatalogV2({apiFetch,canManage=false,allowExport=true,onCreate,onEdit,onDeleteRequest,onShare,resolveImages}:ProductCatalogV2Props){
  const imageResolver=useCallback<CatalogImageResolver>((ids,variant,signal)=>resolveImages?resolveImages(ids,variant,signal):resolveImageUrls(apiFetch,ids,variant,signal),[apiFetch,resolveImages]);
  const [filters,setFilters]=useState<CatalogFilters>(()=>{
   const route=readV2Route(typeof window==='undefined'?'':window.location.hash),q=route.params;
   if(route.view!=='products')return {...emptyCatalogFilters};
   const offset=Number(q.get('offset')??0),limit=Number(q.get('limit')??50);
-  return {...emptyCatalogFilters,productNo:q.get('productNo')??'',fabricName:q.get('fabricName')??'',status:q.get('status')==='all'?'all':'active',offset:Number.isSafeInteger(offset)&&offset>=0?offset:0,limit:Number.isInteger(limit)&&limit>0&&limit<=100?limit:50};
+   const association=q.get('cardAssociation');
+   return {...emptyCatalogFilters,productNo:q.get('productNo')??'',fabricName:q.get('fabricName')??'',cardAssociation:association==='linked'||association==='unlinked'?association:'all',status:q.get('status')==='all'?'all':'active',offset:Number.isSafeInteger(offset)&&offset>=0?offset:0,limit:Number.isInteger(limit)&&limit>0&&limit<=100?limit:50};
  });
  useEffect(()=>{if(typeof window!=='undefined'&&readV2Route(window.location.hash).view==='products'){
   const query=buildCatalogUrl('/api/v2/products',filters).split('?')[1];window.history.replaceState(window.history.state,'',v2Route('products',Object.fromEntries(new URLSearchParams(query))));
@@ -190,6 +252,7 @@ export function ProductCatalogV2({apiFetch,canManage=false,allowExport=true,onCr
  const [viewerUrls,setViewerUrls]=useState<Map<string,string>>(new Map());
  const [viewerImages,setViewerImages]=useState<{fabricDisplay:string[];detail:string[];aiEffect:string[]}|null>(null);
  const [remark,setRemark]=useState<CatalogProduct|null>(null);
+  const [viewingCard,setViewingCard]=useState<CatalogProduct|null>(null),[creatingCard,setCreatingCard]=useState<CatalogProduct|null>(null),[cardNotice,setCardNotice]=useState('');
  const [pendingDelete,setPendingDelete]=useState<CatalogProduct|null>(null);
  const [deleteBusy,setDeleteBusy]=useState(false),[deleteError,setDeleteError]=useState('');
  const deleting=useRef(false);useV2LeaveProtection(false,deleteBusy);
@@ -271,23 +334,28 @@ export function ProductCatalogV2({apiFetch,canManage=false,allowExport=true,onCr
    <label><span className="sr-only">品名</span>
     <input aria-label="品名" value={filters.fabricName} onChange={e=>dispatch({type:'fabricName',value:e.target.value})}
      placeholder="请输入品名" className="h-8 w-36 rounded-lg border border-[#c3c6d7] px-2 outline-[#346ef6]" /></label>
-   <label className="inline-flex items-center gap-1.5 whitespace-nowrap">
-    <input aria-label="包含停用" type="checkbox" checked={filters.status==='all'}
-     onChange={e=>dispatch({type:'status',value:e.target.checked?'all':'active'})}/>包含停用</label>
+    <label className="inline-flex items-center gap-1.5 whitespace-nowrap">色卡关联
+     <select aria-label="色卡关联" value={filters.cardAssociation??'all'} onChange={e=>dispatch({type:'cardAssociation',value:e.target.value as 'all'|'linked'|'unlinked'})} className="h-8 rounded-lg border border-[#c3c6d7] bg-white px-2">
+      <option value="all">全部</option><option value="linked">已关联</option><option value="unlinked">未关联</option>
+     </select>
+    </label>
+    
    <button type="button" onClick={()=>dispatch({type:'reset'})}
     className="inline-flex items-center gap-1 rounded px-2 py-1.5 text-[#0053da] hover:bg-[#eef1fd]"><RotateCcw size={13}/>清空筛选</button>
 
   </div>
 
    <div className="v2-catalog-status" role="status" aria-live="polite">{busy?(page?'正在更新产品…':'正在查找产品…'):page?'共 '+page.total+' 条产品':''}</div>
-  {failure?<div role="alert" className="rounded-lg border border-rose-200 bg-white p-4 text-sm text-rose-700">
+   {cardNotice&&<p role="status" className="text-sm text-emerald-700">{cardNotice}</p>}
+   {failure?<div role="alert" className="rounded-lg border border-rose-200 bg-white p-4 text-sm text-rose-700">
    {failure}<button type="button" onClick={()=>setRetry(n=>n+1)} className="ml-3 underline"><ActionIcon name="refresh"/>重试</button></div>:null}
    <div className="v2-catalog-viewport" aria-busy={busy} data-updating={busy}>
    {page?<CatalogV2Table updating={busy||Boolean(failure)} page={page} patternUrls={thumbnailUrls}
    onPatternPreview={item=>setViewer({type:'pattern',item})}
    onProductImages={item=>setViewer({type:'product',item})}
    onPage={offset=>dispatch({type:'page',offset})} onRemark={setRemark}
-    canManage={canManage} onEdit={onEdit} onDeleteRequest={onDeleteRequest?item=>{setDeleteError('');setPendingDelete(item);}:undefined}/>:<div className="v2-catalog-skeleton" aria-hidden="true"/>}
+     onCard={item=>setViewingCard(item)} onCreateCard={canManage?item=>{setCardNotice('');setCreatingCard(item);}:undefined}
+    canManage={canManage} onShare={onShare} onEdit={onEdit} onDeleteRequest={onDeleteRequest?item=>{setDeleteError('');setPendingDelete(item);}:undefined}/>:<div className="v2-catalog-skeleton" aria-hidden="true"/>}
    </div>
   {pendingDelete&&onDeleteRequest?<CatalogDeleteConfirmation product={pendingDelete}
     busy={deleteBusy} error={deleteError} onCancel={()=>{if(!deleting.current)setPendingDelete(null);}}
@@ -295,6 +363,8 @@ export function ProductCatalogV2({apiFetch,canManage=false,allowExport=true,onCr
   {remark?<ImageDialog title={'产品备注 · '+remark.productNo} onClose={()=>setRemark(null)}>
    <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{remark.remark}</p>
   </ImageDialog>:null}
+  {viewingCard?.sampleCard&&<SampleCardPatternsDialog card={{id:viewingCard.sampleCard.id,cardNo:viewingCard.sampleCard.cardNo,masterId:viewingCard.masterId,fabricId:viewingCard.fabricId}} apiFetch={apiFetch} onClose={()=>setViewingCard(null)}/>}
+  {creatingCard&&<ProductCardCreateDialog product={creatingCard} apiFetch={apiFetch} onClose={()=>setCreatingCard(null)} onCreated={result=>{setCreatingCard(null);setCardNotice((result.created?'已生成色卡 ':'已复用现有色卡 ')+result.card.cardNo);setRetry(n=>n+1);}}/>}
   {viewer?<ImageDialog title={(viewer.type==='pattern'?'花型原图 · ':'产品图片 · ')+viewer.item.productNo} onClose={closeViewer}>
    {viewerError?<p role="alert" className="text-sm text-rose-700">{viewerError}</p>:null}
    {!viewerError&&viewer.type==='pattern'?

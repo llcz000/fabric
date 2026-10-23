@@ -347,5 +347,5 @@ function safeGeneratedId(value: string): string {
 
 function isInvalidUploadError(error: unknown): error is ImageAssetError {
   return error instanceof ImageAssetError
-    && (error.code === 'IMAGE_CONTENT_INVALID' || error.code === 'IMAGE_LIMIT_EXCEEDED');
+    && (error.code === 'IMAGE_CONTENT_INVALID' || error.code === 'IMAGE_LIMIT_EXCEEDED' || error.code === 'IMAGE_PIXELS_EXCEEDED');
 }

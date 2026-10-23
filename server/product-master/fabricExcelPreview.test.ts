@@ -56,14 +56,14 @@ test('P5 missing units require explicit chosen default, but conflicting or unkno
  assert.deepEqual(b.rows.map(x=>x.action),['create','error','error','create']);
  assert.equal(b.rows[0].fabric?.weightUnit,'gsm');
 });
-test('P5 non-cm width, formulas, negative precision and numeric codes are never silently guessed',async()=>{
+test('P5 non-cm width, excessive precision and blank numbers are rejected',async()=>{
  const bytes=await book(headers,[['A01','布',null,12.1234,'mm',140,null],
   ['B01','布',null,14,'mm','55 inch',null],
-  [12,'数值编号',null,null,null,null,null],
+  [' ','空编号',null,null,null,null,null],
   ['C01','正确',null,12.5,'mm','145cm',null]]);
  const sheet=await previewFabricXlsx(bytes,{filename:'broken.xlsx'});
  assert.deepEqual(sheet.rows.map(x=>x.action),['error','error','error','create']);
- assert(sheet.rows[2].reason.includes('数值')||sheet.rows[2].reason.includes('文本'));
+ assert(sheet.rows[2].reason.includes('空'));
 });
 test('P5 legacy header aliases & selected worksheet/header row, manual mapping',async()=>{
  const bytes=await book(['面料品号','面料品名','成份','克重数值','单位','门幅','说明'],
@@ -85,12 +85,33 @@ test('P5 ambiguous headers, same source column and unsupported files fail closed
  await assert.rejects(previewFabricXlsx(dup,{filename:'dup.xls'}),/xlsx/);
  await assert.rejects(previewFabricXlsx(Buffer.from('not excel'),{filename:'bad.xlsx'}),FabricExcelError);
 });
-test('P5 skips empty sheet rows but isolates invalid required names and illegal numbers',async()=>{
+test('P5 skips empty sheet rows but isolates missing required names and blank numbers',async()=>{
  const bytes=await book(headers,[['A1','',null,null,null,null,null],
   [null,null,null,null,null,null,null],['A2','正常',null,null,null,null,null],
-  ['AB-3','非法',null,null,null,null,null]]);
+  ['  ','空品号',null,null,null,null,null]]);
  const result=await previewFabricXlsx(bytes,{filename:'errors.xlsx'});
  assert.equal(result.rows.length,3);
  assert.deepEqual(result.rows.map(x=>x.action),['error','create','error']);
  assert.equal(result.counts.error,2);
+});
+
+test('actual supplier headers and numeric/free-form fabric numbers need no column configuration',async()=>{
+ const input=await book(['品号','品名','成分','克重','gsm/mm','门幅（里面CM）'],[
+  [12101,'真丝双绉','100%桑蚕丝',12,'mm',137],
+  ['10151-8','真丝欧根纱','100%桑蚕丝',8,'mm',137],
+  ['底布 / A_01','粘麻','55%人棉45%亚麻',165,'gsm',138],
+  ['  ','空品号',null,null,null,null]
+ ]);
+ const p=await previewFabricXlsx(input,{filename:'底布编号 -OK.xlsx'});
+ assert.deepEqual(p.counts,{create:3,skip:0,error:1});
+ assert.deepEqual(p.rows.slice(0,3).map(r=>[r.fabric?.fabricNo,r.fabric?.weightUnit,r.fabric?.widthValue]),
+  [['12101','mm',137],['10151-8','mm',137],['底布 / A_01','gsm',138]]);
+ assert.match(p.rows[3].reason,/品号.*空/);
+});
+test('numeric codes and text codes share duplicate/existing lookup, visible zero padding is preserved',async()=>{
+ const w=new ExcelJS.Workbook(),ws=w.addWorksheet('面料资料');
+ ws.addRow(headers);ws.addRow([12,'A']);ws.addRow(['12','B']);ws.addRow([7,'C']);ws.getCell('A4').numFmt='0000';
+ const p=await previewFabricXlsx(Buffer.from(await w.xlsx.writeBuffer()),{filename:'numbers.xlsx'});
+ assert.deepEqual(p.rows.map(r=>r.action),['skip','skip','create']);
+ assert.equal(p.rows[2].fabric?.fabricNo,'0007');
 });

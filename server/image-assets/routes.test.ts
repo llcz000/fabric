@@ -461,7 +461,7 @@ test('declared JSON endpoints reject urlencoded bodies with schema-compatible fi
 });
 
 test('enabled asset parser maps malformed and oversized JSON to safe 4xx errors', async () => {
-  const oversized = Buffer.alloc(10 * 1024 * 1024 + 2, 0x61);
+  const oversized = Buffer.alloc(20 * 1024 * 1024 + 2, 0x61);
 
   await withHttpServer(routeRuntime(), async (baseUrl) => {
     const malformed = await requestWithBody(`${baseUrl}/api/image-assets/upload-sessions`, {
@@ -486,7 +486,7 @@ test('enabled asset parser maps malformed and oversized JSON to safe 4xx errors'
 
 test('enabled asset parser maps malformed and oversized urlencoded bodies to safe 4xx errors', async () => {
   const tooDeep = Buffer.from(`root${'[child]'.repeat(40)}=value`);
-  const oversized = Buffer.from(`padding=${'a'.repeat(10 * 1024 * 1024 + 2)}`);
+  const oversized = Buffer.from(`padding=${'a'.repeat(20 * 1024 * 1024 + 2)}`);
 
   await withHttpServer(routeRuntime(), async (baseUrl) => {
     const malformed = await requestWithBody(`${baseUrl}/api/image-assets/access-urls`, {
@@ -530,8 +530,8 @@ test('JSON null is rejected on finalize and descriptor empty-body channels', asy
 });
 
 test('one-byte and parser raw-body overflow map to safe asset limit errors', async () => {
-  const oneByteOverflow = Buffer.alloc(10 * 1024 * 1024 + 1, 0x61);
-  const overParserLimit = Buffer.alloc(10 * 1024 * 1024 + 2, 0x62);
+  const oneByteOverflow = Buffer.alloc(20 * 1024 * 1024 + 1, 0x61);
+  const overParserLimit = Buffer.alloc(20 * 1024 * 1024 + 2, 0x62);
 
   await withHttpServer(routeRuntime(), async (baseUrl) => {
     const oneByteResponse = await requestWithBody(`${baseUrl}/api/image-assets/asset-1`, {
@@ -799,4 +799,16 @@ test('runtime rejects recycle periods that violate the exact 30-day retention ru
     },
     repository: {} as AssetRepository,
   }), /ASSET_RECYCLE_DAYS.*30/);
+});
+
+test('pixel-limit failures identify resolution separately without exposing decoder details',async()=>{
+ await withHttpServer(routeRuntime({service:routeService({async finalizeUploadSession(){
+  throw new ImageAssetError('IMAGE_PIXELS_EXCEEDED',413,false,'secret /private/file pixel limit');
+ }})}),async base=>{
+  const response=await fetch(base+'/api/image-assets/upload-sessions/session-1/finalize',authenticatedJson('POST',{}));
+  assert.equal(response.status,413);
+  const text=await response.text(),body=JSON.parse(text);
+  assert.equal(body.error.code,'IMAGE_PIXELS_EXCEEDED');assert.match(body.error.message,/像素/);
+  assert.doesNotMatch(text,/secret|private|20MB/);assert.equal(body.error.retryable,false);
+ });
 });

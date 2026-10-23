@@ -27,7 +27,7 @@ export function createDocumentQueryReviewApi(role:'admin'|'sales'){
   const params=url.searchParams;
   const visible=documents.filter(doc=>role==='admin'||doc.ownerId==='7');
   if(url.pathname==='/api/v2/documents/stats'){
-   if([...params.keys()].some(key=>!['from','to'].includes(key)))return response({error:'Invalid statistics filters'},400);
+   if([...params.keys()].some(key=>!['from','to','compareFrom','compareTo'].includes(key)))return response({error:'Invalid statistics filters'},400);
    const from=params.get('from')??'',to=params.get('to')??'';
    if((from&&!/^\d{4}-\d{2}-\d{2}$/.test(from))||(to&&!/^\d{4}-\d{2}-\d{2}$/.test(to))||(from&&to&&from>to))return response({error:'Invalid date range'},400);
    const scoped=visible.filter(doc=>(!from||doc.date>=from)&&(!to||doc.date<=to));
@@ -46,9 +46,13 @@ export function createDocumentQueryReviewApi(role:'admin'|'sales'){
     .map(([productName,meters])=>({productName,meters}));
    const recentOrders=[...scoped].sort((a,b)=>b.date.localeCompare(a.date)||Number(b.id)-Number(a.id)).slice(0,4)
     .map(doc=>({id:doc.id,orderNo:doc.orderNo,date:doc.date,receivingUnit:doc.receivingUnit,type:doc.type,totalMeters:doc.totalMeters,totalAmount:doc.totalAmount}));
-   return response({orderCount:scoped.length,metersTotal:scoped.filter(doc=>doc.type!=='deposit').reduce((sum,doc)=>sum+doc.totalMeters,0),
-    amountTotal:scoped.filter(doc=>doc.type!=='deposit').reduce((sum,doc)=>sum+doc.totalAmount,0),
-    byType:{sample:group('sample'),bulk:group('bulk'),deposit:group('deposit')},topProducts,recentOrders});
+   const revenue=scoped.filter(doc=>doc.type!=='deposit');
+   const unsettled=revenue.filter(doc=>!doc.settled);
+   return response({orderCount:scoped.length,metersTotal:revenue.reduce((sum,doc)=>sum+doc.totalMeters,0),
+    amountTotal:revenue.reduce((sum,doc)=>sum+doc.totalAmount,0),
+    pendingAmount:unsettled.reduce((sum,doc)=>sum+doc.totalAmount,0),
+    pendingCount:unsettled.length,
+    byType:{sample:group('sample'),bulk:group('bulk'),deposit:group('deposit')},topProducts,recentOrders,compare:null});
   }
 
   if([...params.keys()].some(key=>!['customer','productNo','colorNo','productName','type','from','to','settled','limit','offset'].includes(key)))return response({error:'Invalid filters'},400);

@@ -1,0 +1,28 @@
+import {ProductBatchCreateV2} from './components/product-master-v2/ProductBatchCreateV2';
+import React,{useState} from 'react';import {createRoot} from 'react-dom/client';import './index.css';import './components/product-master-v2/v2Experience.css';
+import {ConfirmProvider} from './components/ui/ConfirmDialog';import {PatternLibraryV2} from './components/product-master-v2/PatternLibraryV2';import {FabricLibraryV2} from './components/product-master-v2/FabricLibraryV2';import {ProductCatalogV2} from './components/product-master-v2/ProductCatalogV2';import {ProductEditorV2} from './components/product-master-v2/ProductEditorV2';import {FabricProductsDialog} from './components/product-master-v2/FabricProductsDialog';import {SampleCardPatternsDialog} from './components/product-master-v2/SampleCardPatternsDialog';import {CardShareDialog} from './components/customer-share/CardShareDialog';
+const fabric={id:'8',fabricNo:'F018',fabricName:'轻薄印花雪纺',composition:'聚酯纤维 100%',weightValue:80,weightUnit:'gsm' as const,widthValue:145,remark:'适合裙装、衬衫',isActive:true,productCount:1};
+const version={id:'3',masterId:'7',masterNo:'G017',colorwayNo:2,patternNo:'G017-2',patternImageAssetId:null,remark:'水彩花卉',isActive:true,colorTags:[]};
+const master={id:'7',masterNo:'G017',isActive:true,nextColorwayNo:3,topicTags:[],colorTags:[],versions:[version]};
+const product={id:'53',productNo:'G017-2-F018',patternColorwayId:'3',fabricId:'8',masterId:'7',masterNo:'G017',colorwayNo:2,fabricNo:'F018',fabricName:fabric.fabricName,composition:fabric.composition,weightValue:80,weightUnit:'gsm',widthCm:145,remark:'适合春夏连衣裙',isActive:true,isAvailableForSampling:true,masterActive:true,colorwayActive:true,fabricActive:true,isSelectable:true,rowVersion:'1',patternImageAssetId:null,topicTags:[],colorTags:[],imageCounts:{fabricDisplay:0,detail:0,aiEffect:0},totalImages:0,sampleCard:{id:'9',cardNo:'G017-F018',isActive:true,needsReprint:false},images:{fabricDisplay:[],detail:[],aiEffect:[]}};
+const card={id:'9',cardNo:'G017-F018',masterId:'7',fabricId:'8'};
+const apiFetch=(async(input:RequestInfo|URL,init?:RequestInit)=>{const u=new URL(String(input),location.href),method=init?.method??'GET',body=init?.body?JSON.parse(String(init.body)):{};const page=(items:unknown[])=>Response.json({items,total:items.length,limit:Number(u.searchParams.get('limit')||20),offset:0});
+ if(location.search.includes('fail=1')&&['/api/v2/pattern-catalog','/api/v2/fabrics/catalog','/api/v2/products'].includes(u.pathname))return new Response('{}',{status:503});
+ if(method==='DELETE')return Response.json({id:u.pathname.split('/').at(-1),deleted:true});
+ if(u.pathname==='/api/v2/tags')return Response.json({items:[]});
+ if(u.pathname==='/api/v2/pattern-catalog')return Response.json({items:[master],total:1,totalColorways:1,limit:20,offset:0});
+ if(u.pathname.endsWith('/colorway-details'))return Response.json({items:[version],nextColorwayNo:3});
+ if(u.pathname.startsWith('/api/v2/pattern-colorways/')){Object.assign(version,body);return Response.json(version);}
+ if(u.pathname==='/api/v2/fabrics/catalog'){const q=(u.searchParams.get('fabricNo')||u.searchParams.get('fabricName')||u.searchParams.get('query')||'').toLowerCase();return page([fabric].filter(f=>[f.fabricNo,f.fabricName].some(x=>x.toLowerCase().includes(q))));}
+ if(u.pathname==='/api/v2/fabrics/8'){Object.assign(fabric,body);return Response.json(fabric);}
+ if(u.pathname==='/api/v2/products/batch/preview')return Response.json({items:[{patternColorwayId:'3',productNo:product.productNo,existing:false}]});
+ if(u.pathname==='/api/v2/products/batch')return Response.json({created:[{patternColorwayId:'3',productNo:product.productNo,id:'54'}],skipped:[]});
+ if(u.pathname==='/api/v2/products')return page([product]);
+ if(u.pathname==='/api/v2/products/53'){if(method==='PATCH'){if('isActive' in body||'isAvailableForSampling' in body)throw Error('Obsolete state payload');Object.assign(product,body);product.rowVersion=String(Number(product.rowVersion)+1);}return Response.json(product);}
+ if(u.pathname.endsWith('/share'))return Response.json({url:location.origin+'/c/'+'a'.repeat(43)});
+ if(u.pathname==='/api/v2/image-assets/resolve')return Response.json({items:[]});
+ return Response.json({items:[]});}) as typeof fetch;
+function Screen(){const [view,setView]=useState('花型库'),[modal,setModal]=useState('');return <ConfirmProvider><div className="v2-shell"><div className="flex flex-wrap items-center gap-2 border-b bg-white p-3"><small className="mr-3 text-amber-800">模拟数据 · 正式组件与CSS · 不写业务数据库</small>{['花型库','面料库','产品库','编辑产品','批量新增'].map(x=><button className="rounded border px-3 py-1 text-sm" key={x} onClick={()=>setView(x)}>{x}</button>)}<button className="rounded border px-3 py-1 text-sm" onClick={()=>setModal('card')}>色卡配色</button></div>
+ {view==='花型库'?<PatternLibraryV2 apiFetch={apiFetch} canManage/>:view==='面料库'?<FabricLibraryV2 apiFetch={apiFetch} canManage onViewProducts={()=>setModal('fabric')}/>:view==='产品库'?<ProductCatalogV2 apiFetch={apiFetch} canManage onDeleteRequest={async()=>{}} onEdit={()=>setView('编辑产品')}/>:view==='批量新增'?<ProductBatchCreateV2 apiFetch={apiFetch} initialMasterId="7" onSaved={()=>setView('产品库')} onCancel={()=>setView('产品库')}/>:<ProductEditorV2 mode="edit" productId="53" apiFetch={apiFetch} canManage onSaved={()=>setView('产品库')} onCancel={()=>setView('产品库')}/>}
+ {modal==='fabric'&&<FabricProductsDialog fabric={fabric} apiFetch={apiFetch} onClose={()=>setModal('')}/>}{modal==='card'&&<SampleCardPatternsDialog card={card} apiFetch={apiFetch} onClose={()=>setModal('')}/>}{modal==='share'&&<CardShareDialog card={card} apiFetch={apiFetch} onClose={()=>setModal('')}/>}
+ </div></ConfirmProvider>;}createRoot(document.getElementById('root')!).render(<Screen/>);

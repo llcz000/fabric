@@ -1,3 +1,5 @@
+import {lockCustomerSessionAccess,sampleSessionScope} from '../customers/sessionBridge';
+import {CustomerError} from '../customers/model';
 import {createHash} from 'node:crypto';
 import type {AppPrincipal} from '../access/types';
 import {planCardScan,type LiveCardProduct,type SavedSampleProduct} from './cardScan';
@@ -5,13 +7,14 @@ import type {CardScanRequest,CardScanResponse} from './cardScanRoutes';
 
 /** Independent V2 domain transaction. Never mounted on legacy server.ts. */
 export interface SampleTx {
+ customerProfilesEnabled?:boolean;
  beginTransaction():Promise<void>;
  commit():Promise<void>;
  rollback():Promise<void>;
  release():void;
  query(sql:string,params?:unknown[]):Promise<[unknown,unknown]>;
 }
-export interface SamplePool {getConnection():Promise<SampleTx>}
+export interface SamplePool {customerProfilesEnabled?:boolean;getConnection():Promise<SampleTx>}
 type Row=Record<string,unknown>;
 const readRows=(data:unknown):Row[]=>{
  if(!Array.isArray(data))throw new Error('Unexpected SQL response');
@@ -65,17 +68,18 @@ export async function persistSampleCardScan(
    'SELECT id FROM v2_access_sessions WHERE id=? AND user_id=? AND revoked_at IS NULL AND expires_at>UTC_TIMESTAMP() FOR SHARE',
    [actor.sessionId,actor.userId]);
   if(!readRows(loginRaw)[0])throw new SampleScanError(403,'Sample scan forbidden');
+  const customer=await lockCustomerSessionAccess(tx,actor,input.sessionId,true);
   // Serialize all scan/item mutations for the same sample session.
   const [sessionRaw]=await tx.query(
    'SELECT id,status,created_by_user_id FROM customer_sample_sessions WHERE id=? AND deleted_at IS NULL FOR UPDATE',
    [input.sessionId]);
   const session=readRows(sessionRaw)[0];
   if(!session||session.status!=='open')throw new SampleScanError(404,'Sample session not found');
-  const [accessRaw]=await tx.query(
+  if(!customer){const [accessRaw]=await tx.query(
    'SELECT can_manage FROM customer_sample_session_access WHERE session_id=? AND user_id=? AND can_manage=1 FOR UPDATE',
    [input.sessionId,actor.userId]);
   if(Number(readRows(accessRaw)[0]?.can_manage)!==1)
-   throw new SampleScanError(403,'Sample scan forbidden');
+   throw new SampleScanError(403,'Sample scan forbidden');}
   // Hash scan input before query. Raw payload is persisted by the authorized
   // card library for stable QR/Excel reads; never log either form.
   const tokenHash=createHash('sha256').update(input.cardToken,'utf8').digest('hex');
@@ -192,6 +196,7 @@ export async function persistSampleCardScan(
    alreadySelectedProductIds:plan.unchangedProductIds,selectedCardCount:count};
  }catch(error){
   if(began)await tx.rollback();
+  if(error instanceof CustomerError)throw new SampleScanError(error.status===403?403:error.status===404?404:409,'Sample selection unavailable');
   throw error;
  }finally {tx.release();}
 }

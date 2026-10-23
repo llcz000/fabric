@@ -31,6 +31,7 @@ class Database {
    if(this.fkRace)throw Object.assign(Error('internal FK details'),{code:'ER_ROW_IS_REFERENCED_2'});
    const old=this.data.length;this.data=this.data.filter(r=>r.id!==String(params[0]));return [{affectedRows:old-this.data.length},[]];
   }
+  if(sql.startsWith('INSERT INTO business_delete_events'))return [{affectedRows:1},[]];
   throw Error('Unexpected SQL '+sql);
  }
  async getConnection(){
@@ -92,7 +93,7 @@ test('AC-71 failed insertion rolls back counter and retry allocates the uncommit
 test('AC-71 deleting middle identity and deactivating do not reuse or renumber',async()=>{
  const db=new Database();
  const a=await createColorway(db,actor,'1',{}),b=await createColorway(db,actor,'1',{}),c=await createColorway(db,actor,'1',{});
- await deleteColorway(db,actor,b.id);await updateColorway(db,actor,a.id,{isActive:false});
+ await deleteColorway(db,actor,b.id);await assert.rejects(updateColorway(db,actor,a.id,{isActive:false}));
  const next=await createColorway(db,actor,'1',{});assert.equal(next.colorwayNo,4);
  assert.equal(db.data.find(r=>r.id===c.id)?.colorway_no,3);
 });

@@ -42,7 +42,7 @@ function Review(){
   </header>
   <main className="mx-auto max-w-[1480px]" data-review-view={view}>
    {view==='stats'||view==='documents'?<DocumentQueryReview key={view} initialMode={view==='stats'?'stats':'query'}/>:view==='sampleSelection'?<ManualSelectionReview/>:view==='pattern'?<PatternLibraryV2 key="patterns" apiFetch={sampleCardReviewFetch} canManage={permission} onUploadPatternImage={reviewUploadPatternImage} resolvePatternImages={reviewResolvePatternImages}/>:
-    view==='fabric'?<FabricWorkspaceV2 key="fabrics" apiFetch={sampleCardReviewFetch} canManage={permission} isAdmin={permission}/>:
+    view==='fabric'?<FabricWorkspaceV2 key="fabrics" apiFetch={sampleCardReviewFetch} canManage={permission}/>:
     view==='products'?<ProductCatalogWorkspaceV2 key="products" apiFetch={sampleCardReviewFetch} canManage={permission} resolveImages={reviewResolvePatternImages}
      onPatternLibrary={()=>setView('pattern')} onFabricLibrary={()=>setView('fabric')}/>:
     <SampleCardLibraryV2 key="sample-cards" apiFetch={sampleCardReviewFetch}/>}

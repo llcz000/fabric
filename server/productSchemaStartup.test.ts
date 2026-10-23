@@ -1,14 +1,15 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import test from 'node:test';
+import {createV2ProductionRouter} from './product-master/v2ProductionRuntime';
 
-test('MySQL startup initializes product and image schema even when asset features are disabled', () => {
-  const source = readFileSync(path.join(process.cwd(), 'server.ts'), 'utf8');
-  const schemaCall = 'await initializeImageAssetSchema(conn);';
-  const callIndex = source.indexOf(schemaCall);
-
-  assert.notEqual(callIndex, -1, 'server startup must initialize the shared image and product schema');
-  const precedingBlock = source.slice(Math.max(0, callIndex - 120), callIndex);
-  assert.doesNotMatch(precedingBlock, /if\s*\(imageAssetRuntime\.enabled\)\s*\{\s*$/);
+test('V2 startup refuses incomplete schema without creating or rewriting historical data',async()=>{
+ const calls:string[]=[];
+ const target={database:'fabric_db',serverUuid:'a937ff09-72b6-11f1-b04e-52540034488b'};
+ const pool={async getConnection(){return {
+  async query(sql:string){calls.push(sql);return [sql.includes('DATABASE() AS database_name')?[{database_name:target.database,server_uuid:target.serverUuid}]:[],[]] as [unknown,unknown];},
+  async beginTransaction(){throw Error('Unexpected write transaction');},async commit(){},async rollback(){},release(){}
+ };}};
+ await assert.rejects(createV2ProductionRouter(pool,target));
+ assert(calls.length>1,'schema metadata must actually be inspected');
+ assert(calls.every(s=>/^\s*SELECT\b/i.test(s)),'startup must be read-only; migrations are separate');
 });

@@ -45,7 +45,7 @@ export function parseFabricCatalogPage(raw:unknown):FabricCatalogPage{
  for(const item of data.items){
   if(!item||typeof item!=='object'||Array.isArray(item))throw Error('面料资料不完整');
   const row=item as Record<string,unknown>;
-  if(!positiveId(row.id)||typeof row.fabricNo!=='string'||!/^[A-Z0-9]{1,64}$/.test(row.fabricNo)||
+  if(!positiveId(row.id)||typeof row.fabricNo!=='string'||!row.fabricNo.trim()||
    typeof row.fabricName!=='string'||!row.fabricName||
    !(row.composition===null||typeof row.composition==='string')||
    !(row.remark===null||typeof row.remark==='string')||
@@ -101,7 +101,7 @@ const decimal=(raw:string,scale:number,integerDigits:number,label:string):number
 export function validateFabricDraft(draft:FabricDraft,mode:'create'|'update'):FabricPayload{
  if(!draft||typeof draft!=='object')throw Error('面料表单错误');
  const fabricNo=draft.fabricNo.trim().toUpperCase();
- if(!/^[A-Z0-9]{1,64}$/.test(fabricNo))throw Error('品号仅支持字母数字，不允许横杠');
+ if(!fabricNo)throw Error('品号不能为空');
  const fabricName=text(draft.fabricName,255,true,'品名')!;
  const composition=text(draft.composition,500,false,'成分');
  const weightValue=decimal(draft.weightValue,3,9,'克重');
@@ -111,9 +111,7 @@ export function validateFabricDraft(draft:FabricDraft,mode:'create'|'update'):Fa
   throw Error('克重单位仅支持gsm/mm');
  const weightUnit=mode==='create'&&weightValue===null&&draft.weightUnit==='gsm'?null:draft.weightUnit||null;
  if((weightValue===null)!==(weightUnit===null))throw Error('克重数值与单位必须同时填写或同时留空');
- if(typeof draft.isActive!=='boolean')throw Error('启停状态错误');
- return {fabricNo,fabricName,composition,weightValue,weightUnit,widthValue,remark,
-  ...(mode==='update'?{isActive:draft.isActive}:{})};
+ return {fabricNo,fabricName,composition,weightValue,weightUnit,widthValue,remark};
 }
 export class FabricHttpError extends Error{
  constructor(readonly status:number,message:string){
@@ -126,8 +124,14 @@ async function json(res:Response):Promise<unknown>{
   const body=await res.json().catch(()=>null);
   const known=body&&typeof body==='object'&&typeof (body as {error?:unknown}).error==='string'?
    String((body as {error:string}).error):'';
+  const conflicts:Record<string,string>={
+   'Fabric number already exists':'该面料品号已存在，请使用其他品号。',
+   'Fabric is referenced by products':'该面料已关联产品，不能删除或修改品号。',
+   'Fabric is referenced by sample cards; number cannot change':'该面料已关联色卡，不能修改品号。',
+   'Fabric is referenced':'该面料仍有引用，暂不能删除。'
+  };
   const message=res.status===409?
-   '面料数据冲突：品号重复、已被产品引用或其他人员已变更，请核对后再试。':
+   (Object.hasOwn(conflicts,known)?conflicts[known]:'面料资料已变更，请刷新后重试。'):
    res.status===403?'没有面料管理权限':
    res.status===401?'登录已失效':
    res.status===400?'输入资料不符合保存规则':

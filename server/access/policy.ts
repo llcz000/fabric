@@ -1,16 +1,17 @@
 import type {AppPrincipal,AppRole,OwnedOrder} from './types';
+import {isRegisteredBusinessRole} from '../../src/lib/businessRules';
 
 /** Authorization is always evaluated against a fresh server-verified principal. */
 export const isAdmin=(actor:AppPrincipal|null|undefined):boolean=>actor?.role==='admin';
 export const canReadProducts=(actor:AppPrincipal|null|undefined):boolean=>actor!=null;
 export const canManageProducts=(actor:AppPrincipal|null|undefined):boolean=>
-  actor?.role==='admin'||actor?.role==='sales';
+  isRegisteredBusinessRole(actor?.role);
 export const canReadOrder=(actor:AppPrincipal|null|undefined,order:OwnedOrder):boolean=>
   isAdmin(actor) || (actor?.role==='sales' && !!order.createdByUserId && actor.userId===order.createdByUserId);
 export const canManageOrder=(actor:AppPrincipal|null|undefined,order:OwnedOrder):boolean=>
   isAdmin(actor) || (actor?.role==='sales' && !!order.createdByUserId && actor.userId===order.createdByUserId);
 export const canCreateOwnOrder=(actor:AppPrincipal|null|undefined):boolean=>
-  actor?.role==='admin'||actor?.role==='sales';
+  isRegisteredBusinessRole(actor?.role);
 // The two legacy grant columns remain stored for schema compatibility, but
 // current business authority comes from a live registered admin/sales role.
 export const canImportFabricOverwrite=canManageProducts;

@@ -153,14 +153,29 @@ export async function summarizeMatchingOrderItems(
   amountTotal:finite(r.amount_total),piecesTotal:finite(r.pieces_total)};
 }
 
-export async function statsScopedOrders(
- db:Database,actor:AppPrincipal|null|undefined,filters:Pick<ScopedOrderFilters,'from'|'to'>={}
-){
- const query=where(actor,filters);
+export interface ScopedOrderTotals{
+ orderCount:number;metersTotal:number;amountTotal:number;
+ pendingAmount:number;pendingCount:number;
+ byType:{sample:{count:number;meters:number;amount:number};bulk:{count:number;meters:number;amount:number};deposit:{count:number;meters:number;contractAmount:number}};
+}
+type ScopedQuery={sql:string;args:unknown[]};
+
+/**
+ * 同一口径的总量聚合。供主区间与对比区间复用，保证环比是同口径比较。
+ * 定金单不参与营收金额，但「待收尾款」按合同额扣掉已收定金比例计算。
+ */
+async function aggregateScopedTotals(db:Database,query:ScopedQuery):Promise<ScopedOrderTotals>{
  const [raw]=await db.query(
   'SELECT COUNT(*) AS order_count,'+
   "COALESCE(SUM(CASE WHEN o.template_type IN ('sample','bulk') THEN o.total_amount ELSE 0 END),0) AS amount_total,"+
   "COALESCE(SUM(CASE WHEN o.template_type IN ('sample','bulk') THEN o.total_meters ELSE 0 END),0) AS meters_total,"+
+  // Outstanding receivable: unsettled sample bills carry the full amount;
+  // unsettled sales bills deduct the deposit already collected in money.
+  // Sample rows keep a legacy prepayment in raw history, so their deposit
+  // column is never used as a collected-money offset here.
+  "COALESCE(SUM(CASE WHEN o.template_type='sample' AND o.settled=0 THEN o.total_amount"+
+  " WHEN o.template_type='bulk' AND o.settled=0 THEN GREATEST(o.total_amount-COALESCE(o.deposit,0),0) ELSE 0 END),0) AS pending_amount,"+
+  "COALESCE(SUM(CASE WHEN o.template_type IN ('sample','bulk') AND o.settled=0 THEN 1 ELSE 0 END),0) AS pending_count,"+
   (['sample','bulk','deposit'] as const).flatMap(type=>[
    "COALESCE(SUM(CASE WHEN o.template_type='"+type+"' THEN 1 ELSE 0 END),0) AS "+type+"_count",
    "COALESCE(SUM(CASE WHEN o.template_type='"+type+"' THEN o.total_meters ELSE 0 END),0) AS "+type+"_meters",
@@ -170,6 +185,23 @@ export async function statsScopedOrders(
  const r=array(raw)[0]??{};
  const number=(v:unknown)=>{const n=Number(v??0);if(!Number.isFinite(n)||n<0)throw Error('Invalid statistics');return n;};
  const value=(key:string)=>number(r[key]);
+ return {orderCount:value('order_count'),amountTotal:value('amount_total'),
+  metersTotal:value('meters_total'),
+  pendingAmount:value('pending_amount'),pendingCount:value('pending_count'),
+  byType:{
+   sample:{count:value('sample_count'),meters:value('sample_meters'),amount:value('sample_amount')},
+   bulk:{count:value('bulk_count'),meters:value('bulk_meters'),amount:value('bulk_amount')},
+   deposit:{count:value('deposit_count'),meters:value('deposit_meters'),contractAmount:value('deposit_contract_amount')}
+  }};
+}
+
+export async function statsScopedOrders(
+ db:Database,actor:AppPrincipal|null|undefined,
+ filters:Pick<ScopedOrderFilters,'from'|'to'>={},
+ compare:Pick<ScopedOrderFilters,'from'|'to'>|null=null
+){
+ const query=where(actor,filters);
+ const totals=await aggregateScopedTotals(db,query);
  // Rank saved line names, including historical/manual entries. Catalog edits
  // must not change an already-saved document's product identity or grouping.
  const productName="COALESCE(NULLIF(TRIM(i.product_name),''),'未命名的面料')";
@@ -181,17 +213,16 @@ export async function statsScopedOrders(
  const [recent]=await db.query(
   'SELECT o.id,o.order_no,o.order_date,o.receiving_unit,o.template_type,o.total_meters,o.total_amount '+
   'FROM orders o '+query.sql+' ORDER BY o.order_date DESC,o.id DESC LIMIT 4',query.args);
- return {orderCount:value('order_count'),amountTotal:value('amount_total'),
-  metersTotal:value('meters_total'),byType:{
-   sample:{count:value('sample_count'),meters:value('sample_meters'),amount:value('sample_amount')},
-   bulk:{count:value('bulk_count'),meters:value('bulk_meters'),amount:value('bulk_amount')},
-   deposit:{count:value('deposit_count'),meters:value('deposit_meters'),contractAmount:value('deposit_contract_amount')}
-  },topProducts:array(ranked).map(row=>({
+ const number=(v:unknown)=>{const n=Number(v??0);if(!Number.isFinite(n)||n<0)throw Error('Invalid statistics');return n;};
+ const compareTotals=compare?await aggregateScopedTotals(db,where(actor,compare)):null;
+ return {...totals,
+  topProducts:array(ranked).map(row=>({
    productName:String(row.product_name),meters:number(row.meters_total)
   })),recentOrders:array(recent).map(row=>({
    id:String(row.id),orderNo:String(row.order_no),date:row.order_date instanceof Date?
     row.order_date.toISOString().slice(0,10):String(row.order_date).slice(0,10),
    receivingUnit:String(row.receiving_unit??''),type:String(row.template_type),
    totalMeters:number(row.total_meters),totalAmount:number(row.total_amount)
-  }))};
+  })),
+  ...(compareTotals?{compare:compareTotals}:{})};
 }

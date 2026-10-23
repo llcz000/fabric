@@ -1,3 +1,7 @@
+import {verifyPatternNumberReuseSchema} from './patternNumberReuseSchema';
+import {verifyPatternDeletionSchema} from './patternDeletionSchema';
+import {verifyFabricDeletionSchema} from './fabricDeletionSchema';
+import {prepareCustomerRuntime} from '../customers/runtime';
 import express,{Router} from 'express';
 import path from 'node:path';
 import mysql from 'mysql2/promise';
@@ -27,13 +31,18 @@ import {createPatternShareRuntime} from '../customer-share/patternShareRuntime';
 import {verifySessionLifecycleSchema} from '../customer-samples/sessionLifecycleSchema';
 
 export async function createV2ProductionRouter(pool:Pool,target:V2ProductionTarget,output?:V2DocumentOutputDependencies){
- const db=createPinnedV2Database(pool,target);
+ const baseDb=createPinnedV2Database(pool,target);
+ let db=baseDb;
  // This is SELECT only. No bootstrap, automatic ALTER, guessed owner or JSON fallback.
  await verifyV2ProductionSchema(db,target.database);
  await verifyV2DocumentSupportSchema(db);
  await verifyV2DocumentAuditSchema(db);
  await verifySessionLifecycleSchema(db);
- const routes=createV2BusinessRoutes(db,db,output);
+ await verifyFabricDeletionSchema(db);
+ await verifyPatternDeletionSchema(db);
+ await verifyPatternNumberReuseSchema(db,true);
+ const customers=await prepareCustomerRuntime(baseDb,target);db=customers.pool;
+ const routes=createV2BusinessRoutes(db,db,output,{unavailable:customers.unavailable});
  return {routes,db};
 }
 
@@ -59,8 +68,8 @@ export async function startV2ProductionServer(){
   if(!assets.service||!assets.worker)throw Error('V2 media unavailable');
   const extras=Router(),authenticate=requireV2Principal(db);
   const sharing=await createPatternShareRuntime(db,db,target,assets.service,process.env);
-  routes.get('/pattern-sharing',authenticate,(_req,res)=>{res.set('Cache-Control','no-store').json({enabled:Boolean(sharing)});});
-  if(sharing){routes.use(sharing.privateRouter);extras.use('/api/public/patterns',sharing.publicRouter);}
+ routes.get('/pattern-sharing',authenticate,(_req,res)=>{res.set('Cache-Control','no-store').json({enabled:Boolean(sharing),productsEnabled:sharing?.productsEnabled===true,cardsEnabled:sharing?.cardsEnabled===true});});
+ if(sharing){routes.use(sharing.privateRouter);extras.use('/api/public/patterns',sharing.publicRouter);if(sharing.productPublicRouter)extras.use('/api/public/products',sharing.productPublicRouter);if(sharing.cardPublicRouter)extras.use('/api/public/cards',sharing.cardPublicRouter);}
   extras.use('/api/image-assets',authenticate,createImageAssetRouter(assets,(_req,res)=>'v2:'+(res.locals.principal as AppPrincipal).userId));
   const loadCompany=async()=>{
    const [data]=await db.query('SELECT * FROM company_config WHERE id=1 LIMIT 1');
@@ -89,7 +98,7 @@ export async function startV2ProductionServer(){
   extras.use('/api/company',company);
   extras.use('/api/inventory',createV2InventoryRouter(db));
   const app=createV2ProductionHttpApp(routes,async()=>{await db.query('SELECT 1');return true;},extras);
-  app.use(createFrontendStaticRouter(path.join(process.cwd(),'dist'),{allowPatternShare:Boolean(sharing)}));
+ app.use(createFrontendStaticRouter(path.join(process.cwd(),'dist'),{allowPatternShare:Boolean(sharing),allowProductShare:sharing?.productsEnabled===true,allowCardShare:sharing?.cardsEnabled===true}));
   app.use((error:unknown,_req:express.Request,res:express.Response,_next:express.NextFunction)=>{
    if(res.headersSent){res.end();return;}
    const status=error&&typeof error==='object'?(error as {status?:unknown}).status:undefined;

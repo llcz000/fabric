@@ -1,0 +1,39 @@
+import {copyV2Document,deleteV2Document} from '../order-v2/documentLifecycle';
+import test from 'node:test';import assert from 'node:assert/strict';
+import {fixture,admin,sales,key} from './service.testFixture';
+import {createV2Document,readV2Document,updateV2Document} from '../order-v2/documents';
+function billingFixture(){const f=fixture();f.db.exec(`ALTER TABLE v2_access_users ADD COLUMN can_manage_own_orders INTEGER DEFAULT 1;ALTER TABLE v2_access_users ADD COLUMN can_manage_products INTEGER DEFAULT 1;`);for(const column of ['deposit','style_no','sign_person','receiver','receiver_phone','receiver_address','settled','v2_display_snapshot','total_meters','total_pieces','deduction_meters'])f.db.exec('ALTER TABLE orders ADD COLUMN '+column+' '+(['deposit','settled','total_meters','total_pieces','deduction_meters'].includes(column)?'NUMERIC DEFAULT 0':'TEXT'));f.db.exec(`CREATE UNIQUE INDEX uq_order_no ON orders(order_no);CREATE TABLE order_items(id INTEGER PRIMARY KEY AUTOINCREMENT,order_id INTEGER,meters NUMERIC,unit_price NUMERIC,remark TEXT,piece_meters TEXT,deduction_meters NUMERIC,v2_product_id INTEGER,v2_source_kind TEXT,v2_product_snapshot TEXT,product_no TEXT,product_name TEXT,color_no TEXT,composition TEXT,weight NUMERIC,width NUMERIC,amount NUMERIC DEFAULT 0);`);return f;}
+test('three actual document saves and quick profiles share a transaction; retry, failure, snapshots and owner scope hold',async()=>{
+ const f=billingFixture();try{for(const [index,type] of ['sample','bulk','deposit'].entries()){
+ const input={orderNo:'V12-'+type,date:'2026-10-20',receivingUnit:'原单名称',type,deposit:type==='deposit'?30:type==='bulk'?25:0,customer:{profile:{displayName:'客户'+type},requestId:key(200+index)},items:[{manual:{productNo:'M1',productName:'手工面料'},fields:{meters:10,unitPrice:10}}]};
+ const saved=await createV2Document(f.pool,admin,input);assert.equal(saved.customerLink?.customerId,String(index+1));assert.equal(saved.receivingUnit,'客户'+type);assert.equal(saved.totalAmount,100);assert.equal((await createV2Document(f.pool,admin,input)).id,saved.id);assert.equal((await f.service.activity(admin,String(index+1),{})).salesAmount,type==='deposit'?'0':'100');
+ await f.service.update(admin,String(index+1),{expectedRowVersion:'1',profile:{displayName:'新名称'+type}});assert.equal((await readV2Document(await f.pool.getConnection(),admin,saved.id)).receivingUnit,'客户'+type);
+ await assert.rejects(readV2Document(await f.pool.getConnection(),sales,saved.id),{status:404});
+ }
+ const count=f.db.prepare('SELECT COUNT(*) n FROM customers').get()!.n;await assert.rejects(createV2Document(f.pool,admin,{orderNo:'V12-failed',date:'2026-10-20',receivingUnit:'失败',type:'sample',deposit:0,customer:{profile:{displayName:'不能留下'},requestId:key(210)},items:[{manual:{productNo:'M2',productName:'失败面料'},fields:{meters:-1,unitPrice:1}}]}));assert.equal(f.db.prepare('SELECT COUNT(*) n FROM customers').get()!.n,count);assert.equal(f.db.prepare("SELECT COUNT(*) n FROM orders WHERE order_no='V12-failed'").get()!.n,0);
+ }finally{f.db.close();}
+});
+test('manual old-order association keeps header/product snapshots and rejects stale association or foreign owner',async()=>{
+ const f=billingFixture();try{const c=await f.service.create(sales,{requestId:key(220),profile:{displayName:'新档案'}});const saved=await createV2Document({...f.pool,customerProfilesEnabled:false},admin,{orderNo:'OLD',date:'2026-10-20',receivingUnit:'历史名称',type:'sample',deposit:0,items:[{manual:{productNo:'M1',productName:'原产品'},fields:{meters:1,unitPrice:100}}]});
+ const body={items:saved.items.map(i=>({id:i.id,fields:{}})),removeIds:[],customer:{customerId:c.id,expectedCustomerId:null,expectedLinkVersion:'0'}};
+ await assert.rejects(updateV2Document(f.pool,sales,saved.id,body),{status:404});assert.equal(f.db.prepare('SELECT COUNT(*) n FROM customer_order_links').get()!.n,0);
+ const linked=await updateV2Document(f.pool,admin,saved.id,body);assert.equal(linked.receivingUnit,'历史名称');assert.deepEqual(linked.items[0].snapshot,saved.items[0].snapshot);assert.equal(linked.customerLink?.customerId,c.id);await assert.rejects(updateV2Document(f.pool,admin,saved.id,body),{status:409});
+ }finally{f.db.close();}
+});
+
+test('copy carries only an active customer and snapshot; customer locks precede source order, deletion keeps original history',async()=>{
+ const f=billingFixture();try{f.db.exec(`CREATE TABLE v2_fabrics(id INTEGER PRIMARY KEY,fabric_no TEXT,fabric_name TEXT,composition TEXT,weight_value NUMERIC,weight_unit TEXT,width_value NUMERIC,is_active INTEGER);INSERT INTO v2_fabrics VALUES(1,'F1','面料','棉',100,'gsm',150,1);CREATE TABLE pattern_masters(id INTEGER PRIMARY KEY,master_no TEXT,is_active INTEGER);INSERT INTO pattern_masters VALUES(1,'P1',1);CREATE TABLE pattern_colorways(id INTEGER PRIMARY KEY,master_id INTEGER,colorway_no INTEGER,is_active INTEGER);INSERT INTO pattern_colorways VALUES(1,1,1,1);CREATE TABLE v2_products(id INTEGER PRIMARY KEY,product_no TEXT,is_active INTEGER,fabric_id INTEGER,pattern_colorway_id INTEGER);INSERT INTO v2_products VALUES(1,'P1-1-F1',1,1,1);`);
+ const original=await createV2Document(f.pool,admin,{orderNo:'ORIGINAL',date:'2026-10-21',receivingUnit:'原名',type:'sample',deposit:0,customer:{profile:{displayName:'客户'},requestId:key(240)},items:[{selection:{productId:'1'},fields:{meters:1,unitPrice:100}}]});f.calls.length=0;
+ const copy=await copyV2Document(f.pool,admin,original.id,{orderNo:'COPY',date:'2026-10-21'});const saved=await readV2Document(await f.pool.getConnection(),admin,copy.id);assert.equal(saved.customerLink?.customerId,original.customerLink?.customerId);assert.deepEqual(saved.items[0].snapshot,original.items[0].snapshot);assert(f.calls.findIndex(s=>s.startsWith('SELECT * FROM customers'))<f.calls.findIndex(s=>s.includes('FROM orders WHERE id=? FOR UPDATE')));
+ const c=await f.service.get(admin,original.customerLink!.customerId!);await f.service.delete(admin,c.id,{expectedRowVersion:c.rowVersion,confirm:true});await assert.rejects(copyV2Document(f.pool,admin,original.id,{orderNo:'DELETED-COPY',date:'2026-10-21'}),{status:409});assert.equal((await readV2Document(await f.pool.getConnection(),admin,original.id)).receivingUnit,'客户');
+ await deleteV2Document(f.pool,admin,copy.id,{confirm:true});assert.equal(f.db.prepare('SELECT COUNT(*) n FROM customer_order_links').get()!.n,1);assert.equal(f.db.prepare('SELECT COUNT(*) n FROM customers').get()!.n,1);
+ }finally{f.db.close();}
+});
+
+test('quick creation while editing an old document is atomic and idempotent on uncertain retry',async()=>{
+ const f=billingFixture();try{const original=await createV2Document({...f.pool,customerProfilesEnabled:false},admin,{orderNo:'EDIT-OLD',date:'2026-10-21',receivingUnit:'原名称',type:'sample',deposit:0,items:[{manual:{productNo:'M1',productName:'面料'},fields:{meters:1,unitPrice:10}}]});const body={items:original.items.map(i=>({id:i.id,fields:{}})),removeIds:[],customer:{profile:{displayName:'快捷新客户'},requestId:key(260),expectedCustomerId:null,expectedLinkVersion:'0'}};const a=await updateV2Document(f.pool,admin,original.id,body);const b=await updateV2Document(f.pool,admin,original.id,body);assert.equal(a.customerLink?.customerId,b.customerLink?.customerId);assert.equal(f.db.prepare('SELECT COUNT(*) n FROM customers').get()!.n,1);assert.equal(b.receivingUnit,'原名称');}finally{f.db.close();}
+});
+
+test('incomplete installed customer schema cannot fall back to new unlinked document or copy writes',async()=>{
+ const f=billingFixture();try{const unavailable={...f.pool,customerProfilesEnabled:false,customerProfilesRequired:true};await assert.rejects(createV2Document(unavailable,admin,{}),{status:503});await assert.rejects(copyV2Document(unavailable,admin,'1',{orderNo:'BYPASS',date:'2026-10-21'}),{status:503});assert.equal(f.calls.length,0);assert.equal(f.db.prepare('SELECT COUNT(*) n FROM orders').get()!.n,0);}finally{f.db.close();}
+});

@@ -76,6 +76,8 @@ export interface CompanyImageValue {
 }
 
 export interface DocumentData {
+  v2CustomerId?: string|null;
+  v2CustomerLinkVersion?: string;
   id: string;
   docNo: string;        // 单据编号 (自动生成，如 YB-20260707-001)
   type: DocType;        // 单据类型

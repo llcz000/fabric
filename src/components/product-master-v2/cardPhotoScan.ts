@@ -1,4 +1,5 @@
 import jsQR from 'jsqr';
+import {readSampleCardScanToken} from '../../lib/sampleCardScanLink';
 interface Bitmap{width:number;height:number;close():void}
 interface Pixels{data:Uint8ClampedArray;width:number;height:number}
 interface PhotoDecoder{bitmap(file:File):Promise<Bitmap>;pixels(bitmap:Bitmap):Pixels}
@@ -7,8 +8,9 @@ export function decodeCardPixels(data:Uint8ClampedArray,width:number,height:numb
  if(!Number.isInteger(width)||!Number.isInteger(height)||width<1||height<1||width>1920||height>1920||data.length!==width*height*4)throw Error('图片尺寸不适合识别，请重新拍照');
  const result=jsQR(data,width,height,{inversionAttempts:'attemptBoth'});
  if(!result)throw Error('未识别到二维码，请对准完整色卡二维码重新拍照');
- if(!/^[A-Za-z0-9_-]{22,128}$/.test(result.data))throw Error('不是有效的内部色卡码，请使用实体色卡二维码');
- return result.data;
+ const token=readSampleCardScanToken(result.data);
+ if(!token)throw Error('不是有效的内部色卡码，请使用实体色卡二维码');
+ return token;
 }
 const browserDecoder:PhotoDecoder={
  bitmap:file=>createImageBitmap(file,{resizeWidth:1920,resizeHeight:1920,resizeQuality:'high'}),

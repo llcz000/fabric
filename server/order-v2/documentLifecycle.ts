@@ -1,3 +1,5 @@
+import {recordDeletion} from '../audit/deletionAudit';
+import {readOrderCustomer,prepareOrderCustomer,writeOrderCustomer} from '../customers/orderLink';
 import type {AppPrincipal} from '../access/types';
 import {canManageOrder} from '../access/policy';
 import type {Pool,TxConn} from './lines';
@@ -48,10 +50,21 @@ async function lockedSource(db:TxConn,actor:AppPrincipal,id:string):Promise<Row>
 export async function copyV2Document(pool:Pool,actor:AppPrincipal,sourceId:string,body:unknown):
  Promise<{id:string;orderNo:string}>{
  if(!idOk(sourceId))throw new DocumentWriteError('Order not found',404);
+ if(pool.customerProfilesRequired&&!pool.customerProfilesEnabled)throw new DocumentWriteError('客户关联尚未准备好',503);
  const input=createInput(body);
  return transact(pool,async db=>{
   const writer=await freshWriter(db,actor);
+  let customerBinding:Awaited<ReturnType<typeof prepareOrderCustomer>>|undefined;
+  let sourceLink:Awaited<ReturnType<typeof readOrderCustomer>>|undefined;
+  if(pool.customerProfilesEnabled){
+   const [raw]=await db.query('SELECT id,created_by_user_id,order_no FROM orders WHERE id=?',[sourceId]);const source=rows(raw)[0];
+   if(!source||!canManageOrder(writer,{createdByUserId:source.created_by_user_id==null?null:String(source.created_by_user_id)}))throw new DocumentWriteError('Order not found',404);
+   sourceLink=await readOrderCustomer(db,sourceId);if(!sourceLink.customerId)throw new DocumentWriteError('旧单尚未关联客户，请先核对关联或普通新建',409);
+   // Match normal edits: customer before order. Recheck the association after locking the source.
+   customerBinding=await prepareOrderCustomer(db,writer,{customerId:sourceLink.customerId});
+  }
   const source=await lockedSource(db,writer,sourceId);
+  if(sourceLink){const current=await readOrderCustomer(db,sourceId);if(current.customerId!==sourceLink.customerId||current.linkVersion!==sourceLink.linkVersion)throw new DocumentWriteError('客户关联已变更，请重新读取',409);}
   if(source.order_no===input.orderNo)throw new DocumentWriteError('New document number must differ',409);
   // Best-effort friendly duplicate check; physical UNIQUE(order_no) and
   // transaction write-conflict remain mandatory release/schema prerequisites.
@@ -76,6 +89,7 @@ export async function copyV2Document(pool:Pool,actor:AppPrincipal,sourceId:strin
    [newId,sourceId]);
   if(Number((details as {affectedRows?:number}).affectedRows)!==expected)
    throw new DocumentWriteError('Source order changed during copy',409);
+  if(customerBinding)await writeOrderCustomer(db,writer,newId,customerBinding);
   return {id:newId,orderNo:input.orderNo};
  });
 }
@@ -92,7 +106,9 @@ export async function deleteV2Document(pool:Pool,actor:AppPrincipal,orderId:stri
  return transact(pool,async db=>{
   const writer=await freshWriter(db,actor);
   const original=await lockedSource(db,writer,orderId);
+  await recordDeletion(db,writer,{type:'document',id:orderId,label:String(original.order_no)});
   await recordAdminDocumentAction(db,writer,orderId,original.created_by_user_id==null?null:String(original.created_by_user_id),'delete');
+  if(pool.customerProfilesEnabled)await db.query('DELETE FROM customer_order_links WHERE order_id=?',[orderId]);
   await db.query('DELETE FROM order_items WHERE order_id=?',[orderId]);
   const [outcome]=await db.query('DELETE FROM orders WHERE id=?',[orderId]);
   if(Number((outcome as {affectedRows?:number}).affectedRows)!==1)

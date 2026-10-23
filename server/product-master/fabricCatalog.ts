@@ -54,7 +54,7 @@ export function parseFabricCatalogQuery(raw:unknown):FabricCatalogQuery{
   offset:numeric(query.offset,'offset',0,0,1000000)};
 }
 function filter(input:FabricCatalogQuery):{where:string;params:unknown[]}{
- const terms:string[]=['1=1'],params:unknown[]=[];
+ const terms:string[]=['deleted_at IS NULL'],params:unknown[]=[];
  if(!input.includeInactive)terms.push('is_active=1');
  if(input.query){
   const escaped='%'+input.query.replace(/[!%_]/g,c=>'!'+c)+'%';

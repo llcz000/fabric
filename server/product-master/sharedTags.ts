@@ -1,5 +1,5 @@
 import type {AppPrincipal} from '../access/types';
-import {canManageProducts} from '../access/policy';
+import {withCatalogTransaction} from '../access/catalogTransaction';
 import type {Pool} from '../order-v2/lines';
 
 /** Shared V2 topic/color dictionary and stable tag associations.
@@ -46,27 +46,8 @@ function asTag(raw:Row):SharedTag{
  const dimension=raw.dimension;validDimension(dimension);
  return {id:sqlId(raw.id),dimension,name:String(raw.name),isArchived:Number(raw.is_archived)===1};
 }
-async function permission(db:TagQuery,actor:AppPrincipal,adminOnly=false):Promise<void>{
- if(!actor?.userId||!actor.sessionId)throw new TagError('Authentication required',401);
- const [u]=await db.query(
-  'SELECT id,role,is_active,can_manage_products FROM v2_access_users WHERE id=? FOR SHARE',[actor.userId]);
- const user=rows(u)[0];
- if(!user||user.role!==actor.role||Number(user.is_active)!==1)throw new TagError('Authentication required',401);
- const [sessions]=await db.query(
-  'SELECT id FROM v2_access_sessions WHERE id=? AND user_id=? AND revoked_at IS NULL AND expires_at>UTC_TIMESTAMP() FOR SHARE',
-  [actor.sessionId,actor.userId]);
- if(!rows(sessions).length)throw new TagError('Authentication required',401);
- // Shared business operations are available to both registered active roles;
- // archive/merge still enforce server-side impact and reference confirmation.
- if(!canManageProducts({...actor,canManageProducts:true}))
-  throw new TagError('Insufficient tag permissions',403);
-}
-async function tx<T>(pool:Pool,actor:AppPrincipal,adminOnly:boolean,work:(db:TagQuery)=>Promise<T>):Promise<T>{
- const db=await pool.getConnection();let started=false;
- try{
-  await db.beginTransaction();started=true;await permission(db,actor,adminOnly);
-  const result=await work(db);await db.commit();started=false;return result;
- }catch(error){if(started)await db.rollback();throw error;}finally{db.release();}
+async function tx<T>(pool:Pool,actor:AppPrincipal,work:(db:TagQuery)=>Promise<T>):Promise<T>{
+ return withCatalogTransaction(pool,actor,(message,status)=>new TagError(message,status),'Insufficient tag permissions',work);
 }
 function duplicate(e:unknown):never{
  if(e&&typeof e==='object'&&String((e as {code?:unknown}).code)==='ER_DUP_ENTRY')
@@ -75,7 +56,7 @@ function duplicate(e:unknown):never{
 }
 export async function createSharedTag(pool:Pool,actor:AppPrincipal,dimension:TagDimension,name:unknown):Promise<SharedTag>{
  validDimension(dimension);const text=normalizeName(name);
- try{return await tx(pool,actor,false,async db=>{
+ try{return await tx(pool,actor,async db=>{
   await db.query(
    'INSERT INTO shared_tags(dimension,name,normalized_name) VALUES (?,?,?) ON DUPLICATE KEY UPDATE id=id',
    [dimension,text.name,text.normalized]);
@@ -87,7 +68,7 @@ export async function createSharedTag(pool:Pool,actor:AppPrincipal,dimension:Tag
  });}catch(e){return duplicate(e);}
 }
 export async function listSharedTags(db:TagQuery,dimension:TagDimension,
- options:{includeArchived?:boolean;search?:string}={}):Promise<SharedTag[]>{
+ options:{includeArchived?:boolean;linkedArchivedOnly?:boolean;search?:string}={}):Promise<SharedTag[]>{
  validDimension(dimension);
  if(options.search!==undefined&&(typeof options.search!=='string'||[...options.search].length>64||
     /[\p{Cc}\p{Cf}]/u.test(options.search)))throw new TagError('Invalid tag search');
@@ -95,6 +76,10 @@ export async function listSharedTags(db:TagQuery,dimension:TagDimension,
  const params:unknown[]=[dimension];
  let sql='SELECT id,dimension,name,normalized_name,is_archived FROM shared_tags WHERE dimension=?'+
    (options.includeArchived?'':' AND is_archived=0');
+ if(options.linkedArchivedOnly){
+  if(dimension!=='topic'||!options.includeArchived)throw new TagError('Invalid linked-archived filter');
+  sql+=' AND (is_archived=0 OR EXISTS (SELECT 1 FROM pattern_master_tag_links l WHERE l.tag_id=shared_tags.id))';
+ }
  if(needle){
   // Explicit '!' escape handles % and _ under any MySQL backslash mode.
   sql+=" AND normalized_name LIKE ? ESCAPE '!'";
@@ -133,7 +118,7 @@ export async function replaceEntityTags(pool:Pool,actor:AppPrincipal,kind:TagEnt
  if(!Array.isArray(newColorTags)||(newColorTags.length>0&&kind!=='masterColor')||newColorTags.length+tags.length>10)throw new TagError('Invalid custom colors');
  const names=newColorTags.map(normalizeName);
  if(new Set(names.map(name=>name.normalized)).size!==names.length)throw new TagError('Duplicate custom colors');
- return tx(pool,actor,false,async db=>{
+ return tx(pool,actor,async db=>{
   const [target]=await db.query('SELECT id FROM '+entityTable+' WHERE id=? FOR UPDATE',[entityId]);
   if(!rows(target).length)throw new TagError('Tag target not found',404);
   const [oldRaw]=await db.query('SELECT tag_id FROM '+table+' WHERE '+key+'=?',[entityId]);
@@ -183,7 +168,7 @@ export async function previewTagImpact(db:TagQuery,tagId:string):Promise<TagImpa
 export async function renameSharedTag(pool:Pool,actor:AppPrincipal,tagId:string,name:unknown,confirmAffectedCount:number):Promise<TagImpact>{
  validId(tagId);const text=normalizeName(name);
  if(!Number.isSafeInteger(confirmAffectedCount)||confirmAffectedCount<0)throw new TagError('Impact confirmation required');
- try{return await tx(pool,actor,true,async db=>{
+ try{return await tx(pool,actor,async db=>{
   const old=await getTag(db,tagId,true);
   const before=await impact(db,old);
   if(before.affectedCount!==confirmAffectedCount)throw new TagError('Tag usage changed; refresh the impact preview',409);
@@ -193,9 +178,26 @@ export async function renameSharedTag(pool:Pool,actor:AppPrincipal,tagId:string,
 }
 export async function archiveSharedTag(pool:Pool,actor:AppPrincipal,tagId:string):Promise<TagImpact>{
  validId(tagId);
- return tx(pool,actor,true,async db=>{
+ return tx(pool,actor,async db=>{
   const old=await getTag(db,tagId,true);
   const before=await impact(db,old);
+  await db.query('UPDATE shared_tags SET is_archived=1 WHERE id=?',[tagId]);
+  return {...before,isArchived:true};
+ });
+}
+
+/** User-requested topic deletion removes ALL live master associations atomically, unlike archival. */
+const FIXED_TOPIC_NAMES=new Set(['油画花卉','水彩花卉','小碎花','植物剪影','条纹','格纹','几何图案','抽象肌理','动物皮纹','涂鸦插画','佩斯利纹','海洋主题','波点','字母文字','水果图案','建筑风景']);
+export async function deleteCustomTopicTag(pool:Pool,actor:AppPrincipal,tagId:string,confirmAffectedCount:number):Promise<TagImpact>{
+ validId(tagId);
+ if(!Number.isSafeInteger(confirmAffectedCount)||confirmAffectedCount<0)throw new TagError('Impact confirmation required');
+ return tx(pool,actor,async db=>{
+  const raw=await getTag(db,tagId,true),tag=asTag(raw);
+  if(tag.dimension!=='topic'||FIXED_TOPIC_NAMES.has(tag.name))throw new TagError('Preset topics and color tags cannot be deleted');
+  // Legacy archived topics may still link old masters, so delete must clear them too.
+  const before=await impact(db,raw);
+  if(before.affectedCount!==confirmAffectedCount)throw new TagError('Tag usage changed; refresh the impact preview',409);
+  await db.query('DELETE FROM pattern_master_tag_links WHERE tag_id=?',[tagId]);
   await db.query('UPDATE shared_tags SET is_archived=1 WHERE id=?',[tagId]);
   return {...before,isArchived:true};
  });
@@ -211,7 +213,7 @@ export async function mergeSharedTags(pool:Pool,actor:AppPrincipal,sourceId:stri
  validId(sourceId);validId(targetId);
  if(sourceId===targetId)throw new TagError('Cannot merge a tag into itself');
  if(!Number.isSafeInteger(confirmAffectedCount)||confirmAffectedCount<0)throw new TagError('Impact confirmation required');
- return tx(pool,actor,true,async db=>{
+ return tx(pool,actor,async db=>{
   const ordered=[sourceId,targetId].sort((a,b)=>BigInt(a)<BigInt(b)?-1:1);
   const [lockRaw]=await db.query(
    'SELECT id,dimension,name,is_archived FROM shared_tags WHERE id IN (?,?) ORDER BY id FOR UPDATE',ordered);

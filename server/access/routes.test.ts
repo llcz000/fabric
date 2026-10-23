@@ -193,3 +193,16 @@ test('P2-2 guessed other order ids and ownerless old orders are 404 even if sale
   assert.equal((await send(origin,'/orders/-1',undefined,salesToken)).status,404);
  });
 });
+
+test('login remains available after more than ten consecutive failed attempts without a cooldown',async()=>{
+ const db=await setup();
+ await withServer(db,async origin=>{
+  for(let i=0;i<12;i++){
+   const response=await send(origin,'/access/login',{username:'sales',password:'incorrect-password'},undefined,'POST');
+   assert.equal(response.status,401,'attempt '+(i+1)+' must validate credentials without throttling');
+   assert.equal(response.headers.get('retry-after'),null);
+  }
+  const issued=await login(origin,'sales','test-only-sales-pass');
+  assert.equal(issued.expiresIn,12*3600);
+ });
+});

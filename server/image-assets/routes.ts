@@ -238,7 +238,8 @@ function isBodyParserClientError(error: unknown): boolean {
 const SAFE_ERROR_MESSAGES: Record<ImageAssetErrorCode, string> = {
   UPLOAD_SESSION_EXPIRED: 'Upload session has expired',
   IMAGE_CONTENT_INVALID: 'Image content or request is invalid',
-  IMAGE_LIMIT_EXCEEDED: 'Image asset limit exceeded',
+  IMAGE_LIMIT_EXCEEDED: '图片或请求超过大小或数量限制（花型图片最大20MB）',
+  IMAGE_PIXELS_EXCEEDED: '图片像素超过该用途上限，请缩小图片尺寸后重试',
   ASSET_NOT_READY: 'Asset is not ready',
   ASSET_ACCESS_DENIED: 'Asset access is denied',
   ASSET_NOT_FOUND: 'Asset was not found',

@@ -1,6 +1,7 @@
 import type {AppPrincipal} from '../access/types';
 import {canManageOrder} from '../access/policy';
 import {normalizePieceMeters} from './calculations';
+import {isDecimalValue} from '../../src/lib/businessRules';
 
 /**
  * P1-D-2 independent future V2 line writer; NOT mounted on legacy server.ts.
@@ -8,10 +9,11 @@ import {normalizePieceMeters} from './calculations';
  * provenance, product code/name, or legacy flags are accepted.
  */
 export interface TxConn {
+ customerProfilesEnabled?:boolean;
  beginTransaction():Promise<void>;commit():Promise<void>;rollback():Promise<void>;release():void;
  query(sql:string,params?:unknown[]):Promise<[unknown,unknown]>;
 }
-export interface Pool{getConnection():Promise<TxConn>}
+export interface Pool{customerProfilesEnabled?:boolean;customerProfilesRequired?:boolean;getConnection():Promise<TxConn>}
 type Business={meters?:number;unitPrice?:number;remark?:string;deductionMeters?:number;pieceMeters?:number[]|null};
 type Manual={productNo:string;productName:string;composition?:string;weight?:number;width?:number;colorNo?:string};
 type Line={id?:string;fields:Business;selection?:{productId:string};manual?:Manual};
@@ -91,8 +93,8 @@ async function product(db:TxConn,id:string):Promise<ProductRef>{
  // Real legacy production order_items columns are shorter than V2 master.
  // Reject rather than truncating a newly selected product.
  if(!limited(productNo,50)||!limited(name,100)||!limited(composition,50)||
-    !limited(colorNo,100)||weight!==null&&(!Number.isFinite(weight)||Math.round(weight*100)!==weight*100)||
-    width!==null&&(!Number.isFinite(width)||Math.round(width*100)!==width*100)){
+     !limited(colorNo,100)||weight!==null&&!isDecimalValue(weight,2,10)||
+     width!==null&&!isDecimalValue(width,2,10)){
   throw new OrderLineError('Selected product exceeds legacy order snapshot precision/length',422);
  }
  const snapshot=JSON.stringify({version:1,source:'catalog',productId:id,

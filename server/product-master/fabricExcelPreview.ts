@@ -31,7 +31,7 @@ const aliases:Record<FabricExcelKey,string[]>={
  fabricNo:['品号','面料品号'],fabricName:['品名','面料品名'],
  composition:['成分','成份','面料成分'],
  weightValue:['克重','克重数值','克重(gsm)','克重(mm)','克重(姆米)','克重(g/m²)'],
- weightUnit:['克重单位','单位'],widthValue:['门幅(cm)','门幅','门幅（cm）'],
+ weightUnit:['克重单位','单位','gsm/mm','克重单位(gsm/mm)'],widthValue:['门幅(cm)','门幅','门幅（cm）','门幅（里面CM）','门幅（厘米CM）'],
  remark:['备注','说明']
 };
 const nh=(s:string)=>s.trim().replace(/\s+/g,'').replace(/（/g,'(').replace(/）/g,')').toLowerCase();
@@ -56,10 +56,15 @@ function number(s:string,scale:number,intDigits:number,name:string):number|null{
  return Number(s);
 }
 function no(v:unknown):string{
- if(typeof v!=='string')throw new FabricExcelError('品号须为文本，数值无法恢复前导零');
- const x=v.trim().toUpperCase();
- if(!/^[A-Z0-9]{1,64}$/.test(x))throw new FabricExcelError('品号仅允许字母数字且不能为空');
+ const x=txt(v).toUpperCase();
+ if(!x)throw new FabricExcelError('品号不能为空');
  return x;
+}
+function codeAt(row:ExcelJS.Row,index:number):string{
+ const value=cell(row,index),format=row.getCell(index).numFmt;
+ // Preserve an explicit Excel zero-padding format without inventing missing digits.
+ return no(typeof value==='number'&&Number.isInteger(value)&&value>=0&&/^0+$/.test(format??'')?
+  String(value).padStart(format.length,'0'):value);
 }
 function field(raw:unknown,max:number,mandatory=false):string|null{
  const x=txt(raw);
@@ -116,7 +121,7 @@ function resolveHeaders(heads:string[],override?:FabricExcelMapping){
 
 function decode(row:ExcelJS.Row,map:FabricExcelMapping,heads:Record<FabricExcelKey,string>,fallback?:WeightUnit,existingName?:string):ImportFabric{
  const read=(k:FabricExcelKey)=>map[k]===undefined?null:cell(row,map[k]!);
- const fabricNo=no(read('fabricNo'));
+ const fabricNo=codeAt(row,map.fabricNo!);
  const fabricName=field(read('fabricName'),255,false)??existingName;
  if(!fabricName)throw new FabricExcelError('新增面料品名必填');
  const composition=field(read('composition'),500);
@@ -166,9 +171,9 @@ export async function previewFabricXlsx(input:Buffer,opts:FabricExcelOptions):Pr
   const hasValue=FIELDS.some(k=>mapping[k]!==undefined&&
    sheetRow.getCell(mapping[k]!).value!=null&&String(sheetRow.getCell(mapping[k]!).value).trim());
   if(!hasValue)continue;
-  const rawNo=sheetRow.getCell(mapping.fabricNo!).value;
-  const code=typeof rawNo==='string'?rawNo.trim().toUpperCase():'';
-  const fabricNoHint=/^[A-Z0-9]{1,64}$/.test(code)?code:undefined;
+  let fabricNoHint:string|undefined;
+  try{fabricNoHint=codeAt(sheetRow,mapping.fabricNo!);}catch{/* The row decoder reports the error. */}
+  const code=fabricNoHint??'';
   try{
    const fabric=decode(sheetRow,mapping,columnHeaders,opts.defaultWeightUnit,
     existing.get(code)?.fabricName);
@@ -179,15 +184,12 @@ export async function previewFabricXlsx(input:Buffer,opts:FabricExcelOptions):Pr
  }
  const duplicate=new Map<string,number[]>();
  for(const row of rows){
-  const cellValue=ws.getRow(row.rowNumber).getCell(mapping.fabricNo!).value;
-  if(typeof cellValue!=='string')continue;
-  const code=cellValue.trim().toUpperCase();
-  if(/^[A-Z0-9]{1,64}$/.test(code))
+  const code=row.fabricNoHint;
+  if(code)
    duplicate.set(code,[...(duplicate.get(code)??[]),row.rowNumber]);
  }
  for(const row of rows){
-  const cellValue=ws.getRow(row.rowNumber).getCell(mapping.fabricNo!).value;
-  const code=typeof cellValue==='string'?cellValue.trim().toUpperCase():'';
+  const code=row.fabricNoHint??'';
   const same=duplicate.get(code)??[];
   if(same.length>1){
    row.action='skip';row.reason='文件内重复品号，所有相关行：'+same.join('、');

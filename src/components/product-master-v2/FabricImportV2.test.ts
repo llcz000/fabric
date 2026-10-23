@@ -1,3 +1,4 @@
+import {isRegisteredBusinessRole} from '../../lib/businessRules';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import React from 'react';
@@ -26,7 +27,7 @@ test('P5 UI validates server preview and only allows selected existing skip rows
  const parsed=parseFabricImportPreview(preview);
  assert.equal(parsed.rows.length,3);
  assert.deepEqual(validateSelectedRows(parsed,[3],true),[3]);
- assert.throws(()=>validateSelectedRows(parsed,[3],false),/管理员/);
+ assert.throws(()=>validateSelectedRows(parsed,[3],false),/权限/);
  assert.throws(()=>validateSelectedRows(parsed,[2],true),/更新/);
  assert.throws(()=>validateSelectedRows(parsed,[3,3],true),/重复/);
  assert.throws(()=>parseFabricImportPreview({...preview,token:'fake'}),/预览/);
@@ -48,9 +49,9 @@ test('P5 UI preview/commit use same isolated paths and never client-supplied rec
  assert.deepEqual(log[1].body,{token:preview.token,confirm:true,updateRows:[3]});
  assert(!('fabricNo' in log[1].body)&&!('rows' in log[1].body));
 });
-test('P5 UI eight preview columns, real row numbers, status and admin explicit update toggles',()=>{
+test('P5 UI eight preview columns, real row numbers, status and both-role explicit update toggles',()=>{
  const html=renderToStaticMarkup(React.createElement(FabricImportPreviewTable,{
-  preview:parseFabricImportPreview(preview),isAdmin:true,selected:[3],
+  preview:parseFabricImportPreview(preview),canManage:true,selected:[3],
   onToggle:()=>{},filter:'all'
  }));
  const headers=Array.from(html.matchAll(/<th\b[^>]*>([^<]+)/g)).map(x=>x[1]);
@@ -59,14 +60,22 @@ test('P5 UI eight preview columns, real row numbers, status and admin explicit u
  assert(html.includes('更新')&&html.includes('克重单位缺失'));
  assert(html.includes('type="checkbox"'));
  const readOnly=renderToStaticMarkup(React.createElement(FabricImportPreviewTable,{
-  preview:parseFabricImportPreview(preview),isAdmin:false,selected:[],
+  preview:parseFabricImportPreview(preview),canManage:false,selected:[],
   onToggle:()=>{},filter:'all'
  }));
  assert(!readOnly.includes('type="checkbox"'));
 });
+test('P5 registered sales and admin see identical explicit duplicate-update controls',()=>{
+ for(const role of ['admin','sales']){
+  const html=renderToStaticMarkup(React.createElement(FabricImportPreviewTable,{preview:parseFabricImportPreview(preview),canManage:isRegisteredBusinessRole(role),selected:[3],onToggle:()=>{},filter:'all'}));
+  assert(html.includes('type="checkbox"'),role+' must explicitly choose duplicate updates');
+  assert.deepEqual(validateSelectedRows(parseFabricImportPreview(preview),[3],true),[3]);
+ }
+});
+
 test('P5 Stitch-density table keeps eight visible columns, compact rows and accessible horizontal scroll',()=>{
  const html=renderToStaticMarkup(React.createElement(FabricImportPreviewTable,{
-  preview:parseFabricImportPreview(preview),isAdmin:true,selected:[],
+  preview:parseFabricImportPreview(preview),canManage:true,selected:[],
   onToggle:()=>{},filter:'all'
  }));
  assert(html.includes('aria-label="面料导入预览横向滚动表格"'));
@@ -78,19 +87,26 @@ test('P5 Stitch-density table keeps eight visible columns, compact rows and acce
 });
 test('P5 UI unconnected preview is inert until real .xlsx file and previous stage confirmed',()=>{
  const html=renderToStaticMarkup(React.createElement(FabricImportV2,{
-  apiFetch:fetch,canManage:true,isAdmin:false,onCancel:()=>{}
+  apiFetch:fetch,canManage:true,onCancel:()=>{}
  }));
  assert(html.includes('从Excel导入面料')&&html.includes('.xlsx'));
- assert(html.includes('工作表')&&html.includes('表头行')&&html.includes('克重缺省单位'));
+ assert(html.includes('模板示例')&&html.includes('克重缺省单位'));
  assert(html.includes('生成预览'));
- assert(!html.includes('确认导入'),'cannot confirm before a valid server preview exists');
+ assert(!html.includes('确认导入</button>'),'cannot confirm before a valid server preview exists');
  assert(!html.includes('覆盖已有'));
  const readonly=renderToStaticMarkup(React.createElement(FabricImportV2,{
-  apiFetch:fetch,canManage:false,isAdmin:false,onCancel:()=>{}
+  apiFetch:fetch,canManage:false,onCancel:()=>{}
  }));
- assert(!readonly.includes('确认导入'));
+ assert(!readonly.includes('确认导入</button>'));
  const workspace=renderToStaticMarkup(React.createElement(FabricWorkspaceV2,{
-  apiFetch:fetch,canManage:true,isAdmin:false
+  apiFetch:fetch,canManage:true
  }));
  assert(workspace.includes('面料库')&&workspace.includes('从Excel导入'));
+});
+
+test('import starts with a visible template example and has no column configuration',()=>{
+ const html=renderToStaticMarkup(React.createElement(FabricImportV2,{apiFetch:fetch,canManage:true,onCancel:()=>{}}));
+ assert(html.includes('模板示例'));assert(html.includes('10151-8'));assert(html.includes('克重单位'));
+ assert(!html.includes('来源列'));assert(!html.includes('字段来源确认'));
+ assert(!html.includes('aria-label="工作表"'));assert(!html.includes('aria-label="表头行"'));
 });

@@ -6,6 +6,8 @@ import {buildPatternUrl,parsePatternPage,initialPatternFilters,reducePatternFilt
  fetchPatternPage,fetchMasterColorways,createNextColorway,saveColorwayProperties,saveVersionTags,addColorTagChoice} from './patternModel';
 import {PatternMasterRows,PatternColorwayEditor,PatternLibraryV2} from './PatternLibraryV2';
 import type {PatternMasterItem} from './patternModel';
+import {TOPIC_PRESETS} from './topicCatalog';
+
 
 const master:PatternMasterItem={
  id:'11',masterNo:'G017',isActive:true,nextColorwayNo:6,
@@ -17,10 +19,20 @@ const master:PatternMasterItem={
   colorTags:n%2?[{id:'9',name:'藏蓝',isArchived:false}]:[{id:'10',name:'米白',isArchived:false}]
  }))
 };
-test('B1 share action is explicit opt-in beside existing pattern edit without customer/private details',()=>{
+test('pattern list no longer has a share action, while existing edit remains',()=>{
  const html=renderToStaticMarkup(React.createElement(PatternMasterRows,{items:[master],thumbnailUrls:new Map(),onPreview:()=>{},onEdit:()=>{},onShare:()=>{}}));
- assert(html.includes('分享花型 G017'));assert(html.includes('编辑花型及配色 G017'));
+ assert(!html.includes('分享花型'));assert(html.includes('编辑花型及配色 G017'));
  const hidden=renderToStaticMarkup(React.createElement(PatternMasterRows,{items:[master],thumbnailUrls:new Map(),onPreview:()=>{},onEdit:()=>{}}));assert(!hidden.includes('分享花型 G017'));
+});
+test('topic column edits directly from the list without opening the master editor and remains read-only for viewers',()=>{
+ const props={items:[master],thumbnailUrls:new Map<string,string>(),onPreview:()=>{},onEdit:()=>{}};
+ const editable=renderToStaticMarkup(React.createElement(PatternMasterRows,{...props,canManage:true,onQuickTopicEdit:()=>{}}));
+ assert.match(editable,/aria-label="修改 G017 题材标签"/);
+ assert.match(editable,/题材标签/);
+ assert.match(editable,/花卉/);
+ const readonly=renderToStaticMarkup(React.createElement(PatternMasterRows,props));
+ assert(!readonly.includes('修改 G017 题材标签'));
+ assert(readonly.includes('花卉'));
 });
 test('P4-2 master-and-version filtering resets page but does not clear independent filters',()=>{
  const a={...initialPatternFilters,number:'G017-',colorwayNo:'2',offset:40};
@@ -31,6 +43,20 @@ test('P4-2 master-and-version filtering resets page but does not clear independe
  assert.deepEqual(reducePatternFilters(c,{type:'page',offset:60}),{...c,offset:60});
  assert.deepEqual(reducePatternFilters(c,{type:'reset'}),initialPatternFilters);
 });
+test('only the pattern-number header offers global sort and changing order resets offset',()=>{
+ const html=renderToStaticMarkup(React.createElement(PatternMasterRows,{
+  items:[master],thumbnailUrls:new Map(),onPreview:()=>{},onEdit:()=>{},sort:'numberAsc',onSort:()=>{}
+ }));
+ assert(html.includes('aria-sort="ascending"'));
+ assert(html.includes('按花型号排序 降序'));
+ assert.equal((html.match(/aria-sort=/g)??[]).length,1);
+ const prior={...initialPatternFilters,offset:40,number:'G017'};
+ const after=reducePatternFilters(prior,{type:'sort',value:'numberDesc'});
+ assert.equal(after.sort,'numberDesc');assert.equal(after.offset,0);assert.equal(after.number,'G017');
+ const url=buildPatternUrl('/api/v2/pattern-catalog',after);
+ assert(url.includes('sort=numberDesc'));
+});
+
 test('P4-2 query encodes independent number, numeric version, dimension OR, includeInactive and server page',()=>{
  const url=new URL(buildPatternUrl('/api/v2/pattern-catalog',{...initialPatternFilters,
   number:' G017-2 ',colorwayNo:'2',topicTagIds:['2','3'],colorTagIds:['9'],
@@ -93,7 +119,7 @@ test('P4-2 immutable identity is never sent in PATCH; cancellation makes no writ
  }) as typeof fetch;
  await saveColorwayProperties(fetcher,master.versions[0],{remark:'更新',isActive:false});
  assert.equal(calls[0].url,'/api/v2/pattern-colorways/111');
- assert.deepEqual(calls[0].body,{remark:'更新',isActive:false});
+ assert.deepEqual(calls[0].body,{remark:'更新'});
  const api=()=>{throw Error('cancel must not call network')};
  assert.equal(typeof api,'function');
 });
@@ -115,7 +141,7 @@ test('P4-2 unified colorway save sends tags, remark and status in ONE PATCH, nev
  await saveColorwayProperties(fetcher,master.versions[0],{remark:'草稿',isActive:false,tagIds:['9','10']});
  assert.deepEqual(calls,[{
   url:'/api/v2/pattern-colorways/111',method:'PATCH',
-  body:{remark:'草稿',isActive:false,tagIds:['9','10']}
+  body:{remark:'草稿',tagIds:['9','10']}
  }]);
 });
 test('P4-2 new colorway accepts selected color tags within its ONE allocating POST',async()=>{
@@ -126,15 +152,15 @@ test('P4-2 new colorway accepts selected color tags within its ONE allocating PO
  }) as typeof fetch;
  await createNextColorway(fetcher,master.id,{remark:'新色',isActive:true,tagIds:['9']});
  assert.equal(path,'/api/v2/pattern-masters/11/colorways');assert.equal(method,'POST');
- assert.deepEqual(body,{remark:'新色',isActive:true,tagIds:['9']});
+ assert.deepEqual(body,{remark:'新色',tagIds:['9']});
 });
-test('P4-2 single edit entry: color tags are read-only when idle, no separate maintenance/save',()=>{
+test('P4-2 edit entry hides color labels while preserving other colorway identity',()=>{
  const html=renderToStaticMarkup(React.createElement(PatternColorwayEditor,{
-  master,items:master.versions,topics:[],colors:[{id:'9',name:'藏蓝',isArchived:false}],nextColorwayNo:6,
+  master,items:master.versions,topics:[],apiFetch:fetch,nextColorwayNo:6,
   onClose:()=>{},onSaveVersion:async()=>{},onAdd:async()=>{},
   onSaveMasterTags:async()=>{},onDeleteVersion:async()=>{},canManage:true
  }));
- assert(html.includes('藏蓝')&&html.includes('颜色标签'));
+ assert(!html.includes('藏蓝')&&!html.includes('颜色标签'));
  assert(!html.includes('保存颜色标签'));
  assert(!html.includes('修改颜色标签 G017-1'));
  assert(!html.includes('新版本可保存后维护颜色标签'));
@@ -165,7 +191,7 @@ test('P4-2 custom color names POST/PATCH are bundled without additional tag endp
  await saveColorwayProperties(api,master.versions[0],{
   remark:'同次',isActive:true,tagIds:['9'],newColorTags:['海盐蓝']
  });
- assert.deepEqual(calls[0].body,{remark:'同次',isActive:true,tagIds:['9'],newColorTags:['海盐蓝']});
+ assert.deepEqual(calls[0].body,{remark:'同次',tagIds:['9'],newColorTags:['海盐蓝']});
  assert.equal(calls.length,1);
 });
 test('P4-2 pattern browse rows preserve 5th version, original image specificity and empty placeholders',()=>{
@@ -185,26 +211,26 @@ test('pattern master topics have a separate list column from master identity and
  const cells=[...html.matchAll(/role="cell"[^>]*>([\s\S]*?)<\/div>/g)].map(match=>match[1]);
  assert(cells[0]?.includes('G017'));assert(!cells[0]?.includes('花卉'));
  assert(cells[1]?.includes('花卉'),'topic labels belong to their own cell');
- assert(cells[2]?.includes('藏蓝'),'pattern colors have their own cell next to topics');
- assert(cells[3]?.includes('G017-1'),'colorways remain in the following column');
+ assert(cells[2]?.includes('G017-1'),'colorways follow topic column directly');
+ assert(!html.includes('颜色标签'),'color labels must not be a pattern list column');
 });
 test('P4-2 edit modal uses exactly seven columns; colorway/number read-only, draft controls per row',()=>{
  const html=renderToStaticMarkup(React.createElement(PatternColorwayEditor,{
-  master,items:master.versions,topics:[],colors:[],nextColorwayNo:6,
+  master,items:master.versions,topics:[],apiFetch:fetch,nextColorwayNo:6,
   onClose:()=>{},onSaveVersion:async()=>{},onAdd:async()=>{},
   onSaveMasterTags:async()=>{},onDeleteVersion:async()=>{},canManage:true
  }));
  const cols=Array.from(html.matchAll(/<th[^>]*>([^<]+)/g)).map(x=>x[1]);
- assert.deepEqual(cols,['花型图','配色序号','花型编号','版本备注','启用状态','操作']);
+ assert.deepEqual(cols,['花型图','配色序号','花型编号','版本备注','操作']);
  assert(html.includes('G017-5')&&html.includes('配色 5'));
  assert(html.includes('下一配色 6'));
- assert(html.includes('花型编号')&&html.includes('题材标签')&&html.includes('颜色标签')&&html.includes('添加配色'));
+ assert(html.includes('花型编号')&&html.includes('题材标签')&&!html.includes('颜色标签')&&html.includes('添加配色'));
  assert(html.includes('>编辑花型</h2>'));assert(!html.includes('编辑母版及配色资料'));
  assert(!html.includes('颜色身份')&&!html.includes('配色名称'));
 });
 test('P4-2 edit view shows selected-version actual thumbnail and no fake upload action',()=>{
  const html=renderToStaticMarkup(React.createElement(PatternColorwayEditor,{
-  master,items:master.versions,topics:[],colors:[],nextColorwayNo:6,
+  master,items:master.versions,topics:[],apiFetch:fetch,nextColorwayNo:6,
   onClose:()=>{},onSaveVersion:async()=>{},onAdd:async()=>{},
   onSaveMasterTags:async()=>{},onDeleteVersion:async()=>{},canManage:true,
   thumbnailUrls:new Map([['a1111111-1111-4111-8111-111111111111','https://signed.example/2']]),
@@ -218,7 +244,7 @@ test('P4-2 edit view shows selected-version actual thumbnail and no fake upload 
 test('P4-2 list has search state, per-dimension tags and no fake approved controls for readonly',()=>{
  const html=renderToStaticMarkup(React.createElement(PatternLibraryV2,{apiFetch:fetch,canManage:false}));
  assert(html.includes('花型库')&&html.includes('搜索编号'));
- assert(html.includes('包含停用')&&html.includes('题材标签')&&html.includes('颜色标签'));
+ assert(!html.includes('包含停用')&&html.includes('题材标签')&&!html.includes('颜色标签'));
  assert(!html.includes('配色序号筛选'));
  assert(!html.includes('新增母版')&&!html.includes('删除母版'));
 });
@@ -228,4 +254,26 @@ test('pattern library has shared catalog filters and omits the export action',()
  assert(html.includes('v2-library-filters'));
  assert(html.includes('aria-label="搜索编号"'));
  assert(html.includes('新增花型'));
+});
+test('internal topic vocabulary has exactly the 16 approved labels',()=>{
+ assert.deepEqual(TOPIC_PRESETS,['油画花卉','水彩花卉','小碎花','植物剪影','条纹','格纹','几何图案','抽象肌理','动物皮纹','涂鸦插画','佩斯利纹','海洋主题','波点','字母文字','水果图案','建筑风景']);
+});
+test('pattern list shows the 16 canonical search chips even when tags have not been seeded',()=>{
+ const html=renderToStaticMarkup(React.createElement(PatternLibraryV2,{apiFetch:fetch,canManage:false}));
+ for(const name of TOPIC_PRESETS)assert(html.includes(name),name);
+ assert(!html.includes('颜色标签'));
+});
+test('pattern list creates all master colorways in one click, not separate per-colorway choices',()=>{
+ const html=renderToStaticMarkup(React.createElement(PatternMasterRows,{items:[master],thumbnailUrls:new Map(),onPreview:()=>{},onEdit:()=>{},onCreateProduct:()=>{}}));
+ assert(html.includes('创建产品'));assert(html.includes('G017-1'));assert(html.includes('G017-5'));
+ assert(!html.includes('颜色标签'));
+});
+
+test('pattern list shows whole-master delete only to managers and import action only to managers',()=>{
+ const manager=renderToStaticMarkup(React.createElement(PatternMasterRows,{items:[master],thumbnailUrls:new Map(),onPreview:()=>{},onEdit:()=>{},onDelete:()=>{},canManage:true}));
+ const readonly=renderToStaticMarkup(React.createElement(PatternMasterRows,{items:[master],thumbnailUrls:new Map(),onPreview:()=>{},onEdit:()=>{},onDelete:()=>{},canManage:false}));
+ assert(manager.includes('删除花型 G017'));assert(!readonly.includes('删除花型 G017'));
+ const editable=renderToStaticMarkup(React.createElement(PatternLibraryV2,{apiFetch:fetch,canManage:true}));
+ const viewOnly=renderToStaticMarkup(React.createElement(PatternLibraryV2,{apiFetch:fetch,canManage:false}));
+ assert(editable.includes('导入花型库'));assert(!viewOnly.includes('导入花型库'));
 });

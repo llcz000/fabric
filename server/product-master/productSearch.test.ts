@@ -116,11 +116,11 @@ class Db {
 const s=(x:Record<string,unknown>)=>parseProductSearchQuery(x);
 const fail=(err:unknown)=>err instanceof ProductSearchError&&err.status===400;
 test('P3-5 parse: independent text boxes, normalized duplicate-safe tag sets and defaults',()=>{
- assert.deepEqual(s({}),{productNo:'',fabricName:'',topicTagIds:[],colorTagIds:[],status:'active',limit:50,offset:0});
+ assert.deepEqual(s({}),{productNo:'',fabricName:'',topicTagIds:[],colorTagIds:[],status:'active',cardAssociation:'all',limit:50,offset:0});
  assert.deepEqual(s({productNo:'  m001-1  ',fabricName:' 真丝 ',topicTagIds:'2,1,2',
   colorTagIds:'11,10',status:'all',limit:'20',offset:'40'}),{
   productNo:'m001-1',fabricName:'真丝',topicTagIds:['2','1'],colorTagIds:['11','10'],
-  status:'all',limit:20,offset:40
+  status:'all',cardAssociation:'all',limit:20,offset:40
  });
  assert.equal(s({includeInactive:'true'}).status,'all');
 });
@@ -237,7 +237,7 @@ test('P3-5 HTTP GET /api/v2/products authenticates, combines filters, returns to
   assert.equal(r.status,200);assert.equal(r.headers.get('cache-control'),'no-store');
   const result=await r.json() as {total:number;limit:number;offset:number;items:unknown[]};
   assert(result.total>5);assert.equal(result.items.length,5);assert.equal(result.limit,5);assert.equal(result.offset,5);
-  for(const qs of ['weightValue=5','topicTagIds=0','limit=300','status=unapproved','colorTagIds=1&colorTagIds=2']){
+  for(const qs of ['weightValue=5','topicTagIds=0','limit=300','status=unapproved','colorTagIds=1&colorTagIds=2','cardAssociation=invalid','cardAssociation=linked&cardAssociation=unlinked']){
    const bad=await fetch(base+'/products?'+qs,{headers:{authorization:'Bearer '+'a'.repeat(64)}});
    assert.equal(bad.status,400,qs);
   }

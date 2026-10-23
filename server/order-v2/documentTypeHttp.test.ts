@@ -117,7 +117,7 @@ test('authorized print HTTP embeds current company raster in JSON and real XLSX 
  try{
   const made=await fetch(base,{method:'POST',headers,body:JSON.stringify({orderNo:'OUTPUT-TEST',date:'2026-10-17',receivingUnit:'测试客户',type:'sample',deposit:0,items:[{manual:{productNo:'M001',productName:'测试'},fields:{meters:1,unitPrice:1}}]})});assert.equal(made.status,201);
   const saved=await made.json(),response=await fetch(base+'/'+saved.id+'/print-model',{headers}),model=await response.json();
-  assert.equal(model.companyName,'当前图片公司');assert.equal(model.signatureLabels.issuer,'开票签名');assert.equal(model.companyImages.brand_logo,'data:image/png;base64,'+png.toString('base64'));
+  assert.equal(model.companyName,'当前图片公司');assert.equal(model.signatureLabels.issuer,'开单人签字');assert.equal(model.companyImages.brand_logo,'data:image/png;base64,'+png.toString('base64'));
   const file=await fetch(base+'/'+saved.id+'/export.xlsx',{headers});assert.equal(file.status,200);const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(Buffer.from(await file.arrayBuffer()));assert(workbook.getImage(0));
  }finally{server.closeAllConnections();await new Promise<void>(r=>server.close(()=>r()));}
 });

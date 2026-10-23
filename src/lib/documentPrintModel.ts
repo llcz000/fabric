@@ -30,6 +30,7 @@ export interface DocumentPrintInput {
   defaultTerms: string;
   depositTerms: string;
   terms: string;
+  useDocumentTerms?: boolean;
   issuer: string;
   receiver: string;
   receiverPhone: string;
@@ -160,7 +161,7 @@ export function buildDocumentPrintModel(input: DocumentPrintInput): DocumentPrin
     rows,
     rowGroups,
     summaries,
-    terms: input.terms || (type === 'deposit' ? input.depositTerms : input.defaultTerms) || '无备注条款。',
+    terms: (input.useDocumentTerms ? input.terms : input.terms || (type === 'deposit' ? input.depositTerms : input.defaultTerms)) || '无备注条款。',
     signature: { issuer: input.issuer, receiver: input.receiver, phone: input.receiverPhone, receiverAddress: input.receiverAddress },
   };
 }

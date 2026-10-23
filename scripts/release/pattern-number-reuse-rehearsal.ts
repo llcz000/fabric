@@ -1,0 +1,53 @@
+import assert from 'node:assert/strict';
+import {randomBytes,randomUUID} from 'node:crypto';
+import {createPatternMaster,deletePatternMaster} from '../../server/product-master/patternMasters';
+import {importPatternImageAsColorway} from '../../server/product-master/patternImageImport';
+import {createSampleCard,retireSampleCard} from '../../server/customer-samples/cardLibrary';
+import {createFabric} from '../../server/product-master/fabrics';
+import {verifyV2SchemaContract} from '../../server/product-master/schemaContract';
+import {verifyPatternNumberReuseSchema} from '../../server/product-master/patternNumberReuseSchema';
+/** Real business mutations only in an isolated, restored release-check database. */
+export async function rehearsePatternNumberReuse(pool:any):Promise<string[]>{
+ const [db]:any=await pool.query('SELECT DATABASE() AS name');assert.match(db[0].name,/^fabric_release_check_[a-f0-9]{16}$/);
+ await verifyV2SchemaContract(pool);await verifyPatternNumberReuseSchema(pool);
+ const suffix=randomBytes(7).toString('hex').toUpperCase(),name='REUSE'+suffix;
+ const [u]:any=await pool.query('INSERT INTO v2_access_users(username,username_normalized,display_name,password_hash,role) VALUES (?,?,?,?,?)',[name,name.toLowerCase(),name,'isolated-fixture-unusable','admin']);
+ const [s]:any=await pool.query('INSERT INTO v2_access_sessions(user_id,token_hash,expires_at) VALUES (?,?,DATE_ADD(UTC_TIMESTAMP(),INTERVAL 1 HOUR))',[u.insertId,randomBytes(32).toString('hex')]);
+ const actor:any={userId:String(u.insertId),sessionId:String(s.insertId),username:name,displayName:name,role:'admin',canManageProducts:true,canManageOwnOrders:true};
+ const masterNo='G'+suffix,a=randomUUID(),b=randomUUID();
+ for(const asset of [a,b])await pool.query("INSERT INTO image_assets(id,sha256,original_filename,detected_mime,detected_extension,storage_provider,width,height,byte_size,purpose,status,ref_count,created_by) VALUES (?,?, 'fixture.webp','image/webp','webp','cos',1,1,1,'product_image','ready',0,?)",[asset,randomBytes(32).toString('hex'),actor.userId]);
+ const payload={masterNo,colorwayNo:1,patternImageAssetId:a},first=await importPatternImageAsColorway(pool,actor,payload);
+ const fabric=await createFabric(pool,actor,{fabricNo:'F'+suffix,fabricName:'编号复用验证'});
+ const card=(await createSampleCard(pool,actor,{masterId:first.masterId,fabricId:fabric.id},()=>true)).card;
+ await pool.query("INSERT INTO pattern_share_links(token_hash,master_id,status) VALUES (?,?,'active')",[randomBytes(32).toString('hex'),first.masterId]);
+ const [product]:any=await pool.query('INSERT INTO v2_products(pattern_colorway_id,fabric_id,product_no) VALUES (?,?,?)',[first.colorwayId,fabric.id,masterNo+'-1-F'+suffix]);
+ await pool.query("UPDATE pattern_colorways SET remark='kept',is_active=0 WHERE id=?",[first.colorwayId]);
+ const replacement=await importPatternImageAsColorway(pool,actor,{...payload,patternImageAssetId:b});
+ assert.equal(replacement.colorwayId,first.colorwayId);
+ await importPatternImageAsColorway(pool,actor,{...payload,patternImageAssetId:b});
+ const [kept]:any=await pool.query('SELECT c.pattern_image_asset_id,c.remark,c.is_active,p.id FROM pattern_colorways c JOIN v2_products p ON p.pattern_colorway_id=c.id WHERE c.id=?',[first.colorwayId]);
+ assert.equal(kept.length,1);assert.equal(kept[0].pattern_image_asset_id,b);assert.equal(kept[0].remark,'kept');assert.equal(kept[0].is_active,0);assert.equal(String(kept[0].id),String(product.insertId));
+ const [assets]:any=await pool.query('SELECT id,ref_count,status FROM image_assets WHERE id IN (?,?)',[a,b]);
+ assert.equal(Number(assets.find((x:any)=>x.id===a).ref_count),0);assert.equal(Number(assets.find((x:any)=>x.id===b).ref_count),1);
+ const at4=await importPatternImageAsColorway(pool,actor,{...payload,colorwayNo:4,patternImageAssetId:b});
+ await importPatternImageAsColorway(pool,actor,{...payload,colorwayNo:2,patternImageAssetId:b});
+ await pool.query('DELETE FROM pattern_colorways WHERE id=?',[at4.colorwayId]);
+ await pool.query('UPDATE image_assets SET ref_count=ref_count-1 WHERE id=?',[b]);
+ await importPatternImageAsColorway(pool,actor,{...payload,colorwayNo:4,patternImageAssetId:b});
+ const [counter]:any=await pool.query('SELECT next_colorway_no FROM pattern_masters WHERE id=?',[first.masterId]);assert.equal(Number(counter[0].next_colorway_no),5);
+ await assert.rejects(deletePatternMaster(pool,actor,first.masterId),(e:any)=>e.status===409);
+ await pool.query('DELETE FROM v2_products WHERE id=?',[product.insertId]);await retireSampleCard(pool,actor,card.id,()=>true);
+ await deletePatternMaster(pool,actor,first.masterId);
+ await pool.query("UPDATE image_assets SET status='ready' WHERE id=?",[b]);
+ const next=await importPatternImageAsColorway(pool,actor,{...payload,patternImageAssetId:b});
+ assert.notEqual(next.masterId,first.masterId);assert.notEqual(next.colorwayId,first.colorwayId);
+ const [historical]:any=await pool.query('SELECT m.deleted_at,c.deleted_at AS card_deleted,l.master_id FROM pattern_masters m JOIN sample_cards c ON c.master_id=m.id JOIN pattern_share_links l ON l.master_id=m.id WHERE m.id=?',[first.masterId]);
+ assert.equal(historical.length,1);assert(historical[0].deleted_at);assert(historical[0].card_deleted);assert.equal(String(historical[0].master_id),first.masterId);
+ await assert.rejects(createPatternMaster(pool,actor,{masterNo}),(e:any)=>e.status===409);
+ await deletePatternMaster(pool,actor,next.masterId);
+ const manual=await createPatternMaster(pool,actor,{masterNo});assert.notEqual(manual.id,next.masterId);
+ const results=['active-number generated unique index and full V2 schema verified','same-number replacement preserves product identity, remark and inactive state','replacement/same-image retry maintain exact image reference counts','explicit holes/deleted colorways reusable without lowering automatic counter','deleted master recreated as new ID; retired cards and old links remain on deleted ID','manual create also reuses deleted master number; live duplicate still rejected'];
+ const [g0008]:any=await pool.query("SELECT id FROM pattern_masters WHERE master_no='G0008' AND deleted_at IS NULL");
+ if(!g0008.length){const [old]:any=await pool.query("SELECT id FROM pattern_masters WHERE master_no='G0008' AND deleted_at IS NOT NULL");if(old.length){await pool.query("UPDATE image_assets SET status='ready' WHERE id=?",[b]);const imported=await importPatternImageAsColorway(pool,actor,{...payload,masterNo:'G0008',patternImageAssetId:b});assert(!old.some((x:any)=>String(x.id)===imported.masterId));results.push('actual restored G0008-1 reused successfully with new master identity');}}
+ return results;
+}

@@ -3,7 +3,8 @@ import { AlertTriangle, RefreshCw } from 'lucide-react';
 
 interface EBProps {
   children: React.ReactNode;
-  fallback?: React.ReactNode;
+  /** 静态兜底内容，或接收 reset 回调的渲染函数（供业务自定义「重试」按钮）。 */
+  fallback?: React.ReactNode | ((reset: () => void) => React.ReactNode);
 }
 
 interface EBState {
@@ -24,7 +25,10 @@ export class ErrorBoundary extends React.Component<EBProps, EBState> {
 
   render() {
     if (this.state.hasError) {
-      return this.props.fallback ?? (
+      const reset = () => this.setState({ hasError: false, error: null });
+      const fallback = this.props.fallback;
+      if (typeof fallback === 'function') return <>{fallback(reset)}</>;
+      return fallback ?? (
         <div className="min-h-[60vh] flex items-center justify-center">
           <div className="text-center max-w-md space-y-4">
             <div className="w-16 h-16 rounded-2xl bg-rose-50 text-rose-500 flex items-center justify-center mx-auto border border-rose-100">

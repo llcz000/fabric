@@ -1,0 +1,16 @@
+{
+  "name": "production",
+  "url": "https://124.223.97.60",
+  "production": "/opt/fabric-v2-production-20261019-11910f5f",
+  "stageRoot": "/opt/fabric-releases",
+  "backupRoot": "/var/backups/fabric",
+  "process": "fabric-v2-production-20261019",
+  "recoveryProcess": "fabric-v2-production-readonly-20261019",
+  "starter": "start-v2.cjs",
+  "nginx": "/etc/nginx/sites-enabled/fabric",
+  "database": "fabric_db",
+  "serverUuid": "a937ff09-72b6-11f1-b04e-52540034488b",
+  "port": 3008,
+  "recoveryPort": 3009,
+  "sshConfig": "D:/fabric/.local/server/_config/ssh.local.json"
+}

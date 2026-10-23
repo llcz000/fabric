@@ -49,22 +49,24 @@ test('P4-5 create is empty, initial editor populates one immutable product ident
  assert.deepEqual(draft.images.fabricDisplay,[imageB,imageC]);
  assert.equal(draft.remark,'丝质底布');
 });
-test('product maintenance hides sampling control and preserves existing sampling state in payload with rowVersion',()=>{
+test('product maintenance hides sampling control and omits legacy catalog flags from payload with rowVersion',()=>{
  const current=parseProductDetails({...existing,isAvailableForSampling:false});
  assert.equal(initialProductDraft(current).isAvailableForSampling,false);
  assert.equal(emptyProductDraft().isAvailableForSampling,true);
  const edited=productEditorPayload(initialProductDraft(current),'edit');
- assert.equal(edited.isActive,true);assert.equal(edited.isAvailableForSampling,false);assert.equal(edited.expectedRowVersion,'4');
- assert.throws(()=>productEditorPayload({...initialProductDraft(current),isAvailableForSampling:'off' as never},'edit'),/供样|状态/);
+ assert(!('isActive' in edited));assert(!('isAvailableForSampling' in edited));assert.equal(edited.expectedRowVersion,'4');
+
  const html=renderToStaticMarkup(React.createElement(ProductEditorV2,{mode:'create',apiFetch:fetch,canManage:true,onSaved:()=>{},onCancel:()=>{}}));
- assert(!html.includes('允许供样'));assert(html.includes('启用状态'));
+ assert(!html.includes('允许供样'));assert(!html.includes('启用状态'));
+ assert(html.includes('输入面料品号或品名'));assert(html.includes('展开面料选项'));
+ assert(!html.includes('颜色标签'));
 });
 test('P4-5 preview is read-only derived from selected live reference, not arbitrary input',()=>{
  const chosen=pattern.versions[0];
  assert.equal(buildProductNumberPreview(chosen,fabric),'G017-2-F018');
  assert.equal(buildProductNumberPreview(chosen,null),'待选面料');
  assert.equal(buildProductNumberPreview(null,fabric),'待选花型');
- assert.equal(buildProductNumberPreview(chosen,{...fabric,fabricNo:'F-018'}),null);
+ assert.equal(buildProductNumberPreview(chosen,{...fabric,fabricNo:'F-018'}),'G017-2-F-018');
 });
 test('P4-5 ready asset adds once, respects max 10/category and no cross-category duplicate',()=>{
  const begin=emptyProductDraft();
@@ -115,7 +117,7 @@ test('P4-5 save payload is a single mutation with backend-generated no and rowVe
  const draft={...initialProductDraft(parseProductDetails(existing)),remark:'  更新备注  ',isActive:false};
  const edit=productEditorPayload(draft,'edit');
  assert.deepEqual(edit,{
-  patternColorwayId:'3',fabricId:'8',remark:'更新备注',isActive:false,isAvailableForSampling:true,
+  patternColorwayId:'3',fabricId:'8',remark:'更新备注',
   images:{fabricDisplay:[imageB,imageC],detail:[imageD],aiEffect:[]},
   expectedRowVersion:'4'
  });
@@ -214,7 +216,7 @@ test('P4-5 main panel contains generated code, compact remark/status and cancel/
   apiFetch:fetch,mode:'create',onCancel:()=>{},onSaved:()=>{},canManage:true
  }));
  assert(html.includes('保存产品')&&html.includes('取消'));
- assert(html.includes('自动货号')&&html.includes('备注')&&html.includes('启用状态'));
+ assert(html.includes('自动货号')&&html.includes('备注')&&!html.includes('启用状态'));
  assert(html.includes('面料大图')&&html.includes('面料细节图')&&html.includes('效果图'));
  assert(!html.includes('上传图片'));
 });

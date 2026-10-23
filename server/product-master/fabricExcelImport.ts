@@ -145,7 +145,10 @@ export function createFabricImportService(database:Query,pool:Pool){
       // Fail the affected row and continue only for expected uniqueness/domain conflicts.
       status='failed';
       const code=e&&typeof e==='object'?String((e as {code?:unknown}).code):'';
+      const check=e&&typeof e==='object'?String((e as {sqlMessage?:unknown;message?:unknown}).sqlMessage??(e as {message?:unknown}).message??''):'';
       reason=code==='ER_DUP_ENTRY'?'品号被并发创建，请重新预览':
+       code==='ER_CHECK_CONSTRAINT_VIOLATED'&&check.includes('ck_v2_fabric_no')?
+        '数据库面料品号约束未升级，请联系管理员处理后重新导入':
        '该行写入失败或权限已变化，请重新预览';
      }
     }

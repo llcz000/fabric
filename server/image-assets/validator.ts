@@ -43,7 +43,7 @@ export async function validateImageBuffer(
     const metadata = await image.metadata();
     const details = metadata.format ? FORMAT_DETAILS[metadata.format] : undefined;
     if (!details || !metadata.width || !metadata.height) throw invalidError('Unsupported or undecodable image content');
-    if (metadata.width * metadata.height > policy.maxPixels) throw limitError('Image exceeds the pixel limit');
+    if (metadata.width * metadata.height > policy.maxPixels) throw new ImageAssetError('IMAGE_PIXELS_EXCEEDED', 413, false, 'Image exceeds the pixel limit');
     if (!policy.allowedMimes.has(details.mime)) throw invalidError('Image type is not allowed');
     if (declared.mime.toLowerCase() !== details.mime) throw invalidError('Declared MIME does not match image content');
     if (declared.extension && !extensionsMatch(declared.extension, details.extension)) {
@@ -63,7 +63,7 @@ export async function validateImageBuffer(
   } catch (error) {
     if (error instanceof ImageAssetError) throw error;
     if (/pixel limit|exceeds.*pixels|input image exceeds/i.test(String(error))) {
-      throw limitError('Image exceeds the pixel limit');
+      throw new ImageAssetError('IMAGE_PIXELS_EXCEEDED', 413, false, 'Image exceeds the pixel limit');
     }
     throw invalidError('Image content is invalid');
   }

@@ -307,6 +307,7 @@ function safeErrorMessage(code: ImageAssetError['code']): string {
   switch (code) {
     case 'IMAGE_CONTENT_INVALID': return 'Image content or request is invalid';
     case 'IMAGE_LIMIT_EXCEEDED': return 'Image asset limit exceeded';
+    case 'IMAGE_PIXELS_EXCEEDED': return '图片像素超过该用途上限，请缩小图片尺寸后重试';
     case 'ASSET_NOT_READY': return 'Asset is not ready';
     case 'ASSET_ACCESS_DENIED': return 'Asset access is denied';
     case 'ASSET_NOT_FOUND': return 'Asset was not found';

@@ -73,12 +73,12 @@ test('P4-3 valid payload keeps gsm/mm separate, optional nulls and no extra fiel
  const weight=validateFabricDraft({...fabricToDraft(silk),weightValue:' 88.125 ',weightUnit:'gsm',
   widthValue:'152.50'},'update');
  assert.equal(weight.weightValue,88.125);assert.equal(weight.weightUnit,'gsm');assert.equal(weight.widthValue,152.5);
- assert.equal(weight.fabricNo,'F018');assert.equal(weight.isActive,true);
+ assert.equal(weight.fabricNo,'F018');assert.equal(weight.isActive,undefined);
 });
 test('P4-3 rejects invalid fabric No/name, half-empty weight, nonpositive or excessive precision',()=>{
  const good=fabricToDraft(silk);
  for(const bad of ([
-  {...good,fabricNo:'A-2'}, {...good,fabricNo:''},{...good,fabricName:'  '},
+  {...good,fabricNo:''},{...good,fabricName:'  '},
   {...good,weightValue:'',weightUnit:'mm'},
   {...good,weightValue:'88',weightUnit:''},
   {...good,weightValue:'0'},
@@ -109,13 +109,13 @@ test('P4-3 injected V2 fetch handles 201/200 and 409; backend still owns referen
  const conflict=(async()=>new Response(JSON.stringify({error:'Fabric is referenced; deactivate instead'}),{status:409})) as typeof fetch;
  await assert.rejects(deleteFabric(conflict,'1'),(e:unknown)=>e instanceof FabricHttpError&&e.status===409);
 });
-test('P4-3 table matches nine Stitch columns, explicit 3 referenced, optional blanks, no fake audit flags',()=>{
+test('P4-3 table matches eight compact columns, explicit 3 referenced, optional blanks, no fake audit flags',()=>{
  const html=renderToStaticMarkup(React.createElement(FabricV2Table,{
   page:{items:[silk,empty],total:2,limit:50,offset:0},
   onPage:()=>{},onEdit:()=>{},onDelete:()=>{},canManage:true
  }));
- const headers=Array.from(html.matchAll(/<th\b[^>]*>([^<]+)/g)).map(x=>x[1]);
- assert.deepEqual(headers,['品号','品名','成分','克重','门幅 / cm','备注','启用状态','关联产品','操作']);
+ const headers=Array.from(html.matchAll(/<th\b[^>]*>([\s\S]*?)<\/th>/g)).map(x=>x[1].replace(/<[^>]+>/g,'').trim());
+ assert.deepEqual(headers,['品号','品名','成分','克重','门幅 / cm','备注','关联产品','操作']);
  assert(html.includes('F018')&&html.includes('丝质雪纺'));
  assert(html.includes('16.5 mm')&&html.includes('145.5'));
  assert(html.includes('title="可用于高档礼服"'));
@@ -123,6 +123,18 @@ test('P4-3 table matches nine Stitch columns, explicit 3 referenced, optional bl
  assert(html.includes('—'));
  assert(!html.includes('待完善')&&!html.includes('审核状态'));
  assert(html.includes('编辑')&&html.includes('删除'));
+});
+test('fabric list reserves composition width and clips long text without covering weight; remark is narrower',()=>{
+ const long='70%棉30%再生纤维（非常长的成分描述）'.repeat(5);
+ const html=renderToStaticMarkup(React.createElement(FabricV2Table,{
+  page:{items:[{...silk,composition:long}],total:1,limit:50,offset:0},onPage:()=>{}
+ }));
+ assert.match(html,/<col style="width:210px"/);
+ assert.match(html,/<col style="width:110px"/);
+ assert.match(html,/<col style="width:112px"/);
+ assert.match(html,/<td[^>]*><span title="70%棉30%再生纤维/);
+ assert.match(html,/class="block min-w-0 truncate"/);
+ assert.match(html,/16\.5 mm/);
 });
 test('P4-3 referenced inline edit locks only fabricNo while name/weight remain editable',()=>{
  const locked=renderToStaticMarkup(React.createElement(FabricV2InlineDraft,{
@@ -153,16 +165,28 @@ test('P4-3 deletion warning includes full number, refs server-locked and cancell
   item:silk,onCancel:()=>{},onConfirm:()=>{}
  }));
  assert(html.includes('F018')&&html.includes('3'));
- assert(html.includes('可停用'));
+ assert(!html.includes('可停用'));
  assert(html.includes('确认删除')&&html.includes('取消')&&html.includes('role="alertdialog"'));
 });
 test('fabric page restricts mutators by permission and has three independent search inputs',()=>{
  const readOnly=renderToStaticMarkup(React.createElement(FabricLibraryV2,{apiFetch:fetch,canManage:false}));
  assert(readOnly.includes('面料库'));
  for(const label of ['搜索品号','搜索品名','搜索成分'])assert(readOnly.includes('aria-label="'+label+'"'));
- assert(readOnly.includes('包含停用'));
+ assert(!readOnly.includes('包含停用'));
  assert(!readOnly.includes('新增面料'));
  const manage=renderToStaticMarkup(React.createElement(FabricLibraryV2,{apiFetch:fetch,canManage:true}));
  assert(manage.includes('新增面料'));
  assert(!manage.includes('克重筛选')&&!manage.includes('门幅筛选'));
+});
+test('inline fabric editing reveals all fields so hidden-column settings cannot misalign draft cells',()=>{
+ const prior=Object.getOwnPropertyDescriptor(globalThis,'window');Object.defineProperty(globalThis,'window',{value:{localStorage:{getItem:()=>JSON.stringify({fabricNo:true,fabricName:false,composition:false,weight:true,width:true,remark:true,status:true,products:true,actions:true})}},configurable:true});
+ try{const html=renderToStaticMarkup(React.createElement(FabricV2Table,{page:{items:[silk],total:1,limit:50,offset:0},onPage(){},canManage:true,editingId:silk.id,onCancelDraft(){},onSaveDraft:async()=>{}}));const headers=[...html.matchAll(/<th\b/g)].length,cells=[...html.matchAll(/<td\b/g)].length;assert.equal(headers,cells);assert.match(html,/品名/);assert.match(html,/成分/);}finally{if(prior)Object.defineProperty(globalThis,'window',prior);else Reflect.deleteProperty(globalThis,'window');}
+});
+
+test('fabric draft and catalog accept nonempty supplier identifiers without format rules',()=>{
+ const item={...silk,fabricNo:'底布 / A_01'};
+ assert.equal(validateFabricDraft({...fabricToDraft(item)},'update').fabricNo,item.fabricNo);
+ const page=parseFabricCatalogPage({items:[item],total:1,limit:50,offset:0});
+ assert.equal(page.items[0].fabricNo,item.fabricNo);
+ assert.throws(()=>validateFabricDraft({...fabricToDraft(item),fabricNo:'  '},'update'),/品号.*空/);
 });

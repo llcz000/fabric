@@ -1,7 +1,8 @@
 import {ActionIcon} from '../product-master-v2/ActionIcon';
 import React,{useEffect,useRef,useState} from 'react';
 import type {PickerPage,PickerProduct,ProductSelectorFilters} from './selection';
-import {buildProductSelectorUrl,validateProductSelectorPage} from './selection';
+import {buildProductSelectorUrl,validateProductSelectorPage,resolveProductSelectorThumbnails} from './selection';
+import {useConfirm} from '../ui/ConfirmDialog';
 
 const PAGE_SIZE=20;
 export interface ProductSelectorDialogProps{
@@ -26,7 +27,7 @@ export function ProductSelectorTable({items,onChoose}:{
     <td className="px-3 py-2">{item.thumbnailUrl?
      <img src={item.thumbnailUrl} alt={`花型 ${item.masterNo} 的配色 ${item.colorwayNo}`}
        width={56} height={56} className="h-14 w-14 rounded-md object-cover border border-slate-100" loading="lazy"/>:
-     <span className="inline-flex h-14 w-20 items-center justify-center rounded-md bg-slate-100 text-center text-[10px] text-slate-500">待上传花型图</span>}</td>
+     <span className="inline-flex h-14 w-20 items-center justify-center rounded-md bg-slate-100 text-center text-[10px] text-slate-500">{item.patternImageAssetId?'图片暂不可用':'待上传花型图'}</span>}</td>
     <td className="px-3 py-2 font-semibold break-all">{item.productNo}</td>
     <td className="px-3 py-2 max-w-[160px] break-words">{item.fabricName}</td>
     <td className="px-3 py-2">{item.colorwayNo}</td>
@@ -48,6 +49,7 @@ export default function ProductSelectorDialog({
  open,mode,role,apiFetch,onSelect,onCancel,onRequestManual,
  endpoint='/api/v2/document-products/selector'
 }:ProductSelectorDialogProps){
+ const confirm=useConfirm();
  const [inputNo,setInputNo]=useState('');
  const [inputName,setInputName]=useState('');
  const [filters,setFilters]=useState<Omit<ProductSelectorFilters,'limit'|'offset'>>({productNo:'',fabricName:''});
@@ -56,6 +58,7 @@ export default function ProductSelectorDialog({
  const [page,setPage]=useState<PickerPage|null>(null);
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState('');
+ const [imageError,setImageError]=useState(false);
  const firstInput=useRef<HTMLInputElement>(null);
  const dialog=useRef<HTMLDivElement>(null);
  useEffect(()=>{
@@ -63,6 +66,8 @@ export default function ProductSelectorDialog({
   const previouslyFocused=document.activeElement instanceof HTMLElement?document.activeElement:null;
   firstInput.current?.focus();
   const keydown=(e:KeyboardEvent)=>{
+   // Nested confirmations own keyboard events: keep the product picker open beneath them.
+   if(document.querySelector('dialog[open][role="alertdialog"]'))return;
    if(e.key==='Escape'){e.preventDefault();onCancel();return;}
    if(e.key!=='Tab'||!dialog.current)return;
    const all=Array.from(dialog.current.querySelectorAll<HTMLElement>('button:not([disabled]),input:not([disabled]),a[href]'));
@@ -75,7 +80,7 @@ export default function ProductSelectorDialog({
  },[open,onCancel]);
  useEffect(()=>{
   if(!open)return;
-  const controller=new AbortController();setBusy(true);setError('');
+  const controller=new AbortController();setBusy(true);setError('');setImageError(false);
   (async()=>{
    try{
     const url=buildProductSelectorUrl(endpoint,{...filters,limit:PAGE_SIZE,offset});
@@ -83,6 +88,8 @@ export default function ProductSelectorDialog({
     if(!response.ok)throw Error(response.status===403?'当前账号没有开单选品权限':'产品检索失败，请重试');
     const result=validateProductSelectorPage(await response.json());
     if(!controller.signal.aborted)setPage(result);
+    try{const withImages=await resolveProductSelectorThumbnails(apiFetch,result,controller.signal);if(!controller.signal.aborted)setPage(withImages);}
+    catch{if(!controller.signal.aborted)setImageError(true);}
    }catch(e){
     if(!controller.signal.aborted){setPage(null);setError(e instanceof Error?e.message:'产品检索失败');}
    }finally{if(!controller.signal.aborted)setBusy(false);}
@@ -113,8 +120,9 @@ export default function ProductSelectorDialog({
    </form>
    <div className="px-4 pb-4 sm:px-6">
     {error&&<div role="alert" className="mb-3 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error}</div>}
+    {imageError&&<p role="status" className="mb-3 text-xs text-slate-500">花型图片读取失败，仍可选用产品。<button type="button" onClick={()=>setReload(n=>n+1)} className="ml-2 text-sky-700 underline">重试图片</button></p>}
     {busy&&<p role="status" className="mb-3 text-sm text-slate-500">正在查询产品…</p>}
-    {!busy&&page?.items.length===0&&<p className="rounded-lg bg-slate-50 p-8 text-center text-sm text-slate-600">没有找到符合条件的启用产品</p>}
+    {!busy&&page?.items.length===0&&<p className="rounded-lg bg-slate-50 p-8 text-center text-sm text-slate-600">没有找到符合条件的产品</p>}
     {!busy&&page&&page.items.length>0&&<ProductSelectorTable items={page.items} onChoose={item=>{onSelect(item);onCancel();}}/>}
     <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600">
      <span>共 {page?.total??0} 条 · 第 {Math.floor(offset/PAGE_SIZE)+1} 页</span>
@@ -127,7 +135,7 @@ export default function ProductSelectorDialog({
      </div>
     </div>
     {role==='admin'&&onRequestManual&&<button type="button"
-     onClick={()=>{if(window.confirm('切换为管理员手工录入？该行将不再关联产品库。')){onRequestManual();onCancel();}}}
+     onClick={async()=>{const ok=await confirm({title:'切换为管理员手工录入？',message:'该行将不再关联产品库。',confirmText:'切换为手工录入'});if(ok){onRequestManual();onCancel();}}}
      className="mt-3 text-xs font-semibold text-amber-700 underline"><ActionIcon name="edit"/>改为手工录入（仅管理员）</button>}
    </div>
   </div>

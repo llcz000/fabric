@@ -32,6 +32,17 @@ class DB{
    if(this.cardFailure)throw Object.assign(Error('PRIVATE UPDATE sample_cards'),{code:this.cardFailure});
    this.reprintMarks++;return [{affectedRows:1},[]];
   }
+  if(sql.startsWith('UPDATE sample_cards SET deleted_at=')){
+   if(this.cardFailure)throw Error('PRIVATE UPDATE sample_cards');
+   this.cards.forEach(card=>{if(card.fabric_id===String(params[0])){card.deleted_at='now';card.is_active=0;}});
+   return [{affectedRows:1},[]];
+  }
+  if(sql.startsWith('UPDATE sample_card_tokens'))return [{affectedRows:1},[]];
+  if(sql.startsWith('UPDATE v2_fabrics SET deleted_at=')){
+   const row=this.items.find(x=>x.id===String(params[0]));
+   if(!row)return [{affectedRows:0},[]];
+   row.is_active=0;(row as any).deleted_at='now';return [{affectedRows:1},[]];
+  }
   if(sql.includes('FROM sample_cards')){
    if(this.cardFailure==='MALFORMED')return [{affectedRows:1},[]];
    if(this.cardFailure)throw Object.assign(Error('PRIVATE SELECT sample_cards'),{code:this.cardFailure});
@@ -51,7 +62,7 @@ class DB{
    this.items.push(item);return [{insertId:item.id,affectedRows:1},[]];
   }
   if(sql.startsWith('SELECT')&&sql.includes('FROM v2_fabrics')){
-   let items=[...this.items];
+   let items=this.items.filter(x=>!sql.includes('deleted_at IS NULL')||!(x as any).deleted_at);
    if(sql.includes('WHERE id=?'))items=items.filter(x=>x.id===String(params[0]));
    if(sql.includes('is_active=1'))items=items.filter(x=>x.is_active===1);
    if(sql.includes('LIKE ? ESCAPE')) {
@@ -77,6 +88,7 @@ class DB{
    const size=this.items.length;this.items=this.items.filter(x=>x.id!==String(params[0]));
    return [{affectedRows:size-this.items.length},[]];
   }
+  if(sql.startsWith('INSERT INTO business_delete_events'))return [{affectedRows:1},[]];
   throw Error('Unrecognized SQL '+sql);
  }
  async getConnection(){
@@ -118,8 +130,8 @@ test('P3-3 gsm/mm weight, cm width, remarks and decimal strings from DB',async()
 test('P3-3 required fields, invalid combinations and precision fail before SQL',async()=>{
  const db=new DB();
  const wrong:unknown[]=[
- {},{fabricNo:'x'},{fabricName:'Name',fabricNo:''},{fabricName:'Name',fabricNo:'s-1'},
- {fabricName:'Name',fabricNo:'abc'.repeat(30)},{fabricNo:'S1',fabricName:' '},
+ {},{fabricNo:'x'},{fabricName:'Name',fabricNo:''},{fabricName:'Name',fabricNo:'  '},
+ {fabricNo:'S1',fabricName:' '},
  {fabricNo:'S1',fabricName:'Name',weightUnit:'gsm'},
  {fabricNo:'S1',fabricName:'Name',weightValue:2},
  {fabricNo:'S1',fabricName:'Name',weightValue:0,weightUnit:'gsm'},
@@ -141,7 +153,7 @@ test('P3-3 list defaults to active and supports inactive, safe search, bounded p
  const db=new DB();
  await createFabric(db,actor,{fabricNo:'A001',fabricName:'条纹'});
  const b=await createFabric(db,actor,{fabricNo:'B002',fabricName:'花布',composition:'纯棉'});
- await updateFabric(db,actor,b.id,{isActive:false});
+ db.items.find(x=>x.id===b.id)!.is_active=0;
  assert.deepEqual((await listFabrics(db)).map(x=>x.fabricNo),['A001']);
  assert.equal((await listFabrics(db,{includeInactive:true})).length,2);
  assert.equal((await listFabrics(db,{includeInactive:true,query:'  b002 ',limit:10,offset:0}))[0].id,b.id);
@@ -163,9 +175,9 @@ test('P3-3 referenced fabric can edit attributes/deactivate, but number locked a
  const db=new DB(),fabric=await createFabric(db,actor,{fabricNo:'F01',fabricName:'Old'});
  db.referenced=true;
  const updated=await updateFabric(db,actor,fabric.id,{fabricName:'New',composition:'棉',
-  weightValue:18.5,weightUnit:'mm',widthValue:110,isActive:false});
+  weightValue:18.5,weightUnit:'mm',widthValue:110,isActive:true});
  assert.equal(updated.fabricNo,'F01');assert.equal(updated.fabricName,'New');
- assert.equal(updated.isActive,false);assert.equal(updated.weightUnit,'mm');
+ assert.equal(updated.isActive,true);assert.equal(updated.weightUnit,'mm');
  await assert.rejects(updateFabric(db,actor,fabric.id,{fabricNo:'F02'}),status(409));
  await assert.rejects(deleteFabric(db,actor,fabric.id),status(409));
  assert.equal(db.items.length,1);assert.equal(db.items[0].fabric_no,'F01');
@@ -214,7 +226,7 @@ test('P3-3 revocation rechecked inside write transaction with rollback',async()=
 test('P3-3 rename locks fabric row before checking product references',async()=>{
  const db=new DB(),fabric=await createFabric(db,actor,{fabricNo:'AB1',fabricName:'Name'});
  await updateFabric(db,actor,fabric.id,{fabricNo:'AB2'});
- const lock=db.statements.findIndex(x=>x.includes('FROM v2_fabrics WHERE id=? FOR UPDATE'));
+ const lock=db.statements.findIndex(x=>x.includes('FROM v2_fabrics WHERE id=?')&&x.includes('FOR UPDATE'));
  const ref=db.statements.findIndex(x=>x.includes('FROM v2_products'));
  assert(lock>=0&&ref>lock);
 });
@@ -232,9 +244,10 @@ test('B2-3 card-only fabric reference locks identity for active and inactive car
   db.cards=[{id:'71',fabric_id:item.id,is_active:active}];
   db.statements=[];
   await assert.rejects(updateFabric(db,actor,item.id,{fabricNo:'F02'}),status(409));
-  await assert.rejects(deleteFabric(db,actor,item.id),status(409));
-  assert.equal(db.items[0].fabric_no,'F01');assert.equal(db.rollbacks,2);
-  assert(!db.statements.some(q=>q.startsWith('UPDATE v2_fabrics')||q.startsWith('DELETE FROM v2_fabrics')));
+  assert.deepEqual(await deleteFabric(db,actor,item.id),{id:item.id,deleted:true});
+  assert.equal(db.items[0].fabric_no,'F01');assert.equal(db.rollbacks,1);
+  assert.equal((await listFabrics(db,{includeInactive:true})).length,0);
+  assert.equal(db.cards[0].is_active,0);assert(db.cards[0].deleted_at);
   const parent=db.statements.findIndex(q=>q.includes('FROM v2_fabrics')&&q.includes('FOR UPDATE'));
   const card=db.statements.findIndex(q=>q.includes('FROM sample_cards'));
   assert(parent>=0&&card>parent);
@@ -247,11 +260,11 @@ test('B2-5 changing printed fabric attributes requires card marker write or full
  db.cards=[{id:'71',fabric_id:item.id,is_active:0}];db.cardFailure='ER_TABLEACCESS_DENIED_ERROR';
  db.statements=[];
  await assert.rejects(updateFabric(db,actor,item.id,{fabricNo:'f01',fabricName:'After',composition:'Cotton',
-  weightValue:18,weightUnit:'mm',widthValue:140,remark:'Current',isActive:false}),/PRIVATE UPDATE/);
+  weightValue:18,weightUnit:'mm',widthValue:140,remark:'Current',isActive:true}),/PRIVATE UPDATE/);
  assert.equal(db.items[0].fabric_name,'Before','failed reprint update must roll back fabric edit too');
  db.cardFailure='';
  const updated=await updateFabric(db,actor,item.id,{fabricNo:'f01',fabricName:'After',composition:'Cotton',
-  weightValue:18,weightUnit:'mm',widthValue:140,remark:'Current',isActive:false});
+  weightValue:18,weightUnit:'mm',widthValue:140,remark:'Current',isActive:true});
  assert.equal(updated.fabricName,'After');assert.equal(db.reprintMarks,1);
  assert(db.statements.some(q=>q.startsWith('UPDATE sample_cards SET reprint_revision=')));
 });
@@ -280,13 +293,15 @@ test('B2-3 fabric HTTP card conflict is 409 and card driver error is safe 503',a
  db.cards=[{id:'71',fabric_id:item.id,is_active:0}];
  await serve(db,async base=>{
   assert.equal((await send(base,'/fabrics/'+item.id,'PATCH',{fabricNo:'F02'})).status,409);
-  assert.equal((await send(base,'/fabrics/'+item.id,'DELETE')).status,409);
   assert.equal((await send(base,'/fabrics/'+item.id,'PATCH',{fabricName:'After'})).status,200);
   db.cardFailure='ER_TABLEACCESS_DENIED_ERROR';
   for(const method of ['PATCH','DELETE']){
    const res=await send(base,'/fabrics/'+item.id,method,method==='PATCH'?{fabricNo:'F02'}:undefined);
    assert.equal(res.status,503);assert(!/PRIVATE|SELECT|sample_cards/.test(await res.text()));
   }
+  db.cardFailure='';
+  assert.equal((await send(base,'/fabrics/'+item.id,'DELETE')).status,200);
+  assert.equal((await send(base,'/fabrics/'+item.id)).status,404);
  });
 });
 
@@ -310,9 +325,9 @@ test('P3-3 HTTP reads require bearer, writes require grant, CRUD statuses and no
   assert.equal((await send(base,'/fabrics/'+data.id,'PATCH',{fabricName:'共享更新'})).status,200);
   db.grant=true;db.referenced=true;
   assert.equal((await send(base,'/fabrics/'+data.id,'DELETE')).status,409);
-  assert.equal((await send(base,'/fabrics/'+data.id,'PATCH',{isActive:false})).status,200);
+  assert.equal((await send(base,'/fabrics/'+data.id,'PATCH',{isActive:false})).status,400);
   assert.equal((await send(base,'/fabrics')).status,200);
-  assert.equal((await (await send(base,'/fabrics')).json() as {items:unknown[]}).items.length,0);
+  assert.equal((await (await send(base,'/fabrics')).json() as {items:unknown[]}).items.length,1);
   assert.equal((await (await send(base,'/fabrics?includeInactive=true')).json() as {items:unknown[]}).items.length,1);
  });
 });
@@ -332,4 +347,12 @@ test('P3-3 HTTP malformed body, invalid parameters, DB exception not leak stack'
   db.databaseError=true;const fail=await send(base,'/fabrics');
   assert.equal(fail.status,503);assert.equal((await fail.text()).includes('PRIVATE DATABASE CREDENTIALS'),false);
  });
+});
+test('fabric numbers accept nonempty supplier text and still reject blank values',async()=>{
+ const db=new DB();
+ for(const fabricNo of ['10151-8','底布 / A_01','12.5','0']){
+  const saved=await createFabric(db,actor,{fabricNo,fabricName:'底布'});
+  assert.equal(saved.fabricNo,fabricNo);
+ }
+ await assert.rejects(createFabric(db,actor,{fabricNo:'  ',fabricName:'底布'}),status(400));
 });

@@ -17,7 +17,7 @@ test('P6 current unified company settings override historic saved company, while
  const model=buildV2DocumentPrintModel(base,now);
  assert.equal(model.companyName,'新公司');
  assert.deepEqual(model.companyLines,['地址：新地址','电话：新电话']);
- assert.equal(model.terms,'新条款');
+ assert.equal(model.terms,'历史条款');
  assert.deepEqual(model.rows[0],['G901','3','真丝混纺','棉/丝','15.5 mm','145','2.50','¥10.25','¥25.63','特选']);
  assert.equal(model.summaries[1].right,'应收金额：¥25.63（大写：贰拾伍元陆角叁分）');
  const workbook=buildV2DocumentWorkbook(base,now);
@@ -25,7 +25,7 @@ test('P6 current unified company settings override historic saved company, while
  const sheet=reopened.worksheets[0];
  assert.equal(sheet.getCell('C1').value,'新公司');
  assert.equal(sheet.getCell('E7').value,'15.5 mm');
- assert.equal(sheet.getCell('A10').value,'备注条款：新条款');
+ assert.equal(sheet.getCell('A10').value,'备注条款：历史条款');
  assert.equal(sheet.getCell('J7').value,'特选');
 });
 test('P6 reread after editing company config reflects latest without mutating historical product snapshot',()=>{
@@ -34,7 +34,7 @@ test('P6 reread after editing company config reflects latest without mutating hi
  const later=buildV2DocumentPrintModel(base,changed);
  assert.equal(initial.companyName,'新公司');
  assert.equal(later.companyName,'再次更新');
- assert.equal(later.terms,'第二次条款');
+ assert.equal(later.terms,'历史条款');
  assert.deepEqual(later.rows,initial.rows);
  assert.equal(base.displaySnapshot?.companyName,'历史公司');
 });
@@ -58,9 +58,9 @@ test('P6-4 deposit is percent not currency, full gross remains total',()=>{
  const workbook=buildV2DocumentWorkbook(doc,now);
  assert.equal(workbook.worksheets[0].getCell('A3').value,'定金单');
 });
-test('P6 deposit always uses most recent deposit terms, not historical sample default',()=>{
+test('deposit prints saved document terms',()=>{
  const d:DocumentRecord={...base,type:'deposit',deposit:10};
- assert.equal(buildV2DocumentPrintModel(d,now).terms,'新定金条款');
+ assert.equal(buildV2DocumentPrintModel(d,now).terms,'历史条款');
 });
 
 test('DOC-05/07 actual workbook and print use the same rounded receipt and omit unsupported fields',async()=>{
@@ -108,21 +108,26 @@ test('P6-4 nullable historical header falls back explicitly, does not alter orig
 });
 
 
-test('COMPANY-01 updated brand and signature label match print JSON and XLSX for all three kinds',async()=>{
+test('current brand and fixed signature labels match print JSON and XLSX for all three kinds',async()=>{
  for(const type of ['sample','bulk','deposit'] as const){
   const latest={...now,brand_name:'最新字标',issuer_label:'制单人盖章',receiver_label:'签收人签字'};
   const doc:DocumentRecord={...base,type};
   const model=buildV2DocumentPrintModel(doc,latest);
   assert.equal(model.brandName,'最新字标');
-  assert.deepEqual(model.signatureLabels,{issuer:'制单人盖章',receiver:'签收人签字'});
-  assert.equal(model.terms,type==='deposit'?'新定金条款':'新条款');
+  assert.deepEqual(model.signatureLabels,{issuer:'开单人签字',receiver:'收货人签字'});
+  assert.equal(model.terms,'历史条款');
   const workbook=buildV2DocumentWorkbook(doc,latest),parsed=new ExcelJS.Workbook();
   await parsed.xlsx.load(await workbook.xlsx.writeBuffer());
   const values:string[]=[];parsed.worksheets[0].eachRow(row=>row.eachCell(c=>{
    if(typeof c.value==='string')values.push(c.value);
   }));
-  assert(values.some(x=>x.includes('制单人盖章：业务员')));
-  assert(values.some(x=>x.includes('签收人签字：收货员')));
+  assert(values.some(x=>x.includes('开单人签字：业务员')));
+  assert(values.some(x=>x.includes('收货人签字：收货员')));
   assert.equal(base.displaySnapshot?.companyName,'历史公司','historical snapshot is immutable');
  }
+});
+
+test('document terms including explicit blank survive print and signature labels are fixed',()=>{
+ const model=buildV2DocumentPrintModel({...base,displaySnapshot:{...base.displaySnapshot!,terms:''}},{...now,issuer_label:'旧称',receiver_label:'旧称'});assert.equal(model.terms,'无备注条款。');assert.deepEqual(model.signatureLabels,{issuer:'开单人签字',receiver:'收货人签字'});
+ assert.equal(buildV2DocumentPrintModel({...base,displaySnapshot:null},now).terms,now.default_terms);
 });

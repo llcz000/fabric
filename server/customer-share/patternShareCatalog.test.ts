@@ -12,3 +12,13 @@ test('inactive parents/products and replaced associations never keep an old prev
  const next=await loadPatternShareCatalog(db,'4',key);assert(next);assert(!next.previews.has(old));assert.equal(projectPublicPattern(next.candidate)!.colorways[0].fabrics.length,0);
  data.colors[0].is_active=0;assert.equal(projectPublicPattern((await loadPatternShareCatalog(db,'4',key))!.candidate)!.colorways.length,0);
 });
+test('single product share excludes sibling fabrics, colorways, design images and their preview permissions',async()=>{
+ const {db,data}=fixture();data.products.push({...data.products[0],id:'19',fabric_no:'OTHER'});
+ data.images.push({...data.images[1],product_id:'19'});
+ const loaded=await loadPatternShareCatalog(db,'4',key,'18');assert(loaded);
+ const output=projectPublicPattern(loaded.candidate)!;
+ assert.equal(output.colorways.length,1);assert.equal(output.colorways[0].fabrics.length,1);
+ assert.equal(output.colorways[0].designImages.length,0);assert.equal(loaded.previews.size,1);
+ assert(!JSON.stringify(output).includes('OTHER'));
+ assert.equal(await loadPatternShareCatalog(db,'4',key,'999'),null);
+});

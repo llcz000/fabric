@@ -5,6 +5,7 @@
 
 import React, { useState, useRef } from 'react';
 import { DocumentData, DocType } from '../types';
+import {useToast} from './ui/Toast';
 import { 
   Search, Filter, Calendar, Trash2, Edit2, Eye, Copy, 
   Upload, Download, FileSpreadsheet, PlusCircle, RefreshCw, 
@@ -30,6 +31,7 @@ export default function DocumentList({
   onCreateNew,
   onImportBackup,
 }: DocumentListProps) {
+  const toast = useToast();
   // Filters state
   const [filterCustomer, setFilterCustomer] = useState('');
   const [filterItemNo, setFilterItemNo] = useState('');
@@ -128,7 +130,7 @@ export default function DocumentList({
   // Backup exporter
   const handleExportBackup = () => {
     if (documents.length === 0) {
-      alert('数据库中暂无单据可导出备份。');
+      toast.info('数据库中暂无单据可导出备份。');
       return;
     }
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(documents, null, 2));
@@ -160,15 +162,15 @@ export default function DocumentList({
           const looksValid = parsed.every(d => d.id && 'docNo' in d && d.items && Array.isArray(d.items));
           if (looksValid) {
             onImportBackup(parsed);
-            alert(`成功导入！共 ${parsed.length} 张单据。`);
+            toast.success(`成功导入！共 ${parsed.length} 张单据。`);
           } else {
-            alert('格式错误，请使用「导出备份」生成的文件。');
+            toast.error('格式错误，请使用「导出备份」生成的文件。');
           }
         } else {
-          alert('格式错误，请使用「导出备份」生成的文件。');
+          toast.error('格式错误，请使用「导出备份」生成的文件。');
         }
       } catch (err) {
-        alert('无法解析文件。');
+        toast.error('无法解析文件。');
       }
     };
     reader.readAsText(file);

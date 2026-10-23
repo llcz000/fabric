@@ -1,4 +1,5 @@
 /** Operator-only additive migration. Never imported by server startup. */
+import {migrateFabricDeletion} from '../server/product-master/fabricDeletionSchema';
 import mysql from 'mysql2/promise';
 import {readFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
@@ -16,7 +17,7 @@ async function main(){
  const sha=createHash('sha256').update(await readFile(backup)).digest('hex');
  if(sha!==process.env.FABRIC_V2_BACKUP_SHA256)throw Error('Backup digest mismatch');
  const connection=await mysql.createConnection({socketPath:'/var/run/mysqld/mysqld.sock',user:'root',database:target.database,dateStrings:true,supportBigNumbers:true,bigNumberStrings:true});
- try{const core=await migrateV2Production(connection,target,{backupSha256:sha,confirmation:process.env.FABRIC_V2_MIGRATION_ACK});const documentSupport=await migrateV2DocumentSupport(connection,target,sha);const documentAudit=await migrateV2DocumentAudit(connection,target,sha);const patternShare=process.env.FABRIC_V2_MIGRATE_PATTERN_SHARE==='APPLY_B1_SHARE'?await migratePatternShareLinks(connection,target,sha,'APPLY_B1_SHARE'):null;const sessionLifecycle=process.env.FABRIC_V2_MIGRATE_SESSION_LIFECYCLE==='APPLY_SAMPLE_LIFECYCLE'?await migrateSessionLifecycle(connection,target,sha):null;console.log(JSON.stringify({target:target.database,...core,documentSupport,documentAudit,patternShare,sessionLifecycle}));}
+ try{const core=await migrateV2Production(connection,target,{backupSha256:sha,confirmation:process.env.FABRIC_V2_MIGRATION_ACK});const documentSupport=await migrateV2DocumentSupport(connection,target,sha);const documentAudit=await migrateV2DocumentAudit(connection,target,sha);const patternShare=process.env.FABRIC_V2_MIGRATE_PATTERN_SHARE==='APPLY_B1_SHARE'?await migratePatternShareLinks(connection,target,sha,'APPLY_B1_SHARE'):null;const sessionLifecycle=process.env.FABRIC_V2_MIGRATE_SESSION_LIFECYCLE==='APPLY_SAMPLE_LIFECYCLE'?await migrateSessionLifecycle(connection,target,sha):null;const fabricDeletion=process.env.FABRIC_V2_MIGRATE_FABRIC_DELETION==='APPLY_FABRIC_DELETION'?await migrateFabricDeletion(connection,target,sha):null;console.log(JSON.stringify({target:target.database,...core,documentSupport,documentAudit,patternShare,sessionLifecycle,fabricDeletion}));}
  finally{await connection.end();}
 }
 main().catch(error=>{console.error(error instanceof Error&&/^(Migration|V2|Verified|Explicit|Backup|Protected|Legacy|B2|P1)/.test(error.message)?error.message:'V2 migration failed; inspect target safely');process.exitCode=1;});

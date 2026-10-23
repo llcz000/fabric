@@ -20,7 +20,15 @@
 
 ## UI Design 项目规范
 
+**Fabric UI 新会话强制启动门禁（2026-10-22）**：无论从根目录还是活动工作区进入，只要任务涉及 Fabric Web UI/弹窗/组件/交互/视觉设计、修复或评审，**在改代码之前**先执行 `npm run ui:preflight`，按结果读取 `docs/ui-design/ux-delivery-gate.md`、`one-pass-ui-review-2026-10-21.md` 和 `ui-review-checklist.md`。启动检查不通过则不能将任务当作 UI 规范已就绪；如果提示规范版本不一致，先经用户授权的 `npm run ui:preflight -- --sync` 从根目录唯一权威规范同步到活动工作区，再重试。必须实际加载/核对 fabric-ui-design、fabric-ui-ux-qa；重大视觉重排按需使用 ui-ux-pro-max、frontend-design、web-design-guidelines，未能加载须记「未验证」而不得宣称使用。活动工作区以 `docs/project/fabric-v2-active-workspace.json` 为准，不允许修改旧根源码冒充上线代码。
+
+**单轮 UI 交付强制收尾**：同轮完成真实组件和正式 CSS 的桌面/窄屏及所有受影响弹窗视觉审查、主路径/错误/取消/Esc/焦点浏览器交互、定向工程测试，分别记录 PASS/FAIL/未验证；不能把浏览器 PASS 当作视觉 PASS。更新候选源码清单后用 `npm run ui:template -- --page 页面名称 --file src/...` 生成初始未验证报告，补齐实际视觉、浏览器、工程证据，再执行 `npm run ui:verify`；有 NO-GO 或缺少证据不得宣称「UI 质量验收通过」「可发布」。用户视觉接受、模拟联调、真库验收与正式发布分别登记。普通小修按影响范围精简测试，无需重复全站视觉检查、Stitch 或 A/B。正式发布仍须用户明确授权并使用现有统一发布器（其原 UI 质量门禁继续有效）。
+
+
+**2026-10-21 用户明确定位：全 Fabric 系统仅内部业务人员使用；只有通过色卡分享链接打开的页面面向客户。** 内部工作台以操作效率、表单与筛选稳定、少跳转和快速迭代为首要目标；客户分享页面才强调大图及面料/细节/效果图展示。优先复用现有 React 组件与业务模型，普通改动不强制 A/B、Stitch、Figma 或全量测试。开发前读取 `docs/ui-design/product-positioning-2026-10-21.md`，区分客户分享操作与客户可见内容，不要用展示型页面改造全部内部工作台。色卡分享客户页面 `/c/` 以**手机微信 H5**为主，读取 `docs/ui-design/wechat-card-share-2026-10-21.md`；浏览器模拟与微信真机验收必须分开记录。
+
 进行UI设计、组件交互、视觉评审或WebCodex/Codex ACP UI交接时，读取 `.agents/skills/fabric-ui-design/SKILL.md`，按需查阅 `docs/ui-design/`。业务事实仍以当前产品主数据需求为准，规范不构成应用实施或部署授权。
+新建或显著修改 UI 的验收以 `docs/ui-design/ux-delivery-gate.md` 为强制入口，并加载 `.agents/skills/fabric-ui-ux-qa/SKILL.md` 执行门禁；加载 `ui-ux-pro-max` / `web-design-guidelines` 按需核查，运行与页面相关的真实浏览器交互测试并保存截图、错误和焦点/窄屏证据。失败、未测或仅静态截图不能标记 UX PASS；独立样板不自动构成正式接线或生产发布批准。
 
 2026-10-14用户允许效率低时弃用Stitch：默认复用现有React组件并交付可交互预览，Stitch按需使用，取消新页面/大布局必须先进入Stitch的要求。新方案UI接受、应用接线与部署分别登记；已有授权范围内的修订继续推进。已有Stitch稿及用户修改保留作参考，不自行删除。
 
@@ -28,7 +36,7 @@
 
 用户指定Stitch或实际操作其远程页面时，先读`docs/product-master/product-master-v2-ui-iteration-workflow.md`第8节及相关交付复盘。开工前按已授权范围列出预期页面，不能只登记已生成页面。
 
-修改前读取目标页最新远程HTML/截图并核对画布，与上次同步稿和本轮要求对照；保留用户独立修改。当前产品列表12列，备注位于图片数量后，交付清单声明受保护列。
+修改前读取目标页最新远程HTML/截图并核对画布，与上次同步稿和本轮要求对照；保留用户独立修改。产品列表的列数与备注位置按最新需求、正式当前页面核对，不能沿用历史12列模板；交付清单声明当前受保护列。
 
 远程Stitch交付时逐页核对真实画布、屏幕身份、HTML/截图及知识库登记，并使用最新读取快照运行`scripts/check-stitch-review-delivery.mjs`；脚本不替代实时工具和视觉核验。仅本地有稿不能声称远程交付；未采用Stitch的React预览任务不要求生成画布或运行Stitch专项。清理远程旧稿只在已授权范围内，先验证新稿与登记。
 

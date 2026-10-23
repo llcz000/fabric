@@ -6,6 +6,19 @@ test('pattern creation normalizes the number, sends only its owned fields and re
  assert.equal((await createLibraryPattern(fetcher,' ab123 ')).id,'7');assert.equal(calls,1);
  await assert.rejects(createLibraryPattern(fetcher,'非法编号'));assert.equal(calls,1);
 });
+test('subject-only creation does not write removed color labels',async()=>{
+ const calls:string[]=[];
+ const api=(async(url,init)=>{
+  calls.push(String(url));
+  if(url==='/api/v2/pattern-masters')return Response.json({id:'7',masterNo:'AB'});
+  if(url==='/api/v2/pattern-masters/7/tags')return Response.json({tagIds:['3']});
+  if(String(url).endsWith('/colorways'))return Response.json({id:'8',masterId:'7',masterNo:'AB',colorwayNo:1,patternNo:'AB-1',patternImageAssetId:null,remark:'',isActive:true});
+  throw Error('unexpected write '+url);
+ }) as typeof fetch;
+ const saved=await savePatternDraft(api,'AB',[{key:'1',remark:''}],{}, {topicTagIds:['3']});
+ assert.equal(saved.masterNo,'AB');
+ assert(!calls.some(url=>url.endsWith('/color-tags')));
+});
 test('duplicate failure does not pretend creation succeeded',async()=>{
  await assert.rejects(createLibraryPattern(async()=>new Response('{}',{status:409}),'A1'),/已存在/);
 });

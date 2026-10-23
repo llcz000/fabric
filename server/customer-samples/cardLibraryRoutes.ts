@@ -2,7 +2,8 @@ import {Router,json,type ErrorRequestHandler,type RequestHandler,type Response} 
 import {requireV2Principal,type AccessDatabase} from '../access/middleware';
 import type {AppPrincipal} from '../access/types';
 import type {SampleCard} from './cardLibrary';
-import {SampleCardError,createSampleCard,retireSampleCard,confirmSampleCardReprinted,listSampleCards,getSelectedSampleCards} from './cardLibrary';
+import {SampleCardError,createSampleCard,retireSampleCard,confirmSampleCardReprinted,listSampleCards,getSelectedSampleCards,resolveSampleCardToken} from './cardLibrary';
+import {formatSampleCardScanUrl} from '../../src/lib/sampleCardScanLink';
 import type {SamplePool} from './scanRepository';
 import {buildSampleCardsWorkbook} from './cardExcel';
 
@@ -13,6 +14,7 @@ export function canManageSampleCards(actor:AppPrincipal):boolean{
 }
 export interface SampleCardListInput{query?:string;limit?:number;offset?:number;needsReprint?:boolean}
 export interface SampleCardLibraryDependencies{
+ resolve?(token:string):Promise<SampleCard>;
  list(input:SampleCardListInput):Promise<{items:SampleCard[];total:number;limit:number;offset:number}>;
  create(input:{masterId:string;fabricId:string},actor:AppPrincipal):Promise<{card:SampleCard;created:boolean}>;
  retire(identity:string,actor:AppPrincipal):Promise<{id:string;retired:true}>;
@@ -22,6 +24,7 @@ export interface SampleCardLibraryDependencies{
 /** Caller supplies the same verified database source for auth, reads and writes. */
 export function createMySQLSampleCardLibraryDependencies(database:AccessDatabase,pool:SamplePool):SampleCardLibraryDependencies{
  return {
+  resolve:token=>resolveSampleCardToken(database,token),
   list:input=>listSampleCards(database,input),
   create:(input,actor)=>createSampleCard(pool,actor,input,canManageSampleCards),
   retire:(identity,actor)=>retireSampleCard(pool,actor,identity,canManageSampleCards),
@@ -53,7 +56,8 @@ function listInput(q:Record<string,unknown>):SampleCardListInput|null{
  if(q.needsReprint!==undefined&&q.needsReprint!=='true'&&q.needsReprint!=='false')return null;
  return {query:q.query as string|undefined,limit,offset,needsReprint:q.needsReprint==='true'};
 }
-export function createSampleCardLibraryRouter(authDb:AccessDatabase,deps:SampleCardLibraryDependencies):Router{
+export function createSampleCardLibraryRouter(authDb:AccessDatabase,deps:SampleCardLibraryDependencies,scanOrigin=process.env.FABRIC_V2_PUBLIC_ORIGIN):Router{
+ const withScanUrl=(card:SampleCard):SampleCard=>scanOrigin?{...card,scanUrl:formatSampleCardScanUrl(scanOrigin,card.qrPayload)}:card;
  const router=Router();
  router.use((_req,res,next)=>{res.setHeader('Cache-Control','no-store');next();});
  const principal=requireV2Principal(authDb);
@@ -78,13 +82,19 @@ export function createSampleCardLibraryRouter(authDb:AccessDatabase,deps:SampleC
  };
  router.get('/',principal,manage,async(req,res)=>{
   const input=listInput(req.query);if(!input){res.status(400).json({error:'Invalid card query'});return;}
-  try{res.json(await deps.list(input));}catch(e){handle(res,e);}
+   try{const page=await deps.list(input);res.json({...page,items:page.items.map(withScanUrl)});}catch(e){handle(res,e);}
+ });
+ router.post('/resolve',principal,manage,requireJson,parser,async(req,res)=>{
+  if(!record(req.body)||Object.keys(req.body).length!==1||typeof req.body.cardToken!=='string'||!/^[A-Za-z0-9_-]{22,128}$/.test(req.body.cardToken)){
+   res.status(400).json({error:'Invalid card request'});return;
+  }
+  try{if(!deps.resolve)throw Error('Card resolver unavailable');res.json(withScanUrl(await deps.resolve(req.body.cardToken)));}catch(e){handle(res,e);}
  });
  router.post('/',principal,manage,requireJson,parser,async(req,res)=>{
   const input=createInput(req.body);if(!input){res.status(400).json({error:'Invalid card request'});return;}
   try{
    const result=await deps.create(input,res.locals.principal as AppPrincipal);
-   res.status(result.created?201:200).json(result);
+    res.status(result.created?201:200).json({...result,card:withScanUrl(result.card)});
   }catch(e){handle(res,e);}
  });
  /** Business delete: permanent token revoke and archival; no historical FK deletion. */
@@ -113,7 +123,7 @@ export function createSampleCardLibraryRouter(authDb:AccessDatabase,deps:SampleC
    // Defend against an adapter silently enlarging selection or shuffling identity.
    if(cards.length!==ids.length||cards.some((c,i)=>c.id!==ids[i]))
     throw Error('Selection adapter mismatch');
-   const bytes=await buildSampleCardsWorkbook(cards);
+    const bytes=await buildSampleCardsWorkbook(cards,scanOrigin);
    res.setHeader('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
    res.setHeader('Content-Disposition','attachment; filename="sample-cards.xlsx"');
    res.send(bytes);

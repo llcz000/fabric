@@ -218,7 +218,7 @@ export function V2BusinessWorkbench({origin}:{origin:string}){
      onEditorStateChange={active=>setPage(active?'product-editor':'products')}
      onPatternLibrary={()=>setPage('patterns')} onFabricLibrary={()=>setPage('fabrics')}
      onUploadImage={upload} onDeleteProduct={removeProduct}/>}
-   {page==='fabric-import'&&<FabricImportV2 apiFetch={apiFetch} canManage isAdmin={actor.role==='admin'}
+   {page==='fabric-import'&&<FabricImportV2 apiFetch={apiFetch} canManage
     onCancel={()=>setPage('fabrics')} onFinished={()=>{setFabricRevision(v=>v+1);setPage('fabrics');}}/>}
    {page==='document-selector'&&<V2DocumentWorkspace apiFetch={apiFetch} role={actor.role}
     companyProfile={company} onSaved={()=>{setMessage('单据已经保存到独立V2后端');}}

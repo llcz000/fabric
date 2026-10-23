@@ -68,7 +68,7 @@ function SandboxCatalog({origin}:{origin:string}){
     <main className="mx-auto max-w-[1480px] p-3" data-sandbox-view={page}>
      {page==='patterns'?<PatternLibraryV2 apiFetch={apiFetch} canManage={false}
       resolvePatternImages={EMPTY_IMAGES}/>:
-      page==='fabrics'?<FabricWorkspaceV2 apiFetch={apiFetch} canManage={false} isAdmin={false} allowExport={false}/>:
+      page==='fabrics'?<FabricWorkspaceV2 apiFetch={apiFetch} canManage={false} allowExport={false}/>:
       page==='products'?<ProductCatalogV2 apiFetch={apiFetch} canManage={false} allowExport={false} resolveImages={EMPTY_IMAGES}/>:
       page==='cards'?<SandboxCardsReadOnly apiFetch={apiFetch}/>:
       page==='sessions'?<SandboxSessionsReadOnly apiFetch={apiFetch}/>:

@@ -1,8 +1,9 @@
 /** P4-4 Fabric V2 product list API/interaction model; never use legacy product endpoints. */
 export type CatalogStatus='active'|'inactive'|'all';
+export type CardAssociation='all'|'linked'|'unlinked';
 export interface CatalogFilters{
  productNo:string;fabricName:string;topicTagIds:string[];colorTagIds:string[];
- status:CatalogStatus;limit:number;offset:number;
+ status:CatalogStatus;limit:number;offset:number;cardAssociation?:CardAssociation;
 }
 export interface CatalogTag{id:string;name:string;isArchived:boolean}
 export interface CatalogProduct{
@@ -13,16 +14,19 @@ export interface CatalogProduct{
  colorwayActive:boolean;fabricActive:boolean;isSelectable:boolean;rowVersion:string;
  patternImageAssetId:string|null;topicTags:CatalogTag[];colorTags:CatalogTag[];
  imageCounts:{fabricDisplay:number;detail:number;aiEffect:number};totalImages:number;
+ /** Missing only for an older response; never interpret unread metadata as unlinked. */
+ sampleCard?:{id:string;cardNo:string;isActive:boolean;needsReprint:boolean}|null;
 }
 export interface CatalogPage{items:CatalogProduct[];total:number;limit:number;offset:number}
 export type CatalogAction=
  |{type:'productNo'|'fabricName';value:string}
  |{type:'topic'|'color';id:string}
  |{type:'status';value:CatalogStatus}
+  |{type:'cardAssociation';value:CardAssociation}
  |{type:'page';offset:number}
  |{type:'reset'};
 export const emptyCatalogFilters:CatalogFilters={
- productNo:'',fabricName:'',topicTagIds:[],colorTagIds:[],status:'active',limit:50,offset:0
+ productNo:'',fabricName:'',topicTagIds:[],colorTagIds:[],status:'active',limit:50,offset:0,cardAssociation:'all'
 };
 export function reduceCatalogFilters(value:CatalogFilters,action:CatalogAction):CatalogFilters{
  if(action.type==='reset')return {...emptyCatalogFilters,topicTagIds:[],colorTagIds:[]};
@@ -30,6 +34,7 @@ export function reduceCatalogFilters(value:CatalogFilters,action:CatalogAction):
  if(action.type==='productNo'||action.type==='fabricName')
   return {...value,[action.type]:action.value,offset:0};
  if(action.type==='status')return {...value,status:action.value,offset:0};
+ if(action.type==='cardAssociation')return {...value,cardAssociation:action.value,offset:0};
  if(action.type==='topic'||action.type==='color'){
   const key=action.type==='topic'?'topicTagIds':'colorTagIds';
   const old=value[key];
@@ -46,6 +51,7 @@ export function buildCatalogUrl(endpoint:string,value:CatalogFilters):string{
  if(value.topicTagIds.length)params.set('topicTagIds',value.topicTagIds.join(','));
  if(value.colorTagIds.length)params.set('colorTagIds',value.colorTagIds.join(','));
  params.set('status',value.status);
+ if(value.cardAssociation&&value.cardAssociation!=='all')params.set('cardAssociation',value.cardAssociation);
  params.set('limit',String(value.limit));params.set('offset',String(value.offset));
  return endpoint+'?'+params.toString();
 }
@@ -64,6 +70,12 @@ export function parseCatalogPage(raw:unknown):CatalogPage{
  for(const input of page.items){
   if(!input||typeof input!=='object')throw Error('产品数据错误');
   const x=input as Record<string,unknown>,images=x.imageCounts as any;
+   if(x.sampleCard!==undefined&&x.sampleCard!==null){
+    const card=x.sampleCard as Record<string,unknown>;
+    if(typeof card!=='object'||Array.isArray(card)||!bigint(card.id)||typeof card.cardNo!=='string'||
+     !card.cardNo.trim()||card.cardNo.length>129||/[\p{Cc}\p{Cf}]/u.test(card.cardNo)||
+     typeof card.isActive!=='boolean'||typeof card.needsReprint!=='boolean')throw Error('产品色卡资料格式错误');
+   }
   if(!bigint(x.id)||!bigint(x.patternColorwayId)||!bigint(x.fabricId)||
    !bigint(x.masterId)||!bigint(x.rowVersion)||
    !['productNo','masterNo','fabricNo','fabricName','remark'].every(k=>typeof x[k]==='string')||
@@ -89,8 +101,9 @@ async function json(response:Response):Promise<unknown>{
 export async function fetchCatalogPage(apiFetch:typeof fetch,filter:CatalogFilters,signal?:AbortSignal,endpoint='/api/v2/products'){
  return parseCatalogPage(await json(await apiFetch(buildCatalogUrl(endpoint,filter),{signal})));
 }
-export async function loadCatalogTags(apiFetch:typeof fetch,dimension:'topic'|'color',signal?:AbortSignal):Promise<CatalogTag[]>{
- const v=await json(await apiFetch('/api/v2/tags?dimension='+dimension,{signal}));
+export async function loadCatalogTags(apiFetch:typeof fetch,dimension:'topic'|'color',signal?:AbortSignal,linkedArchivedOnly=false):Promise<CatalogTag[]>{
+ const suffix=linkedArchivedOnly&&dimension==='topic'?'&includeArchived=true&linkedArchivedOnly=true':'';
+ const v=await json(await apiFetch('/api/v2/tags?dimension='+dimension+suffix,{signal}));
  if(!v||typeof v!=='object'||!Array.isArray((v as {items?:unknown}).items))
   throw Error('标签返回数据格式错误');
  const items=(v as {items:unknown[]}).items;

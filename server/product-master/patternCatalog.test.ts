@@ -56,10 +56,19 @@ class Fake {
   if(sql.includes('EXISTS (SELECT 1 FROM pattern_colorways c')){
    masters=masters.filter(m=>m.versions.some(v=>matching(m,v)));
   }
+  if(sql.startsWith('SELECT COUNT(*) AS colorway_total'))return [[{colorway_total:masters.reduce((n,m)=>n+m.versions.filter(v=>matching(m,v)).length,0)}],[]];
   if(sql.startsWith('SELECT COUNT(*) AS total'))return [[{total:masters.length}],[]];
   if(sql.includes('FROM pattern_masters m')){
-   assert(sql.includes('ORDER BY m.created_at DESC,m.id DESC LIMIT ? OFFSET ?'));
-   const page=masters.sort((a,b)=>(b.created_at??'').localeCompare(a.created_at??'')||(BigInt(a.id)>BigInt(b.id)?-1:1));
+   assert(sql.includes('LIMIT ? OFFSET ?'));
+   const numeric=sql.includes("TRIM(LEADING '0' FROM SUBSTRING(m.master_no,2))");
+   const desc=numeric&&sql.includes(') DESC');
+   const digits=s=>(s.match(/^G0*(\d+)$/)?.[1]??'0').replace(/^0+(?=\d)/,'');
+   const compare=(a,b)=>{
+    const aa=digits(a.master_no),bb=digits(b.master_no);
+    return aa.length-bb.length||aa.localeCompare(bb)||a.master_no.localeCompare(b.master_no);
+   };
+   if(numeric)masters.sort((a,b)=>desc?-compare(a,b):compare(a,b));
+   const page=sql.includes("TRIM(LEADING '0' FROM SUBSTRING(m.master_no,2))")?masters:masters.sort((a,b)=>(b.created_at??'').localeCompare(a.created_at??'')||(BigInt(a.id)>BigInt(b.id)?-1:1));
    return [page.slice(Number(params.at(-1)),Number(params.at(-1))+Number(params.at(-2))).map(m=>({
     id:m.id,master_no:m.master_no,is_active:m.is_active,next_colorway_no:m.next_colorway_no
    })),[]];
@@ -97,17 +106,17 @@ class Fake {
 }
 const parse=(v:Record<string,unknown>)=>parsePatternCatalogQuery(v);
 test('P4-2 parser normalizes and blocks unknown/unsupported filters, bad limits and extra dimensions',()=>{
- assert.deepEqual(parse({}),{number:'',colorwayNo:null,topicTagIds:[],colorTagIds:[],includeInactive:false,limit:20,offset:0});
+ assert.deepEqual(parse({}),{number:'',colorwayNo:null,topicTagIds:[],colorTagIds:[],includeInactive:false,sort:'newest',limit:20,offset:0});
  assert.deepEqual(parse({number:' m002-3 ',colorwayNo:'3',topicTagIds:'1,2',colorTagIds:'11,12',includeInactive:'true',limit:'5',offset:'20'}),{
   number:'m002-3',colorwayNo:3,topicTagIds:['1','2'],colorTagIds:['11','12'],
-  includeInactive:true,limit:5,offset:20
+  includeInactive:true,sort:'newest',limit:5,offset:20
  });
  for(const input of [{number:['M','1']},{number:'x'.repeat(200)},{review:'approved'},{colorwayNo:'0'},
   {colorwayNo:'3.5'},{limit:'51'},{offset:'-1'},{includeInactive:'false'},
   {topicTagIds:'1,invalid'},{colorTagIds:'0'},{topicTagIds:Array.from({length:11},(_,i)=>i+1).join(',')}])
   assert.throws(()=>parse(input),e=>e instanceof PatternCatalogError&&e.status===400);
 });
-test('P4-2 2100 versions: master pages, batch active visible versions and parent tags, <=5 SQL, no N+1',async()=>{
+test('P4-2 2100 versions: master pages, batch active visible versions and parent tags, <=6 SQL, no N+1',async()=>{
  const db=new Fake();
  const page=await searchPatternCatalog(db,parse({number:'M',limit:'20',offset:'20'}));
  assert.equal(page.total,95);
@@ -115,10 +124,10 @@ test('P4-2 2100 versions: master pages, batch active visible versions and parent
  assert(page.items.every(m=>m.versions.length===20&&!m.versions.some(v=>v.colorwayNo===3)));
  assert(page.items.every(m=>m.topicTags.length>0));
  assert(page.items[0].versions[0].colorTags.length>0);
- assert(db.calls.length===5);
+ assert(db.calls.length===6);
  assert(db.calls[0].sql.startsWith('SELECT COUNT(*) AS total'));
- assert(db.calls[1].sql.includes('LIMIT ? OFFSET ?'));
- assert(db.calls[2].sql.includes('c.master_id IN'));
+ assert(db.calls[2].sql.includes('LIMIT ? OFFSET ?'));
+ assert(db.calls[3].sql.includes('c.master_id IN'));
 });
 test('colors filter the pattern master and do not prune differently colored versions',async()=>{
  const db=new Fake(2);
@@ -127,7 +136,7 @@ test('colors filter the pattern master and do not prune differently colored vers
  assert.match(where,/pattern_master_tag_links ct/);assert.match(where,/ct\.master_id=m\.id/);
  assert(!where.includes('ct.colorway_id=c.id'));
  assert(result.items.every(master=>Array.isArray(master.colorTags)));
- const versionQuery=db.calls.find(call=>call.sql.includes('FROM pattern_colorways c JOIN'))!;
+ const versionQuery=db.calls.find(call=>call.sql.includes('FROM pattern_colorways c JOIN')&&!call.sql.startsWith('SELECT COUNT'))!;
  assert(!versionQuery.sql.includes('ct.tag_id IN'),'parent color does not hide sibling versions');
 });
 test('pattern-level colors filter the parent and preserve all matching numbered sibling versions',async()=>{
@@ -233,4 +242,35 @@ test('P4-2 isolated HTTP matrix and edit endpoints require Bearer and reject uns
 test('pattern catalog pages by creation descending with descending identity ties',async()=>{
  const db=new Fake(3);db.masters[0].created_at='2026-10-18T00:00:00Z';db.masters[1].created_at=db.masters[2].created_at='2026-10-19T00:00:00Z';const first=await searchPatternCatalog(db,parse({limit:'2',offset:'0'})),second=await searchPatternCatalog(db,parse({limit:'2',offset:'2'}));assert.deepEqual(first.items.map(x=>x.id),['3','2']);assert.deepEqual(second.items.map(x=>x.id),['1']);assert.equal(first.total,3);
  assert(db.calls.find(x=>x.sql.includes('LIMIT ? OFFSET ?'))!.sql.includes('ORDER BY m.created_at DESC,m.id DESC LIMIT ? OFFSET ?'));
+});
+
+test('number order sorts the entire filtered table before each master page; G8 precedes G15 before G100',async()=>{
+ const db=new Fake(65);db.masters.forEach((master,i)=>{master.master_no='G'+String(i+1).padStart(i%2?4:1,'0');master.is_active=1;});
+ const pages=await Promise.all([0,20,40,60].map(offset=>searchPatternCatalog(db,parse({sort:'numberAsc',offset:String(offset),limit:'20'}))));
+ const ordered=pages.flatMap(page=>page.items.map(x=>x.masterNo));
+ assert.equal(ordered.length,65);assert.equal(new Set(ordered).size,65);
+ const asNumbers=ordered.map(x=>Number(x.slice(1)));
+ assert.deepEqual(asNumbers,Array.from({length:65},(_,i)=>i+1));
+ assert(asNumbers.indexOf(8)<asNumbers.indexOf(15));
+ const desc=await searchPatternCatalog(db,parse({sort:'numberDesc',offset:'0',limit:'20'}));
+ assert.deepEqual(desc.items.slice(0,3).map(x=>Number(x.masterNo.slice(1))),[65,64,63]);
+ const limited=await searchPatternCatalog(db,parse({number:'G1',sort:'numberAsc',limit:'10'}));
+ assert(limited.items.every(x=>x.masterNo.includes('1')),'number sorting preserves filters');
+ assert.throws(()=>parse({sort:'weightDesc'}),/Invalid sorting/);
+});
+test('76 masters and 144 imported colorways report separate global totals and page without loss or duplicates',async()=>{
+ const db=new Fake(76);
+ db.masters.forEach((m,i)=>{m.is_active=1;m.versions=m.versions.slice(0,i<68?2:1);});
+ const seen=new Set<string>(),versions=new Set<string>();
+ for(const offset of [0,20,40,60]){
+  const page=await searchPatternCatalog(db,parse({limit:'20',offset:String(offset)}));
+  assert.equal(page.total,76);assert.equal((page as any).totalColorways,144);
+  assert.equal(page.items.length,offset===60?16:20);
+  for(const m of page.items){assert(!seen.has(m.id));seen.add(m.id);for(const v of m.versions)versions.add(v.id);}
+ }
+ assert.equal(seen.size,76);assert.equal(versions.size,144);
+ const filtered=await searchPatternCatalog(db,parse({number:'M001'}));
+ assert.equal(filtered.total,1);assert.equal((filtered as any).totalColorways,2);
+ const beyond=await searchPatternCatalog(db,parse({offset:'80'}));
+ assert.equal(beyond.total,76);assert.equal((beyond as any).totalColorways,144);assert.deepEqual(beyond.items,[]);
 });

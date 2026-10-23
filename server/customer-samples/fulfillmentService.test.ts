@@ -7,7 +7,7 @@ import {getFulfillmentSchemaStatements} from './fulfillmentSchema';
 const actor:AppPrincipal={userId:'6',sessionId:'9',role:'sales',username:'s',displayName:'S',
  canManageOwnOrders:false,canManageProducts:false};
 const shipment={sessionId:'41',shippedAt:'2026-10-17T09:15:00.000Z',carrier:'顺丰',trackingNo:'SF123',items:[{productId:'18',quantity:3}]};
-const follow={sessionId:'41',contactedOn:'2026-10-17',customerConfirmed:true,feedback:'已确认',outcome:'需再寄样',nextAction:'下周回访',nextFollowupOn:'2026-10-20',productIds:['18']};
+const follow={sessionId:'41',contactedOn:'2026-10-17',customerConfirmed:true,feedback:'已确认',outcome:'需再寄样',nextAction:null,nextFollowupOn:null,productIds:['18']};
 type Row=Record<string,unknown>;
 class Db {
  calls:{sql:string;args:unknown[]}[]=[];commits=0;rollbacks=0;releases=0;
@@ -37,14 +37,8 @@ class Db {
  }
 }
 const status=(n:number)=>(e:unknown)=>e instanceof SampleFulfillmentError&&e.status===n;
-test('SHIP-01: authorized write saves a real batch + product quantities atomically, not selected state',async()=>{
- const db=new Db(),result=await saveShipmentBatch(db,actor,shipment);
- assert.deepEqual(result,{id:'101',sessionId:'41',itemCount:1});
- assert.equal(db.shipments.length,1);assert.equal(db.lines.length,1);
- assert.deepEqual((db.shipments[0].args as unknown[]).slice(0,2),['41','6']);
- assert.deepEqual((db.lines[0].args as unknown[]).slice(1),['41','18',3]);
- assert.equal(db.commits,1);assert.equal(db.releases,1);
- assert(db.calls.filter(c=>/^INSERT/.test(c.sql)).every(c=>!c.sql.includes('customer_sample_items')));
+test('V1.2 shipment writes are retired without touching historical SQL',async()=>{
+ const db=new Db();await assert.rejects(saveShipmentBatch(db,actor,shipment),status(409));assert.equal(db.calls.length,0);assert.equal(db.shipments.length,0);
 });
 test('FOLLOW-01: authorized write stores factual result with selected product link and no auto order',async()=>{
  const db=new Db();db.userRole='admin';const result=await saveSampleFollowup(db,{...actor,role:'admin'},follow);
@@ -55,7 +49,7 @@ test('FOLLOW-01: authorized write stores factual result with selected product li
 });
 test('SHIP/FOLLOW: grant, login, role and closed session fail before writes',async()=>{
  for(const kind of ['grant','login','role','closed','selection'] as const){
-  for(const save of [(db:Db)=>saveShipmentBatch(db,actor,shipment),(db:Db)=>saveSampleFollowup(db,actor,follow)]){
+  for(const save of [(db:Db)=>saveSampleFollowup(db,actor,follow)]){
    const db=new Db();
    if(kind==='grant')db.granted=false;
    if(kind==='login')db.login=false;
@@ -70,9 +64,8 @@ test('SHIP/FOLLOW: grant, login, role and closed session fail before writes',asy
 });
 test('SHIP/FOLLOW: line/link and commit failures restore batch, followup and references',async()=>{
  for(const [failAt,save] of [
-  ['line', (db:Db)=>saveShipmentBatch(db,actor,shipment)],
   ['followLink',(db:Db)=>saveSampleFollowup(db,actor,follow)],
-  ['commit',(db:Db)=>saveShipmentBatch(db,actor,shipment)]
+  ['commit',(db:Db)=>saveSampleFollowup(db,actor,follow)]
  ] as const){
   const db=new Db();db.failAt=failAt;
   await assert.rejects(save(db),/secret failure/);
@@ -92,3 +85,5 @@ test('B3 opt-in fresh schema declares restrictive historical references and tran
  }
 
 });
+
+test('V1.2 feedback cannot restart independent next-action/date workflow',async()=>{const db=new Db();await assert.rejects(saveSampleFollowup(db,actor,{...follow,nextFollowupOn:'2026-10-22',nextAction:'旧流程'}),status(400));assert.equal(db.followups.length,0);});

@@ -1,3 +1,4 @@
+import {openInlineCardCamera} from './inlineCardCamera';
 export const CARD_CAMERA_URL='https://124.223.97.60/v2-camera/';
 export const CAMERA_RETURN_ORIGINS=['http://192.168.2.32:52990','http://127.0.0.1:52987','https://124.223.97.60'] as const;
 const nonceOk=(x:unknown):x is string=>typeof x==='string'&&/^[a-f0-9]{32}$/.test(x);
@@ -17,6 +18,7 @@ export function validCameraMessage(data:unknown,nonce:string,type:string):boolea
 }
 /** Private code stays in memory. Source window + exact origin + nonce are all mandatory. */
 export function openCardCamera(onDecoded:(token:string)=>void,onClosed:()=>void):()=>void{
+ if(globalThis.isSecureContext)return openInlineCardCamera(onDecoded,onClosed);
  const random=crypto.getRandomValues(new Uint8Array(16)),nonce=Array.from(random,x=>x.toString(16).padStart(2,'0')).join(''),url=cameraLaunchUrl(location.origin,nonce),cameraOrigin=new URL(CARD_CAMERA_URL).origin;
  let popup:Window|null=null,done=false,started=false,timer:ReturnType<typeof setInterval>|undefined;
  function finish(token?:string){if(done)return;done=true;window.removeEventListener('message',receive);clearInterval(timer);try{popup?.close();}catch{}if(token)onDecoded(token);onClosed();}

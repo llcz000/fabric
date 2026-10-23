@@ -4,6 +4,13 @@ import QRCode from 'qrcode';
 import sharp from 'sharp';
 import {decodeCardPixels,readCardPhoto} from './cardPhotoScan';
 
+test('real URL QR pixels are accepted by the live scanner and return the same private stable token',async()=>{
+ const payload='Stable_card_token_0123456789_AbCd';
+ const png=await QRCode.toBuffer('https://124.223.97.60/#/cards?scan='+payload,{width:512,margin:4});
+ const {data,info}=await sharp(png).ensureAlpha().raw().toBuffer({resolveWithObject:true});
+ assert.equal(decodeCardPixels(new Uint8ClampedArray(data),info.width,info.height),payload);
+});
+
 test('a real physical-card QR image decodes locally without converting its stable payload',async()=>{
  const payload='A'.repeat(43);
  const png=await QRCode.toBuffer(payload,{width:512,margin:3});

@@ -6,7 +6,7 @@ export class PatternCatalogError extends Error{
 }
 export interface PatternCatalogQuery{
  number:string;colorwayNo:number|null;topicTagIds:string[];colorTagIds:string[];
- includeInactive:boolean;limit:number;offset:number;
+ includeInactive:boolean;sort:'newest'|'numberAsc'|'numberDesc';limit:number;offset:number;
 }
 export interface PatternTag{id:string;name:string;isArchived:boolean}
 export interface PatternVersion{
@@ -17,7 +17,7 @@ export interface PatternMasterPageItem{
  id:string;masterNo:string;isActive:boolean;nextColorwayNo:number;
  topicTags:PatternTag[];colorTags:PatternTag[];versions:PatternVersion[];
 }
-export interface PatternCatalogPage{items:PatternMasterPageItem[];total:number;limit:number;offset:number}
+export interface PatternCatalogPage{items:PatternMasterPageItem[];total:number;totalColorways:number;limit:number;offset:number}
 type Query={query(sql:string,params?:unknown[]):Promise<[unknown,unknown]>};
 type Row=Record<string,unknown>;
 const MAX=18446744073709551615n;
@@ -54,21 +54,23 @@ export function parsePatternCatalogQuery(raw:unknown):PatternCatalogQuery{
  if(!raw||typeof raw!=='object'||Array.isArray(raw))throw new PatternCatalogError('Invalid filters');
  const item=raw as Record<string,unknown>;
  if(Object.keys(item).some(x=>!['number','colorwayNo','topicTagIds','colorTagIds',
-  'includeInactive','limit','offset'].includes(x)))throw new PatternCatalogError('Unexpected filter');
+  'includeInactive','sort','limit','offset'].includes(x)))throw new PatternCatalogError('Unexpected filter');
  const q=item.number===undefined?'':item.number;
  if(typeof q!=='string'||q.length>160||/[\p{Cc}\p{Cf}]/u.test(q))
   throw new PatternCatalogError('Invalid search text');
  if(item.includeInactive!==undefined&&item.includeInactive!=='true')
   throw new PatternCatalogError('Invalid includeInactive');
+ if(item.sort!==undefined&&!['newest','numberAsc','numberDesc'].includes(String(item.sort)))
+  throw new PatternCatalogError('Invalid sorting');
  return {number:q.trim(),colorwayNo:item.colorwayNo===undefined?null:
   parseIntParam(item.colorwayNo,'colorwayNo',0,1,4294967295),
   topicTagIds:ids(item.topicTagIds),colorTagIds:ids(item.colorTagIds),
-  includeInactive:item.includeInactive==='true',limit:parseIntParam(item.limit,'limit',20,1,50),
+  includeInactive:item.includeInactive==='true',sort:item.sort===undefined?'newest':item.sort as PatternCatalogQuery['sort'],limit:parseIntParam(item.limit,'limit',20,1,50),
   offset:parseIntParam(item.offset,'offset',0,0,1000000)};
 }
 const like=(text:string)=>'%'+text.toLowerCase().replace(/[!%_]/g,x=>'!'+x)+'%';
 function where(input:PatternCatalogQuery):{sql:string;params:unknown[];variant:string;variantParams:unknown[]}{
- const cond:string[]=[],params:unknown[]=[],vCond:string[]=[],vParams:unknown[]=[];
+ const cond:string[]=['m.deleted_at IS NULL'],params:unknown[]=[],vCond:string[]=[],vParams:unknown[]=[];
  if(!input.includeInactive){cond.push('m.is_active=1');vCond.push('c.is_active=1');}
  if(input.number){
   if(input.number.includes('-')){
@@ -125,13 +127,25 @@ export async function searchPatternCatalog(db:Query,input:PatternCatalogQuery):P
  const filtered=where(input);
  const [countRaw]=await db.query('SELECT COUNT(*) AS total FROM pattern_masters m'+filtered.sql,filtered.params);
  const total=integer(rows(countRaw)[0]?.total,'catalog total');
- if(!total||input.offset>=total)return {items:[],total,limit:input.limit,offset:input.offset};
+ if(!total)return {items:[],total,totalColorways:0,limit:input.limit,offset:input.offset};
+ const [colorwayCountRaw]=await db.query(
+  'SELECT COUNT(*) AS colorway_total FROM pattern_colorways c JOIN pattern_masters m ON m.id=c.master_id'+
+  filtered.sql+filtered.variant,[...filtered.params,...filtered.variantParams]);
+ const totalColorways=integer(rows(colorwayCountRaw)[0]?.colorway_total,'colorway total');
+ if(input.offset>=total)return {items:[],total,totalColorways,limit:input.limit,offset:input.offset};
+ // Sort globally in MySQL BEFORE LIMIT/OFFSET, comparing digits instead of lexicographic numbers.
+ // Avoid numeric overflow for pattern numbers with >19 digits.
+ const suffix="TRIM(LEADING '0' FROM SUBSTRING(m.master_no,2))";
+ const direction=input.sort==='numberDesc'?'DESC':'ASC';
+ const order=input.sort==='newest'?'m.created_at DESC,m.id DESC':
+  'LENGTH('+suffix+') '+direction+','+suffix+' '+direction+',m.master_no '+direction+',m.id '+direction;
  const [masterRaw]=await db.query(
   'SELECT m.id,m.master_no,m.is_active,m.next_colorway_no FROM pattern_masters m'+filtered.sql+
-  ' ORDER BY m.created_at DESC,m.id DESC LIMIT ? OFFSET ?',
+  ' ORDER BY '+order+' LIMIT ? OFFSET ?',
   [...filtered.params,input.limit,input.offset]);
  const data=rows(masterRaw);
  if(data.length>input.limit)throw Error('Unbounded pattern master page');
+ if(!data.length)return {items:[],total,totalColorways,limit:input.limit,offset:input.offset};
  const ownerIds=data.map(row=>id(row.id));
  const condition='c.master_id IN ('+ownerIds.map(()=>'?').join(',')+')'+filtered.variant;
  const [variantRaw]=await db.query(
@@ -165,7 +179,7 @@ export async function searchPatternCatalog(db:Query,input:PatternCatalogQuery):P
      colorTags:colorTags.get(parent)??[]};
    })};
  });
- return {items,total,limit:input.limit,offset:input.offset};
+ return {items,total,totalColorways,limit:input.limit,offset:input.offset};
 }
 /** Opened on demand: one master and all versions with their own color tags, no per-version HTTP requests. */
 export async function loadPatternEditor(db:Query,masterId:string):Promise<{
@@ -174,7 +188,7 @@ export async function loadPatternEditor(db:Query,masterId:string):Promise<{
  if(!/^[1-9]\d{0,19}$/.test(masterId)||BigInt(masterId)>MAX)
   throw new PatternCatalogError('Invalid master identity');
  const [parents]=await db.query(
-  'SELECT id,master_no,next_colorway_no FROM pattern_masters WHERE id=?',[masterId]);
+  'SELECT id,master_no,next_colorway_no FROM pattern_masters WHERE id=? AND deleted_at IS NULL',[masterId]);
  const parent=rows(parents)[0];if(!parent)throw new PatternCatalogError('Pattern master not found',404);
  const masterNo=String(parent.master_no),next=integer(parent.next_colorway_no,'next sequence');
  const [raw]=await db.query(

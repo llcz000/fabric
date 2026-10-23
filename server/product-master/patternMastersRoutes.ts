@@ -5,6 +5,7 @@ import {requireV2Principal,requireV2Action,type AccessDatabase} from '../access/
 import type {AppPrincipal} from '../access/types';
 import {createPatternMaster,listPatternMasters,updatePatternMaster,deletePatternMaster,PatternMasterError} from './patternMasters';
 import {searchPatternCatalog,parsePatternCatalogQuery,loadPatternEditor,PatternCatalogError} from './patternCatalog';
+import {importPatternImageAsColorway} from './patternImageImport';
 
 /** Isolated P3-1a HTTP router; no server.ts/production mounting. */
 export function createPatternMasterRouter(database:AccessDatabase,pool:Pool):Router{
@@ -22,6 +23,10 @@ export function createPatternMasterRouter(database:AccessDatabase,pool:Pool):Rou
   res.status(503).json({error:'Pattern master service temporarily unavailable'});
  };
  router.use((_req,res,next)=>{res.setHeader('Cache-Control','no-store');next();});
+ router.post('/pattern-catalog/import',principal,write,requireJson,parser,async(req,res)=>{
+  try{res.status(201).json(await importPatternImageAsColorway(pool,res.locals.principal as AppPrincipal,req.body));}
+  catch(e){errorResponse(res,e);}
+ });
  router.get('/pattern-catalog/export.xlsx',principal,read,catalogExportHandler(database,'patterns'));
  router.get('/pattern-catalog',principal,read,async(req,res)=>{
   try{res.json(await searchPatternCatalog(database,parsePatternCatalogQuery(req.query)));}

@@ -1,3 +1,4 @@
+import {createCustomerRouter} from '../customers/routes';
 /** P7 pre-cutover TEST-ONLY V2 internal HTTP assembly.
  * A reusable route group for localhost/in-memory/isolated DB integration
  * without touching legacy app or the deployed server.ts.
@@ -121,18 +122,20 @@ export async function createV2CatalogAssembly(database:AccessDatabase,pool:Pool,
 }
 
 /** Internal composition only. Callers must establish target and schema safety before mounting. */
-export function createV2BusinessRoutes(checkedDatabase:AccessDatabase,checkedPool:Pool,documentOutput?:V2DocumentOutputDependencies):Router{
+export function createV2BusinessRoutes(checkedDatabase:AccessDatabase,checkedPool:Pool&{customerProfilesEnabled?:boolean},documentOutput?:V2DocumentOutputDependencies,customerOptions:{unavailable?:boolean}={}):Router{
  const routes=Router();
  routes.use((_req,res,next)=>{res.setHeader('Cache-Control','no-store');next();});
  routes.use('/access',createV2AccessRouter(checkedDatabase));
  routes.use('/access',createV2MemberRouter(checkedDatabase,checkedPool));
+ routes.use(createCustomerRouter(requireV2Principal(checkedDatabase),checkedPool,checkedPool.customerProfilesEnabled===true));
+ if(customerOptions.unavailable){const deny:import('express').RequestHandler=(_req,res)=>{res.status(503).json({error:'客户选样资料暂不可用，请检查客户schema'});};routes.use('/customer-samples',requireV2Principal(checkedDatabase),deny);routes.post('/sample-cards/scan',requireV2Principal(checkedDatabase),deny);}
  // Approved card management is independent of products.manage; scans still
  // require sales role plus the explicit customer sample-session grant.
  // Mount before catalog parser fall-through, with private parsers in each router.
  routes.use('/sample-cards',createSampleCardLibraryRouter(checkedDatabase,
   createMySQLSampleCardLibraryDependencies(checkedDatabase,checkedPool)));
  routes.use('/sample-cards',createSampleCardScanRouter(checkedDatabase,
-  createMySQLSampleScanDependencies({query:checkedDatabase.query.bind(checkedDatabase),getConnection:checkedPool.getConnection.bind(checkedPool)})));
+  createMySQLSampleScanDependencies({customerProfilesEnabled:checkedPool.customerProfilesEnabled,query:checkedDatabase.query.bind(checkedDatabase),getConnection:checkedPool.getConnection.bind(checkedPool)})));
  routes.use('/customer-samples',createSampleSessionReadRouter(checkedDatabase,checkedPool));
  routes.use('/customer-samples',createSampleSessionRemoveRouter(requireV2Principal(checkedDatabase),checkedPool));
  routes.use('/customer-samples',createSampleSessionManualRouter(requireV2Principal(checkedDatabase),checkedPool));
@@ -148,7 +151,7 @@ export function createV2BusinessRoutes(checkedDatabase:AccessDatabase,checkedPoo
  // Use the same auth query adapter and transaction pool as the catalog;
  // production target identity must be checked before any future deployment.
  routes.use('/document-products',createV2SelectorRouter(checkedDatabase));
- routes.use(createV2DocumentRouter({query:checkedDatabase.query.bind(checkedDatabase),getConnection:checkedPool.getConnection.bind(checkedPool)},documentOutput));
+ routes.use(createV2DocumentRouter({customerProfilesEnabled:checkedPool.customerProfilesEnabled,customerProfilesRequired:customerOptions.unavailable===true,query:checkedDatabase.query.bind(checkedDatabase),getConnection:checkedPool.getConnection.bind(checkedPool)},documentOutput));
  /** Catch body-parser errors from auth routes too. Never forward Express's
   * development HTML traces into user-visible API responses. */
  const errors:ErrorRequestHandler=(error,_req,res,_next)=>{

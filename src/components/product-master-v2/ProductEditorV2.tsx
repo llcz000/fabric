@@ -1,209 +1,34 @@
-import {ActionIcon} from './ActionIcon';
-import {useV2LeaveProtection} from './useV2LeaveProtection';
-import React,{useCallback,useEffect,useMemo,useRef,useState} from 'react';
-import {ArrowLeft,ChevronDown,ChevronUp,Image as ImageIcon,Plus,Search,X} from 'lucide-react';
-import type {FabricCatalogItem} from './fabricModel';
-import type {PatternVersionItem} from './patternModel';
-import {
- IMAGE_ROLES,emptyProductDraft,initialProductDraft,parseProductDetails,
- buildProductNumberPreview,addDraftAsset,replaceDraftAsset,removeDraftAssets,moveDraftAsset,
- updateSelectedImages,loadProductForEdit,saveProductDraft,
- fetchColorwayChoices,fetchFabricChoices,
- type ImageRole,type EditorImages,type ProductEditorDetails,type ProductEditorDraft,
- type ProductPatternChoice
-} from './productEditorModel';
-import {resolveImageUrls,createLatestRequestGuard} from './catalogModel';
-const tag='rounded-md border border-[#c3c6d7] bg-white px-3 py-2 text-xs text-[#191b24]';
-const heading='text-sm font-semibold text-[#191b24]';
-const roles:{key:ImageRole;name:string}[]=[
- {key:'fabricDisplay',name:'面料大图'},{key:'detail',name:'面料细节图'},{key:'aiEffect',name:'效果图'}
-];
-const emptySelected=():Record<ImageRole,string[]>=>({fabricDisplay:[],detail:[],aiEffect:[]});
-const show=(x:string|null|number)=>x===null||x===''?'—':x;
-export interface ProductIdentityChoicesProps{
- version:ProductPatternChoice|null;fabric:FabricCatalogItem|null;
- canChange:boolean;onChooseVersion():void;onChooseFabric():void;
- onPatternLibrary?():void;onFabricLibrary?():void;patternUrl?:string;
-}
-export function ProductIdentityChoices({
- version,fabric,canChange,onChooseVersion,onChooseFabric,onPatternLibrary,onFabricLibrary,patternUrl
-}:ProductIdentityChoicesProps){
- return <div className="grid gap-3 md:grid-cols-2">
-  <section className="rounded-lg border border-[#c3c6d7] bg-white p-3">
-   <header className="flex items-center justify-between gap-2">
-    <h2 className={heading}>花型编号与配色版本</h2>
-    {onPatternLibrary?<button type="button" onClick={onPatternLibrary} className="text-xs text-[#0053da]"><ActionIcon name="next"/>去花型库维护</button>:null}
-   </header>
-   <button type="button" disabled={!canChange} onClick={onChooseVersion}
-    aria-label="选择花型版本" className={tag+' mt-2 w-full text-left disabled:opacity-65'}>
-    <span className="font-semibold">{version?.patternNo??'搜索选择完整花型编号'}</span>
-    {canChange?<span className="float-right text-[#0053da]">选择 / 更换</span>:null}
-   </button>
-   <div className="mt-2 flex min-h-20 items-center gap-3 rounded bg-[#f8fafc] p-2 text-xs text-slate-600">
-    {version&&patternUrl?<img src={patternUrl} alt={'当前配色花型 '+version.patternNo}
-     className="h-14 w-14 rounded object-cover" loading="lazy"/>:
-     <span className="flex h-14 w-14 items-center justify-center rounded border bg-white text-[10px] text-slate-400">
-      {version?.patternImageAssetId?'图片暂不可用':'待上传'}</span>}
-    <div className="space-y-1"><div>母版：{version?.patternNo.split('-')[0]??'—'} · 配色：{version?.colorwayNo??'—'}</div>
-     <div>题材标签：{version?.topicTags.map(t=>t.name).join('、')||'—'}</div>
-     <div>颜色标签：{version?.colorTags.map(t=>t.name).join('、')||'—'}</div>
-     <div className="text-slate-500">选择的是具体花型版本，不单独编辑配色身份。</div>
-    </div>
-   </div>
-  </section>
-  <section className="rounded-lg border border-[#c3c6d7] bg-white p-3">
-   <header className="flex items-center justify-between gap-2">
-    <h2 className={heading}>面料品号</h2>
-    {onFabricLibrary?<button type="button" onClick={onFabricLibrary} className="text-xs text-[#0053da]"><ActionIcon name="next"/>去面料库维护</button>:null}
-   </header>
-   <button type="button" disabled={!canChange} onClick={onChooseFabric} aria-label="选择面料"
-    className={tag+' mt-2 w-full text-left disabled:opacity-65'}>
-    <span className="font-semibold">{fabric?.fabricNo??'搜索选择面料'}</span>
-    {canChange?<span className="float-right text-[#0053da]">选择 / 更换</span>:null}
-   </button>
-   <div className="mt-2 min-h-20 space-y-1 rounded bg-[#f8fafc] p-2 text-xs text-slate-600">
-    <div>品名：<strong>{show(fabric?.fabricName??null)}</strong></div>
-    <div>成分：{show(fabric?.composition??null)}</div>
-    <div>克重：{fabric?.weightValue==null?'—':fabric.weightValue+' '+fabric.weightUnit} · 门幅：{fabric?.widthValue==null?'—':fabric.widthValue+' cm'}</div>
-    <div className="text-slate-500">面料资料只读，请在面料库维护。</div>
-   </div>
-  </section>
- </div>;
-}
-export interface ProductImageTabsProps{
- images:EditorImages;selected:string[];activeRole:ImageRole;
- onRole(role:ImageRole):void;onSelect(id:string,checked:boolean):void;
- onDeleteSelected():void;onMove(index:number,direction:-1|1):void;
- urls:Map<string,string>;canManage:boolean;onUploadClick?():void;
- onReplaceClick?(index:number):void;
-}
-export function ProductImageTabs({images,selected,activeRole,onRole,onSelect,onDeleteSelected,
- onMove,urls,canManage,onUploadClick,onReplaceClick}:ProductImageTabsProps){
- return <section className="rounded-lg border border-[#c3c6d7] bg-white">
-  <div role="tablist" aria-label="产品三类图片" className="flex flex-wrap items-center border-b border-[#e2e1ee]">
-   {roles.map(r=><button key={r.key} type="button" role="tab"
-    aria-selected={activeRole===r.key} onClick={()=>onRole(r.key)}
-    className={'border-b-2 px-4 py-3 text-xs font-medium '+(activeRole===r.key?
-     'border-[#346ef6] text-[#0053da]':'border-transparent text-slate-600')}>
-    {r.name} <span className="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-[11px]">{images[r.key].length} / 10</span>
-   </button>)}
-  </div>
-  <p className="px-4 pt-2 text-[11px] text-slate-500">切换类别保留已选图片与排序；保存时一次提交全部类别。每类首张为该类主图。</p>
-  <div className="flex flex-wrap items-center justify-end gap-2 px-4 py-2">
-   {canManage?<button type="button" disabled={selected.length===0} onClick={onDeleteSelected}
-    className={tag+' disabled:opacity-40'}><ActionIcon name="delete"/>删除选中（{selected.length}）</button>:null}
-   {canManage&&onUploadClick&&images[activeRole].length<10?
-    <button type="button" onClick={onUploadClick}
-     className="rounded bg-[#346ef6] px-3 py-2 text-xs text-white"><ActionIcon name="upload"/>上传图片</button>:null}
-  </div>
-  <div role="tabpanel" aria-label={roles.find(x=>x.key===activeRole)?.name} className="flex min-h-40 flex-wrap gap-3 bg-[#f8fafc] p-4">
-   {images[activeRole].length?images[activeRole].map((id,index)=><div key={id}
-    className="w-28 space-y-1 rounded border border-[#e2e1ee] bg-white p-1">
-    <div className="relative h-24 w-full">
-     {urls.get(id)?<img src={urls.get(id)} alt={roles.find(x=>x.key===activeRole)?.name+' 第'+(index+1)+'张'}
-      loading="lazy" className="h-24 w-full rounded object-contain"/>:
-      <span className="flex h-24 items-center justify-center rounded bg-slate-100 text-[11px] text-slate-500">图片暂不可用</span>}
-     {canManage?<input type="checkbox" aria-label={'选中第'+(index+1)+'张图片'}
-      checked={selected.includes(id)} onChange={e=>onSelect(id,e.target.checked)}
-      className="absolute left-1 top-1 h-4 w-4"/>:null}
-    </div>
-    {canManage&&onReplaceClick?<button type="button" onClick={()=>onReplaceClick(index)}
-     aria-label={'替换第'+(index+1)+'张图片'}
-     className="block w-full rounded border px-1 py-0.5 text-center text-[10px] text-[#0053da]">
-     <ActionIcon name="refresh"/>替换第{index+1}张</button>:null}
-    <div className="flex items-center justify-between gap-1 text-[10px]">
-     <span>{index===0?'主图':'第 '+(index+1)+' 张'}</span>
-     {canManage?<span className="flex gap-1">
-      <button type="button" aria-label={'图片'+(index+1)+'前移'} disabled={index===0}
-       onClick={()=>onMove(index,-1)} className="rounded border px-1 disabled:opacity-30"><ChevronUp size={12}/></button>
-      <button type="button" aria-label={'图片'+(index+1)+'后移'}
-       disabled={index===images[activeRole].length-1} onClick={()=>onMove(index,1)}
-       className="rounded border px-1 disabled:opacity-30"><ChevronDown size={12}/></button>
-     </span>:null}
-    </div>
-   </div>):<p className="text-xs text-slate-500">当前分类暂无图片</p>}
-  </div>
- </section>;
-}
+import { ActionIcon } from './ActionIcon';
+import { useV2LeaveProtection } from './useV2LeaveProtection';
+import {useConfirm} from '../ui/ConfirmDialog';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft } from 'lucide-react';
+import type { FabricCatalogItem } from './fabricModel';
+import { emptyProductDraft, initialProductDraft, buildProductNumberPreview, addDraftAsset, replaceDraftAsset, removeDraftAssets, moveDraftAsset, updateSelectedImages, loadProductForEdit, saveProductDraft, fetchColorwayChoices, type ImageRole, type ProductEditorDetails, type ProductEditorDraft, type ProductPatternChoice } from './productEditorModel';
+import { resolveImageUrls, createLatestRequestGuard } from './catalogModel';
+import {ProductIdentityChoices} from './ProductIdentityChoices';
+import {ProductImageTabs} from './ProductEditorImageTabs';
+import {ProductChoiceDialog} from './ProductChoiceDialog';
 type ChoiceState='pattern'|'fabric'|null;
-interface ProductChoiceDialogProps{
- type:Exclude<ChoiceState,null>;apiFetch:typeof fetch;onClose():void;
- onChooseVersion(value:ProductPatternChoice):void;onChooseFabric(value:FabricCatalogItem):void;
-}
-function ProductChoiceDialog({type,apiFetch,onClose,onChooseVersion,onChooseFabric}:ProductChoiceDialogProps){
- const [query,setQuery]=useState(''),[error,setError]=useState('');
- const [loading,setLoading]=useState(true);
- const [patterns,setPatterns]=useState<ProductPatternChoice[]>([]);
- const [fabrics,setFabrics]=useState<FabricCatalogItem[]>([]);
- const [hasMore,setHasMore]=useState(false);
- const seq=useRef(createLatestRequestGuard()),ref=useRef<HTMLInputElement>(null);
- useEffect(()=>{ref.current?.focus();},[]);
- useEffect(()=>{
-  const controller=new AbortController(),token=seq.current.next();
-  setLoading(true);setError('');
-  const timer=setTimeout(async()=>{
-   try{
-    if(type==='pattern'){
-     const result=await fetchColorwayChoices(apiFetch,query,controller.signal);
-     if(controller.signal.aborted||!seq.current.isCurrent(token))return;
-     setPatterns(result.items);setHasMore(result.total>result.limit);
-    }else{
-     const result=await fetchFabricChoices(apiFetch,query,controller.signal);
-     if(controller.signal.aborted||!seq.current.isCurrent(token))return;
-     setFabrics(result.items.filter(x=>x.isActive));setHasMore(result.total>result.limit);
-    }
-   }catch{
-    if(!controller.signal.aborted&&seq.current.isCurrent(token))setError('选项查询失败，请重试关键词。');
-   }finally{if(!controller.signal.aborted&&seq.current.isCurrent(token))setLoading(false);}
-  },200);
-  return ()=>{clearTimeout(timer);controller.abort();seq.current.cancel();};
- },[query,apiFetch,type]);
- return <div role="presentation" className="fixed inset-0 z-[70] flex items-center justify-center bg-black/55 p-3">
-  <div role="dialog" aria-modal="true" aria-label={type==='pattern'?'查找花型版本':'查找面料'}
-   className="flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-xl bg-white p-4">
-   <div className="flex items-center justify-between">
-    <strong className="text-sm">{type==='pattern'?'选择完整花型编号':'选择面料品号'}</strong>
-    <button type="button" aria-label="关闭选择窗口" onClick={onClose}><X size={18}/></button>
-   </div>
-   <label className="relative mt-3 flex items-center">
-    <Search size={16} className="absolute left-2 text-slate-500"/>
-    <input ref={ref} aria-label={type==='pattern'?'搜索花型编号':'搜索面料'}
-     value={query} onChange={e=>setQuery(e.target.value)} autoComplete="off"
-     placeholder={type==='pattern'?'按母版号或完整花型编号搜索':'按品号、品名、成分搜索'}
-     className="w-full rounded-lg border border-[#c3c6d7] px-8 py-2 text-sm"/>
-   </label>
-   {loading?<p role="status" className="mt-2 text-xs">正在搜索…</p>:null}
-   {error?<p role="alert" className="mt-2 text-xs text-rose-700">{error}</p>:null}
-   <div className="mt-2 max-h-[55vh] overflow-auto divide-y">
-    {type==='pattern'?patterns.map(v=><button type="button" key={v.id}
-     className="block w-full px-2 py-3 text-left text-xs hover:bg-[#eef1fd]"
-     onClick={()=>onChooseVersion(v)}>
-      <strong>{v.patternNo}</strong>
-      <span className="ml-3 text-slate-500">{v.colorTags.map(t=>t.name).join('、')||'未标记颜色'}</span>
-     </button>):fabrics.map(f=><button type="button" key={f.id}
-     className="block w-full px-2 py-3 text-left text-xs hover:bg-[#eef1fd]"
-     onClick={()=>onChooseFabric(f)}>
-      <strong>{f.fabricNo}</strong><span className="ml-3">{f.fabricName}</span>
-      <span className="ml-2 text-slate-500">{f.composition??'—'}</span>
-     </button>)}
-    {!loading&&!error&&(type==='pattern'?patterns.length===0:fabrics.length===0)?
-     <p className="py-6 text-center text-xs text-slate-500">没有匹配项，请换关键词。</p>:null}
-   </div>
-   {hasMore?<p className="mt-2 text-[11px] text-slate-500">匹配项较多，请输入更完整的编号或关键词精确定位。</p>:null}
-  </div>
- </div>;
-}
+
+const emptySelected=():Record<ImageRole,string[]>=>({fabricDisplay:[],detail:[],aiEffect:[]});
+
+const tag='rounded-md border border-[#c3c6d7] bg-white px-3 py-2 text-xs text-[#191b24]';
+
 export interface ProductEditorV2Props{
  apiFetch:typeof fetch;mode:'create'|'edit';productId?:string;canManage?:boolean;
- onCancel():void;onSaved(product:ProductEditorDetails):void;
+ prefillPatternId?:string;prefillPatternNo?:string;
+ onCancel():void;onSaved(product:ProductEditorDetails):void;onBatchCreate?():void;
  onPatternLibrary?():void;onFabricLibrary?():void;
  /** Not enabled until an authenticated V2 image-upload bridge has been verified.
   * Must upload exactly one file, await ready status and return a ready UUID assetId.
   */
  onUploadImage?(file:File,role:ImageRole):Promise<string>;
 }
+
 export function ProductEditorV2({apiFetch,mode,productId,canManage=false,onCancel,onSaved,
- onPatternLibrary,onFabricLibrary,onUploadImage}:ProductEditorV2Props){
+ onPatternLibrary,onFabricLibrary,onUploadImage,prefillPatternId,prefillPatternNo,onBatchCreate}:ProductEditorV2Props){
+ const confirm=useConfirm();
  const [draft,setDraft]=useState<ProductEditorDraft>(emptyProductDraft);
  const [original,setOriginal]=useState<ProductEditorDetails|null>(null);
  const [version,setVersion]=useState<ProductPatternChoice|null>(null);
@@ -221,9 +46,12 @@ export function ProductEditorV2({apiFetch,mode,productId,canManage=false,onCance
  useEffect(()=>{draftRef.current=draft;},[draft]);
  const dirty=JSON.stringify(draft)!==JSON.stringify(baseline.current);
  useV2LeaveProtection(dirty,saving||imageBusy);
- const close=()=>{
+ const close=async()=>{
   if(saving||imageBusy)return;
-  if(dirty&&typeof window!=='undefined'&&!window.confirm('放弃未保存的产品修改吗？'))return;
+  if(dirty){
+   const ok=await confirm({title:'放弃未保存的产品修改？',message:'当前修改尚未保存，放弃后无法恢复。',confirmText:'放弃修改',danger:true});
+   if(!ok)return;
+  }
   onCancel();
  };
  useEffect(()=>{
@@ -235,6 +63,17 @@ export function ProductEditorV2({apiFetch,mode,productId,canManage=false,onCance
   window.addEventListener('beforeunload',listener);
   return ()=>window.removeEventListener('beforeunload',listener);
  },[]);
+ useEffect(()=>{
+  if(mode!=='create'||!prefillPatternId||!prefillPatternNo)return;
+  const controller=new AbortController();
+  void fetchColorwayChoices(apiFetch,prefillPatternNo,controller.signal).then(result=>{
+   if(controller.signal.aborted)return;
+   const match=result.items.find(item=>item.id===prefillPatternId&&item.patternNo===prefillPatternNo&&item.isActive);
+   if(!match){setError('预选花型不存在或已删除，请重新选择可用配色');return;}
+   setVersion(match);setDraft(d=>({...d,patternColorwayId:match.id}));
+  }).catch(()=>{if(!controller.signal.aborted)setError('预选花型读取失败，请重新选择');});
+  return ()=>controller.abort();
+ },[apiFetch,mode,prefillPatternId,prefillPatternNo]);
  useEffect(()=>{
   if(mode!=='edit')return;
   if(!productId){setLoadBusy(false);setError('没有提供产品身份，无法编辑');return;}
@@ -324,7 +163,11 @@ export function ProductEditorV2({apiFetch,mode,productId,canManage=false,onCance
    <button type="button" onClick={close} className="inline-flex items-center gap-1 text-sm text-[#0053da]">
     <ArrowLeft size={16}/>返回产品库</button>
    <h1 className="text-base font-semibold">{mode==='create'?'新增产品':'编辑产品'}</h1>
-   <div className="flex gap-2">
+   <div className="flex flex-wrap gap-2">
+    {mode==='create'&&onBatchCreate&&canManage?<button type="button" disabled={saving||imageBusy} onClick={async()=>{
+     if(dirty&&!await confirm({title:'切换到批量新增？',message:'当前单个产品的未保存内容将丢失。',confirmText:'切换',danger:true}))return;
+     onBatchCreate();
+    }} className={tag}>批量新增多配色</button>:null}
     <button type="button" onClick={close} className={tag} disabled={saving||imageBusy}><ActionIcon name="close"/>取消</button>
     {canManage?<button type="button" onClick={save} disabled={saving||imageBusy||loadBusy||fatal}
      className="rounded-lg bg-[#346ef6] px-4 py-2 text-xs text-white disabled:opacity-40"><ActionIcon name="save"/>
@@ -334,7 +177,8 @@ export function ProductEditorV2({apiFetch,mode,productId,canManage=false,onCance
   {error?<p role="alert" className="rounded border border-rose-200 bg-white p-3 text-xs text-rose-700">{error}
    {fatal?'提交结果不明确，请先返回产品库核实是否已创建；不要重复点击保存。':''}</p>:null}
   {loadBusy?<p role="status" className="rounded bg-white p-5 text-sm text-slate-500">正在加载产品详情…</p>:
-   <><ProductIdentityChoices version={version} fabric={fabric} canChange={canManage&&!saving&&!imageBusy}
+   <><ProductIdentityChoices version={version} fabric={fabric} canChange={canManage&&!saving&&!imageBusy} apiFetch={apiFetch}
+    onSelectFabric={f=>{setFabric(f);setDraft(d=>({...d,fabricId:f.id}));}}
     onChooseVersion={()=>setChooser('pattern')} onChooseFabric={()=>setChooser('fabric')}
     onPatternLibrary={onPatternLibrary} onFabricLibrary={onFabricLibrary}
     patternUrl={version?.patternImageAssetId?urls.get(version.patternImageAssetId):undefined}/>
@@ -350,11 +194,7 @@ export function ProductEditorV2({apiFetch,mode,productId,canManage=false,onCance
       <input aria-label="产品备注" maxLength={5000} value={draft.remark} disabled={!canManage}
        onChange={e=>setDraft(v=>({...v,remark:e.target.value}))}
        className="mt-1 block w-full rounded border border-[#c3c6d7] px-3 py-2 font-normal"/></label>
-     <label className="inline-flex items-center gap-2 pb-2 text-xs font-semibold">
-      启用状态 <input aria-label="启用状态" type="checkbox" disabled={!canManage}
-       checked={draft.isActive} onChange={e=>setDraft(v=>({...v,isActive:e.target.checked}))}/>
-      {draft.isActive?'已启用':'已停用'}
-     </label>
+     
     </section>
     <ProductImageTabs images={draft.images} selected={selected[active]} activeRole={active} onRole={setRole}
      onSelect={toggle} onMove={move} onDeleteSelected={deleteSelected} urls={urls} canManage={canManage}
@@ -370,4 +210,7 @@ export function ProductEditorV2({apiFetch,mode,productId,canManage=false,onCance
    onChooseFabric={f=>{setFabric(f);setDraft(d=>({...d,fabricId:f.id}));setChooser(null);}}/>:null}
  </section>;
 }
+export {ProductIdentityChoices,ProductImageTabs};
+export type {ProductIdentityChoicesProps} from './ProductIdentityChoices';
+export type {ProductImageTabsProps} from './ProductEditorImageTabs';
 export default ProductEditorV2;

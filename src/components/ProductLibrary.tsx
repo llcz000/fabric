@@ -35,6 +35,7 @@ import { ProductFilters } from './product-library/ProductFilters';
 import { applySelectedProductTags, ProductTable } from './product-library/ProductTable';
 import { ProductImageViewer } from './product-library/ProductImageViewer';
 import { ProductEditor, reduceEditorState, type ProductEditorDraft, type ProductEditorState } from './product-library/ProductEditor';
+import {useConfirm} from './ui/ConfirmDialog';
 
 // ── Helpers ──────────────────────────────────────────
 
@@ -186,6 +187,7 @@ export default function ProductLibrary() {
   const [editingIssues, setEditingIssues] = useState<ProductIssue[]>([]);
   const [editor, setEditor] = useState<ProductEditorState>({ open: false, saving: false, draft: emptyEditorDraft() });
   const [message, setMessage] = useState<string>();
+  const confirm = useConfirm();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -277,7 +279,8 @@ export default function ProductLibrary() {
     } catch (error) { setMessage(formatImageError(error)); }
   };
   const removeProduct = async (product: ProductLibraryItem) => {
-    if (!window.confirm(`确认删除产品 ${product.itemNo || product.id}？`)) return;
+    const ok = await confirm({title:'确认删除产品',message:`确认删除产品 ${product.itemNo || product.id}？删除后不可恢复。`,confirmText:'删除',danger:true});
+    if (!ok) return;
     try {
       await deleteProductApi(authFetch, product.id);
       await deleteCachedProduct(product.id).catch(() => undefined);

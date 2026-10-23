@@ -1,3 +1,4 @@
+import {recordDeletion} from '../audit/deletionAudit';
 import {createHash,randomBytes} from 'node:crypto';
 import type {AppPrincipal} from '../access/types';
 import type {SamplePool} from './scanRepository';
@@ -7,7 +8,7 @@ export interface SampleCard {
  id:string;masterId:string;masterNo:string;fabricId:string;fabricNo:string;
  cardNo:string;description:string;composition:string|null;
  weightValue:number|null;weightUnit:'gsm'|'mm'|null;widthValue:number|null;
- qrPayload:string;isActive:boolean;reprintRevision?:string;needsReprint?:boolean;
+  qrPayload:string;scanUrl?:string;isActive:boolean;reprintRevision?:string;needsReprint?:boolean;
 }
 export interface SampleCardDb {query(sql:string,params?:unknown[]):Promise<[unknown,unknown]>}
 export type SampleCardAuthorization=(actor:AppPrincipal,action:'read'|'create'|'export'|'retire'|'reprint')=>boolean|Promise<boolean>;
@@ -64,6 +65,14 @@ const from=` FROM sample_cards c
  LEFT JOIN sample_card_tokens t ON t.card_id=c.id AND t.revoked_at IS NULL`;
 const select=`SELECT c.id,c.master_id,m.master_no,c.fabric_id,f.fabric_no,c.card_no,
  f.fabric_name,f.composition,f.weight_value,f.weight_unit,f.width_value,c.qr_payload,c.is_active,c.reprint_revision,c.printed_revision,t.token_hash`+from;
+/** Private read only: caller must verify a current administrator/sales login first. */
+export async function resolveSampleCardToken(db:SampleCardDb,payload:string):Promise<SampleCard>{
+ if(typeof payload!=='string'||!/^[A-Za-z0-9_-]{22,128}$/.test(payload))throw new SampleCardError('Invalid card token');
+ const [raw]=await db.query(select+' WHERE t.token_hash=? AND t.revoked_at IS NULL AND c.deleted_at IS NULL AND c.is_active=1 AND m.is_active=1 AND f.is_active=1 LIMIT 2',[hash(payload)]);
+ const found=rows(raw);if(found.length!==1)throw new SampleCardError('Card unavailable',404);
+ const result=card(found[0]);if(result.qrPayload!==payload)throw new SampleCardError('Card unavailable',404);
+ return result;
+}
 function inputIds(input:unknown):{masterId:string;fabricId:string}{
  if(!input||typeof input!=='object'||Array.isArray(input))throw new SampleCardError('Invalid card fields');
  const values=input as Record<string,unknown>;
@@ -152,7 +161,7 @@ export async function retireSampleCard(
   if(rows(masters).length!==1)throw new SampleCardError('Master reference unavailable',409);
   const [fabrics]=await tx.query('SELECT id FROM v2_fabrics WHERE id=? FOR UPDATE',[fabricId]);
   if(rows(fabrics).length!==1)throw new SampleCardError('Fabric reference unavailable',409);
-  const [currentRaw]=await tx.query('SELECT c.id,c.master_id,c.fabric_id,c.deleted_at FROM sample_cards c WHERE c.id=? FOR UPDATE',[identity]);
+  const [currentRaw]=await tx.query('SELECT c.id,c.card_no,c.master_id,c.fabric_id,c.deleted_at FROM sample_cards c WHERE c.id=? FOR UPDATE',[identity]);
   const current=rows(currentRaw)[0];
   if(!current||current.deleted_at!=null)throw new SampleCardError('Card already retired',404);
   if(dbId(current.master_id)!==masterId||dbId(current.fabric_id)!==fabricId)
@@ -161,6 +170,7 @@ export async function retireSampleCard(
   const token=rows(tokenRaw)[0];
   if(!token||typeof token.token_hash!=='string'||token.revoked_at!=null)
    throw new SampleCardError('Card QR unavailable',409);
+  await recordDeletion(tx,fresh,{type:'card',id:identity,label:String(current.card_no)});
   // Once revoked, token hash is retained by a unique index forever.
   const [revokeRaw]=await tx.query('UPDATE sample_card_tokens SET revoked_at=UTC_TIMESTAMP() WHERE card_id=? AND revoked_at IS NULL',[identity]);
   if(Number((revokeRaw as {affectedRows?:unknown}).affectedRows)!==1)

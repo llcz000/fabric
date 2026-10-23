@@ -6,6 +6,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { DocType, DocumentData, DocItem, CompanyProfile, SampleItem, SalesItem, DepositItem } from '../types';
 import { Plus, Trash2, Save, FileText, Calendar, User, Hash, AlertTriangle, CheckCircle } from 'lucide-react';
+import {useConfirm} from './ui/ConfirmDialog';
+import {useToast} from './ui/Toast';
 
 interface DocumentEditorProps {
   key?: string;
@@ -23,6 +25,8 @@ export default function DocumentEditor({
   onSave,
   onCancel,
 }: DocumentEditorProps) {
+  const confirm = useConfirm();
+  const toast = useToast();
   // Set up document type
   const [docType, setDocType] = useState<DocType>(existingDocument?.type || DocType.SAMPLE);
   
@@ -131,11 +135,10 @@ export default function DocumentEditor({
   }, [existingDocument, docType]);
 
   // Handle doc type shift
-  const handleDocTypeChange = (newType: DocType) => {
+  const handleDocTypeChange = async (newType: DocType) => {
     if (items.some(item => item.itemNo || item.productName)) {
-      if (!confirm('切换单据类型将重置当前已录入的明细数据，是否确认？')) {
-        return;
-      }
+      const ok = await confirm({title:'切换单据类型将重置已录入的明细？',message:'当前明细数据会被清空。',confirmText:'确认切换',danger:true});
+      if (!ok) return;
     }
     setDocType(newType);
     setItems([createEmptyItem(newType), createEmptyItem(newType), createEmptyItem(newType)]);
@@ -237,7 +240,7 @@ export default function DocumentEditor({
   // Delete line
   const deleteRow = (index: number) => {
     if (items.length <= 1) {
-      alert('单据必须至少包含一条明细记录。');
+      toast.error('单据必须至少包含一条明细记录。');
       return;
     }
     const updated = items.filter((_, i) => i !== index);
@@ -245,10 +248,9 @@ export default function DocumentEditor({
   };
 
   // Clear rows
-  const clearAllRows = () => {
-    if (confirm('是否确认清空当前所有明细？')) {
-      setItems([createEmptyItem(docType)]);
-    }
+  const clearAllRows = async () => {
+    const ok = await confirm({title:'清空当前所有明细？',message:'已录入的明细将被清空。',confirmText:'确认清空',danger:true});
+    if (ok) setItems([createEmptyItem(docType)]);
   };
 
   // Sum calculations
@@ -283,12 +285,12 @@ export default function DocumentEditor({
   const handleSave = () => {
     // Basic validation
     if (!customerName.trim()) {
-      alert('请输入客户。');
+      toast.error('请输入客户。');
       return;
     }
 
     if (validItems.length === 0) {
-      alert('请至少录入一条包含货号或品名的有效明细。');
+      toast.error('请至少录入一条包含货号或品名的有效明细。');
       return;
     }
 

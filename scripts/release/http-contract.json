@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "retiredRoutes": [{"path": "/customer-tasks", "status": 410}],
+  "anonymousDenied": ["/customers", "/documents"]
+}

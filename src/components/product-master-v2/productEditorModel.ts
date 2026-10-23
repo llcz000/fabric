@@ -21,7 +21,7 @@ export interface ProductEditorDraft{
  images:EditorImages;rowVersion:string|null;
 }
 type Payload={
- patternColorwayId:string;fabricId:string;remark:string;isActive:boolean;isAvailableForSampling:boolean;
+ patternColorwayId:string;fabricId:string;remark:string;
  images:EditorImages;expectedRowVersion?:string;
 };
 const ID=(id:unknown):id is string=>typeof id==='string'&&/^[1-9]\d{0,19}$/.test(id)&&
@@ -42,7 +42,7 @@ export function buildProductNumberPreview(version:PatternVersionItem|null,fabric
  if(!version)return '待选花型';
  if(!fabric)return '待选面料';
  if(!/^[A-Z0-9]{1,64}-[1-9]\d*$/.test(version.patternNo)||
-  !/^[A-Z0-9]{1,64}$/.test(fabric.fabricNo))return null;
+  !fabric.fabricNo.trim())return null;
  return version.patternNo+'-'+fabric.fabricNo;
 }
 export function validateImages(value:EditorImages):EditorImages{
@@ -103,11 +103,9 @@ export function productEditorPayload(state:ProductEditorDraft,mode:'create'|'edi
  if(!ID(state.patternColorwayId)||!ID(state.fabricId))throw Error('请选择有效的花型版本和面料');
  if(typeof state.remark!=='string'||[...state.remark].length>5000||
   /[\p{Cc}\p{Cf}]/u.test(state.remark))throw Error('产品备注不符合要求');
- if(typeof state.isActive!=='boolean')throw Error('启停状态无效');
- if(typeof state.isAvailableForSampling!=='boolean')throw Error('供样状态无效');
  if(mode==='edit'&&!ID(state.rowVersion))throw Error('产品版本无效，请刷新后重试');
  return {patternColorwayId:state.patternColorwayId,fabricId:state.fabricId,
-  remark:state.remark.trim(),isActive:state.isActive,isAvailableForSampling:state.isAvailableForSampling,images:validateImages(state.images),
+  remark:state.remark.trim(),images:validateImages(state.images),
   ...(mode==='edit'?{expectedRowVersion:state.rowVersion!}:{})};
 }
 export function parseProductDetails(raw:unknown):ProductEditorDetails{
@@ -116,7 +114,7 @@ export function parseProductDetails(raw:unknown):ProductEditorDetails{
  if(!ID(x.id)||!ID(x.patternColorwayId)||!ID(x.fabricId)||!ID(x.rowVersion)||
   typeof x.masterNo!=='string'||!/^[A-Z0-9]{1,64}$/.test(x.masterNo)||
   !Number.isSafeInteger(x.colorwayNo)||Number(x.colorwayNo)<1||
-  typeof x.fabricNo!=='string'||!/^[A-Z0-9]{1,64}$/.test(x.fabricNo)||
+  typeof x.fabricNo!=='string'||!x.fabricNo.trim()||
   typeof x.fabricName!=='string'||!x.fabricName||
   x.productNo!==x.masterNo+'-'+x.colorwayNo+'-'+x.fabricNo||
   typeof x.remark!=='string'||typeof x.isActive!=='boolean'||typeof x.isAvailableForSampling!=='boolean'||

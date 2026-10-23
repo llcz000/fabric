@@ -1,3 +1,4 @@
+import {resolveImageUrls} from '../product-master-v2/catalogModel';
 import {DocType,type DocItem,type SampleItem,type SalesItem} from '../../types';
 
 export interface PickerProduct{
@@ -56,4 +57,12 @@ export function validateProductSelectorPage(value:unknown):PickerPage {
    }
  }
  return v as unknown as PickerPage;
+}
+
+/** Resolve only missing thumbnails through the same authenticated image API as the catalog. */
+export async function resolveProductSelectorThumbnails(apiFetch:typeof fetch,page:PickerPage,signal?:AbortSignal):Promise<PickerPage>{
+ const ids=page.items.filter(p=>!p.thumbnailUrl&&p.patternImageAssetId).map(p=>p.patternImageAssetId!);
+ if(!ids.length)return page;
+ const urls=await resolveImageUrls(apiFetch,ids,'thumbnail',signal);
+ return {...page,items:page.items.map(item=>({...item,thumbnailUrl:item.thumbnailUrl??(item.patternImageAssetId?urls.get(item.patternImageAssetId)??null:null)}))};
 }

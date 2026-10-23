@@ -22,6 +22,7 @@ class Db{
   if(sql.includes('AS shipped_quantity'))return [[{selected_products:'2',shipped_products:'1',shipped_quantity:'7'}],[]];
   if(sql.includes('COUNT(*) AS total'))return [[{total:this.deleted?'0':'1'}],[]];
   if(sql.includes('customer_sample_session_access'))return [this.deleted?[]:[{id:'41',customer_reference:this.name,status:'open',created_on:'2026-10-18'}],[]];
+  if(sql.startsWith('INSERT INTO business_delete_events'))return [{affectedRows:1},[]];
   throw Error('Unexpected SQL '+sql);
  }};}
 }

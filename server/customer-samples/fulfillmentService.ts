@@ -1,7 +1,7 @@
 import type {AppPrincipal} from '../access/types';
 import type {SamplePool,SampleTx} from './scanRepository';
 import {lockSelectionAccess,SampleSessionManualError,validSelectionId} from './sessionManual';
-import {prepareShipmentBatch,ShipmentBatchError} from './shipmentBatch';
+import {ShipmentBatchError} from './shipmentBatch';
 import {prepareSampleFollowup,SampleFollowupError} from './followupDraft';
 
 export class SampleFulfillmentError extends Error {
@@ -58,28 +58,14 @@ async function authorizedWrite<T>(
  }finally{tx.release();}
 }
 export async function saveShipmentBatch(pool:SamplePool,actor:AppPrincipal,input:unknown){
- const sessionId=(input as {sessionId?:unknown}|null)?.sessionId;
- if(!validSelectionId(sessionId))throw new SampleFulfillmentError(400);
- return authorizedWrite(pool,actor,sessionId,async(tx,selected)=>{
-  const batch=prepareShipmentBatch(input,selected,{sessionId});
-  const [header]=await tx.query(
-   'INSERT INTO sample_shipments (session_id,actor_user_id,shipped_at,carrier,tracking_no) VALUES (?,?,STR_TO_DATE(?,\'%Y-%m-%dT%H:%i:%s.%fZ\'),?,?)',
-   [sessionId,actor.userId,batch.shippedAt,batch.carrier,batch.trackingNo]);
-  const id=inserted(header);
-  for(const line of batch.items){
-   const [write]=await tx.query(
-    'INSERT INTO sample_shipment_items (shipment_id,session_id,product_id,quantity) VALUES (?,?,?,?)',
-    [id,sessionId,line.productId,line.quantity]);
-   written(write);
-  }
-  return {id,sessionId,itemCount:batch.items.length};
- });
+ throw new SampleFulfillmentError(409);
 }
 export async function saveSampleFollowup(pool:SamplePool,actor:AppPrincipal,input:unknown){
  const sessionId=(input as {sessionId?:unknown}|null)?.sessionId;
  if(!validSelectionId(sessionId))throw new SampleFulfillmentError(400);
  return authorizedWrite(pool,actor,sessionId,async(tx,selected)=>{
   const draft=prepareSampleFollowup(input,selected,{sessionId});
+  if(draft.nextAction!==null||draft.nextFollowupOn!==null)throw new SampleFulfillmentError(400);
   const [header]=await tx.query(
    'INSERT INTO sample_followups (session_id,actor_user_id,contacted_on,customer_confirmed,feedback,outcome,next_action,next_followup_on) VALUES (?,?,?,?,?,?,?,?)',
    [sessionId,actor.userId,draft.contactedOn,draft.customerConfirmed===null?null:Number(draft.customerConfirmed),

@@ -4,7 +4,7 @@ import express from 'express';
 import type {Server} from 'node:http';
 import type {AppPrincipal} from '../access/types';
 import {hashSessionToken} from '../access/password';
-import {createV2Product,listV2Products,getV2Product,updateV2Product,deleteV2Product,V2ProductError} from './productsV2';
+import {createV2Product,createV2ProductsBatch,listV2Products,getV2Product,updateV2Product,deleteV2Product,V2ProductError} from './productsV2';
 import {createV2ProductsRouter} from './productsV2Routes';
 import {deleteUnusedV2Product,ProductMutationError} from './productProtection';
 import {createV2ProductSafetyRouter} from './productSafetyRoutes';
@@ -12,7 +12,7 @@ import {createV2ProductSafetyRouter} from './productSafetyRoutes';
 const sales:AppPrincipal={userId:'2',sessionId:'9',username:'sales',displayName:'Sales',role:'sales',canManageProducts:true,canManageOwnOrders:false};
 type P={id:string;pattern_colorway_id:string;fabric_id:string;product_no:string;remark:string;is_active:number;is_available_for_sampling:number;row_version:string};
 type Img={id:string;product_id:string;asset_id:string;role:string;sort_order:number;deleted_at:string|null};
-const fmt=(p:P)=>({...p,master_no:'G017',colorway_no:'2',fabric_no:p.fabric_id==='21'?'F018':'F019',
+const fmt=(p:P)=>({...p,master_no:'G017',colorway_no:p.pattern_colorway_id==='13'?'3':'2',fabric_no:p.fabric_id==='21'?'F018':'F019',
  fabric_name:'雪纺',composition:'棉',weight_value:'90.000',weight_unit:'gsm',width_value:'145.00',
  master_active:1,colorway_active:1,fabric_active:1,pattern_image_asset_id:null});
 class DB {
@@ -29,7 +29,7 @@ class DB {
   if(sql.includes('FROM v2_access_users'))return [this.active?[{id:'2',role:'sales',is_active:1,can_manage_products:this.grant?1:0}]:[],[]];
   if(sql.includes('FROM v2_access_sessions'))return [this.session?[{id:'9'}]:[],[]];
   if(sql.startsWith('SELECT')&&sql.includes('FROM pattern_colorways c JOIN pattern_masters m')){
-   return [String(params[0])==='12'?[{id:'12',master_id:'11',colorway_no:'2',master_no:'G017',is_active:this.parentActive?1:0,master_active:1}]:[],[]];
+   return [['12','13'].includes(String(params[0]))?[{id:String(params[0]),master_id:'11',colorway_no:String(params[0])==='13'?'3':'2',master_no:'G017',is_active:this.parentActive?1:0,master_active:1}]:[],[]];
   }
   if(sql.startsWith('SELECT')&&sql.includes('FROM v2_fabrics WHERE id=?')){
    return [['21','22'].includes(String(params[0]))?[{id:String(params[0]),fabric_no:String(params[0])==='21'?'F018':'F019',is_active:this.parentActive?1:0}]:[],[]];
@@ -41,6 +41,8 @@ class DB {
    if(sql.includes('LIMIT ? OFFSET ?'))items=items.slice(Number(params.at(-1)),Number(params.at(-1))+Number(params.at(-2)));
    return [items,[]];
   }
+  if(sql.startsWith('SELECT')&&sql.includes('FROM v2_products WHERE pattern_colorway_id=? AND fabric_id=?'))
+   return [this.products.filter(p=>p.pattern_colorway_id===String(params[0])&&p.fabric_id===String(params[1])).map(p=>({id:p.id})),[]];
   if(sql.startsWith('SELECT')&&sql.includes('FROM v2_products WHERE id=? FOR UPDATE'))
    return [this.products.filter(p=>p.id===String(params[0])),[]];
   if(sql.startsWith('SELECT')&&sql.includes('FROM order_items'))
@@ -98,6 +100,7 @@ class DB {
    const asset=this.assets.get(String(params[0]))!;asset.ref_count-=1;
    if(asset.ref_count===0)asset.status='recycled';return [{affectedRows:1},[]];
   }
+  if(sql.startsWith('INSERT INTO business_delete_events'))return [{affectedRows:1},[]];
   throw Error('Unknown SQL '+sql);
  }
  async getConnection(){
@@ -120,6 +123,25 @@ test('P3-4 create derives immutable productNo from colorway identity plus fabric
  await assert.rejects(createV2Product(db,sales,newInput),status(409));
  assert.equal(db.products.length,1);
 });
+test('batch creates one independent blank-image product per selected colorway and skips existing combos',async()=>{
+ const db=new DB();
+ const first=await createV2ProductsBatch(db,sales,{colorwayIds:['12','13'],fabricId:'21'});
+ assert.equal(first.created.length,2);assert.equal(first.skipped.length,0);
+ assert(first.created.every(x=>x.productNo.includes('-F018')));
+ assert(db.products.every(x=>x.is_available_for_sampling===1));
+ assert.equal(db.images.length,0);
+ const again=await createV2ProductsBatch(db,sales,{colorwayIds:['12','13'],fabricId:'21'});
+ assert.equal(again.created.length,0);assert.equal(again.skipped.length,2);
+ assert.equal(db.products.length,2);
+});
+test('batch enforces unique colorway IDs, one fabric, max 20 and no image copying',async()=>{
+ const db=new DB();
+ for(const input of [{colorwayIds:[],fabricId:'21'},{colorwayIds:['12','12'],fabricId:'21'},
+  {colorwayIds:Array.from({length:21},(_,i)=>String(i+12)),fabricId:'21'},
+  {colorwayIds:['12'],fabricId:'21',images:{fabricDisplay:[],detail:[],aiEffect:[]}},
+  {colorwayIds:['12'],fabricId:'none'}])await assert.rejects(createV2ProductsBatch(db,sales,input),status(400));
+ assert.equal(db.products.length,0);
+});
 test('P3-4 rejects forged productNo, version, malformed IDs and unknown fields before transaction',async()=>{
  const db=new DB();
  for(const body of [{...newInput,productNo:'FAKE'}, {...newInput,id:'15'}, {...newInput,rowVersion:'99'},
@@ -128,27 +150,11 @@ test('P3-4 rejects forged productNo, version, malformed IDs and unknown fields b
   await assert.rejects(createV2Product(db,sales,body),status(400));
  assert.equal(db.queries.length,0);
 });
-test('AC-97 normal product active status is not the sampling flag; CAS and permission prevent stale/unauthorized changes',async()=>{
+test('LITE product availability and disabled writes are no longer configurable',async()=>{
  const db=new DB(),made=await createV2Product(db,sales,newInput);
+ for(const patch of [{isAvailableForSampling:false},{isActive:false}])await assert.rejects(updateV2Product(db,sales,made.id,{expectedRowVersion:made.rowVersion,...patch}),status(400));
+ for(const raw of [false,'no',0,null])await assert.rejects(createV2Product(db,sales,{...newInput,isAvailableForSampling:raw}),status(400));
  assert.equal(made.isActive,true);assert.equal(made.isAvailableForSampling,true);
- const held=await updateV2Product(db,sales,made.id,{expectedRowVersion:made.rowVersion,isAvailableForSampling:false});
- assert.equal(held.isActive,true);assert.equal(held.isAvailableForSampling,false);
- assert.equal(db.products[0].is_active,1);assert.equal(db.products[0].is_available_for_sampling,0);
- const suspended=await updateV2Product(db,sales,made.id,{expectedRowVersion:held.rowVersion,isActive:false});
- assert.equal(suspended.isActive,false);assert.equal(suspended.isAvailableForSampling,false);
- await assert.rejects(updateV2Product(db,sales,made.id,{expectedRowVersion:made.rowVersion,isAvailableForSampling:true}),status(409));
- const restored=await updateV2Product(db,sales,made.id,{expectedRowVersion:suspended.rowVersion,isAvailableForSampling:true});
- assert.equal(restored.isActive,false);assert.equal(restored.isAvailableForSampling,true);
- db.grant=false;
- const again=await updateV2Product(db,sales,made.id,{expectedRowVersion:restored.rowVersion,isAvailableForSampling:false});
- assert.equal(again.isAvailableForSampling,false);
-});
-test('AC-97 default can be explicitly disabled at create, invalid availability is rejected before SQL',async()=>{
- const db=new DB();for(const raw of [0,1,'false',null,undefined]){
-  await assert.rejects(createV2Product(db,sales,{...newInput,isAvailableForSampling:raw}),status(400));
- }assert.equal(db.queries.length,0);
- const made=await createV2Product(db,sales,{...newInput,isAvailableForSampling:false});
- assert.equal(made.isAvailableForSampling,false);assert.equal(made.isActive,true);
 });
 test('P3-4 refuses inactive selection and absent colorway/fabric',async()=>{
  const db=new DB();db.parentActive=false;
@@ -164,8 +170,8 @@ test('P3-4 optimistic version prevents stale edits; used product identity cannot
  await assert.rejects(updateV2Product(db,sales,item.id,{expectedRowVersion:'1',remark:'旧草稿'}),status(409));
  db.hasOrder=true;
  await assert.rejects(updateV2Product(db,sales,item.id,{expectedRowVersion:'2',fabricId:'22'}),status(409));
- const statusChange=await updateV2Product(db,sales,item.id,{expectedRowVersion:'2',isActive:false});
- assert.equal(statusChange.isActive,false);
+ await assert.rejects(updateV2Product(db,sales,item.id,{expectedRowVersion:'2',isActive:false}),status(400));
+ db.products[0].is_active=0;
  assert.equal((await listV2Products(db)).length,0);
  assert.equal((await listV2Products(db,{includeInactive:true})).length,1);
  await assert.rejects(deleteV2Product(db,sales,item.id),status(409));

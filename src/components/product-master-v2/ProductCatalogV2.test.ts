@@ -20,12 +20,32 @@ const fake:CatalogProduct={
  colorTags:[{id:'9',name:'蓝色',isArchived:false}],
  imageCounts:{fabricDisplay:2,detail:1,aiEffect:3},totalImages:6
 };
-test('AC-97 standalone sampling availability shows in existing status cell, within the simplified ten-column list',()=>{
+test('product row has an opt-in share current product action with the current ten columns',()=>{
+ const props={page:{items:[fake],total:1,limit:50,offset:0},patternUrls:new Map<string,string>(),onPatternPreview:()=>{},onProductImages:()=>{},onPage:()=>{}};
+ const html=renderToStaticMarkup(React.createElement(CatalogV2Table,{...props,onShare:()=>{}}));
+ assert(html.includes('分享花型产品 '+fake.productNo));assert.equal((html.match(/<th /g)||[]).length,10);
+ assert(!renderToStaticMarkup(React.createElement(CatalogV2Table,props)).includes('分享花型产品'));
+});
+test('AC-97 legacy sampling flags do not reintroduce status badges into the ten-column list',()=>{
  const noSamples={...fake,isAvailableForSampling:false,isSelectable:true,isActive:true};
  const html=renderToStaticMarkup(React.createElement(CatalogV2Table,{page:{items:[noSamples],total:1,limit:50,offset:0},patternUrls:new Map(),onPatternPreview:()=>{},onProductImages:()=>{},onPage:()=>{}}));
- assert(html.includes('暂不供样'));assert(html.includes('已启用'));
+ assert(!html.includes('暂不供样'));assert(!html.includes('已启用'));
  assert.equal((html.match(/<th /g)||[]).length,10);
  assert.throws(()=>parseCatalogPage({items:[{...fake,isAvailableForSampling:'false'}],total:1,limit:50,offset:0}));
+});
+test('product composition column is wider, clips long text, preserves weight and short fixed remark',()=>{
+ const composition='75%聚酯纤维+20%人棉+5%氨纶（特殊复合面料，可查看完整成分）';
+ const row={...fake,composition,remark:'备注字段会有很长很长的文字仍须允许查看'};
+ const html=renderToStaticMarkup(React.createElement(CatalogV2Table,{
+  page:{items:[row],total:1,limit:50,offset:0},patternUrls:new Map(),onPatternPreview:()=>{},onProductImages:()=>{},onPage:()=>{}
+ }));
+ assert(html.includes('min-w-[1400px]'));
+ assert(html.includes('<col style="width:210px"')); // 成分
+ assert(html.includes('<col style="width:110px"')); // 克重
+ assert(html.includes('<col style="width:112px"')); // 备注
+ assert(html.includes('title="'+composition+'"'));
+ assert(html.includes('block min-w-0 truncate'));
+ assert(html.includes('16.5 mm')&&html.includes('查看完整成分')&&html.includes('备注字段会有很长'));
 });
 test('P4-4 V2 filters keep two AND text inputs and reset only changed dimension/page',()=>{
  const start={...emptyCatalogFilters,productNo:'  g017  ',fabricName:' 雪纺 ',offset:100};
@@ -119,9 +139,9 @@ test('P4-4 product table has exactly 10 columns with product-owned remark, name 
   patternUrls:new Map([[fake.patternImageAssetId!,'https://signed.invalid/thumb']]),
   onPatternPreview:()=>{},onProductImages:()=>{},onRemark:()=>{},onPage:()=>{},canManage:true,onEdit:()=>{}
  }));
- const headers=Array.from(html.matchAll(/<th\b[^>]*>([^<]+)/g)).map(x=>x[1]);
+ const headers=Array.from(html.matchAll(/<th\b[^>]*>([\s\S]*?)<\/th>/g)).map(x=>x[1].replace(/<[^>]+>/g,'').trim());
  assert.deepEqual(headers,['花型图','货号','品名','成分','克重','门幅 / cm',
-  '图片数量','备注','启用状态','操作']);
+  '图片数量','备注','关联色卡','操作']);
  assert(html.includes('100% 真丝')&&html.includes('16.5 mm')&&html.includes('145'));
  assert(html.includes('G017-2-F018')&&html.includes('轻柔雪纺'));
  assert(html.includes('aria-label="查看完整备注 G017-2-F018"'));
@@ -146,7 +166,7 @@ test('P4-4 isolated React page: filters two inputs, status, no tag filters, load
   onCreate:()=>{},onEdit:()=>{},canManage:true}));
  assert(html.includes('aria-label="货号"')&&html.includes('aria-label="品名"'));
  assert(!html.includes('aria-label="题材标签"')&&!html.includes('aria-label="颜色标签"'));
- assert(html.includes('包含停用')&&html.includes('清空筛选'));
+ assert(!html.includes('包含停用')&&html.includes('清空筛选'));
  assert(html.includes('产品库')&&html.includes('新增产品'));assert(html.includes('导出筛选结果'));
  assert(!html.includes('审核状态')&&!html.includes('克重筛选'));
  const readOnly=renderToStaticMarkup(React.createElement(ProductCatalogV2,{apiFetch:fetch,canManage:false}));

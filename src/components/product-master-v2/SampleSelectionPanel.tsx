@@ -1,4 +1,5 @@
 import {ActionIcon} from './ActionIcon';
+import {useConfirm} from '../ui/ConfirmDialog';
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import type {SampleSessionPage} from '../../../server/customer-samples/sessionRead';
 import {selectionAccessRevoked,type SelectionApi} from './sampleSelectionClient';
@@ -30,6 +31,7 @@ function SelectionPatternThumbnail({assetId,url,patternNo,pending,failed}:{asset
  return url&&!broken?<img src={url} alt={'花型 '+patternNo} width={56} height={56} loading="lazy" decoding="async" onError={()=>setBroken(true)} className="h-14 w-14 rounded border bg-slate-50 object-contain"/>:<span className="flex h-14 w-14 items-center justify-center rounded border border-dashed bg-slate-50 text-center text-[10px] text-slate-500">{!assetId?'暂无图片':broken||failed?'加载失败':pending?'加载中…':'图片不可用'}</span>;
 }
 export function SampleSelectionPanel({sessionId,load,removeItems,readOnly=false,addManual,searchManual,resolveThumbnails,onRescan,initialPage}:SampleSelectionPanelProps){
+ const confirm=useConfirm();
  const [page,setPage]=useState<SampleSessionPage|null>(
   initialPage?.session.id===sessionId?initialPage:null);
  const [busy,setBusy]=useState(false);
@@ -113,7 +115,11 @@ export function SampleSelectionPanel({sessionId,load,removeItems,readOnly=false,
  const allChecked=pageIds.length>0&&pageIds.every(id=>selectedItems.includes(id));
  const select=(id:string,on:boolean)=>setSelectedItems(before=>on?[...new Set([...before,id])]:before.filter(value=>value!==id));
  const removeSelected=async()=>{
-  if(closed||busy||removePending.current||!removeItems||!selectedItems.length||!window.confirm('从本次选样移除所选 '+selectedItems.length+' 个货号？仅移除勾选记录，寄样、跟进及来源历史会保留，色卡库不受影响。'))return;
+  if(closed||busy||removePending.current||!removeItems||!selectedItems.length)return;
+  const ok=await confirm({title:'从本次选样移除所选货号？',
+   message:'将移除 '+selectedItems.length+' 个已选配色。仅移除勾选记录，寄样、跟进及来源历史会保留，色卡库不受影响。',
+   confirmText:'确认移除',danger:true});
+  if(!ok)return;
   removePending.current=true;setBusy(true);setMessage('');setNotice('');
   try{const result=await removeItems(sessionId,selectedItems);setSelectedItems([]);await refresh(0);setNotice('已移除 '+result.removedCount+' 款已选配色');}
   catch(error){if(selectionAccessRevoked(error))accessLost(error);else setMessage('批量移除未确认，请刷新核对后重试');setBusy(false);}finally{removePending.current=false;}

@@ -58,6 +58,7 @@ class Fixture {
    if(sql.includes('LIMIT ? OFFSET ?'))data=data.slice(Number(args.at(-1)),Number(args.at(-1))+Number(args.at(-2)));
    return [data,[]];
   }
+  if(sql.startsWith('INSERT INTO business_delete_events'))return [{affectedRows:1},[]];
   throw Error('Unexpected SQL '+sql);
  }
  async getConnection(){

@@ -2,7 +2,9 @@ import type { AssetPolicy, AssetPurpose } from './types';
 
 const MAX_PIXELS = 40_000_000;
 const COMPANY_MAX_BYTES = 2 * 1024 * 1024;
-const PRODUCT_MAX_BYTES = 10 * 1024 * 1024;
+// Support high-resolution textile originals within the production memory budget.
+const PRODUCT_MAX_PIXELS = 100_000_000;
+const PRODUCT_MAX_BYTES = 20 * 1024 * 1024;
 const ALLOWED_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
 const POLICIES: Record<AssetPurpose, AssetPolicy> = {
@@ -20,7 +22,7 @@ const POLICIES: Record<AssetPurpose, AssetPolicy> = {
   },
   product_image: {
     maxBytes: PRODUCT_MAX_BYTES,
-    maxPixels: MAX_PIXELS,
+    maxPixels: PRODUCT_MAX_PIXELS,
     allowedMimes: ALLOWED_MIMES,
     variants: ['original', 'display', 'thumbnail'],
   },

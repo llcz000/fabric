@@ -11,6 +11,7 @@ import { ImageAssetClientError } from '../lib/imageAssets';
 import { withPreparedCapture } from '../lib/imageCapture';
 import { buildFrontendDocumentPrintModel } from '../lib/documentPrintAdapters';
 import { numberToChineseCapital, parseRollValues } from '../lib/documentPrintModel';
+import {useToast} from './ui/Toast';
 
 interface DocumentPreviewProps {
   document: DocumentData;
@@ -54,6 +55,7 @@ async function captureDocumentPng(node: HTMLElement, apiFetch: typeof fetch, sig
 }
 
 export default function DocumentPreview({ document, companyProfile, onEdit, onBack }: DocumentPreviewProps) {
+  const toast = useToast();
   const printModel = buildFrontendDocumentPrintModel(document, companyProfile);
   const isSample = printModel.type === 'sample';
   const isDeposit = printModel.type === 'deposit';
@@ -121,7 +123,7 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
           : '图片生成失败，请重试。';
       const requestId = err instanceof ImageAssetClientError && err.requestId ? `（请求ID: ${err.requestId}）` : '';
       console.error('Image export failed:', err);
-      alert('生成图片失败: ' + errMsg + requestId);
+      toast.error('生成图片失败: ' + errMsg + requestId);
     } finally {
       if (exportAbortRef.current === exportController) exportAbortRef.current = null;
       if (mountedRef.current) setGeneratingTask(null);
@@ -167,11 +169,11 @@ export default function DocumentPreview({ document, companyProfile, onEdit, onBa
         a.remove();
         URL.revokeObjectURL(url);
       } else if (data.error) {
-        alert(data.error);
+        toast.error(data.error);
       }
     } catch (e: any) {
       console.error('API Excel export failed:', e);
-      alert('导出打印Excel失败，请稍后重试。');
+      toast.error('导出打印Excel失败，请稍后重试。');
     }
   };
 

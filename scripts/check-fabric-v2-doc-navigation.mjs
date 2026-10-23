@@ -15,7 +15,9 @@ const classification='docs/文档分类与检索.md';
 must('one current business spec and status',()=>{
  has(stage,/product-master-v2-requirements\.md/);
  has(stage,/product-master-v2-progress\.md/);
- has('docs/product-master/product-master-v2-requirements.md',/v1\.50/);
+ const version=/^\| 版本 \| (v[0-9]+\.[0-9]+) \|/m.exec(read('docs/product-master/product-master-v2-requirements.md'))?.[1];
+ assert(version,'Current requirement version absent');
+ assert(read(stage).includes('V2唯一需求'+version),'Stage entry requirement version is stale');
 });
 must('stage-to-source/test/gate routing',()=>{
  has(home,/阶段任务/);

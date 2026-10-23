@@ -1,5 +1,6 @@
+import {recordDeletion} from '../audit/deletionAudit';
 import type {AppPrincipal} from '../access/types';
-import {canManageProducts} from '../access/policy';
+import {withCatalogTransaction} from '../access/catalogTransaction';
 import type {Pool} from '../order-v2/lines';
 
 /** P3-4 standalone V2 product catalog. Deliberately not mounted on server.ts. */
@@ -77,11 +78,11 @@ function parse(body:unknown,create:boolean):Patch{
  if('fabricId' in obj){id(obj.fabricId);output.fabricId=obj.fabricId;}
  if('remark' in obj)output.remark=remark(obj.remark);
  if('isActive' in obj){
-  if(typeof obj.isActive!=='boolean')throw new V2ProductError('Invalid product status');
+  if(obj.isActive!==true)throw new V2ProductError('Invalid product status');
   output.isActive=obj.isActive;
  }
  if('isAvailableForSampling' in obj){
-  if(typeof obj.isAvailableForSampling!=='boolean')throw new V2ProductError('Invalid sampling availability');
+  if(obj.isAvailableForSampling!==true)throw new V2ProductError('Invalid sampling availability');
   output.isAvailableForSampling=obj.isAvailableForSampling;
  }
  if('images' in obj)output.images=layout(obj.images);
@@ -110,23 +111,8 @@ function product(row:Row,images:ProductImages):V2Product{
   colorwayActive:Number(row.colorway_active)===1,fabricActive:Number(row.fabric_active)===1,images
  };
 }
-async function authorize(db:Query,actor:AppPrincipal):Promise<void>{
- if(!actor?.userId||!actor.sessionId)throw new V2ProductError('Authentication required',401);
- const [u]=await db.query('SELECT id,role,is_active,can_manage_products FROM v2_access_users WHERE id=? FOR SHARE',[actor.userId]);
- const user=rows(u)[0];
- if(!user||user.role!==actor.role||Number(user.is_active)!==1)
-  throw new V2ProductError('Authentication required',401);
- const [sessions]=await db.query('SELECT id FROM v2_access_sessions WHERE id=? AND user_id=? AND revoked_at IS NULL AND expires_at>UTC_TIMESTAMP() FOR SHARE',[actor.sessionId,actor.userId]);
- if(!rows(sessions).length)throw new V2ProductError('Authentication required',401);
- if(!canManageProducts({...actor,canManageProducts:user.role==='admin'||Number(user.can_manage_products)===1}))
-  throw new V2ProductError('Insufficient product permissions',403);
-}
-async function tx<T>(pool:Pool,actor:AppPrincipal,fn:(db:Query)=>Promise<T>):Promise<T>{
- const db=await pool.getConnection();let started=false;
- try{
-  await db.beginTransaction();started=true;await authorize(db,actor);
-  const data=await fn(db);await db.commit();started=false;return data;
- }catch(e){if(started)await db.rollback();throw e;}finally{db.release();}
+async function tx<T>(pool:Pool,actor:AppPrincipal,work:(db:Query)=>Promise<T>):Promise<T>{
+ return withCatalogTransaction(pool,actor,(message,status)=>new V2ProductError(message,status),'Insufficient product permissions',work);
 }
 function mapConflict(e:unknown):never{
  const code=e&&typeof e==='object'?String((e as {code?:unknown}).code):'';
@@ -148,7 +134,7 @@ async function identity(db:Query,colorwayId:string,fabricId:string):Promise<stri
  const n=Number(color.colorway_no);
  if(!Number.isSafeInteger(n)||n<1||n>4294967295)throw Error('Invalid colorway identity');
  const master=String(color.master_no),fabricNo=String(fabric.fabric_no);
- if(!/^[A-Z0-9]{1,64}$/.test(master)||!/^[A-Z0-9]{1,64}$/.test(fabricNo))
+ if(!/^[A-Z0-9]{1,64}$/.test(master)||!fabricNo.trim())
   throw Error('Invalid persisted business number');
  return master+'-'+n+'-'+fabricNo;
 }
@@ -268,6 +254,48 @@ async function applyImages(db:Query,productId:string,next:ProductImages,hardDele
  }
  if(hardDelete)await db.query('DELETE FROM v2_product_image_assets WHERE product_id=?',[productId]);
 }
+/** Each selected active colorway produces an independent product for one fabric. No media is inherited. */
+function batchInput(body:unknown):{colorwayIds:string[];fabricId:string}{
+ if(!body||typeof body!=='object'||Array.isArray(body))throw new V2ProductError('Invalid batch request');
+ const item=body as Record<string,unknown>;
+ if(Object.keys(item).some(k=>!['colorwayIds','fabricId'].includes(k))||
+  !Array.isArray(item.colorwayIds)||item.colorwayIds.length<1||item.colorwayIds.length>20)
+  throw new V2ProductError('Select 1–20 colorways for one fabric');
+ id(item.fabricId);
+ const selected=item.colorwayIds as unknown[];
+ for(const chosen of selected)id(chosen);
+ if(new Set(selected).size!==selected.length)throw new V2ProductError('Duplicate colorway selected');
+ return {colorwayIds:selected as string[],fabricId:item.fabricId};
+}
+export interface BatchProductItem{patternColorwayId:string;productNo:string;id?:string}
+export interface BatchProductResult{created:BatchProductItem[];skipped:BatchProductItem[]}
+export async function previewV2ProductsBatch(db:Query,body:unknown):Promise<{items:(BatchProductItem&{existing:boolean})[]}>{
+ const input=batchInput(body),items:(BatchProductItem&{existing:boolean})[]=[];
+ for(const colorway of input.colorwayIds){
+  const code=await identity(db,colorway,input.fabricId);
+  const [existing]=await db.query('SELECT id FROM v2_products WHERE pattern_colorway_id=? AND fabric_id=? LIMIT 1',[colorway,input.fabricId]);
+  const item=rows(existing)[0];
+  items.push({patternColorwayId:colorway,productNo:code,existing:Boolean(item),...(item?{id:sqlId(item.id)}:{})});
+ }
+ return {items};
+}
+export async function createV2ProductsBatch(pool:Pool,actor:AppPrincipal,body:unknown):Promise<BatchProductResult>{
+ const input=batchInput(body);
+ try{return await tx(pool,actor,async db=>{
+  const result:BatchProductResult={created:[],skipped:[]};
+  for(const colorway of input.colorwayIds){
+   const productNo=await identity(db,colorway,input.fabricId);
+   const [raw]=await db.query('SELECT id FROM v2_products WHERE pattern_colorway_id=? AND fabric_id=? LIMIT 1 FOR UPDATE',[colorway,input.fabricId]);
+   const existing=rows(raw)[0];
+   if(existing){result.skipped.push({patternColorwayId:colorway,productNo,id:sqlId(existing.id)});continue;}
+   const [saved]=await db.query('INSERT INTO v2_products(pattern_colorway_id,fabric_id,product_no,remark,is_active,is_available_for_sampling) VALUES (?,?,?,?,?,?)',
+    [colorway,input.fabricId,productNo,'',1,1]);
+   result.created.push({patternColorwayId:colorway,productNo,id:sqlId((saved as {insertId:unknown}).insertId)});
+  }
+  return result;
+ });}catch(e){return mapConflict(e);}
+}
+
 export async function createV2Product(pool:Pool,actor:AppPrincipal,body:unknown):Promise<V2Product>{
  const patch=parse(body,true),images=patch.images??emptyImages();
  try{return await tx(pool,actor,async db=>{
@@ -304,8 +332,9 @@ export async function updateV2Product(pool:Pool,actor:AppPrincipal,productId:str
 export async function deleteV2Product(pool:Pool,actor:AppPrincipal,productId:string):Promise<{id:string;deleted:true}>{
  id(productId);
  try{return await tx(pool,actor,async db=>{
-  await locked(db,productId);
-  if(await used(db,productId))throw new V2ProductError('Ordered product cannot be deleted; deactivate instead',409);
+  const current=await locked(db,productId);
+  if(await used(db,productId))throw new V2ProductError('Ordered product cannot be deleted',409);
+  await recordDeletion(db,actor,{type:'product',id:productId,label:String(current.product_no)});
   await applyImages(db,productId,emptyImages(),true);
   const [deleted]=await db.query('DELETE FROM v2_products WHERE id=?',[productId]);
   if(Number((deleted as {affectedRows?:number}).affectedRows)!==1)

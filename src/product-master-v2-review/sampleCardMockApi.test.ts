@@ -12,6 +12,20 @@ async function create(api:typeof fetch,masterIndex=0,fabricIndex=0){
  const masters=await fetchCardMasters(api,''),fabrics=await fetchCardFabrics(api,'');
  return createSampleCard(api,masters.items[masterIndex],fabrics.items[fabricIndex]);
 }
+test('review product association reflects card creation, pre-page filtering and retirement',async()=>{
+ const api=composeSampleCardReviewFetch(reviewFetch);
+ const before=await (await api('/api/v2/products?status=all&limit=100&offset=0')).json();
+ assert.ok(before.items.length>0);assert.ok(before.items.every((p:any)=>p.sampleCard===null));
+ const first=before.items[0];
+ const response=await post(api,'/api/v2/sample-cards',{masterId:first.masterId,fabricId:first.fabricId});
+ assert.equal(response.status,201);const created=await response.json();
+ const linked=await (await api('/api/v2/products?status=all&cardAssociation=linked&limit=1&offset=0')).json();
+ assert.ok(linked.total>0);assert.equal(linked.items.length,1);assert.equal(linked.items[0].sampleCard.id,created.card.id);
+ assert.equal(linked.items[0].masterId,first.masterId);assert.equal(linked.items[0].fabricId,first.fabricId);
+ const wrong=await api('/api/v2/products?cardAssociation=invalid');assert.equal(wrong.status,400);
+ assert.equal((await api('/api/v2/sample-cards/'+created.card.id,{method:'DELETE'})).status,200);
+ const after=await (await api('/api/v2/products?status=all&cardAssociation=linked&limit=1&offset=0')).json();assert.equal(after.total,0);
+});
 test('shared review API refreshes linked fabric fields while retaining card identity and blocks referenced parent rename/delete',async()=>{
  const api=composeSampleCardReviewFetch(reviewFetch);
  // This master and fabric have no product references; only the new sample card protects them.

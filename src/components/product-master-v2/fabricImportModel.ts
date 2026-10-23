@@ -53,9 +53,9 @@ export function parseFabricImportPreview(data:unknown):FabricImportPreview{
  }
  return data as FabricImportPreview;
 }
-export function validateSelectedRows(preview:FabricImportPreview,selected:number[],isAdmin:boolean){
+export function validateSelectedRows(preview:FabricImportPreview,selected:number[],canManage:boolean){
  if(!Array.isArray(selected)||new Set(selected).size!==selected.length)throw Error('重复的更新行');
- if(!isAdmin&&selected.length)throw Error('只有管理员可以覆盖已有面料');
+ if(!canManage&&selected.length)throw Error('当前账号没有面料更新权限');
  const eligible=new Set(preview.rows.filter(r=>r.action==='skip'&&r.existing&&r.fabric).map(r=>r.rowNumber));
  if(selected.some(x=>!eligible.has(x)))throw Error('只能选择预览中的已有面料更新行');
  return [...selected].sort((a,b)=>a-b);

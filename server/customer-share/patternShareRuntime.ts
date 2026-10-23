@@ -10,6 +10,12 @@ import {createPublicPatternRouter} from './publicPatternRoutes';
 import {createPublicPatternMediaRouter} from './publicPatternMedia';
 import {loadPatternShareCatalog} from './patternShareCatalog';
 import type {PatternLinkDecisionVerifier} from './patternLinkStore';
+import {verifyProductLinkRuntimeSchema} from './productLinkSchemaContract';
+import {createProductShareIssueRouter,createPublicProductRouter} from './productSharing';
+import {verifyCardLinkRuntimeSchema} from './cardLinkSchemaContract';
+import {createCardShareIssueRouter} from './cardSharing';
+import {loadCardShareCatalog} from './cardShareCatalog';
+import {createPublicCardRouter} from './cardPublicRoutes';
 /** Caller supplies ONLY the already pinned database and private asset service. */
 export async function createPatternShareRuntime(database:AccessDatabase,pool:Pool,target:V2ProductionTarget,service:ImageAssetService,env:NodeJS.ProcessEnv){
  const config=resolvePatternShareRuntimeConfig(env);if(!config)return null;
@@ -23,5 +29,16 @@ export async function createPatternShareRuntime(database:AccessDatabase,pool:Poo
  const publicRouter=Router();
  publicRouter.use(createPublicPatternMediaRouter({pool:database,verifyServerDecision,loadPreviews:async id=>(await load(id))?.previews??new Map(),readDisplay:id=>service.readContent(id,'display','public-pattern-display')}));
  publicRouter.use(createPublicPatternRouter({pool:database,verifyServerDecision,loadCandidate:async id=>(await load(id))?.candidate??null}));
- return {publicRouter,privateRouter:createPatternShareIssueRouter({authDb:database,pool,secret,publicBase:config.publicOrigin})};
+ const privateRouter=createPatternShareIssueRouter({authDb:database,pool,secret,publicBase:config.publicOrigin});
+ // Additive rollout: a missing/unverified product mapping disables only the new
+ // feature. Existing issued pattern links continue to work. No runtime DDL.
+ let productsEnabled=false;
+ try{await verifyProductLinkRuntimeSchema(pool,target);productsEnabled=true;}catch{/* fail closed until operator migration and metadata acceptance */}
+ if(productsEnabled)privateRouter.use(createProductShareIssueRouter({authDb:database,pool,secret,publicBase:config.publicOrigin}));
+ const productPublicRouter=productsEnabled?createPublicProductRouter({db:database,load:(masterId,productId)=>loadPatternShareCatalog(database,masterId,secret,productId),readDisplay:id=>service.readContent(id,'display','public-product-display')}):null;
+ let cardsEnabled=false;
+ try{await verifyCardLinkRuntimeSchema(pool,target);cardsEnabled=true;}catch{/* only new card sharing is unavailable until its additive table is verified */}
+ if(cardsEnabled)privateRouter.use(createCardShareIssueRouter({authDb:database,pool,secret,publicBase:config.publicOrigin}));
+ const cardPublicRouter=cardsEnabled?createPublicCardRouter({db:database,load:share=>loadCardShareCatalog(database,share,secret),readDisplay:id=>service.readContent(id,'display','public-card-display')}):null;
+ return {publicRouter,privateRouter,productPublicRouter,productsEnabled,cardPublicRouter,cardsEnabled};
 }

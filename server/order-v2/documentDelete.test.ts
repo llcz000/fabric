@@ -9,9 +9,10 @@ function fixture(owner:string|null,fail=false){
  const connection={async beginTransaction(){},async commit(){commits++;},async rollback(){rollbacks++;lineCount=2;orderCount=1;},release(){},async query(sql:string){calls.push(sql);
   if(sql.includes('FROM v2_access_users'))return [[{id:'7',role:actor.role,is_active:1,can_manage_own_orders:1,can_manage_products:1}],[]] as [unknown,unknown];
   if(sql.includes('FROM v2_access_sessions'))return [[{id:'11'}],[]] as [unknown,unknown];
-  if(sql.startsWith('SELECT id,created_by_user_id,order_no FROM orders'))return [[{id:'5',created_by_user_id:owner}],[]] as [unknown,unknown];
+  if(sql.startsWith('SELECT id,created_by_user_id,order_no FROM orders'))return [[{id:'5',order_no:'XS5',created_by_user_id:owner}],[]] as [unknown,unknown];
   if(sql.startsWith('DELETE FROM order_items')){lineCount=0;return [{affectedRows:2},[]] as [unknown,unknown];}
   if(sql.startsWith('DELETE FROM orders')){if(fail)throw Error('simulated failure');orderCount=0;return [{affectedRows:1},[]] as [unknown,unknown];}
+  if(sql.startsWith('INSERT INTO business_delete_events'))return [{affectedRows:1},[]];
   throw Error('Unexpected SQL');
  }};
  return {pool:{async getConnection(){return connection;}},calls,state:()=>({lineCount,orderCount,commits,rollbacks})};

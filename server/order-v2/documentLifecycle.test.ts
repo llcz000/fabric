@@ -8,7 +8,7 @@ const sales:AppPrincipal={...admin,userId:'2',role:'sales'};
 type Row=Record<string,unknown>;
 function db(owner:string|null='2',valid=true,role:'admin'|'sales'='sales'){
  const state={events:[] as string[],sql:[] as {query:string;args:unknown[]}[],rollbacks:0,commits:0,
-  owner,valid,count:2,copyId:'321',deleteCount:1,itemsRemain:2,errors:false,sourceKind:'catalog' as string|null,productId:'7' as string|null,productActive:1,fabricActive:1,colorwayActive:1,masterActive:1};
+  owner,valid,failAudit:false,count:2,copyId:'321',deleteCount:1,itemsRemain:2,errors:false,sourceKind:'catalog' as string|null,productId:'7' as string|null,productActive:1,fabricActive:1,colorwayActive:1,masterActive:1};
  const tx={
   async beginTransaction(){state.events.push('begin');},
   async commit(){state.commits++;state.events.push('commit');},
@@ -25,6 +25,7 @@ function db(owner:string|null='2',valid=true,role:'admin'|'sales'='sales'){
    if(query.includes('FROM v2_products p'))return [[{product_no:'P7',fabric_name:'测试',composition:'棉',colorway_no:1,product_active:state.productActive,fabric_active:state.fabricActive,colorway_active:state.colorwayActive,master_active:state.masterActive}],[]];
    if(query.startsWith('INSERT INTO orders'))return [{insertId:state.copyId,affectedRows:1},[]];
    if(query.startsWith('INSERT INTO order_items'))return [{affectedRows:state.count},[]];
+   if(query.startsWith('INSERT INTO business_delete_events')){if(state.failAudit)throw Error('audit failure');return [{affectedRows:1},[]];}
    if(query.startsWith('INSERT INTO v2_document_audit_events'))return [{affectedRows:1},[]];
    if(query.startsWith('DELETE FROM order_items'))return [{affectedRows:state.itemsRemain},[]];
    if(query.startsWith('DELETE FROM orders'))return [{affectedRows:state.deleteCount},[]];
@@ -103,3 +104,7 @@ test('AC-49 copying never grants legacy/manual exemption and rejects every inact
   assert(!x.state.sql.some(s=>s.query.startsWith('INSERT INTO orders')));assert.equal(x.state.rollbacks,1);
  }
 });
+
+test('LITE every owner deletion records minimal audit before hard deleting rows',async()=>{const x=db();await deleteV2Document(x.pool,sales,'123',{confirm:true});const logs=x.state.sql.filter(x=>x.query.startsWith('INSERT INTO business_delete_events'));assert.equal(logs.length,1);assert.deepEqual(logs[0].args,['document','123','XS-ORIGINAL','2']);assert(x.state.sql.findIndex(x=>x===logs[0])<x.state.sql.findIndex(x=>x.query.startsWith('DELETE FROM order_items')));});
+
+test('LITE audit failure rolls back document delete before any child or parent deletion',async()=>{const x=db();x.state.failAudit=true;await assert.rejects(deleteV2Document(x.pool,sales,'123',{confirm:true}),/audit failure/);assert.equal(x.state.commits,0);assert.equal(x.state.rollbacks,1);assert(!x.state.sql.some(x=>x.query.startsWith('DELETE FROM')));});

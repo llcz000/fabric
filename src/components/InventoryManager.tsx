@@ -6,6 +6,8 @@
 import React, { useState } from 'react';
 import { InventoryEntry, InventoryRecord } from '../types';
 import { Plus, Trash2, Save, Search, RefreshCw, Package } from 'lucide-react';
+import {useConfirm} from './ui/ConfirmDialog';
+import {useToast} from './ui/Toast';
 
 interface InventoryManagerProps {
   entries: InventoryEntry[];
@@ -24,6 +26,8 @@ export default function InventoryManager({
   onDeleteEntry,
   onRefreshLedger,
 }: InventoryManagerProps) {
+  const confirm = useConfirm();
+  const toast = useToast();
   const [tab, setTab] = useState<'entry' | 'ledger'>('entry');
   const [ledgerSearch, setLedgerSearch] = useState('');
   const [saving, setSaving] = useState(false);
@@ -55,7 +59,7 @@ export default function InventoryManager({
   const handleSave = async () => {
     const validRows = formRows.filter(r => r.productName.trim());
     if (validRows.length === 0) {
-      alert('请至少录入一条包含品名的记录。');
+      toast.error('请至少录入一条包含品名的记录。');
       return;
     }
     setSaving(true);
@@ -64,18 +68,19 @@ export default function InventoryManager({
       clearForm();
       setTab('ledger');
     } catch {
-      alert('保存失败，请重试');
+      toast.error('保存失败，请重试');
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('确定删除此入库记录？')) return;
+    const ok = await confirm({title:'删除此入库记录？',message:'删除后不可恢复。',confirmText:'确认删除',danger:true});
+    if (!ok) return;
     try {
       await onDeleteEntry(id);
     } catch {
-      alert('删除失败');
+      toast.error('删除失败');
     }
   };
 

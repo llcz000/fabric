@@ -1,8 +1,10 @@
+import {recordDeletion} from '../audit/deletionAudit';
 import type {AppPrincipal} from '../access/types';
-import {canManageProducts} from '../access/policy';
+import {withCatalogTransaction} from '../access/catalogTransaction';
 import type {Pool} from '../order-v2/lines';
 import {markCardsForReprintOnFabricChange} from '../customer-samples/reprint';
 import {hasSampleCardReference} from './sampleCardReferences';
+import {isDecimalValue} from '../../src/lib/businessRules';
 
 /** P3-3 standalone Fabric V2 domain service; NOT mounted to server.ts. */
 export class FabricError extends Error{
@@ -34,7 +36,7 @@ function rows(raw:unknown):Row[]{
 function normalizedNo(value:unknown):string{
  if(typeof value!=='string')throw new FabricError('Invalid fabric number');
  const code=value.trim().toUpperCase();
- if(!/^[A-Z0-9]{1,64}$/.test(code))throw new FabricError('Invalid fabric number');
+ if(!code)throw new FabricError('Fabric number is required');
  return code;
 }
 function validText(value:unknown,max:number,required:boolean,field:string):string|null{
@@ -50,9 +52,7 @@ function decimal(value:unknown,scale:number,integerDigits:number,field:string):n
  if(value===null)return null;
  if(typeof value!=='number'||!Number.isFinite(value)||value<=0)
   throw new FabricError('Invalid '+field);
- const representation=String(value);
- const match=/^([0-9]+)(?:\.([0-9]+))?$/.exec(representation);
- if(!match||match[1].length>integerDigits||(match[2]?.length??0)>scale)
+ if(!isDecimalValue(value,scale,integerDigits))
   throw new FabricError('Invalid '+field+' precision');
  return value;
 }
@@ -83,7 +83,7 @@ function changes(body:unknown,create:boolean):FabricChanges{
  if('widthValue' in raw)result.widthValue=decimal(raw.widthValue,2,10,'width');
  if('remark' in raw)result.remark=validText(raw.remark,5000,false,'remark');
  if('isActive' in raw){
-  if(typeof raw.isActive!=='boolean')throw new FabricError('Invalid active state');
+  if(raw.isActive!==true)throw new FabricError('Invalid active state');
   result.isActive=raw.isActive;
  }
  return result;
@@ -104,34 +104,14 @@ function fabric(row:Row):Fabric{
   remark:row.remark==null?null:String(row.remark),isActive:Number(row.is_active)===1};
 }
 const columnsSql='id,fabric_no,fabric_name,composition,weight_value,weight_unit,width_value,remark,is_active';
-async function lockManager(db:Query,actor:AppPrincipal):Promise<void>{
- if(!actor?.userId||!actor.sessionId)throw new FabricError('Authentication required',401);
- const [u]=await db.query('SELECT id,role,is_active,can_manage_products FROM v2_access_users WHERE id=? FOR SHARE',[actor.userId]);
- const user=rows(u)[0];
- if(!user||user.role!==actor.role||Number(user.is_active)!==1)
-  throw new FabricError('Authentication required',401);
- const [s]=await db.query(
-  'SELECT id FROM v2_access_sessions WHERE id=? AND user_id=? AND revoked_at IS NULL AND expires_at>UTC_TIMESTAMP() FOR SHARE',
-  [actor.sessionId,actor.userId]);
- if(!rows(s).length)throw new FabricError('Authentication required',401);
- if(!canManageProducts({...actor,canManageProducts:user.role==='admin'||Number(user.can_manage_products)===1}))
-  throw new FabricError('Insufficient fabric permissions',403);
-}
 async function transaction<T>(pool:Pool,actor:AppPrincipal,work:(db:Query)=>Promise<T>):Promise<T>{
- const db=await pool.getConnection();let started=false;
- try{
-  await db.beginTransaction();started=true;
-  await lockManager(db,actor);
-  const result=await work(db);
-  await db.commit();started=false;
-  return result;
- }catch(e){if(started)await db.rollback();throw e;}finally{db.release();}
+ return withCatalogTransaction(pool,actor,(message,status)=>new FabricError(message,status),'Insufficient fabric permissions',work);
 }
 function dbConflict(e:unknown):never{
  const code=e&&typeof e==='object'?String((e as {code?:unknown}).code):'';
  if(code==='ER_DUP_ENTRY')throw new FabricError('Fabric number already exists',409);
  if(['ER_ROW_IS_REFERENCED_2','ER_ROW_IS_REFERENCED'].includes(code))
-  throw new FabricError('Fabric is referenced; deactivate instead',409);
+  throw new FabricError('Fabric is referenced',409);
  throw e;
 }
 function dbFields(x:FabricFields):unknown[]{
@@ -176,7 +156,7 @@ export async function listFabrics(db:Query,options:{
 }={}):Promise<Fabric[]>{
  const params:unknown[]=[];
  const config=listOptions(options);
- let sql='SELECT '+columnsSql+' FROM v2_fabrics WHERE 1=1';
+ let sql='SELECT '+columnsSql+' FROM v2_fabrics WHERE deleted_at IS NULL';
  if(!config.includeInactive)sql+=' AND is_active=1';
  if(config.query){
   const escaped='%'+config.query.replace(/[!%_]/g,c=>'!'+c)+'%';
@@ -193,18 +173,18 @@ export async function listFabrics(db:Query,options:{
 }
 export async function getFabric(db:Query,id:string):Promise<Fabric>{
  strictId(id);
- const [raw]=await db.query('SELECT '+columnsSql+' FROM v2_fabrics WHERE id=?',[id]);
+ const [raw]=await db.query('SELECT '+columnsSql+' FROM v2_fabrics WHERE id=? AND deleted_at IS NULL',[id]);
  const record=rows(raw)[0];if(!record)throw new FabricError('Fabric not found',404);
  return fabric(record);
 }
 async function locked(db:Query,id:string):Promise<Fabric>{
- const [raw]=await db.query('SELECT '+columnsSql+' FROM v2_fabrics WHERE id=? FOR UPDATE',[id]);
+ const [raw]=await db.query('SELECT '+columnsSql+' FROM v2_fabrics WHERE id=? AND deleted_at IS NULL FOR UPDATE',[id]);
  const record=rows(raw)[0];if(!record)throw new FabricError('Fabric not found',404);
  return fabric(record);
 }
 async function checkProductReference(db:Query,id:string):Promise<void>{
  const [raw]=await db.query('SELECT id FROM v2_products WHERE fabric_id=? LIMIT 1',[id]);
- if(rows(raw).length)throw new FabricError('Fabric is referenced by products; deactivate instead',409);
+ if(rows(raw).length)throw new FabricError('Fabric is referenced by products',409);
 }
 export async function updateFabric(pool:Pool,actor:AppPrincipal,id:string,body:unknown):Promise<Fabric>{
  strictId(id);const patch=changes(body,false);
@@ -235,7 +215,7 @@ export async function withFabricImportTransaction<T>(
 ):Promise<T>{return transaction(pool,actor,run);}
 export async function lockedFabricByNumber(db:Query,number:string):Promise<Fabric|null>{
  const code=normalizedNo(number);
- const [raw]=await db.query('SELECT '+columnsSql+' FROM v2_fabrics WHERE fabric_no=? FOR UPDATE',[code]);
+ const [raw]=await db.query('SELECT '+columnsSql+' FROM v2_fabrics WHERE fabric_no=? AND deleted_at IS NULL FOR UPDATE',[code]);
  const list=rows(raw);return list.length?fabric(list[0]):null;
 }
 export async function writeFabricImportRow(
@@ -273,11 +253,19 @@ export async function writeFabricImportRow(
 export async function deleteFabric(pool:Pool,actor:AppPrincipal,id:string):Promise<{id:string;deleted:true}>{
  strictId(id);
  try{return await transaction(pool,actor,async db=>{
-  await locked(db,id);
-  if(await hasSampleCardReference(db,'fabric',id))
-   throw new FabricError('Fabric is referenced by sample cards; deactivate instead',409);
+  const current=await locked(db,id);
   await checkProductReference(db,id);
-  const [result]=await db.query('DELETE FROM v2_fabrics WHERE id=?',[id]);
+  const hasCards=await hasSampleCardReference(db,'fabric',id);
+  await recordDeletion(db,actor,{type:'fabric',id,label:current.fabricNo});
+  if(hasCards){
+   await db.query("INSERT INTO business_delete_events(entity_type,entity_id,entity_label,actor_user_id) SELECT 'card',CAST(id AS CHAR),card_no,? FROM sample_cards WHERE fabric_id=? AND deleted_at IS NULL",[actor.userId,id]);
+   // Keep historical foreign keys; all current cards and QR tokens become unavailable.
+   await db.query('UPDATE sample_cards SET deleted_at=UTC_TIMESTAMP(),is_active=0 WHERE fabric_id=? AND deleted_at IS NULL',[id]);
+   await db.query('UPDATE sample_card_tokens t JOIN sample_cards c ON c.id=t.card_id SET t.revoked_at=UTC_TIMESTAMP() WHERE c.fabric_id=? AND t.revoked_at IS NULL',[id]);
+  }
+  const [result]=await db.query(hasCards?
+   'UPDATE v2_fabrics SET deleted_at=UTC_TIMESTAMP(),is_active=0 WHERE id=? AND deleted_at IS NULL':
+   'DELETE FROM v2_fabrics WHERE id=?',[id]);
   if(Number((result as {affectedRows?:number}).affectedRows)!==1)
    throw new FabricError('Fabric not found',404);
   return {id,deleted:true};

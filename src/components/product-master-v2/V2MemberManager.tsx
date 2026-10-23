@@ -11,21 +11,37 @@ export default function V2MemberManager({apiFetch,onProfileChanged}:{apiFetch:ty
  const save=async(url:string,method:string,body:unknown)=>{
   setBusy(true);setError('');try{const r=await apiFetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw Error(r.status===409?'操作冲突：请保留至少一位有效管理员并检查登录名是否重复':'成员操作失败，请检查权限与资料');setRevision(n=>n+1);return true;}catch(e){setError(e instanceof Error?e.message:'成员操作失败');return false;}finally{setBusy(false);}
  };
- return <section className="space-y-4 p-4" aria-label="成员管理"><h2 className="text-xl font-semibold">成员管理</h2>
-  {notice&&<p role="status" className="text-emerald-800">{notice}</p>}
-  {error&&<p role="alert" className="text-rose-700">{error}</p>}
-  <form className="flex flex-wrap gap-3 rounded border bg-white p-4" onSubmit={async e=>{e.preventDefault();if(await save('/api/v2/access/members','POST',{username,displayName,password,role})){setUsername('');setDisplayName('');setPassword('');}}}>
-   <label>登录名<input required name="username" minLength={3} maxLength={64} className="ml-2 rounded border p-2" value={username} onChange={e=>setUsername(e.target.value)}/></label>
-   <label>姓名<input required name="displayName" maxLength={100} className="ml-2 rounded border p-2" value={displayName} onChange={e=>setDisplayName(e.target.value)}/></label>
-   <label>密码<input required type="password" name="password" autoComplete="new-password" minLength={8} className="ml-2 rounded border p-2" value={password} onChange={e=>setPassword(e.target.value)}/></label>
-   <label>角色<select className="ml-2 rounded border p-2" value={role} onChange={e=>setRole(e.target.value as typeof role)}><option value="sales">业务员</option><option value="admin">管理员</option></select></label>
-   <button disabled={busy} className="rounded bg-blue-700 px-4 py-2 text-white"><ActionIcon name="member"/>新增账号</button>
+ return <section className="v2-catalog v2-member-manager space-y-4" aria-label="成员管理">
+  <div className="v2-catalog-toolbar">
+   <div><h1 className="text-xl font-semibold">成员管理</h1><p className="mt-1 text-xs text-slate-500">维护业务员与管理员账号</p></div>
+  </div>
+  {notice&&<p role="status" className="rounded bg-emerald-50 p-2 text-sm text-emerald-800">{notice}</p>}
+  {error&&<p role="alert" className="rounded bg-rose-50 p-2 text-sm text-rose-700">{error}</p>}
+  <form className="v2-catalog-filters v2-library-filters flex flex-wrap items-center gap-3 rounded-lg border bg-white" onSubmit={async e=>{e.preventDefault();if(await save('/api/v2/access/members','POST',{username,displayName,password,role})){setUsername('');setDisplayName('');setPassword('');}}}>
+   <label className="flex items-center gap-2 text-sm text-slate-600">登录名<input required name="username" minLength={3} maxLength={64} className="rounded border px-2 py-1.5" value={username} onChange={e=>setUsername(e.target.value)}/></label>
+   <label className="flex items-center gap-2 text-sm text-slate-600">姓名<input required name="displayName" maxLength={100} className="rounded border px-2 py-1.5" value={displayName} onChange={e=>setDisplayName(e.target.value)}/></label>
+   <label className="flex items-center gap-2 text-sm text-slate-600">密码<input required type="password" name="password" autoComplete="new-password" minLength={8} className="rounded border px-2 py-1.5" value={password} onChange={e=>setPassword(e.target.value)}/></label>
+   <label className="flex items-center gap-2 text-sm text-slate-600">角色<select className="rounded border px-2 py-1.5" value={role} onChange={e=>setRole(e.target.value as typeof role)}><option value="sales">业务员</option><option value="admin">管理员</option></select></label>
+   <button disabled={busy} className="rounded-lg bg-[#346ef6] px-4 py-2 text-sm text-white disabled:opacity-40"><ActionIcon name="member"/>新增账号</button>
   </form>
-  <div className="overflow-x-auto"><table className="w-full border-collapse bg-white text-sm"><thead><tr>{['登录名','姓名','角色','状态','操作'].map(t=><th key={t} className="border p-3 text-left">{t}</th>)}</tr></thead><tbody>{members.map(m=><tr key={m.id}>
-   <td className="border p-3">{m.username}</td><td className="border p-3">{m.display_name}</td>
-   <td className="border p-3"><select aria-label={m.username+'角色'} disabled={busy} value={m.role} onChange={e=>void save('/api/v2/access/members/'+m.id,'PATCH',{role:e.target.value})}><option value="sales">业务员</option><option value="admin">管理员</option></select></td>
-   <td className="border p-3">{m.is_active?'启用':'停用'}</td><td className="space-x-3 border p-3"><button className="v2-icon-button" aria-label="编辑资料" title="编辑成员资料" disabled={busy} onClick={()=>{setEditing(m);setError('');setNotice('');}}><ActionIcon name="edit"/></button><button disabled={busy} onClick={()=>void save('/api/v2/access/members/'+m.id,'PATCH',{isActive:!m.is_active})}><ActionIcon name="power"/>{m.is_active?'停用':'启用'}</button><button className="v2-icon-button" aria-label="重设密码" title="重设密码" disabled={busy} onClick={()=>{setResetId(m.id);}}><ActionIcon name="password"/></button></td>
-  </tr>)}</tbody></table></div>
+  <div className="overflow-x-auto rounded-lg border border-[#c3c6d7] bg-white">
+   <table className="v2-library-table w-full min-w-[720px] border-collapse text-left text-xs text-[#191b24]">
+    <colgroup><col style={{width:'180px'}}/><col style={{width:'160px'}}/><col style={{width:'140px'}}/><col style={{width:'100px'}}/><col style={{width:'220px'}}/></colgroup>
+    <thead><tr className="border-b border-[#c3c6d7] bg-[#f3f4fa] text-[#434655]">
+     {['登录名','姓名','角色','状态','操作'].map(t=><th key={t} scope="col" className="px-3 py-3 font-medium">{t}</th>)}
+    </tr></thead>
+    <tbody>{members.map(m=><tr key={m.id} className="v2-library-row border-b border-[#ededf9] hover:bg-[#f8f9ff]">
+   <td className="px-3 py-2 font-semibold text-[#003ea7]">{m.username}</td><td className="px-3 py-2">{m.display_name}</td>
+   <td className="px-3 py-2"><select aria-label={m.username+'角色'} disabled={busy} value={m.role} onChange={e=>void save('/api/v2/access/members/'+m.id,'PATCH',{role:e.target.value})}><option value="sales">业务员</option><option value="admin">管理员</option></select></td>
+   <td className="px-3 py-2"><span className={'rounded-full px-2 py-0.5 text-[11px] '+(m.is_active?'bg-emerald-50 text-emerald-700':'bg-slate-100 text-slate-600')}>{m.is_active?'已启用':'已停用'}</span></td>
+   <td className="px-3 py-2"><div className="v2-row-actions">
+    <button className="v2-icon-button" aria-label="编辑资料" title="编辑成员资料" disabled={busy} onClick={()=>{setEditing(m);setError('');setNotice('');}}><ActionIcon name="edit"/></button>
+    <button className="v2-row-action" disabled={busy} onClick={()=>void save('/api/v2/access/members/'+m.id,'PATCH',{isActive:!m.is_active})}><ActionIcon name="power"/><span>{m.is_active?'停用':'启用'}</span></button>
+    <button className="v2-icon-button" aria-label="重设密码" title="重设密码" disabled={busy} onClick={()=>{setResetId(m.id);}}><ActionIcon name="password"/></button>
+   </div></td>
+  </tr>)}</tbody></table>
+   {!members.length?<p className="py-12 text-center text-sm text-slate-500">还没有成员账号，请在上方新增。</p>:null}
+  </div>
   {editing&&<EditMemberProfile member={editing} busy={busy} error={error} onClose={()=>{if(!busy){setEditing(null);setError('');}}} onSave={async value=>{
    const ok=await save('/api/v2/access/members/'+editing.id,'PATCH',value);if(ok){setEditing(null);setNotice('成员资料已更新，下次登录使用新的登录名。');try{await onProfileChanged?.();}catch{setError('资料已保存，当前账号显示未刷新，请刷新页面核对');}}return ok;
   }}/>}

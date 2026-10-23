@@ -783,9 +783,14 @@ test('P7-3 combined V2 HTTP mounts owner-scoped document list, safe statistics a
   assert.deepEqual(await adminList.json(),{total:0,limit:20,offset:0,items:[]});
   assert(db.calls.some(x=>x.sql.includes('FROM orders o WHERE 1=1')));
   assert.equal((await request(base,'/documents/stats?invalid=1')).status,400);
+  assert.equal((await request(base,'/documents/stats?compareFrom=2026-09-24&compareTo=2026-09-30')).status,200,
+   'a comparison window is a valid statistics filter');
+  assert.equal((await request(base,'/documents/stats?compareFrom=2026-10-01&compareTo=2026-09-01')).status,400,
+   'an inverted comparison window must be rejected');
   const stats=await request(base,'/documents/stats');
   assert.equal(stats.status,200);
-  assert.deepEqual(await stats.json(),{orderCount:0,amountTotal:0,metersTotal:0,byType:{
+  assert.deepEqual(await stats.json(),{orderCount:0,amountTotal:0,metersTotal:0,
+   pendingAmount:0,pendingCount:0,byType:{
    sample:{count:0,meters:0,amount:0},bulk:{count:0,meters:0,amount:0},
    deposit:{count:0,meters:0,contractAmount:0}
   },topProducts:[],recentOrders:[]});

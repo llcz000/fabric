@@ -111,7 +111,12 @@ export async function verifyV2SchemaContract(connection:V2SchemaConnection):Prom
     const indexes=getRows(indexRows,'indexes');
     for(const [index,specification] of Object.entries(spec.unique)) {
       const actual=readIndex(indexes,index);
-      if(!actual || !actual.unique || JSON.stringify(actual.columns)!==JSON.stringify(specification.columns))
+      // The registered reuse migration scopes the same unique index to live rows.
+      const activeMasterNumber=table==='pattern_masters'&&index==='uq_v2_master_no'&&
+        actual?.columns.length===1&&actual.columns[0]==='active_master_no'&&
+        columns.some(c=>c.COLUMN_NAME==='active_master_no'&&norm(c.COLUMN_TYPE)==='varchar(64)'&&c.IS_NULLABLE==='YES');
+      const expectedColumns=activeMasterNumber?['active_master_no']:specification.columns;
+      if(!actual || !actual.unique || JSON.stringify(actual.columns)!==JSON.stringify(expectedColumns))
         throw Error(`V2 schema drift ${table}.${index}: missing, nonunique or wrong order`);
     }
     const [foreignRows]=await connection.query(

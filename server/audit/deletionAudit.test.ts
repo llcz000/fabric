@@ -1,0 +1,5 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {recordDeletion} from './deletionAudit';
+const actor={userId:'2'};
+test('minimal deletion event writes only identity, label and actor, on caller transaction',async()=>{let call:any;const db={query:async(sql:string,args:unknown[])=>{call={sql,args};return [{affectedRows:1},[]] as [unknown,unknown];}};await recordDeletion(db,actor,{type:'document',id:'123',label:'XS-001'});assert.match(call.sql,/INSERT INTO business_delete_events/);assert.deepEqual(call.args,['document','123','XS-001','2']);assert(!/snapshot|detail_json|payload/i.test(call.sql));});
+test('missing deletion log is a hard failure, never a silent delete',async()=>{for(const result of [0,2,undefined])await assert.rejects(recordDeletion({query:async()=>[{affectedRows:result},[]]},actor,{type:'product',id:'3',label:'P3'}));await assert.rejects(recordDeletion({query:async()=>{throw Error('audit unavailable');}},actor,{type:'product',id:'3',label:'P3'}),/audit unavailable/);});

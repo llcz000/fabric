@@ -1,4 +1,5 @@
 import type {PublicPattern} from '../../../server/customer-share/publicPatternProjection';
+import type {PublicCard} from '../../../server/customer-share/cardShareCatalog';
 const row=(v:unknown):v is Record<string,any>=>!!v&&typeof v==='object'&&!Array.isArray(v);
 const text=(v:unknown,max:number)=>typeof v==='string'&&v.length>0&&v.length<=max;
 const ref=(v:unknown)=>typeof v==='string'&&/^display:[A-Za-z0-9_-]{43}$/.test(v);
@@ -14,9 +15,37 @@ export function parsePublicPatternResponse(raw:unknown):PublicPattern|null{
  }
  return p as PublicPattern;
 }
-export function publicPatternImagePath(token:string,previewRef:string){if(!/^[A-Za-z0-9_-]{43}$/.test(token)||!ref(previewRef))throw bad();return '/api/public/patterns/'+token+'/images/'+previewRef.slice(8);}
-export function parsePatternShareLink(raw:unknown){
+export function publicPatternImagePath(token:string,previewRef:string,productOnly=false){if(!/^[A-Za-z0-9_-]{43}$/.test(token)||!ref(previewRef))throw bad();return '/api/public/'+(productOnly?'products':'patterns')+'/'+token+'/images/'+previewRef.slice(8);}
+export function parsePublicProductResponse(raw:unknown):{pattern:PublicPattern|null;productNo:string}{
+ const pattern=parsePublicPatternResponse(raw);
+ if(pattern===null)return {pattern:null,productNo:''};
+ if(!row(raw)||!text(raw.productNo,200)||pattern.colorways.length!==1||pattern.colorways[0].fabrics.length!==1||pattern.colorways[0].designImages.length)throw bad();
+ return {pattern,productNo:raw.productNo};
+}
+export function parsePatternShareLink(raw:unknown,productOnly=false){
  if(typeof raw!=='string')throw bad();const url=new URL(raw);
- if(url.protocol!=='https:'||url.href!==raw||url.username||url.password||url.search||url.hash||!/^\/p\/[A-Za-z0-9_-]{43}$/.test(url.pathname))throw bad();
+ if(url.protocol!=='https:'||url.href!==raw||url.username||url.password||url.search||url.hash||!(productOnly?/^\/s\/[A-Za-z0-9_-]{43}$/:/^\/p\/[A-Za-z0-9_-]{43}$/).test(url.pathname))throw bad();
  return {url:raw,path:url.pathname};
+}
+const only=(v:Record<string,unknown>,keys:string[])=>Object.keys(v).length===keys.length&&keys.every(k=>Object.hasOwn(v,k));
+export function parsePublicCardResponse(raw:unknown):PublicCard|null{
+ if(!row(raw)||typeof raw.available!=='boolean')throw bad();
+ if(!raw.available){if(Object.keys(raw).some(k=>k!=='available'&&k!=='message'))throw bad();return null;}
+ if(!only(raw,['available','card']))throw bad();const c=raw.card;
+ if(!row(c)||!only(c,['cardNo','fabricNo','fabricName','composition','weightValue','weightUnit','widthCm','colorways'])||!text(c.cardNo,129)||!text(c.fabricNo,64)||!text(c.fabricName,255)||!(c.composition===null||typeof c.composition==='string'&&c.composition.length<=500)||!number(c.weightValue)||!number(c.widthCm)||![null,'gsm','mm'].includes(c.weightUnit)||(c.weightValue===null)!==(c.weightUnit===null)||!Array.isArray(c.colorways)||!c.colorways.length)throw bad();
+ const seen=new Set<number>(),products=new Set<string>();
+ for(const color of c.colorways){
+  if(!row(color)||!only(color,['colorwayNo','productNo','displayImages','detailImages','effectImages'])||!Number.isSafeInteger(color.colorwayNo)||color.colorwayNo<1||color.colorwayNo>4294967295||seen.has(color.colorwayNo)||!text(color.productNo,200)||products.has(color.productNo)||!images(color.displayImages)||!images(color.detailImages)||!images(color.effectImages))throw bad();
+  seen.add(color.colorwayNo);products.add(color.productNo);
+ }
+ return c as PublicCard;
+}
+export function parseCardShareLink(raw:unknown,expectedOrigin?:string){
+ if(typeof raw!=='string')throw bad();const url=new URL(raw);
+ if(url.protocol!=='https:'||url.href!==raw||url.username||url.password||url.search||url.hash||!/^\/c\/[A-Za-z0-9_-]{43}$/.test(url.pathname)||expectedOrigin!==undefined&&url.origin!==expectedOrigin)throw bad();
+ return {url:raw,path:url.pathname};
+}
+export function publicCardImagePath(token:string,previewRef:string){
+ if(!/^[A-Za-z0-9_-]{43}$/.test(token)||!ref(previewRef))throw bad();
+ return '/api/public/cards/'+token+'/images/'+previewRef.slice(8);
 }

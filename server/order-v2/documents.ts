@@ -1,3 +1,6 @@
+import {idempotent} from '../customers/service';
+import {CustomerError,parse} from '../customers/model';
+import {orderCustomerSchema,prepareOrderCustomer,writeOrderCustomer,readOrderCustomer,type OrderCustomerLink} from '../customers/orderLink';
 import type {AppPrincipal} from '../access/types';
 import {canCreateOwnOrder,canReadOrder,canManageOrder} from '../access/policy';
 import type {TxConn,Pool,Update} from './lines';
@@ -8,7 +11,7 @@ import {recordAdminDocumentAction} from './documentAudit';
 import {readHeaderFields,HEADER_COLUMNS,headerSqlValue,type HeaderCreate,type HeaderEdit,type DisplaySnapshot} from './headerFields';
 
 type Row=Record<string,unknown>;
-type ReadDB={query(sql:string,params?:unknown[]):Promise<[unknown,unknown]>};
+type ReadDB={customerProfilesEnabled?:boolean;query(sql:string,params?:unknown[]):Promise<[unknown,unknown]>};
 export class DocumentWriteError extends Error{
  readonly status:number;
  constructor(message:string,status=400){super(message);this.status=status;}
@@ -17,8 +20,8 @@ export interface CreateDocument{
  orderNo:string;date:string;receivingUnit:string;type:'sample'|'deposit'|'bulk';
  deposit:number;items:Update['items'];
 }
-export type CompleteCreateDocument=CreateDocument&HeaderCreate;
-export type EditDocument=HeaderEdit&{items:Update['items'];removeIds:string[];deposit?:number;orderNo?:string;date?:string;receivingUnit?:string};
+export type CompleteCreateDocument=CreateDocument&HeaderCreate&{customer?:unknown};
+export type EditDocument=HeaderEdit&{customer?:unknown;items:Update['items'];removeIds:string[];deposit?:number;orderNo?:string;date?:string;receivingUnit?:string};
 export interface DocumentLine{
  id:string;productId:string|null;source:'catalog'|'manual'|null;snapshot:Row|null;
  productNo:string;productName:string;colorNo:string;composition:string;
@@ -26,7 +29,7 @@ export interface DocumentLine{
  amount:number;remark:string;pieceMeters:number[]|null;deductionMeters:number;
 }
 export interface DocumentRecord{
- id:string;ownerId:string|null;orderNo:string;date:string;receivingUnit:string;
+ customerLink?:OrderCustomerLink;id:string;ownerId:string|null;orderNo:string;date:string;receivingUnit:string;
  type:'sample'|'deposit'|'bulk';deposit:number;
  styleNo:string;issuer:string;receiver:string;receiverPhone:string;receiverAddress:string;
  settled:boolean;displaySnapshot:DisplaySnapshot|null;
@@ -74,10 +77,10 @@ function validatedLines(value:unknown,allowExisting:boolean):Update['items']{
  return value as Update['items'];
 }
 export function validateV2DocumentCreate(value:unknown):CompleteCreateDocument{
- const v=dict(value);keys(v,['orderNo','date','receivingUnit','type','deposit','items',...Object.keys(HEADER_COLUMNS)]);
+ const v=dict(value);keys(v,['orderNo','date','receivingUnit','type','deposit','items','customer',...Object.keys(HEADER_COLUMNS)]);
  if(typeof v.orderNo!=='string'||!v.orderNo.trim()||v.orderNo.length>100||
     !date(v.date)||typeof v.receivingUnit!=='string'||!v.receivingUnit.trim()||
-    v.receivingUnit.length>100||!['sample','deposit','bulk','sales'].includes(String(v.type))||
+    v.receivingUnit.length>160||!['sample','deposit','bulk','sales'].includes(String(v.type))||
     !money(v.deposit,v.type==='deposit'?100:999999999.99))
   throw new DocumentWriteError('Invalid order header');
  const items=validatedLines(v.items,false);
@@ -87,10 +90,10 @@ export function validateV2DocumentCreate(value:unknown):CompleteCreateDocument{
  if(v.type==='sample'&&v.deposit!==0)throw new DocumentWriteError('Sample documents do not accept a deposit');
  if(v.type==='deposit'&&header.settled)throw new DocumentWriteError('Deposit documents do not have a settlement status');
  return {orderNo:v.orderNo.trim(),date:v.date,receivingUnit:v.receivingUnit.trim(),
-  type:v.type==='sales'?'bulk':v.type as CreateDocument['type'],deposit:v.deposit,items,...header};
+  type:v.type==='sales'?'bulk':v.type as CreateDocument['type'],deposit:v.deposit,items,...header,...(v.customer!==undefined?{customer:parse(orderCustomerSchema,v.customer)}:{})};
 }
 export function validateV2DocumentEdit(value:unknown):EditDocument {
- const v=dict(value);keys(v,['items','removeIds','deposit','orderNo','date','receivingUnit',...Object.keys(HEADER_COLUMNS)]);
+ const v=dict(value);keys(v,['items','removeIds','deposit','orderNo','date','receivingUnit','customer',...Object.keys(HEADER_COLUMNS)]);
  const items=validatedLines(v.items,true);
  if(!Array.isArray(v.removeIds)||v.removeIds.length>200||v.removeIds.some(id=>!positiveInt(id)))
   throw new DocumentWriteError('Explicit removed line ids required');
@@ -98,9 +101,9 @@ export function validateV2DocumentEdit(value:unknown):EditDocument {
  let header:HeaderEdit;
  try{header=readHeaderFields(v,false) as HeaderEdit;}catch{throw new DocumentWriteError('Invalid order display header');}
  const editable:Partial<Pick<EditDocument,'orderNo'|'date'|'receivingUnit'>>={};
- for(const key of ['orderNo','receivingUnit'] as const){if(key in v){if(typeof v[key]!=='string'||!v[key].trim()||v[key].length>100)throw new DocumentWriteError('Invalid order header');editable[key]=v[key].trim();}}
+ for(const key of ['orderNo','receivingUnit'] as const){if(key in v){if(typeof v[key]!=='string'||!v[key].trim()||v[key].length>(key==='receivingUnit'?160:100))throw new DocumentWriteError('Invalid order header');editable[key]=v[key].trim();}}
  if('date' in v){if(!date(v.date))throw new DocumentWriteError('Invalid order date');editable.date=v.date;}
- return {items,removeIds:v.removeIds as string[],...(v.deposit!==undefined?{deposit:v.deposit as number}: {}),...header,...editable};
+ return {items,removeIds:v.removeIds as string[],...(v.deposit!==undefined?{deposit:v.deposit as number}: {}),...header,...editable,...(v.customer!==undefined?{customer:parse(orderCustomerSchema,v.customer)}:{})};
 }
 function array(value:unknown):Row[]{if(!Array.isArray(value))throw Error('Database rows unavailable');return value as Row[];}
 export async function freshWriter(db:TxConn,actor:AppPrincipal):Promise<AppPrincipal>{
@@ -134,12 +137,16 @@ async function transact<T>(pool:Pool,worker:(db:TxConn)=>Promise<T>):Promise<T>{
  }catch(error){if(active)await db.rollback();throw error;}finally{db.release();}
 }
 export async function createV2Document(pool:Pool,actor:AppPrincipal,body:unknown):Promise<DocumentRecord>{
+ if(pool.customerProfilesRequired&&!pool.customerProfilesEnabled)throw new CustomerError(503);
  const input=validateV2DocumentCreate(body);
  return transact(pool,async(db)=>{
   const current=await lockV2DocumentWriter(db,actor);
+  if(!pool.customerProfilesEnabled&&input.customer!==undefined)throw new CustomerError(503);
+  const create=async()=>{
+  const binding=pool.customerProfilesEnabled?await prepareOrderCustomer(db,current,input.customer):undefined;
   const [result]=await db.query(
    'INSERT INTO orders (order_no,order_date,receiving_unit,template_type,deposit,created_by_user_id,style_no,sign_person,receiver,receiver_phone,receiver_address,settled,v2_display_snapshot) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
-   [input.orderNo,input.date,input.receivingUnit,input.type,input.deposit,current.userId,
+   [input.orderNo,input.date,binding?.name??input.receivingUnit,input.type,input.deposit,current.userId,
     input.styleNo,input.issuer,input.receiver,input.receiverPhone,input.receiverAddress,
     headerSqlValue('settled',input.settled),headerSqlValue('displaySnapshot',input.displaySnapshot)]
   );
@@ -147,7 +154,13 @@ export async function createV2Document(pool:Pool,actor:AppPrincipal,body:unknown
   if(!positiveInt(id))throw new DocumentWriteError('Unable to allocate order id',503);
   await reconcileOrderLinesInTransaction(db,current,id,{items:input.items,removeIds:[]},
    async(locked,orderId,touched)=>{await calculateAndPersistOrderTotals(locked,orderId,touched);});
-  return readV2Document(db,current,id);
+  if(binding)await writeOrderCustomer(db,current,id,binding);
+  return {id};
+  };
+  const binding=input.customer===undefined?null:parse(orderCustomerSchema,input.customer);
+  if(pool.customerProfilesEnabled&&!binding?.requestId)throw new CustomerError(400);
+  const saved=pool.customerProfilesEnabled?await idempotent(db,current,binding!.requestId!,{operation:'createDocument',input},create):await create();
+  return readV2Document(db,current,saved.id);
  });
 }
 
@@ -156,6 +169,11 @@ export async function updateV2Document(pool:Pool,actor:AppPrincipal,orderId:stri
  const input=validateV2DocumentEdit(body);
  return transact(pool,async(db)=>{
   const current=await lockV2DocumentWriter(db,actor);
+  if(!pool.customerProfilesEnabled&&input.customer!==undefined)throw new CustomerError(503);
+  const customer=input.customer===undefined?null:parse(orderCustomerSchema,input.customer);
+  if(customer?.profile!==undefined&&!customer.requestId)throw new CustomerError(400);
+  const update=async()=>{
+  const binding=input.customer!==undefined?await prepareOrderCustomer(db,current,input.customer,orderId):undefined;
   await reconcileOrderLinesInTransaction(db,current,orderId,{items:input.items,removeIds:input.removeIds},
    async(locked,id,touched,owner)=>{
     if(input.deposit!==undefined||input.settled===true){
@@ -176,8 +194,12 @@ export async function updateV2Document(pool:Pool,actor:AppPrincipal,orderId:stri
     const businessHeader={orderNo:'order_no',date:'order_date',receivingUnit:'receiving_unit'} as const;
     const changed=(Object.keys(businessHeader) as (keyof typeof businessHeader)[]).filter(key=>key in input);
     if(changed.length)await locked.query('UPDATE orders SET '+changed.map(key=>businessHeader[key]+'=?').join(',')+' WHERE id=?',[...changed.map(key=>input[key]),id]);
+    if(binding)await writeOrderCustomer(locked,current,id,binding);
     await recordAdminDocumentAction(locked,current,id,owner,'edit');
    });
+  return {id:orderId};
+  };
+  if(customer?.requestId)await idempotent(db,current,customer.requestId,{operation:'updateDocument',orderId,input},update);else await update();
   return readV2Document(db,current,orderId);
  });
 }
@@ -208,7 +230,7 @@ export async function readV2Document(db:ReadDB,actor:AppPrincipal,orderId:string
   'SELECT i.id,i.order_id,i.product_no,i.product_name,i.color_no,i.composition,i.weight,i.width,i.meters,i.unit_price,i.amount,i.remark,i.piece_meters,i.deduction_meters,i.v2_product_id,i.v2_source_kind,i.v2_product_snapshot FROM order_items i WHERE i.order_id=? ORDER BY i.id',
   [orderId]);
  return {
-  id:String(o.id),ownerId:o.created_by_user_id==null?null:String(o.created_by_user_id),
+  ...(db.customerProfilesEnabled?{customerLink:await readOrderCustomer(db,orderId)}:{}),id:String(o.id),ownerId:o.created_by_user_id==null?null:String(o.created_by_user_id),
   orderNo:String(o.order_no),date:o.order_date instanceof Date?o.order_date.toISOString().slice(0,10):String(o.order_date).slice(0,10),
   receivingUnit:String(o.receiving_unit),type:o.template_type,deposit:o.template_type==='sample'?0:asNumber(o.deposit),
   styleNo:String(o.style_no??''),issuer:String(o.sign_person??''),receiver:String(o.receiver??''),

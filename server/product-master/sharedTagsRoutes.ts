@@ -3,7 +3,7 @@ import type {Pool} from '../order-v2/lines';
 import type {AppPrincipal} from '../access/types';
 import {requireV2Principal,requireV2Action,type AccessDatabase} from '../access/middleware';
 import {TagError,createSharedTag,listSharedTags,readEntityTags,replaceEntityTags,
- previewTagImpact,renameSharedTag,archiveSharedTag,mergeSharedTags,type TagDimension,type TagEntity} from './sharedTags';
+ previewTagImpact,renameSharedTag,archiveSharedTag,deleteCustomTopicTag,mergeSharedTags,type TagDimension,type TagEntity} from './sharedTags';
 
 /** Isolated P3-1b router; the legacy service is unchanged. */
 export function createSharedTagsRouter(db:AccessDatabase,pool:Pool):Router{
@@ -30,13 +30,14 @@ export function createSharedTagsRouter(db:AccessDatabase,pool:Pool):Router{
  router.get('/tags',principal,read,async(req,res)=>{
   try{
    const dimension=req.query.dimension;
-   const includeArchived=req.query.includeArchived,search=req.query.search;
+   const includeArchived=req.query.includeArchived,linkedArchivedOnly=req.query.linkedArchivedOnly,search=req.query.search;
    if((dimension!=='topic'&&dimension!=='color')||
      (includeArchived!==undefined&&includeArchived!=='true')||
+     (linkedArchivedOnly!==undefined&&(linkedArchivedOnly!=='true'||dimension!=='topic'||includeArchived!=='true'))||
      (search!==undefined&&typeof search!=='string')){
     res.status(400).json({error:'Invalid tags query'});return;
    }
-   res.json({items:await listSharedTags(db,dimension,{includeArchived:includeArchived==='true',search:search as string|undefined})});
+   res.json({items:await listSharedTags(db,dimension,{includeArchived:includeArchived==='true',linkedArchivedOnly:linkedArchivedOnly==='true',search:search as string|undefined})});
   }catch(e){response(res,e);}
  });
  router.post('/tags',principal,write,jsonRequired,parser,async(req,res)=>{
@@ -59,6 +60,12 @@ export function createSharedTagsRouter(db:AccessDatabase,pool:Pool):Router{
   try{
    if(!bodyFields(req.body,[])||Object.keys(req.body).length!==0)throw new TagError('Unexpected tag fields');
    res.json(await archiveSharedTag(pool,res.locals.principal as AppPrincipal,String(req.params.id)));
+  }catch(e){response(res,e);}
+ });
+ router.post('/tags/:id/delete',principal,admin,jsonRequired,parser,async(req,res)=>{
+  try{
+   if(!bodyFields(req.body,['confirmAffectedCount'])||!Object.hasOwn(req.body,'confirmAffectedCount'))throw new TagError('Deletion confirmation required');
+   res.json(await deleteCustomTopicTag(pool,res.locals.principal as AppPrincipal,String(req.params.id),req.body.confirmAffectedCount as number));
   }catch(e){response(res,e);}
  });
  router.post('/tags/:id/merge',principal,admin,jsonRequired,parser,async(req,res)=>{

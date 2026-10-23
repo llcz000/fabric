@@ -4,9 +4,11 @@ import {buildStatsUrl,loadDocumentStats,parseDocumentStats} from './documentStat
 
 const payload={
  orderCount:3,metersTotal:35,amountTotal:350,
+ pendingAmount:250,pendingCount:2,
  byType:{sample:{count:1,meters:10,amount:100},bulk:{count:1,meters:20,amount:250},deposit:{count:1,meters:5,contractAmount:700}},
  topProducts:[{productName:'棉麻布',meters:30}],
- recentOrders:[{id:'9007199254740993',orderNo:'XS-001',date:'2026-10-16',receivingUnit:'客户甲',type:'bulk',totalMeters:20,totalAmount:250}]
+ recentOrders:[{id:'9007199254740993',orderNo:'XS-001',date:'2026-10-16',receivingUnit:'客户甲',type:'bulk',totalMeters:20,totalAmount:250}],
+ compare:null
 };
 test('STATS-02 only sends date filters, never client owner or role',()=>{
  assert.equal(buildStatsUrl('2026-10-01','2026-10-17'),'/api/v2/documents/stats?from=2026-10-01&to=2026-10-17');
@@ -27,6 +29,8 @@ test('STATS-02 malformed or excessive response cannot show cross-account or part
   {...payload,recentOrders:Array.from({length:5},()=>payload.recentOrders[0])},
   {...payload,topProducts:Array.from({length:6},()=>payload.topProducts[0])},
   {...payload,byType:{...payload.byType,deposit:{count:1,meters:5,amount:700}}},
+  {...payload,pendingAmount:-1},
+  {...payload,compare:{...payload,orderCount:1.5}},
  ])assert.throws(()=>parseDocumentStats(bad),/统计/);
 });
 test('STATS-02 authenticated stats request has no cache, clears on access denial and does not fall back to local docs',async()=>{

@@ -8,7 +8,7 @@ import {hashSessionToken} from '../access/password';
 import {createPatternMasterRouter} from './patternMastersRoutes';
 
 const actor:AppPrincipal={userId:'2',sessionId:'9',username:'sales',displayName:'Sales',role:'sales',canManageProducts:true,canManageOwnOrders:false};
-type Master={id:string;master_no:string;is_active:number;next_colorway_no:string};
+type Master={id:string;master_no:string;is_active:number;next_colorway_no:string;deleted_at?:string};
 class TestDb {
  items:Master[]=[]; id=1; granted=true; active=true; session=true; referenced=false; versions=false;
  statements:string[]=[]; commits=0; rollbacks=0; deletes=0; failInsert=false;
@@ -25,9 +25,9 @@ class TestDb {
    this.items.push(value);return [{insertId:value.id,affectedRows:1},[]];
   }
   if(sql.startsWith('SELECT')&&sql.includes('FROM pattern_masters')) {
-   let a=[...this.items];
+   let a=this.items.filter(r=>!sql.includes('deleted_at IS NULL')||!r.deleted_at);
    if(sql.includes('WHERE id=?'))a=a.filter(r=>r.id===String(params[0]));
-   if(sql.includes('WHERE is_active=1'))a=a.filter(r=>r.is_active===1);
+   if(sql.includes('is_active=1'))a=a.filter(r=>r.is_active===1);
    return [a,[]];
   }
 
@@ -39,7 +39,14 @@ class TestDb {
     (!sql.includes('is_active=1')||card.is_active===1)),[]];
   }
   if(sql.includes('FROM v2_products'))return [this.referenced?[{id:'3'}]:[],[]];
-  if(sql.includes('FROM pattern_colorways'))return [this.versions?[{id:'4'}]:[],[]];
+  if(sql.startsWith('DELETE FROM pattern_colorways')){
+   const count=this.versions?1:0;this.versions=false;return [{affectedRows:count},[]];
+  }
+  if(sql.includes('FROM pattern_colorways'))return [this.versions?[{id:'4',pattern_image_asset_id:null}]:[],[]];
+  if(sql.startsWith('UPDATE pattern_masters SET deleted_at=')){
+   const row=this.items.find(r=>r.id===String(params[0]));if(!row)return [{affectedRows:0},[]];
+   row.deleted_at='now';row.is_active=0;return [{affectedRows:1},[]];
+  }
   if(sql.startsWith('UPDATE pattern_masters')){
    const item=this.items.find(r=>r.id===String(params[params.length-1]));
    if(!item)return [{affectedRows:0},[]];
@@ -52,12 +59,13 @@ class TestDb {
    const before=this.items.length;this.items=this.items.filter(r=>r.id!==String(params[0]));
    this.deletes++;return [{affectedRows:before-this.items.length},[]];
   }
+  if(sql.startsWith('INSERT INTO business_delete_events'))return [{affectedRows:1},[]];
   throw Error('Unexpected SQL: '+sql);
  }
  async getConnection(){
-  const snapshot=structuredClone(this.items);
+  const snapshot=structuredClone(this.items),versions=this.versions;
   return {query:this.query.bind(this),beginTransaction:async()=>{},commit:async()=>{this.commits++;},
-   rollback:async()=>{this.items=snapshot;this.rollbacks++;},release:()=>{}};
+   rollback:async()=>{this.items=snapshot;this.versions=versions;this.rollbacks++;},release:()=>{}};
  }
 }
 const errorStatus=(status:number)=>(error:unknown)=>error instanceof PatternMasterError&&error.status===status;
@@ -79,8 +87,8 @@ test('B2-3 referenced master can toggle status and keep same number without card
  const db=new TestDb(),item=await createPatternMaster(db,actor,{masterNo:'A01'});
  db.cards=[{id:'71',master_id:item.id,is_active:0}];db.cardFailure='ER_TABLEACCESS_DENIED_ERROR';
  db.statements=[];
- const updated=await updatePatternMaster(db,actor,item.id,{masterNo:'a01',isActive:false});
- assert.equal(updated.masterNo,'A01');assert.equal(updated.isActive,false);
+ const updated=await updatePatternMaster(db,actor,item.id,{masterNo:'a01',isActive:true});
+ assert.equal(updated.masterNo,'A01');assert.equal(updated.isActive,true);
  assert(!db.statements.some(q=>q.includes('sample_cards')));
 });
 test('B2-3 missing phase-two card table retains phase-one master identity rules',async()=>{
@@ -112,7 +120,7 @@ test('B2-3 master HTTP card conflict is 409 and card driver error is safe 503',a
    ...(body===undefined?{}:{body:JSON.stringify(body)})});
   assert.equal((await request('PATCH',{masterNo:'A02'})).status,409);
   assert.equal((await request('DELETE')).status,409);
-  assert.equal((await request('PATCH',{isActive:false})).status,200);
+  assert.equal((await request('PATCH',{isActive:false})).status,400);
   db.cardFailure='ER_TABLEACCESS_DENIED_ERROR';
   for(const method of ['PATCH','DELETE']){
    const res=await request(method,method==='PATCH'?{masterNo:'A02'}:undefined);
@@ -134,7 +142,7 @@ test('P3-1a defaults to active masters and allows explicitly listing inactive on
  const db=new TestDb();
  const a=await createPatternMaster(db,actor,{masterNo:'A01'});
  const b=await createPatternMaster(db,actor,{masterNo:'B02'});
- await updatePatternMaster(db,actor,b.id,{isActive:false});
+ db.items.find(x=>x.id===b.id)!.is_active=0;
  assert.deepEqual((await listPatternMasters(db)).map(x=>x.id),[a.id]);
  assert.deepEqual((await listPatternMasters(db,{includeInactive:true})).map(x=>x.id),[a.id,b.id]);
 });
@@ -161,8 +169,8 @@ test('P3-1a manager session is rechecked in transaction, even if caller stale',a
 });
 test('P3-1a update allows status and unreferenced rename but protects referenced numbering',async()=>{
  const db=new TestDb();const master=await createPatternMaster(db,actor,{masterNo:'A01'});
- let updated=await updatePatternMaster(db,actor,master.id,{masterNo:'b02',isActive:false});
- assert.equal(updated.masterNo,'B02');assert.equal(updated.isActive,false);
+ let updated=await updatePatternMaster(db,actor,master.id,{masterNo:'b02',isActive:true});
+ assert.equal(updated.masterNo,'B02');assert.equal(updated.isActive,true);
  db.referenced=true;
  updated=await updatePatternMaster(db,actor,master.id,{isActive:true});
  assert.equal(updated.isActive,true);
@@ -177,17 +185,18 @@ test('P3-1a rename serializes against insertion referencing existing colorway',a
  const productCheck=db.statements.findIndex(q=>q.includes('FROM v2_products'));
  assert(childLock>=0&&productCheck>childLock,'must lock every child version before checking products');
 });
-test('P3-1a deletion checks children, product references and database FK failures',async()=>{
+test('P3-1a deleting whole master removes unreferenced children and blocks product references',async()=>{
  const db=new TestDb();const master=await createPatternMaster(db,actor,{masterNo:'A01'});
- db.versions=true;await assert.rejects(deletePatternMaster(db,actor,master.id),errorStatus(409));
- assert.equal(db.items.length,1);db.versions=false;db.referenced=true;
+ db.versions=true;db.referenced=true;
  await assert.rejects(deletePatternMaster(db,actor,master.id),errorStatus(409));
+ assert.equal(db.items.length,1);assert.equal(db.versions,true);
  db.referenced=false;assert.deepEqual(await deletePatternMaster(db,actor,master.id),{id:master.id,deleted:true});
- assert.equal(db.items.length,0);
+ assert.equal((await listPatternMasters(db,{includeInactive:true})).length,0);assert(db.items[0].deleted_at);assert.equal(db.versions,false);
+ assert(db.statements.some(q=>q.startsWith('DELETE FROM pattern_colorways')));
 });
 test('P3-1a not found and strict IDs fail safely',async()=>{
  const db=new TestDb();
- await assert.rejects(updatePatternMaster(db,actor,'5',{isActive:false}),errorStatus(404));
+ await assert.rejects(updatePatternMaster(db,actor,'5',{isActive:true}),errorStatus(404));
  await assert.rejects(deletePatternMaster(db,actor,'5'),errorStatus(404));
  for(const identity of ['0','01','-1','18446744073709551616'])
   await assert.rejects(deletePatternMaster(db,actor,identity),errorStatus(400));
@@ -226,7 +235,8 @@ test('P3-1a HTTP list/create/update/delete require current login and server-side
   assert.equal(list.headers.get('cache-control'),'no-store');
   assert.equal((await list.json() as {items:unknown[]}).items.length,1);
   const edited=await request('/pattern-masters/1','PATCH',{isActive:false});
-  assert.equal(edited.status,200);
+  assert.equal(edited.status,400);
+  db.items[0].is_active=0;
   assert.equal((await request('/pattern-masters').then(r=>r.json()) as {items:unknown[]}).items.length,0);
   assert.equal((await request('/pattern-masters?includeInactive=true').then(r=>r.json()) as {items:unknown[]}).items.length,1);
   db.granted=false;assert.equal((await request('/pattern-masters','POST',{masterNo:'D2'})).status,201);
@@ -251,3 +261,4 @@ test('P3-1a HTTP rejects malformed JSON and non-JSON content without leaking sta
   assert.equal(wrongType.status,400);assert.equal(db.items.length,0);
  });
 });
+test('LITE old clients cannot write a new disabled pattern',async()=>{const db=new TestDb();await createPatternMaster(db,actor,{masterNo:'LITE'});await assert.rejects(updatePatternMaster(db,actor,'1',{isActive:false}),/status/i);});

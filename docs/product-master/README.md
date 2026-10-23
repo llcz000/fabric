@@ -1,14 +1,24 @@
 # 产品主数据：需求、进度与开发定位
 
-本领域入口是[V2唯一需求v1.50](product-master-v2-requirements.md)和[V2设计开发验收进度](product-master-v2-progress.md)，仅覆盖该模块及关联增量。全项目已有业务见[项目需求总览](../project/项目需求总览.md)，总体状态见[项目进度](../project/项目现状.md)。业务规则不在本页重复；资料、状态、历史证据和线上完成不能相互替代。
+需求主入口为[项目需求总览](../project/项目需求总览.md)，本轮导入与客户档案完整要求见2.4、2.11节；产品主数据详细规格承接字段与验收。
 
-现行权限已按**2026-10-15用户最新确认**简化，统一见[项目总览2.1](../project/项目需求总览.md#roles)。旧技术说明中的双授权、管理员独占导入覆盖/导出、业务员独占扫码描述属于旧实现；整改与验收见当前进度，不据此恢复旧需求。
+本领域入口是[V2唯一需求v1.53](product-master-v2-requirements.md)和[V2设计开发验收进度](product-master-v2-progress.md)，仅覆盖该模块及关联增量。全项目已有业务见[项目需求总览](../project/项目需求总览.md)，总体状态见[项目进度](../project/项目现状.md)。业务规则不在本页重复；资料、状态、历史证据和线上完成不能相互替代。
+
+现行权限沿用2026-10-15简化规则，并追加**2026-10-20客户负责人/协作数据范围**，统一见[项目总览2.1](../project/项目需求总览.md#roles)。旧技术说明中的双授权、管理员独占导入覆盖/导出、业务员独占扫码描述属于旧实现；整改与验收见当前进度，不据此恢复旧需求。
 
 ## 业务需求按主题看
 
 需求第2节范围；第3/10节人员权限；第4节三库与永久数字配色；第5/6节图片与录入；第7节启停删除；第8节检索；第9节三单据、分享、色卡/客户选样；第12节搜索对应AC。批准依据保留[色卡决定](product-master-v2-b2-5-approved-decisions.md)，与现行正文冲突按最新需求处理。
 
+色卡级分享已按确认设计和实施计划在本地实现，见[本地实现验收记录](product-master-v2-card-sharing-20261020.md)、[书面设计](../superpowers/specs/2026-10-20-card-product-sharing-design.md)和[已执行实施计划](../superpowers/plans/2026-10-20-card-product-sharing.md)。全量检查通过，真实迁移、部署及浏览器/实体微信验收尚未执行。
+
+2026-10-20 16:55追加：文件夹/多文件导入及轻量客户档案纳入本轮，见[本轮设计](../superpowers/specs/2026-10-20-folder-import-light-customers-design.md)。本地业务实现与接线已完成，见[实现与复查记录](product-master-v2-light-customers-20261020.md)；依用户指示采用专项验证，不跑全量测试，真实迁移与上线尚未执行。
+
 ## 当前状态只看一处
+
+当前活动开发源为 `D:/fabric/.agent-workspaces/v2-quality-20261020`；共享主目录常用npm命令已路由到它。先运行 `npm run v2:source` 校验源码、HEAD与需求哈希；本次代码/重构验收见[2026-10-20审查修复](product-master-v2-code-review-20261020.md)，上线仍按对应版本独立验收。
+
+2026-10-20近期源码需求一致性审查与旧入口退役候选见[审查记录](product-master-v2-code-review-20261020.md)；缺陷与候选状态仍统一在下述唯一进度登记。
 
 [设计、开发、验收与待上线清单](product-master-v2-progress.md)。一期正式交付判断见[交付门槛](product-master-v2-phase1-delivery-readiness.md)；历史测试数字不能继承为本轮通过。
 
@@ -24,7 +34,7 @@
 | P5 xlsx导入 | [导入技术说明](product-master-v2-p5-browser-and-mysql-gate.md) | `server/product-master/fabricExcelImport.ts`、`server/product-master/fabricExcelImport.test.ts` | [进度P5](product-master-v2-progress.md)；真实写链 |
 | P6 三单据 | [选品保存计算输出](product-master-v2-p6-document-write-read.md) | `server/order-v2/`、`server/order-v2/documents.test.ts`、`src/components/document-product-selector/` | [进度P6](product-master-v2-progress.md)；历史/库存/打印接线 |
 | P7 联调交付 | [统一HTTP与目标身份](product-master-v2-p7-local-http-assembly.md)、[独立沙箱启动](product-master-v2-p7-sandbox-preview.md)、[交付门槛](product-master-v2-phase1-delivery-readiness.md) | `server/product-master/v2CatalogAssembly.ts`、`server/product-master/v2SandboxPreview.ts`、`server/product-master/v2SandboxPreview.test.ts`、`scripts/run-v2-sandbox-preview.ts`、`scripts/check-fabric-v2-phase1-delivery.mjs`、`scripts/check-fabric-v2-phase1-delivery.test.mjs`、`scripts/run-ts-tests.mjs` | [进度P7](product-master-v2-progress.md)；TEST-ONLY不可直接生产复用 |
-| B1 花型分享 | [B1交付评审](../retrospectives/development/2026-10-15-phase1-b1-release-review.md)、[只读库表预检与DBA门禁](product-master-v2-b1-link-schema-review.md) | `server/customer-share/`、`server/customer-share/patternLinkStore.test.ts` | [进度B1](product-master-v2-progress.md)；持久化/公开路由/H5 |
+| B1 花型分享 | [B1交付评审](../retrospectives/development/2026-10-15-phase1-b1-release-review.md) | `server/customer-share/`、`server/customer-share/patternLinkStore.test.ts` | [进度B1](product-master-v2-progress.md)；持久化/公开路由/H5 |
 | B2 色卡扫码 | [色卡技术说明](product-master-v2-b2-5h-scan-lock-order.md)、[批准决定](product-master-v2-b2-5-approved-decisions.md) | `server/customer-samples/scanRepository.ts`、`server/customer-samples/scanRepository.test.ts` | [进度B2](product-master-v2-progress.md)；真实锁/FK/手机扫码 |
 | B3 选样寄样 | [当前选样说明](product-master-v2-b3-history-ui-review.md) | `server/customer-samples/sessionManual.ts`、`src/components/product-master-v2/SampleSelectionWorkspaceV2.tsx`、`src/components/product-master-v2/manualSelectionPrivateHttp.test.ts` | [进度B3](product-master-v2-progress.md)；正式接线/真库/寄样持久化 |
 | Agent 任务交接 | [精简上下文及ACP链](product-master-v2-agent-context-handbook.md)、[跨模块中央任务队列](../project/Fabric-Multi-Agent-Orchestrator-V2.md)、[分工边界](product-master-v2-parallel-agents-plan.md) | `scripts/fabric-v2-orchestrator.mjs`、`scripts/fabric-v2-orchestrator.test.mjs`、`scripts/fabric-v2-acp-runner-bridge.mjs`、`scripts/fabric-v2-acp-runner-bridge.test.mjs`、`scripts/fabric-v2-acp-task-intake.mjs`、`scripts/fabric-v2-acp-efficiency.mjs`、`scripts/fabric-v2-workspace-freshness.mjs` | 第一阶段仅规划/占位，无真实双ACP运行；新基线/隔离Project/实际run_id/双审/三方SHA256尚需总控执行 |

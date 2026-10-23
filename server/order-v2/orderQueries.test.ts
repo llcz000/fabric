@@ -156,7 +156,8 @@ test('P2-3b owner scope applies to order count/page search and stats, no reads o
   assert(call.args.includes('%XS\\%\\_%'));
  }
  const totals=await statsScopedOrders(db,actor,{from:'2026-10-01',to:'2026-10-31'});
- assert.deepEqual(totals,{orderCount:2,amountTotal:500,metersTotal:33,byType:{
+ assert.deepEqual(totals,{orderCount:2,amountTotal:500,metersTotal:33,
+  pendingAmount:0,pendingCount:0,byType:{
   sample:{count:1,meters:8,amount:100},bulk:{count:1,meters:25,amount:400},
   deposit:{count:0,meters:0,contractAmount:0}
  },topProducts:[],recentOrders:[]});
@@ -258,7 +259,7 @@ test('STATS-02 summary, Top5 and recent documents all use the same server owner/
 test('STATS-01 empty statistics have zero summary and empty ranking/recent lists; anonymous actor reads nothing',async()=>{
  const db=new StatsDb();db.empty=true;db.topRows=[];db.recentRows=[];
  assert.deepEqual(await statsScopedOrders(db,actor),{
-  orderCount:0,amountTotal:0,metersTotal:0,byType:{
+  orderCount:0,amountTotal:0,metersTotal:0,pendingAmount:0,pendingCount:0,byType:{
    sample:{count:0,meters:0,amount:0},bulk:{count:0,meters:0,amount:0},
    deposit:{count:0,meters:0,contractAmount:0}
   },topProducts:[],recentOrders:[]
@@ -401,4 +402,30 @@ test('QUERY-02 real HTTP matching-items hides other owners, validates filters an
   assert.equal((await allowed.json() as {items:{id:string}[]}).items[0].id,'1');
   assert.equal((await fetch(base+'48/matching-items?productNo=P1&colorNo=2',{headers:{authorization:'Bearer '+'b'.repeat(64)}})).status,200);
  }finally{await new Promise<void>((resolve,reject)=>server.close(e=>e?reject(e):resolve()));}
+});
+
+test('STATS-01 comparison period is aggregated separately with the same owner predicate and metric set',async()=>{
+ const db=new StatsDb();
+ const result=await statsScopedOrders(db,actor,{from:'2026-10-01',to:'2026-10-07'},{from:'2026-09-24',to:'2026-09-30'});
+ assert(result.compare,'comparison totals must be returned when a baseline is supplied');
+ assert.equal(result.compare.orderCount,2);
+ const aggregates=db.sql.filter(c=>c.sql.startsWith('SELECT COUNT(*) AS order_count'));
+ assert.equal(aggregates.length,2,'main and comparison windows must each be aggregated once');
+ for(const call of aggregates){
+  assert(call.sql.includes('o.created_by_user_id = ?'),'comparison must keep the owner scope');
+  assert(call.sql.includes('pending_amount'),'comparison must use the same metric set as the main window');
+ }
+ assert.deepEqual(aggregates[0].args,['200','2026-10-01','2026-10-07']);
+ assert.deepEqual(aggregates[1].args,['200','2026-09-24','2026-09-30']);
+ const plain=await statsScopedOrders(new StatsDb(),actor,{from:'2026-10-01',to:'2026-10-07'});
+ assert.equal((plain as {compare?:unknown}).compare,undefined,'no baseline must not fabricate a comparison block');
+});
+test('STATS-01 outstanding receivable counts unsettled bills only and never mixes deposit contracts',async()=>{
+ const db=new StatsDb();
+ await statsScopedOrders(db,actor);
+ const aggregate=db.sql.find(c=>c.sql.startsWith('SELECT COUNT(*) AS order_count'))!;
+ assert.match(aggregate.sql,/o\.template_type='sample' AND o\.settled=0/);
+ assert.match(aggregate.sql,/o\.template_type='bulk' AND o\.settled=0/);
+ assert.match(aggregate.sql,/GREATEST\(o\.total_amount-COALESCE\(o\.deposit,0\),0\)/);
+ assert(!/o\.template_type='deposit' AND o\.settled=0/.test(aggregate.sql),'deposit contracts carry no receivable');
 });

@@ -1,3 +1,4 @@
+import {readSampleCardScanToken} from '../../lib/sampleCardScanLink';
 import type {PatternMasterItem,PatternVersionItem,PatternPage} from './patternModel';
 import {fetchPatternPage,fetchMasterColorways,initialPatternFilters} from './patternModel';
 import type {FabricCatalogItem,FabricCatalogPage} from './fabricModel';
@@ -5,7 +6,7 @@ import {fetchFabricCatalog,emptyFabricFilters} from './fabricModel';
 export interface SampleCard{
  id:string;masterId:string;masterNo:string;fabricId:string;fabricNo:string;
  cardNo:string;description:string;composition:string|null;weightValue:number|null;
- weightUnit:'gsm'|'mm'|null;widthValue:number|null;qrPayload:string;isActive:boolean;
+ weightUnit:'gsm'|'mm'|null;widthValue:number|null;qrPayload:string;scanUrl?:string;isActive:boolean;
  needsReprint?:boolean;reprintRevision?:string;
 }
 export interface SampleCardPage{items:SampleCard[];total:number;limit:number;offset:number}
@@ -21,6 +22,7 @@ function parseCard(raw:unknown):SampleCard{
   !(c.weightValue===null&&c.weightUnit===null||positive(c.weightValue)&&(c.weightUnit==='gsm'||c.weightUnit==='mm'))||
   !(c.widthValue===null||positive(c.widthValue))||
   typeof c.qrPayload!=='string'||!c.qrPayload||typeof c.isActive!=='boolean'||
+  c.scanUrl!==undefined&&readSampleCardScanToken(c.scanUrl)!==c.qrPayload||
   c.needsReprint!==undefined&&typeof c.needsReprint!=='boolean'||
   c.reprintRevision!==undefined&&(typeof c.reprintRevision!=='string'||!/^(0|[1-9][0-9]{0,19})$/.test(c.reprintRevision)||BigInt(c.reprintRevision)>18446744073709551615n))throw Error('色卡行资料无效');
  return c;
@@ -31,6 +33,13 @@ export function parseSampleCardPage(raw:unknown):SampleCardPage{
   !Number.isSafeInteger(p.limit)||p.limit<1||p.limit>100||!Number.isSafeInteger(p.offset)||p.offset<0||p.items.length>p.limit)
   throw Error('色卡分页资料无效');
  p.items.forEach(parseCard);return p;
+}
+export async function resolveScannedSampleCard(apiFetch:typeof fetch,token:string,signal?:AbortSignal):Promise<SampleCard>{
+ if(readSampleCardScanToken(token)!==token)throw Error('色卡编码无效');
+ const response=await apiFetch('/api/v2/sample-cards/resolve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cardToken:token}),signal,cache:'no-store'});
+ if(!response.ok)throw Error(response.status===401?'请登录后查看色卡':response.status===404?'色卡已停用、删除或不可用':'色卡读取失败，请重试');
+ const card=parseCard(await response.json());if(card.qrPayload!==token||!card.isActive)throw Error('色卡已失效，请重新扫码');
+ return card;
 }
 async function checked(response:Response):Promise<Response>{
  if(!response.ok)throw Error(response.status===401?'登录已失效，请重新登录。':
@@ -43,7 +52,7 @@ export async function fetchSampleCardPage(apiFetch:typeof fetch,query='',offset=
  if(needsReprint)params.set('needsReprint','true');
  return parseSampleCardPage(await (await checked(await apiFetch('/api/v2/sample-cards?'+params,{signal}))).json());
 }
-export async function createSampleCard(apiFetch:typeof fetch,master:PatternMasterItem|null,fabric:FabricCatalogItem|null):Promise<{card:SampleCard;created:boolean}>{
+export async function createSampleCard(apiFetch:typeof fetch,master:Pick<PatternMasterItem,'id'|'isActive'>|null,fabric:Pick<FabricCatalogItem,'id'|'isActive'>|null):Promise<{card:SampleCard;created:boolean}>{
  if(!master||!fabric||!master.isActive||!fabric.isActive||!id(master.id)||!id(fabric.id))throw Error('请明确选择有效母版和面料');
  const raw=await (await checked(await apiFetch('/api/v2/sample-cards',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({masterId:master.id,fabricId:fabric.id})}))).json();
  if(!raw||typeof raw.created!=='boolean')throw Error('建卡响应错误');

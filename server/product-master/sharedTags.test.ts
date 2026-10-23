@@ -30,7 +30,7 @@ test('pattern custom colors are normalized and created with links in one transac
  await assert.rejects(replaceEntityTags(db,sales,'masterColor','10',[],['Ａ','A']),status(400));
 });
 import type {AppPrincipal} from '../access/types';
-import {createSharedTag,listSharedTags,replaceEntityTags,previewTagImpact,renameSharedTag,archiveSharedTag,mergeSharedTags,TagError} from './sharedTags';
+import {createSharedTag,listSharedTags,replaceEntityTags,previewTagImpact,renameSharedTag,archiveSharedTag,deleteCustomTopicTag,mergeSharedTags,TagError} from './sharedTags';
 import {readEntityTags} from './sharedTags';
 import express from 'express';
 import type {Server} from 'node:http';
@@ -43,7 +43,7 @@ type TagRow={id:string;dimension:'topic'|'color';name:string;normalized_name:str
 class Db {
  tags:TagRow[]=[];links={master:new Map<string,string[]>(),colorway:new Map<string,string[]>()};
  next=1;grant=true;active=true;session=true;denyAdmin=false;httpRole:'admin'|'sales'='sales';unavailable=false;masters=new Set(['10','11']);colorways=new Set(['20','21']);
- sql:string[]=[]; commits=0;rollbacks=0;failLink=false;
+ sql:string[]=[]; commits=0;rollbacks=0;failLink=false;failArchive=false;
  async query(q:string,args:unknown[]=[]):Promise<[unknown,unknown]>{
   this.sql.push(q);
   if(this.unavailable)throw Error('PRIVATE DB ERROR');
@@ -70,7 +70,8 @@ class Db {
    else if(q.includes('WHERE id=?'))tags=tags.filter(t=>t.id===String(args[0]));
    else if(q.includes('WHERE id IN'))tags=tags.filter(t=>args.map(String).includes(t.id));
    else if(q.includes('dimension=?'))tags=tags.filter(t=>t.dimension===String(args[0]));
-   if(q.includes('is_archived=0'))tags=tags.filter(t=>t.is_archived===0);
+   if(q.includes('is_archived=0 OR EXISTS'))tags=tags.filter(t=>t.is_archived===0||[...this.links.master.values()].some(ids=>ids.includes(t.id)));
+    else if(q.includes('is_archived=0'))tags=tags.filter(t=>t.is_archived===0);
    if(q.includes('LIKE ?')){
     const raw=String(args.at(-1)),needle=raw.slice(1,-1).replaceAll('!%','%').replaceAll('!_','_').replaceAll('!!','!');
     tags=tags.filter(t=>t.normalized_name.includes(needle));
@@ -102,6 +103,7 @@ class Db {
   }
   if(q.startsWith('DELETE FROM pattern_master_tag_links')||q.startsWith('DELETE FROM pattern_colorway_tag_links')){
    const kind=q.includes('pattern_master_tag_links')?'master':'colorway',key=String(args[0]);
+   if(q.includes('WHERE tag_id=?')){for(const [owner,ids] of this.links[kind])this.links[kind].set(owner,ids.filter(id=>id!==key));return [{affectedRows:1},[]];}
    this.links[kind].set(key,(this.links[kind].get(key)??[]).filter(x=>x!==String(args[1])));
    return [{affectedRows:1},[]];
   }
@@ -116,6 +118,7 @@ class Db {
    tag.name=String(args[0]);tag.normalized_name=String(args[1]);return [{affectedRows:1},[]];
   }
   if(q.startsWith('UPDATE shared_tags SET is_archived=')){
+   if(this.failArchive)throw Error('injected archive failure');
    this.tags.find(t=>t.id===String(args[0]))!.is_archived=1;return [{affectedRows:1},[]];
   }
   throw Error('Unknown SQL '+q);
@@ -151,6 +154,52 @@ test('P3-1b invalid names fail closed and sales may govern tags with impact cont
  assert.equal((await renameSharedTag(db,sales,item.id,'New',0)).name,'New');
  assert.equal((await archiveSharedTag(db,sales,item.id)).isArchived,true);
  assert.equal(db.tags.length,1);
+});
+test('deleting a custom topic unlinks all matching masters while keeping unrelated topic and color links',async()=>{
+ const db=new Db();
+ const doomed=await createSharedTag(db,sales,'topic','手绘自定义1');
+ const retained=await createSharedTag(db,sales,'topic','条纹');
+ const color=await createSharedTag(db,sales,'color','红色');
+ for(const masterId of ['10','11'])await replaceEntityTags(db,sales,'master',masterId,[doomed.id,retained.id]);
+ await replaceEntityTags(db,sales,'masterColor','10',[color.id]);
+ const preview=await previewTagImpact(db,doomed.id);
+ assert.equal(preview.affectedCount,2);
+ await assert.rejects(deleteCustomTopicTag(db,sales,doomed.id,1),status(409));
+ assert.deepEqual((await readEntityTags(db,'master','10')).map(t=>t.name).sort(),['手绘自定义1','条纹'].sort());
+ const removed=await deleteCustomTopicTag(db,sales,doomed.id,2);
+ assert.equal(removed.affectedCount,2);assert.equal(removed.isArchived,true);
+ assert.equal((await listSharedTags(db,'topic')).some(t=>t.id===doomed.id),false);
+ for(const masterId of ['10','11'])assert.deepEqual((await readEntityTags(db,'master',masterId)).map(t=>t.id),[retained.id]);
+ assert.deepEqual((await readEntityTags(db,'masterColor','10')).map(t=>t.id),[color.id]);
+ await assert.rejects(replaceEntityTags(db,sales,'master','10',[doomed.id,retained.id]),status(409));
+});
+test('custom topic deletion refuses fixed 16 presets, other dimensions and invalid counts',async()=>{
+ const db=new Db(),preset=await createSharedTag(db,sales,'topic','波点'),color=await createSharedTag(db,sales,'color','测试色'),tag=await createSharedTag(db,sales,'topic','自定义待删');
+ await assert.rejects(deleteCustomTopicTag(db,sales,preset.id,0),status(400));
+ await assert.rejects(deleteCustomTopicTag(db,sales,color.id,0),status(400));
+ await assert.rejects(deleteCustomTopicTag(db,sales,tag.id,-1),status(400));
+ assert.equal((await deleteCustomTopicTag(db,sales,tag.id,0)).isArchived,true);
+ assert.equal((await deleteCustomTopicTag(db,sales,tag.id,0)).isArchived,true); // archived deletion is idempotent
+});
+test('older archived custom topics with live master links can be deleted and disappear from selectable dictionary',async()=>{
+ const db=new Db(),tag=await createSharedTag(db,sales,'topic','旧的自定义题材');
+ await replaceEntityTags(db,sales,'master','10',[tag.id]);
+ await archiveSharedTag(db,sales,tag.id);
+ const before=await listSharedTags(db,'topic',{includeArchived:true,linkedArchivedOnly:true});
+ assert(before.some(x=>x.id===tag.id&&x.isArchived));
+ const removed=await deleteCustomTopicTag(db,sales,tag.id,1);
+ assert.equal(removed.isArchived,true);assert.equal(removed.affectedCount,1);
+ assert.deepEqual(await readEntityTags(db,'master','10'),[]);
+ const after=await listSharedTags(db,'topic',{includeArchived:true,linkedArchivedOnly:true});
+ assert(!after.some(x=>x.id===tag.id));
+});
+test('custom topic unlink and archive rollback together on simulated DB failure',async()=>{
+ const db=new Db(),tag=await createSharedTag(db,sales,'topic','测试回滚');
+ await replaceEntityTags(db,sales,'master','10',[tag.id]);
+ db.failArchive=true;
+ await assert.rejects(deleteCustomTopicTag(db,sales,tag.id,1));
+ assert.deepEqual((await readEntityTags(db,'master','10')).map(t=>t.id),[tag.id]);
+ assert.equal((await previewTagImpact(db,tag.id)).isArchived,false);
 });
 test('P3-1b target kinds and label dimensions are exclusive, count 0..10',async()=>{
  const db=new Db();
@@ -275,6 +324,16 @@ test('P3-1b HTTP tags require login; both active roles may govern with confirmat
   assert.equal((await call(base,'/tags/'+tag.id+'/merge','POST',{targetId:next.id,confirmAffectedCount:1})).status,200);
   assert.equal((await call(base,'/pattern-masters/11/tags','PUT',{tagIds:[tag.id]})).status,409);
   assert.equal((await call(base,'/pattern-masters/10/tags','GET')).status,200);
+ });
+});
+test('HTTP deleting a custom topic requires auth and exact impact confirmation',async()=>{
+ const db=new Db(),tag=await createSharedTag(db,sales,'topic','额外题材');
+ await replaceEntityTags(db,sales,'master','10',[tag.id]);
+ await withHttp(db,async base=>{
+  assert.equal((await call(base,'/tags/'+tag.id+'/delete','POST',{confirmAffectedCount:1},false)).status,401);
+  assert.equal((await call(base,'/tags/'+tag.id+'/delete','POST',{confirmAffectedCount:0})).status,409);
+  assert.equal((await call(base,'/tags/'+tag.id+'/delete','POST',{confirmAffectedCount:1})).status,200);
+  assert.deepEqual((await (await call(base,'/pattern-masters/10/tags')).json() as {items:unknown[]}).items,[]);
  });
 });
 test('P3-1b HTTP guards malformed input, dimensions and untrusted database errors',async()=>{

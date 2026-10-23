@@ -4,7 +4,7 @@ import {Menu,X,LayoutDashboard,FileText,Plus,SwatchBook,Layers,Package,ScanLine,
 import type {V2View} from './v2Navigation';
 import type {V2AppPrincipal} from './v2AppModel';
 import './v2Experience.css';
-const groups:{label:string;items:[V2View,string,LucideIcon][]}[]=[{label:'工作台',items:[['stats','经营大盘',LayoutDashboard]]},{label:'业务',items:[['documents','单据列表',FileText],['create','新增单据',Plus],['samples','客户选样',Users],['inventory','库存',Archive]]},{label:'产品资料',items:[['pattern','花型库',SwatchBook],['fabric','面料库',Layers],['products','产品库',Package],['cards','色卡库',ScanLine]]},{label:'系统',items:[['settings','开单设置',Settings],['members','成员管理',Users]]}];
+const groups:{label:string;items:[V2View,string,LucideIcon][]}[]=[{label:'工作台',items:[['stats','经营大盘',LayoutDashboard]]},{label:'业务',items:[['documents','单据列表',FileText],['create','新增单据',Plus],['samples','客户选样',Users],['customers','客户档案',Users],['inventory','库存',Archive]]},{label:'产品资料',items:[['pattern','花型库',SwatchBook],['fabric','面料库',Layers],['products','产品库',Package],['cards','色卡库',ScanLine]]},{label:'系统',items:[['settings','开单设置',Settings],['members','成员管理',Users]]}];
 export function V2Shell({actor,view,onNavigate,onLogout,children,blocked=false}:{actor:V2AppPrincipal;view:V2View;onNavigate(view:V2View):void;onLogout():void;children:React.ReactNode;blocked?:boolean}){
  const [open,setOpen]=useState(false),toggle=useRef<HTMLButtonElement>(null),panel=useRef<HTMLElement>(null);
  useEffect(()=>{
@@ -28,10 +28,10 @@ export function V2Shell({actor,view,onNavigate,onLogout,children,blocked=false}:
   <aside ref={panel} className="v2-sidebar" data-open={open} role={open?'dialog':undefined} aria-modal={open?true:undefined} aria-label="Fabric 导航菜单">
    <div className="v2-brand"><span className="v2-brand-mark" aria-hidden="true">F</span><strong>Fabric</strong><button className="v2-menu-toggle" aria-label="关闭导航菜单" onClick={()=>setOpen(false)}><X size={20}/></button></div>
    <nav aria-label="主导航">{groups.map(group=><div className="v2-nav-group" key={group.label}><p>{group.label}</p>{group.items.filter(([id])=>id!=='members'||actor.role==='admin').map(([id,label,Icon])=><button type="button" key={id} aria-current={id===view?'page':undefined} onClick={()=>{setOpen(false);onNavigate(id);}}><Icon size={18} aria-hidden="true"/><span>{label}</span></button>)}</div>)}</nav>
-   <div className="v2-sidebar-note">面料 · 资料 · 业务</div>
+   <div className="v2-sidebar-account" aria-label="当前登录账号"><div className="v2-sidebar-user"><strong title={actor.displayName}>{actor.displayName}</strong><small>{actor.role==='admin'?'管理员':'业务员'}</small></div><button type="button" onClick={onLogout} aria-label="退出登录" title="退出登录"><LogOut size={18} aria-hidden="true"/></button></div>
   </aside>
   <div className="v2-body" inert={open||undefined}>
-   <header className="v2-topbar"><div className="v2-topbar-title"><button ref={toggle} type="button" className="v2-menu-toggle" aria-label="打开导航菜单" aria-expanded={open} onClick={()=>setOpen(true)}><Menu size={22}/></button><span>{title}</span></div><div className="v2-account"><span>{actor.displayName}<small>{actor.role==='admin'?'管理员':'业务员'}</small></span><button type="button" onClick={onLogout} aria-label="退出登录" title="退出登录"><LogOut size={18} aria-hidden="true"/></button></div></header>
+   <header className="v2-topbar"><div className="v2-topbar-title"><button ref={toggle} type="button" className="v2-menu-toggle" aria-label="打开导航菜单" aria-expanded={open} onClick={()=>setOpen(true)}><Menu size={22}/></button><span>{title}</span></div></header>
    <main id="fabric-main" tabIndex={-1} className="v2-content">{children}</main>
   </div>
  </div>;

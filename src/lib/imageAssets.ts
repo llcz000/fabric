@@ -180,7 +180,7 @@ export async function applyCompanyImageMutations(
 }
 
 function validateSelectedFile(file: File, purpose: AssetPurpose): void {
-  const limit = purpose === 'product_image' ? 10 * 1024 * 1024 : COMPANY_IMAGE_MAX_BYTES;
+  const limit = purpose === 'product_image' ? 20 * 1024 * 1024 : COMPANY_IMAGE_MAX_BYTES;
   if (!file.type.startsWith('image/')) {
     throw new ImageAssetClientError({ code: 'IMAGE_CONTENT_INVALID', message: '请选择图片文件。', retryable: false });
   }

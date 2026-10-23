@@ -1,7 +1,7 @@
 import {createNextColorway,saveMasterTopicTags,saveMasterColorTags} from './patternModel';
 export interface PatternCreationProgress{master?:{id:string;masterNo:string};saved?:string[];uncertain?:boolean;topicSaved?:boolean;colorSaved?:boolean}
 export interface PatternColorDraft{key:string;remark:string;patternImageAssetId?:string|null}
-export interface PatternLabelDraft{topicTagIds:string[];colorTagIds:string[];newColorTags:string[]}
+export interface PatternLabelDraft{topicTagIds:string[];colorTagIds?:string[];newColorTags?:string[]}
 /** Acknowledged items survive retries. Ambiguous writes must be checked in the library first. */
 export async function savePatternDraft(apiFetch:typeof fetch,raw:string,drafts:PatternColorDraft[],progress:PatternCreationProgress,labels?:PatternLabelDraft){
  if(progress.uncertain)throw Error('上次保存结果未确认，请关闭并在花型库核对，勿重复新增');
@@ -14,7 +14,9 @@ export async function savePatternDraft(apiFetch:typeof fetch,raw:string,drafts:P
  if(!progress.master){progress.uncertain=true;progress.master=await createLibraryPattern(safeFetch,raw);progress.uncertain=false;}
  if(labels){
   if(!progress.topicSaved){progress.uncertain=true;await saveMasterTopicTags(safeFetch,progress.master.id,labels.topicTagIds);progress.uncertain=false;progress.topicSaved=true;}
-  if(!progress.colorSaved){progress.uncertain=true;await saveMasterColorTags(safeFetch,progress.master.id,labels.colorTagIds,labels.newColorTags);progress.uncertain=false;progress.colorSaved=true;}
+  if(labels.colorTagIds!==undefined||labels.newColorTags!==undefined){
+   if(!progress.colorSaved){progress.uncertain=true;await saveMasterColorTags(safeFetch,progress.master.id,labels.colorTagIds??[],labels.newColorTags??[]);progress.uncertain=false;progress.colorSaved=true;}
+  }
  }
  progress.saved??=[];
  for(const draft of drafts){if(progress.saved.includes(draft.key))continue;

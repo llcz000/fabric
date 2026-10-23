@@ -697,7 +697,7 @@ test('validator enforces byte and decoded pixel limits from real image bytes', a
       ...policy,
       maxPixels: 99,
     }),
-    (error: unknown) => error instanceof ImageAssetError && error.code === 'IMAGE_LIMIT_EXCEEDED',
+    (error: unknown) => error instanceof ImageAssetError && error.code === 'IMAGE_PIXELS_EXCEEDED',
   );
 });
 

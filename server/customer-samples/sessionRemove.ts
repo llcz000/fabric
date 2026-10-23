@@ -1,3 +1,5 @@
+import {lockCustomerSessionAccess,sampleSessionScope} from '../customers/sessionBridge';
+import {CustomerError} from '../customers/model';
 import type {AppPrincipal} from '../access/types';
 import type {SamplePool} from './scanRepository';
 import {lockSelectionAccess,SampleSessionManualError} from './sessionManual';
@@ -27,7 +29,8 @@ export async function removeSampleSessionCards(pool:SamplePool,actor:AppPrincipa
    const [event]=await tx.query('INSERT INTO customer_sample_item_removal_events (session_id,product_id,actor_user_id,removed_at) SELECT session_id,product_id,removed_by_user_id,removed_at FROM customer_sample_items WHERE session_id=? AND id=?',[sessionId,itemId]);requireOneWrite(event);
   }
   await tx.commit();began=false;return {sessionId,removedCount:found.length};
- }catch(error){if(began)await tx.rollback();if(error instanceof SampleSessionManualError)throw new SampleSessionRemoveError(error.status);throw error;}finally{tx.release();}
+ }catch(error){if(began)await tx.rollback();
+  if(error instanceof CustomerError)throw new SampleSessionRemoveError(error.status===503?409:error.status);if(error instanceof SampleSessionManualError)throw new SampleSessionRemoveError(error.status);throw error;}finally{tx.release();}
 }
 /** Explicit item identities only: selecting one product must not remove its card siblings. */
 export async function removeSampleSessionItems(pool:SamplePool,actor:AppPrincipal,sessionId:string,itemIds:unknown):Promise<{sessionId:string;removedCount:number}>{
@@ -44,7 +47,8 @@ export async function removeSampleSessionItems(pool:SamplePool,actor:AppPrincipa
    const [event]=await tx.query('INSERT INTO customer_sample_item_removal_events (session_id,product_id,actor_user_id,removed_at) SELECT session_id,product_id,removed_by_user_id,removed_at FROM customer_sample_items WHERE session_id=? AND id=?',[sessionId,itemId]);requireOneWrite(event);
   }
   await tx.commit();began=false;return {sessionId,removedCount:found.length};
- }catch(error){if(began)await tx.rollback();if(error instanceof SampleSessionManualError)throw new SampleSessionRemoveError(error.status);throw error;}finally{tx.release();}
+ }catch(error){if(began)await tx.rollback();
+  if(error instanceof CustomerError)throw new SampleSessionRemoveError(error.status===503?409:error.status);if(error instanceof SampleSessionManualError)throw new SampleSessionRemoveError(error.status);throw error;}finally{tx.release();}
 }
 const validId=(value:unknown):value is string=>typeof value==='string'&&/^[1-9]\d{0,19}$/.test(value)&&BigInt(value)<=18446744073709551615n;
 type Row=Record<string,unknown>;
@@ -76,10 +80,11 @@ export async function removeSampleSessionItem(
   if(!user||user.role!==actor.role||Number(user.is_active)!==1)throw new SampleSessionRemoveError(403);
   const [loginRaw]=await tx.query('SELECT id FROM v2_access_sessions WHERE id=? AND user_id=? AND revoked_at IS NULL AND expires_at>UTC_TIMESTAMP() FOR SHARE',[actor.sessionId,actor.userId]);
   if(rows(loginRaw).length!==1)throw new SampleSessionRemoveError(403);
+  const customer=await lockCustomerSessionAccess(tx,actor,sessionId,true);
   const [sessionRaw]=await tx.query('SELECT id,status FROM customer_sample_sessions WHERE id=? AND deleted_at IS NULL FOR UPDATE',[sessionId]);
   const session=rows(sessionRaw)[0];if(!session)throw new SampleSessionRemoveError(404);
-  const [grantRaw]=await tx.query('SELECT can_manage FROM customer_sample_session_access WHERE session_id=? AND user_id=? AND can_manage=1 FOR UPDATE',[sessionId,actor.userId]);
-  const grant=rows(grantRaw);if(grant.length!==1||Number(grant[0].can_manage)!==1)throw new SampleSessionRemoveError(404);
+  if(!customer){const [grantRaw]=await tx.query('SELECT can_manage FROM customer_sample_session_access WHERE session_id=? AND user_id=? AND can_manage=1 FOR UPDATE',[sessionId,actor.userId]);
+  const grant=rows(grantRaw);if(grant.length!==1||Number(grant[0].can_manage)!==1)throw new SampleSessionRemoveError(404);}
   const [itemRaw]=await tx.query('SELECT id,product_id,removed_at,removed_by_user_id FROM customer_sample_items WHERE session_id=? AND id=? FOR UPDATE',[sessionId,itemId]);
   const selected=rows(itemRaw);if(selected.length===0)throw new SampleSessionRemoveError(404);
   const item=selected[0];if(selected.length!==1||dbId(item.id)!==itemId)throw new SampleSessionRemoveError(409);
@@ -99,5 +104,6 @@ export async function removeSampleSessionItem(
   }else dbId(item.removed_by_user_id);
   await tx.commit();began=false;
   return {sessionId,itemId,productId,removed:true};
- }catch(error){if(began)await tx.rollback();throw error;}finally{tx.release();}
+ }catch(error){if(began)await tx.rollback();
+  if(error instanceof CustomerError)throw new SampleSessionRemoveError(error.status===503?409:error.status);throw error;}finally{tx.release();}
 }

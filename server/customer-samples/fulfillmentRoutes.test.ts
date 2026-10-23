@@ -39,18 +39,18 @@ test('B3 real loopback HTTP only authenticates internal roles and creates shipme
   assert.equal(s.calls.length,0);
   s.actor=actor;
   const shipmentResponse=await post(url+'/shipments',shipment);
-  assert.equal(shipmentResponse.status,201);assert.equal(shipmentResponse.headers.get('cache-control'),'no-store');
-  assert.deepEqual(await shipmentResponse.json(),{id:'101',sessionId:'41',itemCount:1});
+  assert.equal(shipmentResponse.status,409);assert.equal(shipmentResponse.headers.get('cache-control'),'no-store');
+  assert.equal(s.calls.length,0);
   const followResponse=await post(url+'/followups',followup);
   assert.equal(followResponse.status,201);assert.deepEqual(await followResponse.json(),{id:'102',sessionId:'41',linkedProductCount:1});
-  assert.equal(s.commits,2);
+  assert.equal(s.commits,1);
   assert(s.calls.every(c=>!c.sql.includes('orders')));
  });
 });
 test('B3 HTTP refuses grant loss and cross-session/owner spoofing without SQL insert',async()=>{
  await http(async(url,s)=>{
   s.actor={...actor,role:'admin'};s.granted=false;
-  const denied=await post(url+'/shipments',shipment);assert.equal(denied.status,404);
+  const denied=await post(url+'/followups',followup);assert.equal(denied.status,404);
   assert(!s.calls.some(c=>c.sql.startsWith('INSERT')));
   s.granted=true;s.calls=[];
   assert.equal((await post(url+'/followups',{...followup,sessionId:'42'})).status,400);

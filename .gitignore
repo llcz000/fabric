@@ -50,3 +50,8 @@ docs/yxm
 Thumbs.db
 
 dist-camera/
+
+# Local operational evidence, recovery bundles, and machine helpers stay on disk.
+/artifacts/
+/.local/
+/.workbuddy/

@@ -1,3 +1,4 @@
+import {CustomerError} from '../customers/model';
 import {Router,json} from 'express';
 import type {AppPrincipal} from '../access/types';
 import {requireV2Principal,requireV2Action,type AccessDatabase} from '../access/middleware';
@@ -22,7 +23,7 @@ export interface V2DocumentOutputDependencies{
  loadImages?(company:Record<string,unknown>):Promise<import('../documentExcel').DocumentWorkbookInput['images']>;
 }
 function sendError(res:import('express').Response,error:unknown):void{
- const status=(error instanceof DocumentWriteError||error instanceof OrderLineError||error instanceof DocumentCalculationError||error instanceof OrderSearchError)
+ const status=(error instanceof CustomerError||error instanceof DocumentWriteError||error instanceof OrderLineError||error instanceof DocumentCalculationError||error instanceof OrderSearchError)
   ?error.status:503;
  const safe=[400,401,403,404,409,422].includes(status)?status:503;
  res.status(safe).json({error:safe===404?'Order not found':
@@ -84,10 +85,14 @@ export function createV2DocumentRouter(db:Database,output:V2DocumentOutputDepend
  router.get('/documents/stats',requireV2Principal(db),async(req,res)=>{
   try{
    const raw=req.query as Record<string,unknown>;
-   if(Object.keys(raw).some(key=>!['from','to'].includes(key)))
+   if(Object.keys(raw).some(key=>!['from','to','compareFrom','compareTo'].includes(key)))
     throw new OrderSearchError('Invalid statistics filters');
-   const {from,to}=parseScopedOrderFilters(raw);
-   res.json(await statsScopedOrders(db,res.locals.principal as AppPrincipal,{from,to}));
+   const {from,to}=parseScopedOrderFilters({from:raw.from,to:raw.to});
+   // 环比基期由前端推导后显式传入，服务端不做区间推算，只按同口径再聚合一次。
+   const hasCompare=raw.compareFrom!==undefined||raw.compareTo!==undefined;
+   const compareRaw=hasCompare
+    ?parseScopedOrderFilters({from:raw.compareFrom,to:raw.compareTo}):null;
+   res.json(await statsScopedOrders(db,res.locals.principal as AppPrincipal,{from,to},compareRaw));
   }catch(error){sendError(res,error);}
  });
  router.get('/documents/:id/matching-items',requireV2Principal(db),async(req,res)=>{

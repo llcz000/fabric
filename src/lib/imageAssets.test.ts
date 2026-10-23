@@ -174,3 +174,16 @@ test('reads a legacy product image content URL as an authenticated blob for feat
     input: '/api/products/9/images/12', method: 'GET', authorization: 'Bearer admin-token',
   }]);
 });
+
+test('20 MiB product image uses the upload workflow; one-byte overflow is rejected before network',async()=>{
+ const size=20*1024*1024;let writes=0;
+ const apiFetch:typeof fetch=async(input)=>{
+  writes++;if(String(input)==='/api/image-assets/upload-sessions')return response({sessionId:'large-1',uploadUrl:'https://fabric-images.example.test/quarantine/large-1',method:'PUT',headers:{},expiresAt:'2026-10-20T10:00:00Z'});
+  return response({...READY_ASSET,purpose:'product_image',byteSize:size});
+ };
+ const input=new File([new Uint8Array(size)],'G0008-1.jpg',{type:'image/jpeg'});
+ const result=await imageAssets.uploadImageAsset(input,'product_image',{apiFetch,directFetch:async()=>new Response(null,{status:200})});
+ assert.equal(result.status,'ready');assert.equal(result.byteSize,size);assert.equal(writes,2);
+ await assert.rejects(imageAssets.uploadImageAsset(new File([new Uint8Array(size+1)],'G0008-2.jpg',{type:'image/jpeg'}),'product_image',{apiFetch}),error=>error instanceof imageAssets.ImageAssetClientError&&error.code==='IMAGE_LIMIT_EXCEEDED');
+ assert.equal(writes,2);
+});

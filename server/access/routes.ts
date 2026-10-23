@@ -1,5 +1,4 @@
 import {Router,json,type ErrorRequestHandler} from 'express';
-import rateLimit from 'express-rate-limit';
 import {hashPassword,verifyPassword,hashSessionToken} from './password';
 import {createAuthenticatedSession} from './sessions';
 import {requireV2Principal,bearerToken,type AccessDatabase} from './middleware';
@@ -10,13 +9,10 @@ export function createV2AccessRouter(database:AccessDatabase):Router {
   const router=Router();
   router.use(json({limit:'16kb'}));
   router.use((_req,res,next)=>{res.setHeader('Cache-Control','no-store');next();});
-  const limiter=rateLimit({
-    windowMs:15*60*1000,limit:10,standardHeaders:'draft-8',legacyHeaders:false,
-    skipSuccessfulRequests:true,message:{error:'Too many login attempts'},
-  });
+  // 2026-10-22: user requested unrestricted login retries, with credential checks retained.
   // Fixed dummy record prevents username existence timing feedback.
   const dummyHash=hashPassword('v2-no-user-timing-placeholder');
-  router.post('/login',limiter,async (req,res)=>{
+  router.post('/login',async (req,res)=>{
     const username=req.body?.username,password=req.body?.password;
     if(typeof username!=='string'||typeof password!=='string'
       ||!/^[A-Za-z0-9._]{3,64}$/.test(username)

@@ -9,7 +9,8 @@ export function createV2ProductionHttpApp(routes:Router,probe:()=>Promise<boolea
   res.set('Cache-Control','no-store');res.status(ok?200:503).json({status:ok?'ok':'unavailable',storage:ok?'mysql':'unavailable',mode:'v2',uptimeSeconds:Math.floor(process.uptime())});
  });
  app.get('/api/runtime',(_req,res)=>{res.set('Cache-Control','no-store').json({mode:'v2'});});
- app.use('/api',rateLimit({windowMs:15*60*1000,limit:1000,standardHeaders:'draft-8',legacyHeaders:false}));
+ // Public traffic has its own quota; authenticated business uploads/polling must never lock login or catalogs.
+ app.use('/api/public',rateLimit({windowMs:15*60*1000,limit:1000,standardHeaders:'draft-8',legacyHeaders:false}));
  app.use('/api/v2',routes);
  if(extras)app.use(extras);
  app.use('/api',(_req,res)=>{res.set('Cache-Control','no-store');res.status(410).json({error:'Legacy endpoint disabled during V2 cutover'});});

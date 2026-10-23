@@ -4,11 +4,12 @@ export type PatternFilterAction=
  |{type:'number'|'colorwayNo';value:string}
  |{type:'topic'|'color';id:string}
  |{type:'includeInactive';value:boolean}
+ |{type:'sort';value:'numberAsc'|'numberDesc'}
  |{type:'page';offset:number}
  |{type:'reset'};
 export interface PatternFilters{
  number:string;colorwayNo:string;topicTagIds:string[];colorTagIds:string[];
- includeInactive:boolean;limit:number;offset:number;
+ includeInactive:boolean;sort:'newest'|'numberAsc'|'numberDesc';limit:number;offset:number;
 }
 export interface PatternVersionItem{
  id:string;masterId:string;colorwayNo:number;patternNo:string;
@@ -18,15 +19,16 @@ export interface PatternMasterItem{
  id:string;masterNo:string;isActive:boolean;nextColorwayNo:number;
  topicTags:CatalogTag[];colorTags?:CatalogTag[];versions:PatternVersionItem[];
 }
-export interface PatternPage{items:PatternMasterItem[];total:number;limit:number;offset:number}
+export interface PatternPage{items:PatternMasterItem[];total:number;totalColorways?:number;limit:number;offset:number}
 export const initialPatternFilters:PatternFilters={
- number:'',colorwayNo:'',topicTagIds:[],colorTagIds:[],includeInactive:false,limit:20,offset:0
+ number:'',colorwayNo:'',topicTagIds:[],colorTagIds:[],includeInactive:false,sort:'newest',limit:20,offset:0
 };
 export function reducePatternFilters(state:PatternFilters,action:PatternFilterAction):PatternFilters{
  if(action.type==='reset')return {...initialPatternFilters,topicTagIds:[],colorTagIds:[]};
  if(action.type==='page')return {...state,offset:action.offset};
  if(action.type==='number'||action.type==='colorwayNo')return {...state,[action.type]:action.value,offset:0};
  if(action.type==='includeInactive')return {...state,includeInactive:action.value,offset:0};
+ if(action.type==='sort')return {...state,sort:action.value,offset:0};
  if(action.type==='topic'||action.type==='color'){
   const key=action.type==='topic'?'topicTagIds':'colorTagIds',items=state[key];
   if(!items.includes(action.id)&&items.length>=10)return state;
@@ -41,6 +43,7 @@ export function buildPatternUrl(base:string,filters:PatternFilters):string{
  if(filters.topicTagIds.length)q.set('topicTagIds',filters.topicTagIds.join(','));
  if(filters.colorTagIds.length)q.set('colorTagIds',filters.colorTagIds.join(','));
  if(filters.includeInactive)q.set('includeInactive','true');
+ if(filters.sort!=='newest')q.set('sort',filters.sort);
  q.set('limit',String(filters.limit));q.set('offset',String(filters.offset));
  return base+'?'+q.toString();
 }
@@ -65,6 +68,7 @@ function version(input:unknown,masterId:string,masterNo:string):PatternVersionIt
 }
 export function parsePatternPage(input:unknown):PatternPage{
  const page=obj(input);
+ if(page.totalColorways!==undefined&&(!Number.isSafeInteger(page.totalColorways)||Number(page.totalColorways)<0))throw Error('无效的配色统计');
  if(!Array.isArray(page.items)||!Number.isSafeInteger(page.total)||Number(page.total)<0||
   !Number.isSafeInteger(page.limit)||Number(page.limit)<1||Number(page.limit)>50||
   !Number.isSafeInteger(page.offset)||Number(page.offset)<0||
@@ -142,7 +146,7 @@ export async function createNextColorway(
  if(details.tagIds!==undefined)validColorTagIds(details.tagIds);
  if(details.newColorTags!==undefined)validateCustomColorNames(details.newColorTags,details.tagIds);
  const result=obj(await responseJson(await apiFetch('/api/v2/pattern-masters/'+masterId+'/colorways',{
-  method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(details)
+  method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...details,isActive:undefined})
  })));
  if(typeof result.masterNo!=='string')throw Error('创建配色未返回母版号');
  return version({...result,colorTags:[]},masterId,result.masterNo);
@@ -160,7 +164,7 @@ export async function saveColorwayProperties(
  if(patch.tagIds!==undefined)validColorTagIds(patch.tagIds);
  if(patch.newColorTags!==undefined)validateCustomColorNames(patch.newColorTags,patch.tagIds);
  await responseJson(await apiFetch('/api/v2/pattern-colorways/'+original.id,{
-  method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(patch)
+  method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({...patch,isActive:undefined})
  }));
 }
 export async function fetchMasterColorTags(apiFetch:typeof fetch,masterId:string):Promise<CatalogTag[]>{

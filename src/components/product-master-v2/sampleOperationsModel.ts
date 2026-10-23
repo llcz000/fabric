@@ -1,3 +1,4 @@
+import {readSampleCardScanToken} from '../../lib/sampleCardScanLink';
 import type {SampleSessionSummary,SampleSessionDirectory,SampleShipmentProgress} from '../../../server/customer-samples/sessionDirectory';
 import {prepareShipmentBatch} from '../../../server/customer-samples/shipmentBatch';
 import {prepareSampleFollowup} from '../../../server/customer-samples/followupDraft';
@@ -67,7 +68,7 @@ export function createSampleOperationsClient(apiFetch:typeof fetch){
    if(!row(data)||!id(data.id)||data.sessionId!==sessionId)throw bad();return data;
   },
   async scan(sessionId:string,cardToken:string,signal?:AbortSignal){
-   requiredId(sessionId);if(!/^[A-Za-z0-9_-]{22,128}$/.test(cardToken))throw Error('请扫描或输入色卡原始编码');
+   requiredId(sessionId);const decoded=readSampleCardScanToken(cardToken);if(!decoded)throw Error('请扫描或输入有效色卡编码');cardToken=decoded;
    const data=await request('/api/v2/sample-cards/scan',{method:'POST',body:JSON.stringify({sessionId,cardToken}),signal});
    if(!row(data)||!id(data.cardId)||!Array.isArray(data.addedProductIds)||!data.addedProductIds.every(id))throw bad();return data;
   }

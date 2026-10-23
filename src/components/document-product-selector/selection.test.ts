@@ -35,3 +35,18 @@ test('P6-1 API page parser fails closed with unexpected or unsafe payload',()=>{
  assert.throws(()=>validateProductSelectorPage({items:[{...product,thumbnailUrl:'javascript:alert(1)'}],total:1,limit:20,offset:0}));
  assert.throws(()=>validateProductSelectorPage({items:[],total:1,limit:1000,offset:0}));
 });
+
+
+test('selector resolves null thumbnails by authenticated asset ID, preserving signed rows and order',async()=>{
+ const {resolveProductSelectorThumbnails}=await import('./selection');
+ const asset='11111111-1111-4111-8111-111111111111';
+ const row={id:'1',productNo:'P1',fabricName:'真丝',masterNo:'G1',colorwayNo:1,composition:null,weight:null,weightUnit:null,widthCm:null,patternImageAssetId:asset,thumbnailUrl:null};
+ const page={items:[row,{...row,id:'2'},{...row,id:'3',thumbnailUrl:'https://signed.example/existing'},{...row,id:'4',patternImageAssetId:null}],total:4,limit:20,offset:0};
+ const calls:any[]=[];const controller=new AbortController();
+ const api:typeof fetch=async(url,init)=>{calls.push({url:String(url),body:JSON.parse(String(init?.body)),signal:init?.signal});return Response.json({results:[{assetId:asset,variant:'thumbnail',url:'https://signed.example/thumb'}]});};
+ const result=await resolveProductSelectorThumbnails(api,page,controller.signal);
+ assert.equal(calls.length,1);assert.equal(calls[0].url,'/api/image-assets/access-urls');assert.equal(calls[0].signal,controller.signal);
+ assert.deepEqual(calls[0].body.requests,[{assetId:asset,variant:'thumbnail'}]);
+ assert.deepEqual(result.items.map(p=>p.thumbnailUrl),['https://signed.example/thumb','https://signed.example/thumb','https://signed.example/existing',null]);
+ assert.equal(page.items[0].thumbnailUrl,null);
+});

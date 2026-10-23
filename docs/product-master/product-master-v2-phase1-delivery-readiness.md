@@ -1,6 +1,6 @@
 # Fabric 产品主数据 V2｜一期交付 Go / No-Go 与开放 Gate（2026-10-15）
 
-当前发布源码来自隔离分支 `codex/v2-phase2-completion-20261017`，未覆盖D:/fabric共享主目录源码。该主目录旧源码静态入口Gate仍false，虽八项外部证据通过；应在对应发布工作树检查完整readyForReview，不据旧主目录--status否定公网当前V2。
+当前活动开发源为 `D:/fabric/.agent-workspaces/v2-quality-20261020`；2026-10-20 12:02已获用户明确授权并发布[旧入口退役与质量修复增量](../operations/2026-10-20-v2-quality-release.md)。共享主目录常用npm命令已指向该工作树，静态前后端sourceGate均true。本文下方早期未接线/No-Go属于历史；完整八类外部Gate不会因本次增量HTTP检查自动重签，仍按对应版本和验收范围解释。
 
 **2026-10-19最终执行更新**：用户UI签收及部署授权后，正式V2已在HTTPS上线；八类Gate已由release_review按实际边界签收，使用[本次证据清单](../operations/2026-10-19-v2-production-evidence.json)运行--evidence核验摘要。正式迁移/旧原列保护/同版本只读/权限/公网复验均有[真实证据](../operations/2026-10-19-v2-production-release.md)。下文No-Go/未接线/未实库为早期历史，不覆盖当前结论；默认--status不读取证据，releaseAuthorized字段恒false也不代替/撤销用户授权。
 
@@ -55,11 +55,7 @@
 
 **禁止“绿色幻觉”**：不以TDD测试、构建通过、创建测试表、预置用户、具备Stitch稿，替代第1～10项真人/真实系统验收。P0需求与七页UI基线已确认，不必为了上线重新设计整个需求。
 
-**P4/P7独立浏览器沙箱2026-10-17**：非默认本机只读三库页面已实现并通过离线安全会话/构建验证，未进入正式server.ts或App.tsx，不触及正式MySQL、COS或现有账号。独立后端真实环境登录与账号/撤权、七页业务签收和P1–P7全部外部证据仍需另行批准及验收，静态页存在不得标绿。详见[沙箱浏览器安全接线](product-master-v2-p7-sandbox-frontend.md)。
-
 ## 建议交付节奏与不越权工作
-**2026-10-17 P4/P7预览更新**：独立沙箱前端从三库页面扩展至7个只读tab，新增色卡、客户选样、单据查询与经营统计；复用独立V2授权接口，且禁写入/导出。只读7 tab不是已批准Stitch七页全功能，正式src/App.tsx与server.ts未接线，也无真实环境/账号/UAT证据，P1–P7维持No-Go。详见[沙箱浏览器说明](product-master-v2-p7-sandbox-frontend.md)。
-
 
 - **R0 现阶段：内部可演示/源码交接**：展示已实现的独立V2组件及隔离HTTP，清楚标注mock/沙箱；不能承诺员工日常在原生产App使用。
 - **R1 集成候选版**：总控先完成**生产装配设计和离线安全启动Gate**，后端合法目标库及会话审计、前端V2导航与旧入口隔离；正式主入口修改单独评审，不提前启用legacy拒绝。可以使用本地测试服务器做正式路由全流程联调。
@@ -95,12 +91,6 @@ Git只读调查：主工作树`master`比本地`origin/master`落后3个提交�
 - 已完成非生产审查分支`codex/fabric-v2-integration-review-20261017`的Git提交`1e9a7c76241db2e577bc7515642fbc2001fcfeee`与非强制推送；`git ls-remote`确认该远端分支指向上述SHA，`origin/master`仍为`7e2d81d`。本次仅向隔离审查分支提交404项严格白名单文件，0历史删除，无正式PR/合并和生产切流。GitHub可通过`https://github.com/llcz000/fabric/pull/new/codex/fabric-v2-integration-review-20261017`发起人工代码审查，**不是已创建PR或已通过审批**。
 - 共享`.git/hooks/pre-commit`错误指向`agent-workbench\\deer-flow\\.pre-commit-config.yaml`，本仓库不存在该配置，首次commit失败。检查实际钩子文件后仅给单次提交设置预提交工具官方建议的`PRE_COMMIT_ALLOW_NO_CONFIG=1`；不使用`--no-verify`、不修改钩子/全局Git设置，独立项目测试、四组TS、构建、文档及暂存差异核验作为可重放证据。该仓库仍应在后续维护中修复本地钩子归属。
 - 即使审查分支已推送，**生产发布依然No-Go**：正式前后端切流及8项外部真实业务证据均为false；不能自动从审查分支部署，也不得对真实MySQL运行B3表DDL、修改线上COS、停用旧API。下一阶段需先通过代码审核、隔离/预发布库身份和可恢复备份、真实账号/COS/业务UI测试及回滚演练，再单独审批上线。
-
-### 2026-10-17 远端 CI 构建能力（不包含 CD）
-
-- 新增 GitHub Actions 审查用工作流 .github/workflows/fabric-v2-review-build.yml、三份 scripts/tsconfig-ci-* 配置，以及禁止生产环境、写权限和发布命令的静态契约测试。Linux Node24 仅进行 npm ci、单测、分区 TS、文档、构建与7天制品上传，明确不连接现有 MySQL、不登录 /opt/fabric、不操作 COS/PM2。
-- 本地等效测试（Windows Node24）1103 项单测=1102通过/1跳过、四组 TypeScript=0、构建=0、安全契约 2/2、文档导航85份/601链接=0。**GitHub runner 的真正远端运行结果/制品需要另行核对**，不得拿本地结果替代云端 CI；完整 lint 单进程内存瓶颈也尚未消除。
-- 当前只能自动远端**构建**，不能直接自动**部署**；真实部署须GitHub环境人工审批、可恢复备份和全量P1–P7上线证据，具体见[远端构建和部署门禁](../operations/fabric-v2-remote-build-and-deploy-gates.md)。正式入口与8项证据当前仍 No-Go。
 
 ## 可复核和责任分配
 

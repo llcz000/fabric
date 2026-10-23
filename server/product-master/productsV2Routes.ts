@@ -3,7 +3,7 @@ import {Router,json,type RequestHandler,type Response,type ErrorRequestHandler} 
 import type {Pool} from '../order-v2/lines';
 import type {AppPrincipal} from '../access/types';
 import {requireV2Principal,requireV2Action,type AccessDatabase} from '../access/middleware';
-import {createV2Product,getV2Product,updateV2Product,deleteV2Product,V2ProductError} from './productsV2';
+import {createV2Product,createV2ProductsBatch,previewV2ProductsBatch,getV2Product,updateV2Product,deleteV2Product,V2ProductError} from './productsV2';
 import {parseProductSearchQuery,searchProductCatalog,ProductSearchError} from './productSearch';
 
 /** Standalone V2 router; never mount over legacy /api/products before cutover. */
@@ -23,6 +23,13 @@ export function createV2ProductsRouter(db:AccessDatabase,pool:Pool):Router{
  router.get('/products/export.xlsx',principal,read,catalogExportHandler(db,'products'));
  router.get('/products',principal,read,async(req,res)=>{
   try{res.json(await searchProductCatalog(db,parseProductSearchQuery(req.query)));}
+  catch(e){error(res,e);}
+ });
+ router.post('/products/batch/preview',principal,read,jsonRequired,parser,async(req,res)=>{
+  try{res.json(await previewV2ProductsBatch(db,req.body));}catch(e){error(res,e);}
+ });
+ router.post('/products/batch',principal,write,jsonRequired,parser,async(req,res)=>{
+  try{res.status(201).json(await createV2ProductsBatch(pool,res.locals.principal as AppPrincipal,req.body));}
   catch(e){error(res,e);}
  });
  router.get('/products/:id',principal,read,async(req,res)=>{
