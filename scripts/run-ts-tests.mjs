@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readdir, rm, stat } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
@@ -56,6 +56,9 @@ const outputRoot = await mkdtemp(path.join(outputParent, 'tests-'));
 let runError;
 
 try {
+  await writeFile(path.join(outputRoot, '.fabric-test-output.json'), JSON.stringify({
+    format: 'fabric-test-output-v1', pid: process.pid,
+  }));
   const bundledFiles = [];
   for (const testFile of testFiles) {
     const relativePath = path.relative(projectRoot, testFile);
