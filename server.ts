@@ -30,11 +30,16 @@ import { MySqlProductRepository } from './server/products/mysqlRepository';
 import { ProductService } from './server/products/service';
 import type { ProductRouteRuntime } from './server/products/routes';
 import { mapLegacyProductImages } from './server/products/legacyCompatibility';
+import {createLegacyCutoverGuard,resolveLegacyCutoverMode} from './server/access/legacyCutoverGuard';
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
+// Kept in legacy mode by default. A future explicitly authorized V2 cutover
+// activates fail-closed blocking BEFORE any old parser, upload or API route.
+// Do not enable until V2 routers, schema and new login are deployed and tested.
+app.use(createLegacyCutoverGuard(resolveLegacyCutoverMode(process.env.FABRIC_V2_LEGACY_ROUTE_MODE)));
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '127.0.0.1';
 

@@ -1,0 +1,14 @@
+{"run":"p1-ac71-a-20261015","role":"A","ac":"AC-71","kind":"started","observedAt":"2026-10-15T08:27:14.880Z"}
+{"run":"p1-ac71-a-20261015","role":"A","ac":"AC-71","kind":"agent_done","observedAt":"2026-10-15T08:31:40.332Z"}
+{"run":"p1-ac71-a-20261015","role":"A","ac":"AC-71","kind":"verified","tests":30,"changedFiles":2,"rework":2,"observedAt":"2026-10-15T08:35:36.462Z"}
+{"run":"p1-ac71-lockplan-20261015","role":"A","ac":"AC-71","kind":"started","observedAt":"2026-10-15T08:46:36.342Z"}
+{"run":"p1-ac71-lockplan-20261015","role":"A","ac":"AC-71","kind":"red","tests":23,"observedAt":"2026-10-15T08:52:10.348Z"}
+{"run":"p1-ac71-lockplan-20261015","role":"A","ac":"AC-71","kind":"agent_cancelled","observedAt":"2026-10-15T08:56:38.477Z"}
+{"run":"p1-ac71-lockplan-20261015","role":"A","ac":"AC-71","kind":"salvaged","tests":23,"changedFiles":2,"rework":2,"observedAt":"2026-10-15T09:00:58.394Z"}
+{"run":"p6-ac67-live-company-20261015","role":"D","ac":"AC-67","kind":"started","observedAt":"2026-10-15T09:41:19.819Z"}
+{"run":"p6-ac67-live-company-20261015","role":"D","ac":"AC-67","kind":"blocked","observedAt":"2026-10-15T09:43:49.273Z"}
+{"run":"scan-01-dispatch-20261015","role":"A","ac":"SCAN-01","kind":"started","observedAt":"2026-10-15T12:17:15.870Z"}
+{"run":"scan-01-dispatch-20261015","role":"A","ac":"SCAN-01","kind":"red","tests":4,"observedAt":"2026-10-15T12:20:51.729Z"}
+{"run":"scan-01-dispatch-20261015","role":"A","ac":"SCAN-01","kind":"green","tests":30,"observedAt":"2026-10-15T12:21:45.657Z"}
+{"run":"scan-01-dispatch-20261015","role":"A","ac":"SCAN-01","kind":"agent_done","observedAt":"2026-10-15T12:21:54.793Z"}
+{"run":"scan-01-dispatch-20261015","role":"A","ac":"SCAN-01","kind":"verified","tests":30,"changedFiles":2,"rework":3,"observedAt":"2026-10-15T12:38:49.069Z"}

@@ -1,0 +1,15 @@
+{
+ "extends":"../tsconfig.json",
+ "include":[
+  "../src/components/product-master-v2/SampleSelection*.tsx",
+  "../src/components/product-master-v2/SampleSelection*.test.ts",
+  "../src/components/product-master-v2/sampleSelectionClient*.ts",
+  "../src/components/product-master-v2/ManualSelectionPane.tsx",
+  "../src/components/product-master-v2/manualSelectionModel*.ts",
+  "../src/components/product-master-v2/manualSelectionPrivateHttp.test.ts",
+  "../src/product-master-v2-review/ManualSelectionReview.tsx",
+  "../src/product-master-v2-review/manualSelectionMockApi*.ts",
+  "../src/product-master-v2-review/main.tsx"
+ ],
+ "exclude":["../node_modules","../dist","../agent","../.agents"]
+}

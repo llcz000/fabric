@@ -1,4 +1,8 @@
+> 历史设计/实施计划（2026-10-09核对）：本文不是当前已交付清单，状态见 [设计索引](../../decisions/README.md)。执行前重新核对源码、剩余任务和授权范围。
+
 # Unified Image Asset System Implementation Plan
+
+> 文档定位：中间过程｜主要读者：当前任务的开发/评审、Agent。用途：查实现/计划、历史证据和未完成Gate；不是业务新需求。
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -829,12 +833,12 @@ git commit -m "feat: migrate legacy images into asset storage"
 - Modify: `scripts/smoke-image-assets.mjs`
 - Modify: `scripts/smoke-security.mjs`
 - Modify: `package.json:6-14`
-- Modify: `Fabric-DMS-Knowledge-Base/05-数据模型.md`
-- Modify: `Fabric-DMS-Knowledge-Base/06-API清单.md`
-- Modify: `Fabric-DMS-Knowledge-Base/07-运行与部署.md`
-- Modify: `Fabric-DMS-Knowledge-Base/10-安全基线.md`
-- Modify: `Fabric-DMS-Knowledge-Base/11-测试与质量.md`
-- Create: `docs/solutions/architecture-patterns/image-asset-operations.md`
+- Modify: `docs/project/数据与API.md`
+- Modify: `docs/project/数据与API.md`
+- Modify: `docs/operations/运行与部署.md`
+- Modify: `docs/development/开发与验证规范.md`
+- Modify: `docs/development/开发与验证规范.md`
+- Create: `docs/operations/image-asset-operations.md`
 
 **Interfaces:**
 - Consumes: every earlier task.
@@ -887,7 +891,7 @@ Record only asset IDs, response status, generated PNG filename, and pass/fail re
 - [ ] **Step 8: Commit the verified rollout documentation**
 
 ```powershell
-git add package.json server/image-assets/worker.ts server/image-assets/runtime.ts server/image-assets/service.test.ts scripts/smoke-image-assets.mjs scripts/smoke-security.mjs docs/solutions/architecture-patterns/image-asset-operations.md Fabric-DMS-Knowledge-Base/05-数据模型.md Fabric-DMS-Knowledge-Base/06-API清单.md Fabric-DMS-Knowledge-Base/07-运行与部署.md Fabric-DMS-Knowledge-Base/10-安全基线.md Fabric-DMS-Knowledge-Base/11-测试与质量.md
+git add package.json server/image-assets/worker.ts server/image-assets/runtime.ts server/image-assets/service.test.ts scripts/smoke-image-assets.mjs scripts/smoke-security.mjs docs/operations/image-asset-operations.md docs/project/数据与API.md docs/project/数据与API.md docs/operations/运行与部署.md docs/development/开发与验证规范.md docs/development/开发与验证规范.md
 git commit -m "docs: verify unified image asset rollout"
 ```
 

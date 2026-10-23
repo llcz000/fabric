@@ -81,6 +81,7 @@ export interface DocumentData {
   type: DocType;        // 单据类型
   date: string;         // 开单日期
   customerName: string; // 客户
+  styleNo?: string; // 旧单据style_no，V2历史表头保全
   items: DocItem[];     // 明细记录列表
 
   // 单个单据可以覆盖公司默认设置

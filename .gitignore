@@ -29,7 +29,20 @@ request.json
 .worktrees/
 
 # Local agent and IDE state
-.agents/
+# Keep unrelated local agent state and heavy video skills untracked.
+.agents/*
+!.agents/skills/
+.agents/skills/*
+# Only the small, reusable Fabric V2 development skills belong to this repo.
+!.agents/skills/fabric-product-master-v2/
+!.agents/skills/writing-plans/
+!.agents/skills/executing-plans/
+!.agents/skills/test-driven-development/
+!.agents/skills/systematic-debugging/
+!.agents/skills/requesting-code-review/
+!.agents/skills/verification-before-completion/
+!.agents/skills/SUPERPOWERS-UPSTREAM.md
+!.agents/skills/SUPERPOWERS-UPSTREAM-LICENSE
 .claude/settings.local.json
 .idea/
 .vscode/
@@ -40,11 +53,17 @@ request.json
 .npmrc
 opencodex-desktop-launcher.cmd
 scripts/generate_mockup.py
-Fabric-DMS-Knowledge-Base/.obsidian/workspace.json
+docs/.obsidian/workspace.json
 
-# Sensitive file found during the 2026-08-13 audit; rotate its credentials.
-docs/yxm
+# Private machine configuration and quarantined legacy file
+.local/server/
+.local/legacy-sensitive/
 
 # OS metadata
 .DS_Store
 Thumbs.db
+
+# Local operational evidence, recovery bundles, and machine helpers stay on disk.
+/artifacts/
+/.local/
+/.workbuddy/

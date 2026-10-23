@@ -20,13 +20,10 @@
 ## 验证
 
 ```powershell
-npm.cmd run lint
-npm.cmd run build
-npm.cmd run test:security
 npm.cmd run test:all
-npm.cmd run test:image-assets
-npm.cmd run test:image-assets:smoke
 ```
+
+按改动选择专项验证见 [开发与验证规范](docs/development/开发与验证规范.md)；`test:all` 已包含类型、单元、构建、安全和图片冒烟，不需逐个重复执行。
 
 ## 生产运行
 
@@ -44,17 +41,24 @@ npm.cmd run start
 
 ## 统一图片资产
 
-公司 Logo/二维码与产品图片走同一套图片资产生命周期：浏览器直传私有 COS 隔离区，服务端 Sharp 校验 + SHA-256 去重，后台生成 original/display/thumbnail，业务表只存资产 ID 与 object key。普通展示用短期签名 URL，样布码单导出走同源受控内容接口。功能开关（IMAGE_ASSETS_ENABLED、COMPANY_IMAGE_ASSETS_ENABLED、PRODUCT_IMAGE_ASSETS_ENABLED）、迁移/上传命令、回收与对账流程见 docs/solutions/architecture-patterns/image-asset-operations.md。
+启用统一图片资产功能后，公司 Logo/二维码与产品图片走同一套生命周期：浏览器直传私有 COS 隔离区，服务端 Sharp 校验 + SHA-256 去重，后台生成 original/display/thumbnail，业务表只存资产 ID 与 object key。普通展示用短期签名 URL，单据导出走同源受控内容接口。功能开关、迁移、回收与对账流程见 [图片资产运维手册](docs/operations/image-asset-operations.md)。
 
 ## 项目知识库
 
-使用 Obsidian 打开 `Fabric-DMS-Knowledge-Base/`。入口是 `00-首页.md`，其中包含架构、API、数据模型、清理审计、安全基线和优化路线图。
+项目知识和开发复盘统一放在 `docs/`；视频制作内容已移出本应用项目。从 [按问题阅读](docs/00-首页.md) 进入：业务负责人看需求，开发/验收看进度与专题，遇到问题查经验；找不到时在 [分类检索](docs/文档分类与检索.md) 按 `Ctrl+F` 搜关键词。也可用 Obsidian 打开 `docs/`。
+
+## 产品主数据 V2
+
+三库、权限、面料 xlsx 导入、三种单据和客户选样的需求见 [领域入口](docs/product-master/README.md)，实施与验收见 [当前进度](docs/product-master/product-master-v2-progress.md)。独立 V2 模块已有实现，正式 `src/App.tsx` / `server.ts` 仍使用旧入口；不要把预览或本机测试当作正式上线。
 
 ## 主要目录
 
 - `src/`：React 前端
 - `server.ts`：Express API 和服务启动
-- `scripts/`：图片与安全验证脚本
+- `server/`：旧产品、图片资产及 V2 权限/三库/单据/客户选样模块
+- `scripts/`：测试、图片安全、数据库隔离验收与维护脚本
 - `uploads/`：本地图片运行数据，不提交 Git
 - `template/`：Excel 模板运行数据，不提交 Git
-- `Fabric-DMS-Knowledge-Base/`：项目知识库
+- `docs/`：统一项目知识库、开发规范与复盘
+- `artifacts/`：UI 评审快照、验收证据和开发恢复基线
+- `.agents/skills/`：项目技能；`agent/skills/`：已安装的 UI 工具技能

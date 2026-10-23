@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { build } from 'esbuild';
+import { safeTestConcurrency } from './run-ts-test-concurrency.mjs';
 
 const projectRoot = process.cwd();
 const outputParent = path.join(projectRoot, 'tmp');
@@ -74,7 +75,9 @@ try {
 
   const testExitCode = await new Promise((resolve, reject) => {
     let settled = false;
-    const child = spawn(process.execPath, ['--test', ...bundledFiles], { stdio: 'inherit' });
+    // Node otherwise spawns one child per file at once and can exhaust Windows
+    // process commit memory (spawn ENOMEM/UNKNOWN) on full Fabric V2 suites.
+    const child = spawn(process.execPath, ['--test', '--test-concurrency='+safeTestConcurrency(), ...bundledFiles], { stdio: 'inherit' });
     child.once('error', (error) => {
       if (settled) return;
       settled = true;

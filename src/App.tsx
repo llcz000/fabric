@@ -8,6 +8,8 @@ import { DocType, DocumentData, CompanyProfile, CompanyImageRole, CompanyImageVa
 import { applyCompanyImageMutations } from './lib/imageAssets';
 import type { CompanyImageMutation } from './lib/companyImageState';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { ThemeToggle } from './components/ui/ThemeToggle';
+import { useTheme } from './components/ui/useTheme';
 import {
   Database, PlusCircle, Settings, LayoutDashboard,
   Layers, ChevronRight, FileSpreadsheet, Info, CheckCircle2, Package
@@ -233,6 +235,9 @@ export default function App() {
 
   // Global App View Route
   const [currentView, setCurrentView] = useState<AppView>('dashboard');
+
+  // Theme (light/dark)
+  const theme = useTheme();
 
   // Data State
   const [documents, setDocuments] = useState<DocumentData[]>([]);
@@ -549,14 +554,14 @@ export default function App() {
   if (!authToken) {
     return (
       <ErrorBoundary>
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8 w-full max-w-sm">
+      <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-brand-50 flex items-center justify-center p-4">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md border border-slate-100 dark:border-slate-800 p-8 w-full max-w-sm animate-fade-in">
           <div className="text-center mb-6">
-            <div className="w-12 h-12 rounded-xl bg-sky-600 text-white flex items-center justify-center mx-auto mb-3">
+            <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-brand-600 to-indigo-600 text-white flex items-center justify-center mx-auto mb-3 shadow-sm">
               <Layers className="w-6 h-6" />
             </div>
-            <h2 className="text-lg font-bold text-slate-800">单据管理系统</h2>
-            <p className="text-sm text-slate-500 mt-1">请输入管理密码</p>
+            <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">单据管理系统</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">请输入管理密码</p>
           </div>
           <form onSubmit={(e) => { e.preventDefault(); handleLogin((e.target as any).password.value); }}>
             <input
@@ -564,12 +569,12 @@ export default function App() {
               name="password"
               placeholder="密码"
               autoFocus
-              className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm mb-3"
+              className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 text-sm mb-3 transition-all"
             />
-            {loginError && <p className="text-red-500 text-xs mb-3">{loginError}</p>}
+            {loginError && <p className="text-danger-600 text-xs mb-3">{loginError}</p>}
             <button
               type="submit"
-              className="w-full py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-sm font-semibold cursor-pointer transition-colors"
+              className="w-full py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-md text-sm font-semibold cursor-pointer transition-colors shadow-sm"
             >
               登录
             </button>
@@ -583,39 +588,39 @@ export default function App() {
   return (
     <Suspense fallback={<LoadingFallback />}>
     <ErrorBoundary>
-    <div className="min-h-screen bg-slate-50/60 flex flex-col text-slate-800">
+    <div className="min-h-screen bg-slate-50/70 dark:bg-[#0b1220] flex flex-col text-slate-800 dark:text-slate-100">
       
       {/* Dynamic top bar - hidden on print view */}
-      <header className="no-print bg-white border-b border-slate-100 sticky top-0 z-40 shadow-xs">
+      <header className="no-print bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-100 dark:border-slate-800 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             
             {/* Logo brand signature */}
             <div className="flex items-center gap-2.5">
-              <div className="w-8.5 h-8.5 rounded-xl bg-linear-to-br from-sky-600 to-indigo-600 text-white flex items-center justify-center font-black shadow-md tracking-wider flex-shrink-0">
-                <Layers className="w-4.5 h-4.5" />
+              <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-brand-600 to-indigo-600 text-white flex items-center justify-center font-black shadow-sm tracking-wider flex-shrink-0">
+                <Layers className="w-5 h-5" />
               </div>
               <div>
-                <h1 className="text-sm md:text-md font-extrabold text-slate-800 tracking-tight flex items-center gap-1">
+                <h1 className="text-sm md:text-base font-extrabold text-slate-800 dark:text-slate-100 tracking-tight flex items-center gap-1.5">
                   单据管理系统
-                  <span className="text-[9px] bg-slate-100 text-slate-500 font-bold px-1 py-0.2 rounded-xs">
+                  <span className="text-[9px] bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-bold px-1.5 py-0.5 rounded">
                     面料版
                   </span>
                 </h1>
-                <p className="text-[9px] text-slate-400 font-medium">Fabric Invoicing Database</p>
+                <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium">Fabric Invoicing Database</p>
               </div>
             </div>
 
             {/* Main Tabs Navigation - Hidden on mobile, shown on desktop & tablets */}
-            <nav className="hidden md:flex space-x-1">
+            <nav className="hidden md:flex items-center space-x-1">
               <button
                 type="button"
                 id="nav-btn-dashboard"
                 onClick={() => { setCurrentView('dashboard'); setDocToEdit(null); }}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-md text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
                   currentView === 'dashboard'
-                    ? 'bg-sky-50 text-sky-700'
-                    : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
+                    ? 'bg-brand-50 text-brand-700 dark:bg-brand-600/15 dark:text-brand-300'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800'
                 }`}
               >
                 <LayoutDashboard className="w-4 h-4" />
@@ -626,10 +631,10 @@ export default function App() {
                 type="button"
                 id="nav-btn-list"
                 onClick={() => { setCurrentView('list'); setDocToEdit(null); }}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-md text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
                   currentView === 'list' || currentView === 'preview'
-                    ? 'bg-sky-50 text-sky-700'
-                    : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
+                    ? 'bg-brand-50 text-brand-700 dark:bg-brand-600/15 dark:text-brand-300'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800'
                 }`}
               >
                 <Database className="w-4 h-4" />
@@ -640,10 +645,10 @@ export default function App() {
                 type="button"
                 id="nav-btn-create"
                 onClick={() => { setDocToEdit(null); setCurrentView('create'); }}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-md text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
                   currentView === 'create' && !docToEdit
-                    ? 'bg-sky-50 text-sky-700'
-                    : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
+                    ? 'bg-brand-50 text-brand-700 dark:bg-brand-600/15 dark:text-brand-300'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800'
                 }`}
               >
                 <PlusCircle className="w-4 h-4" />
@@ -654,10 +659,10 @@ export default function App() {
                 type="button"
                 id="nav-btn-products"
                 onClick={() => { setCurrentView('products'); setDocToEdit(null); }}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-md text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
                   currentView === 'products'
-                    ? 'bg-sky-50 text-sky-700'
-                    : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
+                    ? 'bg-brand-50 text-brand-700 dark:bg-brand-600/15 dark:text-brand-300'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800'
                 }`}
               >
                 <Package className="w-4 h-4" />
@@ -668,10 +673,10 @@ export default function App() {
                 type="button"
                 id="nav-btn-inventory"
                 onClick={() => { setCurrentView('inventory'); setDocToEdit(null); }}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-md text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
                   currentView === 'inventory'
-                    ? 'bg-sky-50 text-sky-700'
-                    : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
+                    ? 'bg-brand-50 text-brand-700 dark:bg-brand-600/15 dark:text-brand-300'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800'
                 }`}
               >
                 <Database className="w-4 h-4" />
@@ -682,23 +687,28 @@ export default function App() {
                 type="button"
                 id="nav-btn-settings"
                 onClick={() => { setCurrentView('settings'); setDocToEdit(null); }}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-md text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
                   currentView === 'settings'
-                    ? 'bg-sky-50 text-sky-700'
-                    : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
+                    ? 'bg-brand-50 text-brand-700 dark:bg-brand-600/15 dark:text-brand-300'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800'
                 }`}
               >
                 <Settings className="w-4 h-4" />
                 排版配置
               </button>
+
+              <div className="ml-1 pl-2 border-l border-slate-100 dark:border-slate-800">
+                <ThemeToggle dark={theme.dark} onToggle={theme.toggle} />
+              </div>
             </nav>
             
             {/* Quick access action on top right for mobile header */}
-            <div className="md:hidden">
+            <div className="md:hidden flex items-center gap-1">
+              <ThemeToggle dark={theme.dark} onToggle={theme.toggle} />
               <button
                 type="button"
                 onClick={() => { setDocToEdit(null); setCurrentView('create'); }}
-                className="p-2 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center cursor-pointer"
+                className="p-2 rounded-md bg-brand-50 text-brand-600 dark:bg-brand-600/15 dark:text-brand-300 flex items-center justify-center cursor-pointer"
                 title="快速开单"
               >
                 <PlusCircle className="w-5 h-5" />
@@ -822,12 +832,12 @@ export default function App() {
       </footer>
 
       {/* Modern bottom tab bar for mobile touch screens */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-slate-200/80 shadow-lg px-2 py-2 flex justify-around no-print pb-safe">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200/80 dark:border-slate-800 shadow-lg px-1 py-1.5 flex justify-around no-print pb-safe">
         <button
           type="button"
           onClick={() => { setCurrentView('dashboard'); setDocToEdit(null); }}
-          className={`flex flex-col items-center justify-center gap-1 text-center py-1 px-3 rounded-xl transition-all ${
-            currentView === 'dashboard' ? 'text-sky-600 font-bold bg-sky-50/50' : 'text-slate-400 hover:text-slate-600'
+          className={`flex flex-col items-center justify-center gap-0.5 text-center py-1 px-2.5 rounded-md transition-all ${
+            currentView === 'dashboard' ? 'text-brand-600 dark:text-brand-300 font-bold bg-brand-50/60 dark:bg-brand-600/15' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600'
           }`}
         >
           <LayoutDashboard className="w-5 h-5" />
@@ -837,8 +847,8 @@ export default function App() {
         <button
           type="button"
           onClick={() => { setCurrentView('list'); setDocToEdit(null); }}
-          className={`flex flex-col items-center justify-center gap-1 text-center py-1 px-3 rounded-xl transition-all ${
-            currentView === 'list' || currentView === 'preview' ? 'text-sky-600 font-bold bg-sky-50/50' : 'text-slate-400 hover:text-slate-600'
+          className={`flex flex-col items-center justify-center gap-0.5 text-center py-1 px-2.5 rounded-md transition-all ${
+            currentView === 'list' || currentView === 'preview' ? 'text-brand-600 dark:text-brand-300 font-bold bg-brand-50/60 dark:bg-brand-600/15' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600'
           }`}
         >
           <Database className="w-5 h-5" />
@@ -848,8 +858,8 @@ export default function App() {
         <button
           type="button"
           onClick={() => { setCurrentView('products'); setDocToEdit(null); }}
-          className={`flex flex-col items-center justify-center gap-1 text-center py-1 px-3 rounded-xl transition-all ${
-            currentView === 'products' ? 'text-sky-600 font-bold bg-sky-50/50' : 'text-slate-400 hover:text-slate-600'
+          className={`flex flex-col items-center justify-center gap-0.5 text-center py-1 px-2.5 rounded-md transition-all ${
+            currentView === 'products' ? 'text-brand-600 dark:text-brand-300 font-bold bg-brand-50/60 dark:bg-brand-600/15' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600'
           }`}
         >
           <Package className="w-5 h-5" />
@@ -859,8 +869,8 @@ export default function App() {
         <button
           type="button"
           onClick={() => { setCurrentView('inventory'); setDocToEdit(null); }}
-          className={`flex flex-col items-center justify-center gap-1 text-center py-1 px-3 rounded-xl transition-all ${
-            currentView === 'inventory' ? 'text-sky-600 font-bold bg-sky-50/50' : 'text-slate-400 hover:text-slate-600'
+          className={`flex flex-col items-center justify-center gap-0.5 text-center py-1 px-2.5 rounded-md transition-all ${
+            currentView === 'inventory' ? 'text-brand-600 dark:text-brand-300 font-bold bg-brand-50/60 dark:bg-brand-600/15' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600'
           }`}
         >
           <Database className="w-5 h-5" />
@@ -870,8 +880,8 @@ export default function App() {
         <button
           type="button"
           onClick={() => { setDocToEdit(null); setCurrentView('create'); }}
-          className={`flex flex-col items-center justify-center gap-1 text-center py-1 py-1 px-3 rounded-xl transition-all ${
-            currentView === 'create' && !docToEdit ? 'text-sky-600 font-bold bg-sky-50/50' : 'text-slate-400 hover:text-slate-600'
+          className={`flex flex-col items-center justify-center gap-0.5 text-center py-1 px-2.5 rounded-md transition-all ${
+            currentView === 'create' && !docToEdit ? 'text-brand-600 dark:text-brand-300 font-bold bg-brand-50/60 dark:bg-brand-600/15' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600'
           }`}
         >
           <PlusCircle className="w-5 h-5" />
@@ -881,8 +891,8 @@ export default function App() {
         <button
           type="button"
           onClick={() => { setCurrentView('settings'); setDocToEdit(null); }}
-          className={`flex flex-col items-center justify-center gap-1 text-center py-1 px-3 rounded-xl transition-all ${
-            currentView === 'settings' ? 'text-sky-600 font-bold bg-sky-50/50' : 'text-slate-400 hover:text-slate-600'
+          className={`flex flex-col items-center justify-center gap-0.5 text-center py-1 px-2.5 rounded-md transition-all ${
+            currentView === 'settings' ? 'text-brand-600 dark:text-brand-300 font-bold bg-brand-50/60 dark:bg-brand-600/15' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600'
           }`}
         >
           <Settings className="w-5 h-5" />

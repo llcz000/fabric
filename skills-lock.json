@@ -1,24 +1,6 @@
 {
   "version": 1,
   "skills": {
-    "design-md": {
-      "source": "google-labs-code/stitch-skills",
-      "sourceType": "github",
-      "skillPath": "plugins/stitch-utilities/skills/design-md/SKILL.md",
-      "computedHash": "d3a4c7d2f2715a33662c8b06ffc16035d01965a8b4ed81c2958fb22ae94760f8"
-    },
-    "enhance-prompt": {
-      "source": "google-labs-code/stitch-skills",
-      "sourceType": "github",
-      "skillPath": "plugins/stitch-utilities/skills/enhance-prompt/SKILL.md",
-      "computedHash": "71cc23e9ec5fc6361e12453495fa8c683f6cf26f3efaf9b230b0f43e0a32cc96"
-    },
-    "remotion": {
-      "source": "google-labs-code/stitch-skills",
-      "sourceType": "github",
-      "skillPath": "plugins/stitch-build/skills/remotion/SKILL.md",
-      "computedHash": "a6e000964fe70050b911fd2e2b028733353248571edbfe8da0973bd39cae8185"
-    },
     "shadcn-ui": {
       "source": "google-labs-code/stitch-skills",
       "sourceType": "github",

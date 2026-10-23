@@ -7,6 +7,9 @@ export default defineConfig(() => {
   return {
     plugins: [react(), tailwindcss()],
     resolve: {
+      // UI review builds import the active worktree from the shared root.
+      // Resolve a single React dispatcher for both roots.
+      dedupe: ['react', 'react-dom'],
       alias: {
         '@': path.resolve(__dirname, '.'),
       },
