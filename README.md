@@ -6,6 +6,11 @@
 
 ## 本地运行
 
+日常命令统一从 `D:/fabric` 执行。实际应用源码由
+`docs/project/fabric-v2-active-workspace.json` 定位，当前为
+`.agent-workspaces/v2-quality-20261020`。根目录的 `src/`、`server/`
+是历史保存版本；修改正式应用前先执行 `npm run workspace:status` 查看真实路径。
+
 要求：Node.js LTS、npm；生产数据建议使用 MySQL。
 
 1. 安装依赖：`npm.cmd install`
@@ -16,6 +21,27 @@
 6. 打开 `http://127.0.0.1:3000`
 
 服务缺少 `ADMIN_PASSWORD` 时会拒绝启动，不再使用默认密码。
+
+依赖和 `.env` 应按实际活动目录配置；本机运行数据不随源码整理迁移。
+
+## 提交与临时产物收尾
+
+```powershell
+npm run workspace:status
+npm run workspace:clean
+# 确认预览后，仅清理已退出进程留下的有标记测试编译目录
+npm run workspace:clean -- --apply
+# 在活动目录完成定向验证、现有精确 source-automation accept 和 Git 暂存后
+npm run workspace:commit -- --message "说明本次已审查改动"
+```
+
+提交命令只提交活动目录已经暂存的内容；未暂存文件、源码漂移或 Git 钩子失败都会阻断。
+成功后核对实际提交树和工作区，再更新本地开发清单的 HEAD，保留严格源码校验。
+冻结发布清单不会改写，也不会自动暂存、推送或部署。
+
+`clean` 默认只读，不处理历史日志、截图、发布包、备份、恢复基线或其他工作树。
+历史临时文件按[同一维护记录](docs/maintenance/2026-10-15-项目内容清理.md)逐项治理；
+Git 状态无改动不代表磁盘上的过程产物已完成清理。
 
 ## 验证
 
@@ -49,7 +75,7 @@ npm.cmd run start
 
 ## 产品主数据 V2
 
-三库、权限、面料 xlsx 导入、三种单据和客户选样的需求见 [领域入口](docs/product-master/README.md)，实施与验收见 [当前进度](docs/product-master/product-master-v2-progress.md)。独立 V2 模块已有实现，正式 `src/App.tsx` / `server.ts` 仍使用旧入口；不要把预览或本机测试当作正式上线。
+三库、权限、面料 xlsx 导入、三种单据和客户选样的需求见 [领域入口](docs/product-master/README.md)，实施与验收见 [当前进度](docs/product-master/product-master-v2-progress.md)。实际开发入口跟随活动工作区指针，不能从根目录历史 `src/App.tsx` / `server.ts` 推断当前应用或线上版本。
 
 ## 主要目录
 
