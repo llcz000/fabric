@@ -62,12 +62,20 @@ test('archive gate accepts a verified, superseded historical note with transferr
    plan.entries[0].source=candidate;plan.entries[0].reason='superseded';
    put(candidate,sourceText);
    r=run();
-   assert.equal(r.status,candidate.includes('/plans/2026-')?0:2,'only dated execution plans may enter the same evidence gate: '+candidate+' '+r.stdout);
+   assert.equal(r.status,candidate.includes('/plans/2026-')||candidate.includes('/specs/2026-')?0:2,'dated superseded plans and specs may enter the same evidence gate: '+candidate+' '+r.stdout);
   }
-  for(const candidate of ['docs/operations/2026-10-21-release-result.md','docs/maintenance/2026-10-24-old-audit.md','docs/ui-design/pilot-2026-10-21-result.md','docs/ui-design/product-positioning-2026-10-21.md','docs/ui-design/wechat-card-share-2026-10-21.md','docs/ui-design/one-pass-ui-review-2026-10-21.md']){
+  for(const candidate of ['docs/operations/2026-10-21-release-result.md','docs/maintenance/2026-10-24-old-audit.md','docs/ui-design/pilot-2026-10-21-result.md','docs/ui-design/product-positioning.md','docs/ui-design/wechat-card-share.md','docs/ui-design/ui-page-visual-review.md']){
    plan.entries[0].source=candidate;put(candidate,sourceText);r=run();
-   const normative=/product-positioning|wechat-card-share|one-pass-ui-review/.test(candidate);
+   const normative=/product-positioning|wechat-card-share|ui-page-visual-review/.test(candidate);
    assert.equal(r.status,normative?2:0,'dated process notes share the evidence gate; current UI rules stay protected: '+candidate+' '+r.stdout);
   }
+  const currentState='docs/project/项目现状.md';
+  put(currentState,'# Current\nAuthorized users must be checked again\nFormal API remains unmounted\n');
+  Object.assign(plan.entries[0],{source:'docs/product-master/product-master-v2-progress.md',replacement:currentState,evidence:currentState,
+   retained_facts:[{file:currentState,phrase:'Authorized users must be checked again'}],pending_gates:[{file:currentState,phrase:'Formal API remains unmounted'}]});
+  put(plan.entries[0].source,sourceText);r=run();assert.equal(r.status,0,'only the superseded module index may merge into the canonical current status: '+r.stdout);
+  plan.entries[0].replacement=replacement;r=run();assert.equal(r.status,2,'an unrelated destination cannot retire module status');
+  plan.entries[0].replacement=currentState;plan.entries[0].source='docs/product-master/another-progress.md';
+  put(plan.entries[0].source,sourceText);r=run();assert.equal(r.status,2,'other current status documents remain protected');
  }finally{fs.rmSync(parent,{recursive:true,force:true});}
 });

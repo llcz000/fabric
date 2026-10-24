@@ -14,7 +14,7 @@ const profiles = Object.freeze({
   A: {
     goal: 'P1/B2-5 MySQL schema and isolated verification readiness',
     acceptance: ['AC-71', 'AC-96', 'AC-98', 'AC-99'],
-    contextFiles: ['server/product-master/schema.ts', 'server/customer-samples/schema.ts', 'docs/product-master/product-master-v2-phase1-delivery-readiness.md'],
+    contextFiles: ['server/product-master/schema.ts', 'server/customer-samples/schema.ts', 'server/product-master/schemaContract.ts'],
     ownedPaths: ['scripts/test-v2-b25-mysql.ts', 'server/product-master/schema.ts',
       'server/product-master/colorwayMigrationPreflight.ts',
       'server/product-master/colorwayMigrationPreflight.test.ts',
@@ -46,7 +46,7 @@ const profiles = Object.freeze({
   D: {
     goal: 'P6 order-document selection, snapshot and reference protection',
     acceptance: ['AC-67', 'AC-68', 'AC-64'],
-    contextFiles: ['server/order-v2/lines.ts', 'docs/retrospectives/development/2026-10-14-p7-document-product-lifecycle.md'],
+    contextFiles: ['server/order-v2/lines.ts', 'docs/retrospectives/README.md'],
     ownedPaths: ['server/order-v2/'],
     boundaries: ['已保存历史单据不能依赖客户端标记决定数据真伪', '单据后端与全局装配入口分权'],
   },

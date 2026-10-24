@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {resolve} from 'node:path';
-import {verifyReviewWorkflow,findMissingTrackedDocLinks} from './check-v2-remote-ci.mjs';
+import {verifyReviewWorkflow,findMissingTrackedDocLinks,assertGitTrackedDocLinks} from './check-v2-remote-ci.mjs';
 
 const workflow=readFileSync(new URL('../.github/workflows/fabric-v2-review-build.yml',import.meta.url),'utf8');
 test('review workflow runs locked install, offline checks and artifact-only build without deployment',()=>{
@@ -25,8 +25,7 @@ test('no production environment/secrets/write token, SSH or startup can sneak in
 // A local working tree can contain ignored skills that disappear on Actions checkout.
 test('every relative link from committed docs is also committed, not merely present locally',()=>{
  const root=resolve(fileURLToPath(new URL('..',import.meta.url)));
- const tracked=new Set(execFileSync('git',['ls-files','-z'],{cwd:root}).toString('utf8').split('\0').filter(Boolean));
- assert.deepEqual(findMissingTrackedDocLinks(root,tracked),[]);
+ assert(assertGitTrackedDocLinks(root)>0);
 });
 test('detects ignored but locally present documentation target in a fresh-checkout preflight',()=>{
  const root=resolve(fileURLToPath(new URL('..',import.meta.url)));

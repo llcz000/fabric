@@ -16,10 +16,9 @@ const home='docs/00-首页.md';
 const classification='docs/文档分类与检索.md';
 must('one current business spec and status',()=>{
  has(stage,/product-master-v2-requirements\.md/);
- has(stage,/product-master-v2-progress\.md/);
- const version=/^\|\s*版本\s*\|\s*(v[0-9]+\.[0-9]+)(?:\s|（|\|)/m.exec(read('docs/product-master/product-master-v2-requirements.md'))?.[1];
- assert(version,'Current requirement version absent');
- assert(read(stage).includes('V2唯一需求'+version),'Stage entry requirement version is stale');
+ has(stage,/项目现状\.md/);
+ assert(read(stage).includes('项目需求总览.md'),'Only business authority must be linked');
+ has('docs/product-master/product-master-v2-requirements.md',/本文不是第二份需求规格/);
 });
 must('stage-to-source/test/gate routing',()=>{
  has(home,/阶段任务/);
@@ -51,10 +50,9 @@ must('all stage code/test locators exist',()=>{
 must('current agent source of truth',()=>{
  const guide=read('docs/product-master/product-master-v2-agent-context-handbook.md');
  assert(guide.includes('product-master-v2-requirements.md'),'Current requirement link absent');
- const version=/^\|\s*版本\s*\|\s*(v[0-9]+\.[0-9]+)(?:\s|（|\|)/m.exec(read('docs/product-master/product-master-v2-requirements.md'))?.[1];
- assert(version,'Current requirement version absent');
+ assert(guide.includes('docs/project/项目需求总览.md'),'Guide missing sole business authority');
  for(const match of guide.matchAll(/现行\s*(v[0-9]+\.[0-9]+)/g)){
-  assert(match[1]===version,'Outdated current requirement '+match[1]);
+  throw Error('Outdated current requirement '+match[1]);
  }
  has('docs/development/Fabric并行开发与合并规范.md',/默认单 Agent/);
  has('docs/product-master/product-master-v2-agent-context-handbook.md',/fabric-v2-workspace-freshness/);
@@ -105,6 +103,14 @@ must('current multi-agent orchestrator queue is discoverable and read-only by de
  has('docs/product-master/README.md',/fabric-v2-orchestrator\.mjs/);
  has('docs/project/Fabric-Multi-Agent-Orchestrator-V2.md',/尚未自动调用|尚未自动/);
 });
+must('deprecated project docs are not active sources',()=>{
+  const retired=['docs/product-master/product-master-v2-progress.md',
+    'docs/product-master/product-master-v2-phase1-delivery-readiness.md',
+    'docs/product-master/product-master-v2-stitch-design-review.md',
+    'docs/ui-design/customer-profile-ui-2026-10-23.md',
+    'docs/ui-design/visual-ab-2026-10-21.md'];
+  for(const rel of retired)assert(!fs.existsSync(path.join(root,rel)),'Retired process document was reintroduced: '+rel);
+});
 must('mandatory task-completion archive policy',()=>{
  const archiveRule='docs/maintenance/知识维护规则.md';
  has('AGENTS.md',/强制任务收尾 Gate/);
@@ -120,7 +126,7 @@ must('mandatory task-completion archive policy',()=>{
  has('docs/Templates/开发复盘模板.md',/历史文档归档判定/);
  has('docs/product-master/product-master-v2-agent-context-handbook.md',/每项子任务收尾须给文档判定/);
 });
-must('valid local Markdown destinations and main navigation anchors',()=>{
+must('valid local Markdown destinations and anchors across all project documentation',()=>{
  const sources=[];
  function walk(dir){
   for(const entry of fs.readdirSync(dir,{withFileTypes:true})){
@@ -131,45 +137,58 @@ must('valid local Markdown destinations and main navigation anchors',()=>{
   }
  }
  walk(path.join(root,'docs'));
- let total=0;
+ for(const file of ['AGENTS.md','README.md']){
+  const full=path.join(root,file);
+  if(fs.existsSync(full))sources.push(full);
+ }
+ const sourceSet=new Set(sources.map(f=>path.resolve(f)));
+ const anchorsFor=(file)=>{
+  const content=fs.readFileSync(file,'utf8');
+  const lines=content.split(/\r?\n/);
+  const anchors=new Set(),counts=new Map();
+  let fenced=false;
+  for(const line of lines){
+   if(/^\s*(?:\`\`\`|~~~)/.test(line)){fenced=!fenced;continue;}
+   if(fenced)continue;
+   const heading=line.match(/^#{1,6}\s+(.+?)\s*#*\s*$/);
+   if(heading){
+    const slug=heading[1].toLowerCase().replace(/<[^>]*>/g,'').replace(/[\`*_~]/g,'').replace(/[^\p{L}\p{N}\s-]/gu,'').trim().replace(/\s+/g,'-');
+    const count=counts.get(slug)||0;counts.set(slug,count+1);
+    anchors.add(count?slug+'-'+count:slug);
+   }
+   for(const m of line.matchAll(/<a\s+(?:id|name)=["']([^"']+)["'][^>]*>/gi))anchors.add(m[1]);
+   for(const m of line.matchAll(/\{#([^}]+)\}/g))anchors.add(m[1]);
+  }
+  return {content,anchors};
+ };
+ const cache=new Map(sources.map(f=>[path.resolve(f),anchorsFor(f)]));
+ let total=0,fragmentTotal=0;
  for(const source of sources){
-  const lines=fs.readFileSync(source,'utf8').split(/\r?\n/);
+  const {content}=cache.get(path.resolve(source));
+  const lines=content.split(/\r?\n/);
   let fenced=false;
   for(let n=0;n<lines.length;n++){
    const line=lines[n];
-   if(/^\s*(?:```|~~~)/.test(line)){fenced=!fenced;continue;}
+   if(/^\s*(?:\`\`\`|~~~)/.test(line)){fenced=!fenced;continue;}
    if(fenced)continue;
    for(const match of line.matchAll(/!?\[[^\]]*\]\(([^)]+)\)/g)){
-    const url=match[1].split(/\s+"/)[0];
-    if(/^(?:[a-z][a-z0-9+.-]*:|#)/i.test(url))continue;
-    const [rel]=url.split('#');
+    const url=match[1].split(/\s+"/)[0].trim().replace(/^<|>$/g,'');
+    if(/^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(url))continue;
+    const hash=url.indexOf('#'),rel=hash<0?url:url.slice(0,hash),fragment=hash<0?'':decodeURIComponent(url.slice(hash+1));
     let decoded;try{decoded=decodeURI(rel);}catch{throw Error(source+':'+(n+1)+' bad URL encoding');}
+    const dest=path.resolve(path.dirname(source),decoded||source);
     total++;
-    assert(fs.existsSync(path.resolve(path.dirname(source),decoded)),source+':'+(n+1)+' missing '+rel);
+    assert(fs.existsSync(dest),source+':'+(n+1)+' missing '+(rel||source));
+    if(!fragment)continue;
+    fragmentTotal++;
+    const target=cache.get(dest)|| (dest.endsWith('.md')&&fs.existsSync(dest)?anchorsFor(dest):null);
+    assert(target,source+':'+(n+1)+' anchor target is not a Markdown source: '+url);
+    assert(target.anchors.has(fragment),source+':'+(n+1)+' broken heading anchor '+url);
    }
   }
  }
- assert(total>0&&[home,stage].every(file=>sources.includes(path.join(root,file))),'Current navigation entrypoints were not scanned');
- const slug=(s)=>s.toLowerCase().replace(/[`*_]/g,'').replace(/[^\p{L}\p{N}\s-]/gu,'').trim().replace(/\s+/g,'-');
- for(const file of [home,stage,'docs/retrospectives/README.md','docs/development/开发与验证规范.md']){
-  for(const match of read(file).matchAll(/\]\(([^)]*#[^)]*)\)/g)){
-   if(match[1].includes('://'))continue;
-   const [rel,fragment]=match[1].split('#');
-   if(!fragment)continue;
-   const dest=path.resolve(path.dirname(path.join(root,file)),decodeURI(rel));
-   if(!fs.existsSync(dest))continue;
-   const content=read(path.relative(root,dest));
-   const headings=content.split(/\r?\n/)
-    .filter(x=>/^#{1,6} /.test(x)).map(x=>slug(x.replace(/^#{1,6} /,'')));
-   // The canonical project overview uses explicit GitHub-compatible anchors
-   // (e.g. <a id="roles"></a>). They are valid links, not heading slugs.
-   const explicit=[...content.matchAll(/<a\s+id=["']([a-z][a-z0-9-]{0,80})["']\s*>\s*<\/a>/gi)]
-    .map(x=>x[1]);
-   assert([...headings,...explicit].includes(decodeURIComponent(fragment)),
-    file+' broken heading anchor '+match[1]);
-  }
- }
- console.log('Checked '+sources.length+' documentation files and '+total+' local links');
+ assert(total>0&&sourceSet.has(path.join(root,home))&&sourceSet.has(path.join(root,stage))&&sourceSet.has(path.join(root,'AGENTS.md')),'Required documentation entrypoints were not scanned');
+ console.log('Checked '+sources.length+' Markdown files, '+total+' local links and '+fragmentTotal+' anchors');
 });
 for(const check of checks)console.log((check.ok?'PASS ':'FAIL ')+check.name+(check.reason?': '+check.reason:''));
 if(checks.some(x=>!x.ok))process.exitCode=1;

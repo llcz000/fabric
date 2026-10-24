@@ -22,7 +22,7 @@ const owners=['backend','frontend','qa','integration'];
 const activeStates=new Set(['reserved_not_dispatched','agent_running','submitted_for_review']);
 const validStates=new Set([...activeStates,'blocked','reviewed']);
 const protectedFiles=new Set(['server.ts','src/App.tsx','AGENTS.md','server/product-master/v2CatalogAssembly.ts',
- 'docs/project/项目需求总览.md','docs/product-master/product-master-v2-progress.md']);
+ 'docs/project/项目需求总览.md','docs/project/项目现状.md']);
 const hash=data=>createHash('sha256').update(data).digest('hex');
 const reject=message=>{throw Error('Orchestrator refused: '+message)};
 const safeId=id=>typeof id==='string'&&/^[a-z][a-z0-9-]{2,60}$/.test(id);

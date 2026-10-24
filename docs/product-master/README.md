@@ -1,12 +1,12 @@
 # 产品主数据｜需求与代码速查
 
-**现行唯一基线**：[项目需求总览](../project/项目需求总览.md) + [V2唯一需求v1.53](product-master-v2-requirements.md)。项目正式运行状态只看[项目现状](../project/项目现状.md)，V2阶段汇总看[模块进度](product-master-v2-progress.md)，P1～P7/B1～B3在本页按源码入口查；旧阶段实施计划不再作为开发任务；阶段实现/审计原文已由[技术契约](../project/数据与API.md)承接并移出日常目录。
+**唯一业务需求**：[项目需求总览](../project/项目需求总览.md)；[V2 AC 验收清单](product-master-v2-requirements.md)仅保留测试场景，不再维护第二套业务规则。项目正式运行状态只看[项目现状](../project/项目现状.md)，阶段源码定位只看本页，P1～P7/B1～B3在本页按源码入口查；旧阶段实施计划不再作为开发任务；阶段实现/审计原文已由[技术契约](../project/数据与API.md)承接并移出日常目录。
 
 ## 业务功能直达
 
 | 功能 | 最新需求 / 代码 |
 |---|---|
-| 花型、数字配色、面料、产品与图片 | [V2需求](product-master-v2-requirements.md)、`server/product-master/` |
+| 花型、数字配色、面料、产品与图片 | [唯一业务需求](../project/项目需求总览.md)及[AC用例](product-master-v2-requirements.md)、`server/product-master/` |
 | 花型文件夹/多文件导入与面料xlsx | [需求EX-03～06](../project/项目需求总览.md#import-export) |
 | 三种单据与选品、计算/打印 | [需求DOC/OUTPUT](../project/项目需求总览.md#documents)、`server/order-v2/` |
 | 色卡、选样、扫码、公开H5 | [需求V2-08～15](../project/项目需求总览.md#v2-selection)、`server/customer-samples/`、`server/customer-share/` |

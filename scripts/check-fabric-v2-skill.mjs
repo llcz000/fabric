@@ -30,8 +30,8 @@ check('current documentation links', () => {
   const expected = [
     'docs/product-master/README.md',
     'docs/product-master/product-master-v2-requirements.md',
-    'docs/superpowers/specs/2026-10-12-product-master-v2-architecture.md',
-    'docs/superpowers/plans/2026-10-12-product-master-v2-implementation.md',
+    'docs/project/项目设计.md',
+    'docs/project/数据与API.md',
     'docs/development/开发与验证规范.md',
     'docs/retrospectives/README.md',
   ];
@@ -52,7 +52,7 @@ check('product and review gates', () => {
     [/旧.*手工|历史.*明细/, 'legacy lines'],
     [/权限/, 'server auth'],
     [/P0.*P7/s, 'phase gates'],
-    [/待审|未批准/, 'unapproved items'],
+    [/knowledge:check/, 'single-authority knowledge gate'],
     [/测试.*证据|验证.*证据/, 'test evidence'],
     [/未.*部署|不得.*部署/, 'no implied deploy'],
   ]) contains(skill, pattern, 'missing ' + label);
@@ -89,12 +89,19 @@ check('core skills and Git sharing', () => {
     if (ignored.status !== 1) throw new Error('git check-ignore failed: ' + rel);
   }
 });
-check('pressure scenario coverage', () => {
-  const cases = read('docs/product-master/fabric-v2-skill-pressure-scenarios.md');
-  for (const id of ['S1', 'S2', 'S3', 'S4', 'S5']) {
-    contains(cases, new RegExp('^### ' + id + '\\b', 'm'), 'missing ' + id);
+check('current source safety and historical constraints', () => {
+  const contract = read('docs/project/数据与API.md');
+  const design = read('docs/project/项目设计.md');
+  const workflow = read('docs/product-master/product-master-v2-ui-iteration-workflow.md');
+  for (const phrase of ['同一物理连接', '旧码', '历史', '公开']) {
+    if (!contract.includes(phrase)) throw Error('Missing retained technical constraint: ' + phrase);
+  }
+  if (!design.includes('MySQL')) throw Error('Missing active database architecture');
+  for (const id of ['8a6e9e4e58e5447f8fd5394e7a6de9f5', 'bab4de3e72cd44ffa4cdd4d5ff0e311c']) {
+    if (!workflow.includes(id)) throw Error('Original Stitch approval ID not retained: ' + id);
   }
 });
+
 if (failures.length) {
   console.error('\nFabric V2 skill contract: ' + failures.length + ' failure(s)');
   process.exitCode = 1;

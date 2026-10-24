@@ -24,6 +24,8 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund
+      - name: Reject duplicate business requirements and document debris
+        run: npm run knowledge:check
       - name: All existing and third-batch business unit contracts
         run: npm run test:unit
       - name: Build unchanged legacy app

@@ -2,10 +2,8 @@
   "workspace": ".",
   "baselineHead": "4f56b152a1ef3e8ee7079bf47c6c77b0cb4881b1",
   "sourceManifest": "artifacts/workspace-preservation-20261023/source-manifest.json",
-  "note": "Released 2026-10-20 21:25 Asia/Shanghai: folder/multiple-file import, light customer profiles and sample-card sharing. Real MySQL restore rehearsal and eight additive tables verified; server 16 and independent public 21 checks passed. Artifact 6a6a36b96558c0b65d044d5ae25c71bc0af8aabf8126809416d70418ac024f5e. No full suite per user; browser/WeChat acceptance pending.",
   "releaseTool": "scripts/fabric-release.mjs",
   "releaseToolGuide": "docs/operations/统一发布工具.md",
-  "developmentNote": "2026-10-23 product batch selection limit crash fix released and verified; user explicitly accepted production regression in chat on 2026-10-23. This bug is closed; other feature acceptance is unchanged.",
   "currentRelease": {
     "id": "20261023t095703554-2938438a",
     "utc": "2026-10-23T09:59:50.362Z",

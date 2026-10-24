@@ -18,10 +18,10 @@ const docs=[
  'docs/ui-design/design-system.md',
  'docs/ui-design/component-rules.md',
  'docs/ui-design/ui-review-checklist.md',
- 'docs/ui-design/product-positioning-2026-10-21.md',
- 'docs/ui-design/one-pass-ui-review-2026-10-21.md',
+ 'docs/ui-design/product-positioning.md',
+ 'docs/ui-design/ui-page-visual-review.md',
  'docs/ui-design/ux-delivery-gate.md',
- 'docs/ui-design/wechat-card-share-2026-10-21.md',
+ 'docs/ui-design/wechat-card-share.md',
 ];
 const skills=['fabric-ui-design','fabric-ui-ux-qa','ui-ux-pro-max','frontend-design','web-design-guidelines'];
 const checksum=b=>createHash('sha256').update(b).digest('hex');

@@ -1,0 +1,396 @@
+{
+  "format": "fabric-knowledge-registry-v1",
+  "canonicalRequirementFile": "docs/project/项目需求总览.md",
+  "acceptanceFile": "docs/product-master/product-master-v2-requirements.md",
+  "documents": [
+    {
+      "path": "docs/00-首页.md",
+      "role": "navigation",
+      "owner": "all",
+      "purpose": "当前长期有效的navigation知识"
+    },
+    {
+      "path": "docs/文档分类与检索.md",
+      "role": "navigation",
+      "owner": "all",
+      "purpose": "当前长期有效的navigation知识"
+    },
+    {
+      "path": "docs/project/项目需求总览.md",
+      "role": "business",
+      "owner": "all",
+      "purpose": "唯一业务条款"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-requirements.md",
+      "role": "acceptance",
+      "owner": "catalog",
+      "purpose": "产品主数据补充验收，不重复定义业务"
+    },
+    {
+      "path": "docs/project/项目设计.md",
+      "role": "architecture",
+      "owner": "all",
+      "purpose": "当前长期有效的architecture知识"
+    },
+    {
+      "path": "docs/project/数据与API.md",
+      "role": "architecture",
+      "owner": "all",
+      "purpose": "当前长期有效的architecture知识"
+    },
+    {
+      "path": "docs/project/项目现状.md",
+      "role": "status",
+      "owner": "all",
+      "purpose": "当前长期有效的status知识"
+    },
+    {
+      "path": "docs/project/Fabric-Multi-Agent-Orchestrator-V2.md",
+      "role": "procedure",
+      "owner": "development",
+      "purpose": "当前长期有效的procedure知识"
+    },
+    {
+      "path": "docs/product-master/README.md",
+      "role": "navigation",
+      "owner": "catalog",
+      "purpose": "当前长期有效的navigation知识"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-agent-context-handbook.md",
+      "role": "procedure",
+      "owner": "development",
+      "purpose": "当前长期有效的procedure知识"
+    },
+    {
+      "path": "docs/product-master/product-master-v2-ui-iteration-workflow.md",
+      "role": "procedure",
+      "owner": "ui",
+      "purpose": "当前长期有效的procedure知识"
+    },
+    {
+      "path": "docs/development/开发与验证规范.md",
+      "role": "procedure",
+      "owner": "development",
+      "purpose": "当前长期有效的procedure知识"
+    },
+    {
+      "path": "docs/development/Fabric并行开发与合并规范.md",
+      "role": "procedure",
+      "owner": "development",
+      "purpose": "当前长期有效的procedure知识"
+    },
+    {
+      "path": "docs/maintenance/知识维护规则.md",
+      "role": "policy",
+      "owner": "governance",
+      "purpose": "当前长期有效的policy知识"
+    },
+    {
+      "path": "docs/maintenance/文档整合与恢复.md",
+      "role": "procedure",
+      "owner": "governance",
+      "purpose": "当前长期有效的procedure知识"
+    },
+    {
+      "path": "docs/operations/统一发布工具.md",
+      "role": "procedure",
+      "owner": "operations",
+      "purpose": "当前长期有效的procedure知识"
+    },
+    {
+      "path": "docs/operations/运行与部署.md",
+      "role": "procedure",
+      "owner": "operations",
+      "purpose": "当前长期有效的procedure知识"
+    },
+    {
+      "path": "docs/operations/image-asset-operations.md",
+      "role": "procedure",
+      "owner": "assets",
+      "purpose": "当前长期有效的procedure知识"
+    },
+    {
+      "path": "docs/operations/fabric-v2-remote-build-and-deploy-gates.md",
+      "role": "procedure",
+      "owner": "operations",
+      "purpose": "当前长期有效的procedure知识"
+    },
+    {
+      "path": "docs/retrospectives/README.md",
+      "role": "reference",
+      "owner": "development",
+      "purpose": "当前长期有效的reference知识"
+    },
+    {
+      "path": "docs/Templates/决策记录模板.md",
+      "role": "template",
+      "owner": "governance",
+      "purpose": "当前长期有效的template知识"
+    },
+    {
+      "path": "docs/Templates/开发复盘模板.md",
+      "role": "template",
+      "owner": "governance",
+      "purpose": "当前长期有效的template知识"
+    },
+    {
+      "path": "docs/ui-design/README.md",
+      "role": "navigation",
+      "owner": "ui",
+      "purpose": "当前长期有效的navigation知识"
+    },
+    {
+      "path": "docs/ui-design/design-system.md",
+      "role": "reference",
+      "owner": "ui",
+      "purpose": "当前长期有效的reference知识"
+    },
+    {
+      "path": "docs/ui-design/component-rules.md",
+      "role": "reference",
+      "owner": "ui",
+      "purpose": "当前长期有效的reference知识"
+    },
+    {
+      "path": "docs/ui-design/ui-review-checklist.md",
+      "role": "procedure",
+      "owner": "ui",
+      "purpose": "当前长期有效的procedure知识"
+    },
+    {
+      "path": "docs/ui-design/ux-delivery-gate.md",
+      "role": "procedure",
+      "owner": "ui",
+      "purpose": "当前长期有效的procedure知识"
+    },
+    {
+      "path": "docs/ui-design/collaboration-workflow.md",
+      "role": "procedure",
+      "owner": "ui",
+      "purpose": "当前长期有效的procedure知识"
+    },
+    {
+      "path": "docs/ui-design/ui-page-visual-review.md",
+      "role": "procedure",
+      "owner": "ui",
+      "purpose": "当前长期有效的procedure知识"
+    },
+    {
+      "path": "docs/ui-design/product-positioning.md",
+      "role": "reference",
+      "owner": "ui",
+      "purpose": "当前长期有效的reference知识"
+    },
+    {
+      "path": "docs/ui-design/wechat-card-share.md",
+      "role": "reference",
+      "owner": "cards",
+      "purpose": "当前长期有效的reference知识"
+    }
+  ],
+  "domains": [
+    {
+      "id": "access",
+      "name": "账户与权限",
+      "req": [
+        "AUTH-*",
+        "SCAN-01",
+        "LITE-03"
+      ],
+      "source": [
+        "server/access",
+        "server/audit"
+      ],
+      "docs": [
+        "docs/project/数据与API.md",
+        "docs/development/开发与验证规范.md"
+      ]
+    },
+    {
+      "id": "catalog",
+      "name": "花型/配色/产品主数据",
+      "req": [
+        "PAT-*",
+        "PRD-*",
+        "V2-01",
+        "V2-02",
+        "V2-03",
+        "V2-05",
+        "EX-03",
+        "EX-04",
+        "EX-05",
+        "LITE-01",
+        "LITE-02"
+      ],
+      "source": [
+        "server/product-master",
+        "src/components/product-master-v2"
+      ],
+      "docs": [
+        "docs/product-master/product-master-v2-requirements.md",
+        "docs/ui-design/component-rules.md"
+      ]
+    },
+    {
+      "id": "fabric",
+      "name": "面料与Excel导入",
+      "req": [
+        "V2-04",
+        "EX-01",
+        "EX-02",
+        "EX-06"
+      ],
+      "source": [
+        "server/product-master",
+        "src/components/product-master-v2"
+      ],
+      "docs": [
+        "docs/product-master/product-master-v2-requirements.md",
+        "docs/operations/image-asset-operations.md"
+      ]
+    },
+    {
+      "id": "order",
+      "name": "三类单据/计算/打印/查询",
+      "req": [
+        "DOC-*",
+        "QUERY-*",
+        "COMPANY-01",
+        "OUTPUT-01",
+        "V2-06",
+        "V2-07",
+        "LITE-04"
+      ],
+      "source": [
+        "server/order-v2",
+        "src/components/document-product-selector",
+        "src/components/DocumentPreview.tsx"
+      ],
+      "docs": [
+        "docs/project/数据与API.md",
+        "docs/ui-design/component-rules.md"
+      ]
+    },
+    {
+      "id": "cards",
+      "name": "色卡/内部扫码/公开分享",
+      "req": [
+        "V2-08",
+        "V2-09",
+        "V2-10",
+        "V2-11",
+        "V2-12",
+        "V2-13",
+        "V2-14",
+        "V2-15",
+        "SCAN-01",
+        "LITE-06"
+      ],
+      "source": [
+        "server/customer-samples",
+        "server/customer-share",
+        "src/components/customer-share"
+      ],
+      "docs": [
+        "docs/ui-design/wechat-card-share.md",
+        "docs/project/数据与API.md"
+      ]
+    },
+    {
+      "id": "customers",
+      "name": "客户/反馈/回访",
+      "req": [
+        "CUSTOMER-*",
+        "FOLLOW-01",
+        "LITE-05"
+      ],
+      "source": [
+        "server/customers",
+        "src/components/customers"
+      ],
+      "docs": [
+        "docs/project/项目设计.md",
+        "docs/ui-design/component-rules.md"
+      ]
+    },
+    {
+      "id": "inventory",
+      "name": "库存（未排期）",
+      "req": [
+        "STOCK-*"
+      ],
+      "source": [],
+      "docs": [
+        "docs/project/项目现状.md"
+      ],
+      "planned": true
+    },
+    {
+      "id": "analytics",
+      "name": "经营统计",
+      "req": [
+        "STATS-*",
+        "CUSTOMER-07"
+      ],
+      "source": [
+        "server/order-v2"
+      ],
+      "docs": [
+        "docs/project/项目现状.md"
+      ]
+    },
+    {
+      "id": "assets",
+      "name": "图像资产/上传",
+      "req": [
+        "IMAGE-*",
+        "DATA-01",
+        "V2-02"
+      ],
+      "source": [
+        "server/image-assets"
+      ],
+      "docs": [
+        "docs/operations/image-asset-operations.md",
+        "docs/project/数据与API.md"
+      ]
+    },
+    {
+      "id": "ui",
+      "name": "统一UI与交互",
+      "req": [
+        "UI-*",
+        "PRD-05",
+        "PRD-06",
+        "PRD-07"
+      ],
+      "source": [
+        "src/components/ui",
+        "src/App.tsx"
+      ],
+      "docs": [
+        "docs/ui-design/README.md",
+        "docs/ui-design/ux-delivery-gate.md"
+      ]
+    },
+    {
+      "id": "operations",
+      "name": "可靠性/安全/部署",
+      "req": [
+        "PERF-*",
+        "REL-*",
+        "LITE-03"
+      ],
+      "source": [
+        "scripts/release",
+        "scripts/fabric-release.mjs"
+      ],
+      "docs": [
+        "docs/operations/运行与部署.md",
+        "docs/operations/统一发布工具.md"
+      ]
+    }
+  ]
+}

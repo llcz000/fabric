@@ -9,8 +9,7 @@ const root = process.cwd();
 const gate = fs.readFileSync(path.join(root, 'scripts/check-product-master-v2-p0.mjs'), 'utf8')
   .replace(/^import .*;\r?\n/gm, '');
 const requirements = 'docs/product-master/product-master-v2-requirements.md';
-const register = 'docs/product-master/product-master-v2-stitch-design-review.md';
-const progress = 'docs/product-master/product-master-v2-progress.md';
+const register = 'docs/product-master/product-master-v2-ui-iteration-workflow.md';
 const current = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
 function run(overrides = {}, source=gate, directoryListing=fs.readdirSync) {
@@ -38,18 +37,19 @@ test('current specifications need no historical revision prose when linked appro
 });
 
 test('a historical version string cannot replace the link to current UI evidence', () => {
-  const withoutLink = current(requirements).replaceAll('product-master-v2-stitch-design-review.md', 'unrelated-ui.md');
+  const withoutLink = current(requirements).replaceAll('product-master-v2-ui-iteration-workflow.md', 'unrelated-ui.md');
   const result = run({ [requirements]: withoutLink + '\nv1.38\n' });
   assert.equal(result.status, 1, result.output);
 });
 
 test('pending or missing approved screen still rejects the gate', () => {
-  const result = run({ [register]: current(register).replace(/UI已确认/, 'UI待确认') });
+  const result = run({ [register]: current(register).replace('8a6e9e4e58e5447f8fd5394e7a6de9f5', 'missing-original-approval') });
   assert.equal(result.status, 1, result.output);
 });
 
 test('current xlsx-only scope cannot be replaced by the old dual-format approval', () => {
-  const result = run({ [requirements]: current(requirements).replace('仅支持 `.xlsx`', '同时支持 `.xlsx` 和 `.xls`') });
+  const file='docs/project/项目需求总览.md';
+  const result = run({ [file]: current(file).replace('不支持 `.xls`', '支持 `.xls`') });
   assert.match(result.output, /FAIL current format and acceptance boundaries/);
 });
 
@@ -92,7 +92,7 @@ test('navigation follows current requirement links without requiring an old vers
 test('navigation rejects an obsolete specification presented as current',()=>{
   const source=current('scripts/check-fabric-v2-doc-navigation.mjs').replace(/^import .*;\r?\n/gm,'');
   const file='docs/product-master/product-master-v2-agent-context-handbook.md';
-  const result=run({[file]:current(file).replace('不替代现行业务需求','不替代现行v1.50业务需求')},source);
+  const result=run({[file]:current(file) + '\n现行v1.50业务需求'},source);
   assert.match(result.output,/FAIL current agent source of truth: Outdated current requirement/);
 });
 
@@ -119,4 +119,14 @@ test('navigation validates a compact current index without a historical link-cou
     return relative==='docs'?['00-首页.md','product-master'].includes(entry.name):entry.name==='README.md';
   });
   const result=run({},source,listing);assert.equal(result.status,0,result.output);
+});
+
+test('retired delivery prose is not required when its contract is in operations',()=>{
+  const result=run({'docs/product-master/product-master-v2-phase1-delivery-readiness.md':''});
+  assert.equal(result.status,0,result.output);
+});
+
+test('current operations must keep explicit authorization and proof integrity',()=>{
+  const result=run({'docs/operations/运行与部署.md':''});
+  assert.equal(result.status,1,result.output);
 });

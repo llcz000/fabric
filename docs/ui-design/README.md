@@ -8,10 +8,10 @@
 |---|---|
 | 视觉、间距、列宽、行密度 | [design-system](design-system.md) |
 | 搜索、多选、上传、弹窗、关闭/取消/错误处理、草稿保护 | [component-rules](component-rules.md) |
-| 产品内外定位：内部高效操作；客户公开链接展示图片 | [product-positioning](product-positioning-2026-10-21.md) |
-| 微信 H5 分享、手机滚动和大图 | [wechat-card-share](wechat-card-share-2026-10-21.md) |
-| 一轮完成组件 + 页面 + 浏览器核验 | [one-pass-ui-review](one-pass-ui-review-2026-10-21.md) |
-| 验收清单与最低证据 | [ui-review-checklist](ui-review-checklist.md) 与 [ux-delivery-gate](ux-delivery-gate.md) |
+| 产品内外定位：内部高效操作；客户公开链接展示图片 | [product-positioning](product-positioning.md) |
+| 微信 H5 分享、手机滚动和大图 | [wechat-card-share](wechat-card-share.md) |
+| 一轮完成组件 + 页面 + 浏览器核验 | [实际页面视觉复查方法](ui-page-visual-review.md) |
+| 验收清单与最低证据 | [UI检查项](ui-review-checklist.md) 与 [唯一UI交付门禁](ux-delivery-gate.md) |
 | WebCodex/ACP 交接 | [collaboration-workflow](collaboration-workflow.md) |
 
 **强制区分**：工程测试通过、浏览器交互通过、人工视觉通过、生产发布是四种不同结论。新UI使用实际正式React组件；用户允许低效时弃用Stitch，只有明确使用远程画布才另做画布审查。

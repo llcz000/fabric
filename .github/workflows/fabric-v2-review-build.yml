@@ -30,6 +30,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       - name: Node 24 with npm cache
         uses: actions/setup-node@v4
@@ -98,6 +99,13 @@ jobs:
 
       - name: Documentation and code evidence links
         run: node scripts/check-fabric-v2-doc-navigation.mjs
+
+      - name: Knowledge authority, topology and no-document-junk gate
+        run: npm run knowledge:check
+
+      - name: Pull request knowledge change impact (review candidates)
+        if: github.event_name == 'pull_request'
+        run: node scripts/fabric-knowledge-graph.mjs changed --base ${{ github.event.pull_request.base.sha }}
 
       - name: Compile frontend and backend (never start server)
         run: npm run build

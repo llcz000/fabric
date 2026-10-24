@@ -19,7 +19,7 @@ const topFiles=['AGENTS.md','package.json','package-lock.json','tsconfig.json','
 const skipDirs=new Set(['node_modules','.git','dist','build','coverage','tmp','artifacts','outputs',
  'uploads','.next','.cache','test-results','playwright-report','backups','fixtures-media']);
 const supervisorOnly=['AGENTS.md','server.ts','src/App.tsx','server/product-master/v2CatalogAssembly.ts',
- 'docs/product-master/product-master-v2-progress.md','scripts/fabric-v2-agent-brief.mjs'];
+ 'docs/project/项目现状.md','scripts/fabric-v2-agent-brief.mjs'];
 const sha=b=>createHash('sha256').update(b).digest('hex');
 function fail(message){throw Error(message);}
 function safeRel(rel){

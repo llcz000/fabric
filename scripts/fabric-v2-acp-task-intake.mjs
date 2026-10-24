@@ -18,7 +18,7 @@ const ROOTS=['server/','src/','scripts/','docs/product-master/','docs/developmen
 const MAX_BYTES=600_000;
 const protectedEdit=new Set(['AGENTS.md','server.ts','src/App.tsx',
  'server/product-master/v2CatalogAssembly.ts',
- 'docs/product-master/product-master-v2-progress.md',
+ 'docs/project/项目现状.md',
  'docs/product-master/product-master-v2-requirements.md']);
 const hash=buf=>createHash('sha256').update(buf).digest('hex');
 function cleanRel(value){

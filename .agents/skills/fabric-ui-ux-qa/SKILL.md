@@ -4,7 +4,7 @@ description: Use for Fabric UI feature implementation, interaction quality revie
 ---
 
 # Fabric UI/UX QA Gate
-Start by classifying the screen against `docs/ui-design/product-positioning-2026-10-21.md`: all Fabric business workspaces are **internal productivity UI**; only a color-card public share link is **customer presentation UI**. For internal changes prioritize task steps, density, continuity and minimal regression scope. A/B visual prototypes are optional for major redesigns, not mandatory for routine feature work.
+Start by classifying the screen against `docs/ui-design/product-positioning.md`: all Fabric business workspaces are **internal productivity UI**; only a color-card public share link is **customer presentation UI**. For internal changes prioritize task steps, density, continuity and minimal regression scope. A/B visual prototypes are optional for major redesigns, not mandatory for routine feature work.
 
 Read `docs/ui-design/ux-delivery-gate.md` and `docs/ui-design/ui-review-checklist.md` plus current related business requirements. The UI UX Pro Max, Web Interface Guidelines and Fabric UI Design skills provide guidance; passing a lint/build alone does not prove UX.
 

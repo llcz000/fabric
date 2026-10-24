@@ -55,10 +55,21 @@ function evaluate(entry,excluded){
      /^docs\/retrospectives\/development\/[^/]+\.md$/.test(s)||
      /^docs\/superpowers\/plans\/\d{4}-\d{2}-\d{2}-[^/]+\.md$/.test(s)||
      /^docs\/(?:operations|maintenance)\/\d{4}-\d{2}-\d{2}-[^/]+\.md$/.test(s)||
-     /^docs\/ui-design\/[^/]+-\d{4}-\d{2}-\d{2}(?:-[^/]+)?\.md$/.test(s)))fail('Not a process-history document: '+s);
- if(['product-positioning-2026-10-21.md','wechat-card-share-2026-10-21.md','one-pass-ui-review-2026-10-21.md'].some(name=>s==='docs/ui-design/'+name))
+     /^docs\/ui-design\/[^/]+-\d{4}-\d{2}-\d{2}(?:-[^/]+)?\.md$/.test(s)||
+     /^docs\/superpowers\/specs\/\d{4}-\d{2}-\d{2}-[^/]+\.md$/.test(s)||
+     ['docs/decisions/README.md','docs/solutions/architecture-patterns/fabric-dms-architecture-audit.md',
+      'docs/solutions/architecture-patterns/image-asset-operations.md',
+      'docs/ui-design/project-structure-audit.md'].includes(s)))fail('Not a process-history document: '+s);
+ if(['product-positioning.md','wechat-card-share.md','ui-page-visual-review.md'].some(name=>s==='docs/ui-design/'+name))
   fail('Protected current UI rule: '+s);
- if(/\/README\.md$|requirements\.md$|progress\.md$|approved-decisions\.md$/.test(s))
+ const retiredModuleIndex=s==='docs/product-master/product-master-v2-progress.md'&&
+  entry.reason==='superseded'&&entry.replacement==='docs/project/项目现状.md';
+ const mergedDecision=s==='docs/product-master/product-master-v2-b2-5-approved-decisions.md'&&
+  entry.reason==='superseded'&&entry.replacement==='docs/project/数据与API.md';
+ const retiredDecisionIndex=s==='docs/decisions/README.md'&&
+  entry.reason==='superseded'&&entry.replacement==='docs/project/项目设计.md';
+ if(/\/README\.md$|requirements\.md$|progress\.md$|approved-decisions\.md$/.test(s)&&
+    !retiredModuleIndex&&!mergedDecision&&!retiredDecisionIndex)
   fail('Protected business/decision/status document: '+s);
  if(!fs.existsSync(documentPath(s)))fail('Original is missing; review before removal: '+s);
  if(entry.reason!=='superseded'&&entry.reason!=='fully_accepted')fail('Explicit archive reason required: '+s);

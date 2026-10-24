@@ -90,9 +90,13 @@ export function findMissingTrackedDocLinks(root,trackedFiles){
 
 export function assertGitTrackedDocLinks(root){
  const files=execFileSync('git',['ls-files','--cached','-z'],{cwd:root}).toString('utf8').split('\0').filter(Boolean);
- const missing=findMissingTrackedDocLinks(root,new Set(files));
+ // A pending deliberate deletion is absent from the next checkout once committed;
+ // treat it as absent now, but reject any surviving Markdown link to it.
+ const removed=new Set(execFileSync('git',['ls-files','--deleted','-z'],{cwd:root}).toString('utf8').split('\0').filter(Boolean));
+ const futureFiles=new Set(files.filter(file=>!removed.has(file)));
+ const missing=findMissingTrackedDocLinks(root,futureFiles);
  assert.deepEqual(missing,[],'GitHub checkout would miss linked documentation:\n'+missing.join('\n'));
- return files.length;
+ return futureFiles.size;
 }
 
 const invoked=process.argv[1] && resolve(process.argv[1])===fileURLToPath(import.meta.url);
