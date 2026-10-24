@@ -43,7 +43,7 @@ check('current documentation links', () => {
 check('product and review gates', () => {
   const skill = read(skillRel);
   for (const [pattern, label] of [
-    [/12\s*列/, '12 columns'],
+    [/产品列数和顺序以最新需求及正式组件为准/, 'current column authority'],
     [/备注/, 'product remark'],
     [/Stitch/, 'live UI'],
     [/MySQL/, 'MySQL'],

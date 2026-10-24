@@ -16,12 +16,12 @@
 
 ## 工程级 UI Gate 接线（2026-10-21）
 
-已在活动发布器 `scripts/release/cli.mjs` 的普通 `prepare` 中接入按源码变更识别的 UI Gate：浏览器前端源码更改时，必须先有同版本两张以上页面/弹窗实际截图、评审记录与前次已核验发布版本一致的证据，然后在构建前重跑 `npm run test:ui:ux`；纯后端变更跳过，避免拖累普通迭代。证据保存在新制品中；没有用户签收的 UI 审查不能自动伪称签收。详细命令和边界见 [统一发布工具](../operations/统一发布工具.md#2026-10-21-ui-质量门禁已接入-prepare不触发自动部署)，实际候选样例见 [面料库 UI](README.md)。
+已在活动发布器 `scripts/release/cli.mjs` 的普通 `prepare` 中接入按源码变更识别的 UI Gate：浏览器前端源码更改时，必须先有同版本两张以上页面/弹窗实际截图、评审记录与前次已核验发布版本一致的证据，然后在构建前重跑 `npm run test:ui:ux`；纯后端变更跳过，避免拖累普通迭代。证据保存在新制品中；没有用户签收的 UI 审查不能自动伪称签收。详细命令和边界见 [统一发布工具](../operations/统一发布工具.md#源码批准与-ui-专项)，实际候选样例见 [面料库 UI](README.md)。
 
 
 ## 新会话强制检查与单轮完成门禁（2026-10-22）
 
-**唯一规范来源**：共享根目录 `D:\\fabric` 的本文件、`one-pass-ui-review-2026-10-21.md`、`ui-review-checklist.md`、相关设计规范与项目技能。活动工作区由 `docs/project/fabric-v2-active-workspace.json` 指定；根目录旧业务代码不是开发目标。规范文件和技能以 SHA256 与活动工作区逐文件核对，不能以聊天记忆或旧工作区副本替代。
+**唯一规范来源**：`D:/fabric` 的本文件、相关 UI 规范和项目技能；当前 workspace 为 `.`，根目录就是正式业务源码。preflight 按实际指针和 SHA256 核验，禁止凭旧内嵌工作区路径判断源码归属。
 
 1. **每次新开会话/UI任务编码前**，在根目录或活动工作区执行 `npm run ui:preflight`；检查失败为 NO-GO。只有明确允许的 `npm run ui:preflight -- --sync` 会从根目录同步指定 UI 规范和技能，再重跑普通只读检查；不覆盖业务源码/客户数据。同步后实际加载 `fabric-ui-design`、`fabric-ui-ux-qa`，重大视觉调整按需加载专家设计技能。工具不可用时说明并采用规范回退，不能虚报已加载。
 2. **正式组件同轮评审**：先核对现有已验收页面，完成目标页面/全部受影响弹窗与必要错误/空态；分别审查 1440px 桌面与 360px 窄屏，保留实际正式 CSS 的截图。Playwright 测主路径、取消、Esc、焦点、失效和未保存草稿；受影响功能做定向 TS/单测，正式前端 build。不能只验自己新增的孤立样板或用 build PASS 代替设计审美。
@@ -30,7 +30,7 @@
 5. **任务完成前**执行 `npm run ui:verify`。它验证规范/技能 SHA、候选与已发布清单的 UI 变更范围、UI 文件 SHA、截图/浏览器/工程证据及状态，缺失/过期/FAIL 一律 NO-GO。脚本仅可将工作流标为本地候选已检，不会代替用户签收，报告 `userAcceptance` 必须保持 pending 或 not-attested-by-tool，`releaseReady=false`。
 6. **发布前**现有统一发布器 `scripts/release/cli.mjs prepare` 另行强制运行只读 preflight，以及 UI 变更时的 `ui:verify`；沿用其原有源码绑定视觉证据和 `npm run test:ui:ux` 浏览器质量门禁。任何发布仍需用户明确授权，`prepare` 本身绝不部署。非 UI 后端任务按原有范围跳过 UI 内容证据，避免无关全量测试。
 
-**命令边界**：`npm run test:ui:workflow` 测上述新门禁；`npm run test:ui:ux` 是根目录正式浏览器回归；活动工作区的同名命令委托根目录执行。新页面的视觉/交互报告和用户生产验收各自记录，不能互相代替。
+**命令边界**：`npm run test:ui:workflow` 测上述新门禁；`npm run test:ui:ux` 是根目录正式浏览器回归；当前从唯一根目录执行同名命令。新页面的视觉/交互报告和用户生产验收各自记录，不能互相代替。
 
 ## 微信客户分享验收专项
 

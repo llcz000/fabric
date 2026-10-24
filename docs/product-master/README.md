@@ -33,6 +33,8 @@
 
 ## 开发与验收按专题看
 
-统一从 `D:/fabric` 运行，开发前执行 `npm run v2:source`；涉及UI执行 `npm run ui:preflight`。导入、订单和共享安全的最低测试要求见[开发与验证](../development/开发与验证规范.md)。详细历史实验原件已有外部可恢复备份，现行入口不再列出旧过程；仓库内原件的物理删除尚待通过安全检查，不能重新引入已取消的旧业务规则。备份索引见[恢复说明](../maintenance/文档整合与恢复.md)。
+项目执行入口为[产品主数据技能](../../.agents/skills/fabric-product-master-v2/SKILL.md)，它负责路由，不复制业务规则。
+
+统一从 `D:/fabric` 运行，开发前执行 `npm run v2:source`；涉及UI执行 `npm run ui:preflight`。导入、订单和共享安全的最低测试要求见[开发与验证](../development/开发与验证规范.md)。详细历史实验原件已有外部可恢复备份，现行入口不再列出旧过程；已确认的候选已按恢复索引移出，不能重新引入已取消的旧业务规则。备份索引见[恢复说明](../maintenance/文档整合与恢复.md)。
 
 任务交接时用 `scripts/fabric-v2-acp-task-intake.mjs`，收益实测记账用 `scripts/fabric-v2-acp-efficiency.mjs`；只读中央队列见 `scripts/fabric-v2-orchestrator.mjs`。

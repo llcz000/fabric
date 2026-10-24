@@ -1,6 +1,8 @@
+> 历史参考：本文日期内的版本、角色/任务、列数、格式、部署状态和风险只对应原记录；已取消的范围不恢复为待办。现行依据为[项目需求](项目需求总览.md)及[项目现状](项目现状.md)；原始批准与证据保留，不作为今天的操作指令。
+
 # Fabric Multi-Agent Orchestrator V2｜第一阶段可运行任务队列
 
-> 2026-10-24 目录整理：本文部分历史路径对应的临时文件、已退役源码副本或旧发布证据已完整迁至仓库外；原路径作为历史定位保留，按[归档恢复索引](../maintenance/2026-10-24-workspace-archives.json)中的范围和逐文件 SHA256 查找原件。未完成的业务 Gate 仍按当前进度保留。
+> 2026-10-24 目录整理：本文部分历史路径对应的临时文件、已退役源码副本或旧发布证据已完整迁至仓库外；原路径作为历史定位保留，按[归档恢复索引](../maintenance/文档整合与恢复.md)中的范围和逐文件 SHA256 查找原件。未完成的业务 Gate 仍按当前进度保留。
 
 > 文档类型：执行方案及当前代码能力。最新业务规则唯一源：[项目需求总览](项目需求总览.md)；功能及上线状态：[项目现状](项目现状.md)。本项目原有ACP隔离、安全合并与计量链：[Agent手册](../product-master/product-master-v2-agent-context-handbook.md)。**本模块不等于已形成两名或多名真实同时编码的ACP Agent。**
 
@@ -73,7 +75,7 @@ node scripts/fabric-v2-orchestrator.mjs --plan
 
 **已经验证一次真实派发、正常终态和任务级受控合并；并未验证双ACP并发或无人值守自动调度。**
 
-- 来源：最新[项目需求总览](项目需求总览.md#scan)的`SCAN-01`，任务队列`scan-admin-v2`，后端Agent A，两个严格可写文件：`scanRepository.ts`与`scanRepository.test.ts`。
+- 来源：原时点[项目需求总览](项目需求总览.md#v2-selection)的`SCAN-01`，任务队列`scan-admin-v2`，后端Agent A，两个严格可写文件：`scanRepository.ts`与`scanRepository.test.ts`。
 - 可信执行：440文件SHA-256基线、隔离恢复演练、独立注册Project；派发前确定的幂等键、`--reserve`占位、真实`coding_agent_start`回执及`coding_agent_observe`同一Run ID正常`completed`。完成后只进入`submitted_for_review`，没有自动接受代码。
 - 合并阻断及修复：旧ACP A角色Gate拒绝`server/customer-samples/`；新增`fabric-v2-acp-merge-gate.mjs --task scan-admin-v2`，只允许当前队列中精确授权的**两个源文件**、要求来源SHA256与队列占位一致及已记录同Run ID的完成结果。旧角色目录Gate保持原状。任务模式实测`blocked=[]`，其余所有文件不得合并，复制前后分别验SHA256。
 - 代码切片：有效管理员与业务员均可使用已获授权的样品会话扫码；依然重验当前用户/登录及样品会话`can_manage=1`，未登录、会话撤销、无授权、失效QR或停用父产品继续拒绝。二维码原文不进入数据库查询/写入和响应。**这不是无需授权扫描所有样品会话的管理员后门**。

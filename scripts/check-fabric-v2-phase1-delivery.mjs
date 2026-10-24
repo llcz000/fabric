@@ -45,7 +45,12 @@ function staticSourceMounts(server,app,productionRuntime,productionHttp){
   const fn=(file,name)=>file.statements.find(n=>ts.isFunctionDeclaration(n)&&n.name?.text===name)?.body;
   const start=fn(source,'startServer'),assemble=fn(runtime,'createV2ProductionRouter'),run=fn(runtime,'startV2ProductionServer'),compose=fn(http,'createV2ProductionHttpApp');
   const guarded=start&&matches(start,n=>ts.isIfStatement(n)&&call(n.expression,'resolveV2ProductionTarget')&&n.expression.arguments.length===1&&n.expression.arguments[0].getText(source)==='process.env'&&matches(n.thenStatement,c=>call(c,'startV2ProductionServer'))&&matches(n.thenStatement,c=>ts.isReturnStatement(c)));
-  const assembly=assemble&&matches(assemble,n=>ts.isVariableDeclaration(n)&&n.name.getText(runtime)==='db'&&n.initializer&&call(n.initializer,'createPinnedV2Database')&&n.initializer.arguments.map(a=>a.getText(runtime)).join(',')==='pool,target')&&
+  const pinned=name=>assemble&&matches(assemble,n=>ts.isVariableDeclaration(n)&&n.name.getText(runtime)===name&&n.initializer&&call(n.initializer,'createPinnedV2Database')&&n.initializer.arguments.map(a=>a.getText(runtime)).join(',')==='pool,target');
+  const customerDatabase=pinned('baseDb')&&imported(runtime,'prepareCustomerRuntime','../customers/runtime')&&
+   matches(assemble,n=>ts.isVariableDeclaration(n)&&n.name.getText(runtime)==='db'&&n.initializer?.getText(runtime)==='baseDb')&&
+   matches(assemble,n=>ts.isVariableDeclaration(n)&&n.name.getText(runtime)==='customers'&&n.initializer&&ts.isAwaitExpression(n.initializer)&&call(n.initializer.expression,'prepareCustomerRuntime')&&n.initializer.expression.arguments.map(a=>a.getText(runtime)).join(',')==='baseDb,target')&&
+   matches(assemble,n=>ts.isBinaryExpression(n)&&n.operatorToken.kind===ts.SyntaxKind.EqualsToken&&n.left.getText(runtime)==='db'&&n.right.getText(runtime)==='customers.pool');
+  const assembly=assemble&&(pinned('db')||customerDatabase)&&
    ['verifyV2ProductionSchema','verifyV2DocumentSupportSchema'].every(name=>matches(assemble,n=>ts.isAwaitExpression(n)&&call(n.expression,name)&&n.expression.arguments[0]?.getText(runtime)==='db'))&&
    matches(assemble,n=>ts.isVariableDeclaration(n)&&n.name.getText(runtime)==='routes'&&n.initializer&&call(n.initializer,'createV2BusinessRoutes')&&n.initializer.arguments.slice(0,2).every(a=>a.getText(runtime)==='db'));
   const launch=run&&matches(run,n=>ts.isAwaitExpression(n)&&call(n.expression,'createV2ProductionRouter'))&&matches(run,n=>call(n,'createV2ProductionHttpApp')&&n.arguments[0]?.getText(runtime)==='routes');

@@ -2,7 +2,7 @@
 
 > 文档定位：规范与手册｜主要读者：设计/开发/测试/运维及Agent。用途：按当前任务选择对应规范或运行方法。
 
-> 本文件是**执行方法**，不替代现行v1.50业务需求。先从[阶段任务快速定位](README.md#阶段任务快速定位)进入，现行规则见[唯一需求](product-master-v2-requirements.md)，是否完成见[当前进度](product-master-v2-progress.md)；已有Git未提交/未跟踪文件必须保留。
+> 本文件是**执行方法**，不替代现行业务需求。先从[阶段任务快速定位](README.md#阶段任务快速定位)进入，现行规则见[唯一需求](product-master-v2-requirements.md)，是否完成见[当前进度](product-master-v2-progress.md)；已有Git未提交/未跟踪文件必须保留。
 
 **2026-10-15新增项目级只读中央任务调度**：先看[跨模块Orchestrator V2第一阶段](../project/Fabric-Multi-Agent-Orchestrator-V2.md)。它按当前[全项目需求](../project/项目需求总览.md)校验QUERY/STATS/DOC/EX/SCAN任务、依赖及文件冲突。该调度器**尚不启动ACP**，容量=0为默认；即使模拟两席位，也不能宣称两个ACP正在运行。原A～E业务领域intake、哈希快照、独立Project和合并Gate保持独立，不允许省略。
 
@@ -14,15 +14,15 @@
 
 ## 现行 ACP 协作交付链（2026-10-15）
 
-**真实能力边界：** Runner 已有 Codex ACP provider，但之前两个 ACP 同时请求出现过 `coding_agent_capacity_full`；默认按 **单ACP任务串行 + WebCodex总控并行非重叠工作**。另开Codex窗口可能不列在WebCodex Jobs，必须协调外部任务所有权。
+**真实能力边界：** Runner 已有 Codex ACP provider，但之前两个 ACP 同时请求出现过 `coding_agent_capacity_full`；默认单 Agent；明确获准使用 ACP 时按实际容量串行或隔离执行，不能默认并行。另开Codex窗口可能不列在WebCodex Jobs，必须协调外部任务所有权。
 
-1. **任务与责任冻结**：总控为每个Agent限定一个AC、最新v1.50片段及精确修改白名单（`node scripts/fabric-v2-agent-brief.mjs E --json`）。C只能修改P4/P5显式文件；E独占B3选样组件和人工补选指定文件。共享`server.ts`、`src/App.tsx`、`server/product-master/v2CatalogAssembly.ts`、当前进度由总控独占；公共schema/迁移需单独核定责任。不得将两个Agent派给同一文件。
+1. **任务与责任冻结**：总控为每个Agent限定一个AC、最新需求片段及精确修改白名单（`node scripts/fabric-v2-agent-brief.mjs E --json`）。C只能修改P4/P5显式文件；E独占B3选样组件和人工补选指定文件。共享`server.ts`、`src/App.tsx`、`server/product-master/v2CatalogAssembly.ts`、当前进度由总控独占；公共schema/迁移需单独核定责任。不得将两个Agent派给同一文件。
 2. **新版本冻结**：在`D:\\fabric`执行`node scripts/fabric-v2-safe-baseline.mjs --dry-run`和`--create`，记录本轮返回的实际`SNAPSHOT`；运行`--verify SNAPSHOT`、`--restore-smoke SNAPSHOT`。旧489文件快照缺少后续B3源码，**不得直接派发**。基线在仓库外、不含凭据/COS/客户数据/Git，不是生产备份。
 3. **隔离工作区与注册**：`node scripts/fabric-v2-acp-prepare.mjs --prepare SNAPSHOT E`，得到全新、逐文件校验的`WORKSPACE`，不会覆盖旧工作区。通过Runner的`register_project`将`WORKSPACE`注册为单独WebCodex Project。派发前运行`node scripts/fabric-v2-workspace-freshness.mjs SNAPSHOT WORKSPACE`及`node scripts/fabric-v2-workspace-freshness.mjs SNAPSHOT D:\\fabric --main`，必须`ready:true`、`missing=changed=extra=0`。有漂移先重新取最新基线，禁止覆盖正在开发的工作区。
 4. **真正启动和观察ACP**：使用`coding_agent_start`，明确`provider_id=codex`、独立`project`、单AC提示和固定`idempotency_key`；不确定启动结果要**复用相同key**，不得重复派发。使用`coding_agent_observe`观察返回的`run_id`直至终态。ACP容量拒绝就排队串行，不能把已登记/ready任务说成正在执行。提示词不是OS级沙箱，Agent不能操作主工作区。
 5. **Superpowers双重审查**：Agent按Superpowers TDD（`test-driven-development`）先RED后GREEN；交回`DONE|DONE_WITH_CONCERNS|NEEDS_CONTEXT|BLOCKED`、精确改动清单、测试证据、风险、文档归档判定。总控先做AC**需求规格复核**，再独立做**代码质量/安全复核**（允许串行ACP复核），不能仅凭Agent口头声明完成。
 6. **SHA256三方检查与受控合并**：`node scripts/fabric-v2-acp-merge-gate.mjs SNAPSHOT WORKSPACE D:\\fabric E`必须`ready:true`且`blocked=[]`；逐条核对`changed/added`。工具对照基线、子Agent和当前主项目，拒绝越权路径、主项目同文件新修改、同名新增、删除、敏感额外文件及篡改快照；**只读，不自动合并**。审核实际差异后按白名单、目标当前版本最小化合并，合并前再复核一次；不能整目录覆盖或按旧HEAD覆盖未跟踪源码。
-7. **唯一总控验收**：子任务专项→统一HTTP→默认并发2的全量测试→项目级lint→build→文档/技能Gate与`git diff --check`，重负载测试不与其他Agent并发；lint的OOM要明确标为未通过。进度唯一回写，按`保留/归档候选/不适用`处理历史过程记录；真实MySQL/COS/部署始终另行授权。
+7. **唯一总控验收**：子任务专项→按实际影响选择统一HTTP/类型检查/构建→文档/技能Gate与`git diff --check`；只有变更范围或明确交付门禁要求时运行全量测试，重负载测试不与其他Agent并发；lint的OOM要明确标为未通过。进度唯一回写，按`保留/归档候选/不适用`处理历史过程记录；真实MySQL/COS/部署始终另行授权。
 
 以上链路**可复用但不自动授权**：工作区准备只在新目录复制源码；快照新鲜度/合并检查始终只读；注册Project、ACP实际开始、最终逐文件合并及业务验收是分离的步骤。
 

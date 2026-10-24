@@ -1,3 +1,5 @@
+> 历史参考：本文日期内的版本、角色/任务、列数、格式、部署状态和风险只对应原记录；已取消的范围不恢复为待办。现行依据为[项目需求](../../project/项目需求总览.md)及[项目现状](../../project/项目现状.md)；原始批准与证据保留，不作为今天的操作指令。
+
 > 2026-10-15整理：本文保留原始设计/执行步骤与未完成约束，不是当前状态表。部分任务已有独立代码和历史验收；现行业务以[唯一需求](../../product-master/product-master-v2-requirements.md)为准，最新实现与开放Gate只查[当前进度](../../product-master/product-master-v2-progress.md)。
 
 # Fabric Product Master V2｜一期实施工作计划（待评审）

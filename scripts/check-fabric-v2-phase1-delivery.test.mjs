@@ -16,7 +16,10 @@ test('production source gate follows guarded startup, pinned/schema-verified ass
   ['productionRuntime','createPinnedV2Database(pool,target)','pool'],
   ['productionRuntime','await verifyV2ProductionSchema(db,target.database);',''],
   ['productionRuntime','await verifyV2DocumentSupportSchema(db);',''],
-  ['productionRuntime','createV2BusinessRoutes(db,db,output)','unverifiedRoutes(db)'],
+  ['productionRuntime','createV2BusinessRoutes(db,db,output,{unavailable:customers.unavailable})','unverifiedRoutes(db)'],
+  ['productionRuntime','let db=baseDb;','let db=pool;'],
+  ['productionRuntime','prepareCustomerRuntime(baseDb,target)','prepareCustomerRuntime(pool,target)'],
+  ['productionRuntime','db=customers.pool;','db=pool;'],
   ['productionHttp',"app.use('/api/v2',routes)","app.use('/api/v2',unknownRoutes)"]
  ]){assert.notEqual(sources[field].replace(from,to),sources[field]);assert.equal(assessPhase1({...sources,[field]:sources[field].replace(from,to)}).sourceGates.backendMount.ok,false,field+from);}
 });

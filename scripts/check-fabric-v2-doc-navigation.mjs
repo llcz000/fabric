@@ -49,8 +49,13 @@ must('all stage code/test locators exist',()=>{
  console.log('Checked '+checked+' code/test locators');
 });
 must('current agent source of truth',()=>{
- has('docs/product-master/product-master-v2-agent-context-handbook.md',/v1\.50/);
- assert(!/现行v1\.49/.test(read('docs/product-master/product-master-v2-agent-context-handbook.md')),'Outdated current v1.49 label');
+ const guide=read('docs/product-master/product-master-v2-agent-context-handbook.md');
+ assert(guide.includes('product-master-v2-requirements.md'),'Current requirement link absent');
+ const version=/^\|\s*版本\s*\|\s*(v[0-9]+\.[0-9]+)(?:\s|（|\|)/m.exec(read('docs/product-master/product-master-v2-requirements.md'))?.[1];
+ assert(version,'Current requirement version absent');
+ for(const match of guide.matchAll(/现行\s*(v[0-9]+\.[0-9]+)/g)){
+  assert(match[1]===version,'Outdated current requirement '+match[1]);
+ }
  has('docs/product-master/product-master-v2-parallel-agents-plan.md',/2026-10-15/);
  has('docs/product-master/product-master-v2-parallel-agents-plan.md',/fabric-v2-workspace-freshness/);
 });
