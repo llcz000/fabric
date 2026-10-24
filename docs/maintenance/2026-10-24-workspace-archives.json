@@ -563,5 +563,19 @@
       "Private original inputs are kept in the active ignored .local/test-inputs directory. Restore to a nonconflicting local file if needed; never commit customer originals.",
       "WebCodex unregister receipts record the removed IDs; moving a worktree does not re-register it."
     ]
+  },
+  "legacyWorktreeRelocation": {
+    "date": "2026-10-24",
+    "archiveRoot": "D:/fabric-knowledge-backups/legacy-worktrees-20261024-120358",
+    "manifest": "manifest.json",
+    "manifestSha256": "0af553d0dae84dcd03bf3737c09762bb2b8a7161f72d6186d2084f22cfa874c7",
+    "moveVerification": "move-verification.json",
+    "archivedWorktrees": [
+      {"name":"multi-user-order-product-permissions","branch":"codex/multi-user-order-product-permissions","head":"2ccb0e8f2d2ad520b7ef1617a0c21f7e0ebcb203","files":217,"uncommittedEntries":3},
+      {"name":"product-library-images-import","branch":"codex/product-schema-init","head":"7e2d81d89ad3a08b3f01f6712dfb65d09ebd2817","files":274,"uncommittedEntries":4}
+    ],
+    "procedure": "Independent SHA256 verified backup, then git worktree move. Rechecked every moved file, HEAD, branch and full dirty status; empty original .worktrees directory removed.",
+    "restore": "Verify manifest.json SHA256 then each selected file hash; use git worktree move from archiveRoot/worktrees/{name} to a separate empty directory; do not copy backup .git pointers over newer checkouts.",
+    "otherHistoricalWorktrees": "Eight external worktrees still contain unique source, tests, staged changes or QA evidence; retained without reset/clean."
   }
 }
