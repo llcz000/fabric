@@ -46,4 +46,4 @@ npm run workspace:clean
 - docs/、.agents/skills/：当前知识和规范；[首页](docs/00-首页.md)、[当前状态](docs/project/项目现状.md)、[开发验证](docs/development/开发与验证规范.md)。
 - artifacts/、tmp/、.local/、uploads/、template/：按用途保留的证据、临时输出、私有配置和运行数据，排除提交。
 
-旧分支和历史工作目录的恢复记录见[恢复索引](docs/maintenance/2026-10-24-workspace-archives.json)。并行开发使用 `npm run parallel -- audit/start/gate/integrate/finish/retire` 创建临时任务工作树，验收完成后安全退出，最终集成必须回到唯一根目录。部署需独立提供本机私有配置，并使用现有统一发布工具；本地初始化或测试通过不代表生产验收或发布授权。
+旧分支和历史工作目录的恢复记录见[恢复索引](docs/maintenance/文档整合与恢复.md)。并行开发使用 `npm run parallel -- audit/start/gate/integrate/finish/retire` 创建临时任务工作树，验收完成后安全退出，最终集成必须回到唯一根目录。部署需独立提供本机私有配置，并使用现有统一发布工具；本地初始化或测试通过不代表生产验收或发布授权。
