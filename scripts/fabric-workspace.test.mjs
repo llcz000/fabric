@@ -45,6 +45,25 @@ test('status identifies the declared active source without writing files',async(
  const f=fixture();try{const {inspectWorkspace}=await tools();const before=fs.readdirSync(f.root);const state=inspectWorkspace(f.root);assert.equal(state.active,f.active);assert.equal(state.controller,f.root);assert.equal(state.application.clean,true);assert.deepEqual(fs.readdirSync(f.root),before);}finally{f.close();}
 });
 
+test('status checks root controller and active application independently',async()=>{
+ const f=fixture();try{
+  const rootGit=(...args)=>execFileSync('git',args,{cwd:f.root,encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim();
+  rootGit('init','--quiet');rootGit('config','user.name','Workspace test');rootGit('config','user.email','test@local');rootGit('config','core.autocrlf','false');
+  fs.writeFileSync(path.join(f.root,'.gitignore'),'.agent-workspaces/\n');
+  rootGit('add','.gitignore','docs/project/fabric-v2-active-workspace.json');rootGit('commit','--quiet','-m','controller');
+  const {inspectWorkspace}=await tools();
+  let state=inspectWorkspace(f.root);
+  assert.equal(state.controllerGit.clean,true);
+  assert.equal(state.application.clean,true);
+  assert.equal(state.projectClean,true);
+  fs.appendFileSync(path.join(f.root,'.gitignore'),'tmp/\n');
+  state=inspectWorkspace(f.root);
+  assert.equal(state.controllerGit.clean,false);
+  assert.equal(state.application.clean,true);
+  assert.equal(state.projectClean,false);
+ }finally{f.close();}
+});
+
 test('standalone application can inspect and clean itself without a controller checkout',async()=>{
  const f=fixture();try{
   f.write('docs/project/fabric-v2-active-workspace.json',JSON.stringify({role:'application',sourceManifest:'artifacts/local/source-manifest.json'}));
