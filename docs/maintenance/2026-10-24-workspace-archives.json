@@ -577,5 +577,20 @@
     "procedure": "Independent SHA256 verified backup, then git worktree move. Rechecked every moved file, HEAD, branch and full dirty status; empty original .worktrees directory removed.",
     "restore": "Verify manifest.json SHA256 then each selected file hash; use git worktree move from archiveRoot/worktrees/{name} to a separate empty directory; do not copy backup .git pointers over newer checkouts.",
     "otherHistoricalWorktrees": "Eight external worktrees still contain unique source, tests, staged changes or QA evidence; retained without reset/clean."
+  },
+  "historicalWorktreeAudit": {
+    "date": "2026-10-24",
+    "report": "docs/maintenance/2026-10-24-historical-worktree-audit.md",
+    "archiveRoot": "D:/fabric-knowledge-backups/historical-worktree-audit-20261024050527",
+    "manifest": "audit-manifest.json",
+    "manifestSha256": "0c45249b3dc85b97f3aae8bdac9104cbd86d2048d3c5c20b711285d308e06a04",
+    "historicalWorktrees": 10,
+    "uncommittedEntries": 395,
+    "sha256VerifiedCopies": 790,
+    "scope": "Only tracked/untracked Git changes and deleted HEAD blobs; excludes ignored local data and full checkout state",
+    "worktreeRemovals": 0,
+    "worktreeMoves": 0,
+    "result": "Current root and application Git clean, old worktrees preserved and independently classified",
+    "restore": "Use inventory JSON and verified primary/independent changed-file snapshots. Original Git worktrees and ignored local files remain at their pre-review paths; never delete full worktrees based on changed-file snapshots alone."
   }
 }
