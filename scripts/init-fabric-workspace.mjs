@@ -29,6 +29,7 @@ export function initializeWorkspace(directory){
  const walk=dir=>{
   for(const entry of fs.readdirSync(path.join(root,dir),{withFileTypes:true})){
    const name=dir+'/'+entry.name;
+   if(name==='scripts/generate_mockup.py')continue; // Documented machine-local helper, excluded from Git/source manifests.
    if(entry.isSymbolicLink())throw Error('Source link: '+name);
    if(entry.isDirectory())walk(name);else if(entry.isFile())add(name);
   }

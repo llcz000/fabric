@@ -27,6 +27,7 @@ try{
  const walk=dir=>{
   for(const item of fs.readdirSync(path.join(root,dir),{withFileTypes:true})){
    const relative=dir+'/'+item.name;
+   if(relative==='scripts/generate_mockup.py')continue; // Machine-local helper; every other source stays protected.
    if(item.isSymbolicLink())throw Error('Unexpected source link: '+relative);
    if(item.isDirectory())walk(relative);
    else if(item.isFile()&&!expected.has(relative))throw Error('Unvalidated new source: '+relative);
