@@ -33,6 +33,22 @@ npm run workspace:clean -- --apply
 
 提交不会自动暂存、接受源码漂移、改写冻结发布清单、推送或部署。根入口支持传递定向测试等原始参数。应用脚本（包括 ACP/Orchestrator、业务静态检查及专项测试）在活动目录执行；根 scripts/ 仅保留路由、工作区维护、知识维护和规范工具。
 
+## 高频并行开发与版本管理
+
+并行开发采用单主线集成 + 每任务独立 Git worktree。总控分配文件白名单、冻结需求/HEAD、进行验收和合并；ACP 调度、真实 Agent 执行及 Git 工作树管理彼此独立。步骤和证据格式见 [Fabric 并行开发与合并规范](docs/development/Fabric并行开发与合并规范.md)。
+
+~~~powershell
+npm run parallel -- audit
+npm run parallel -- start TASK-ID Agent-A src/path.ts src/path.test.ts
+npm run parallel -- gate TASK-ID .local/parallel-tasks/TASK-ID-review.json
+npm run parallel -- integrate TASK-ID .local/parallel-tasks/TASK-ID-review.json
+npm run parallel -- finish TASK-ID .local/parallel-tasks/TASK-ID-postcheck.json
+npm run parallel -- retire TASK-ID
+npm run workspace:status
+~~~
+
+`audit` 区分正式开发与归档历史树的 Git 状态；`integrate` 是经独立审查后的真实本地合并，不启动 ACP 或发布。`finish` 需要合并后回归证据，`retire` 拒绝删除仍含客户数据、未跟踪/忽略文件的工作树。当前主目录与正式应用仍是两个过渡 Git 检出，未经结构验收不强行合并。
+
 ## 新检出初始化
 
 独立检出当前应用开发分支时，在应用目录执行：

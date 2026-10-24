@@ -30,7 +30,9 @@
     "ui:verify": "node scripts/ui-workflow-gate.mjs verify",
     "test:ui:workflow": "node --test scripts/ui-workflow-gate.test.mjs",
     "workspace:init": "node scripts/fabric-v2-workspace.mjs init",
-    "test:workspace": "node --test scripts/fabric-workspace.test.mjs scripts/workspace-followups.test.mjs"
+    "test:workspace": "node --test scripts/fabric-workspace.test.mjs scripts/workspace-followups.test.mjs",
+    "parallel": "node scripts/fabric-parallel-git.mjs",
+    "test:parallel": "node --test scripts/fabric-parallel-git.test.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.25.0"

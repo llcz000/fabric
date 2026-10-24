@@ -54,3 +54,7 @@
 ## 清理与更新
 
 更新现有文档，不复制第二套知识库。删除被替代文档前提取独有约束、更新引用并记录替代位置；保留仍未实现的独有批准方案。运行数据、客户数据、媒体成片、本机配置不属于旧知识，禁止随知识库清理删除。不得在文档保存密钥或敏感数据。详见 `docs/maintenance/知识维护规则.md`。
+
+## 并行开发任务的版本状态门禁（2026-10-24）
+
+所有并行任务必须先阅读[并行开发、验收与 Git 合并规范](docs/development/Fabric并行开发与合并规范.md)。在 D:/fabric 根入口通过 npm run parallel -- audit/start/gate/integrate/finish/retire 管理任务 Git 分支、白名单、主线 SHA、验收日志 SHA256、集成回归与退役。每 Agent 一份独立 worktree，禁止共享写入；原 ACP intake / 真实Run / 三方 SHA256 Gate 仍独立生效。子任务合并必须由一个总控串行执行；pending 集成复验不得开始下一次合并。若旧工作树存在忽略数据/独有代码，禁止 reset --hard / clean -fdx / worktree remove --force；必须先审查和保留恢复能力。仅有 Git 预检或本地测试，不授权生产部署。
