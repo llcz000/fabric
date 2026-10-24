@@ -55,3 +55,23 @@ dist-camera/
 /artifacts/
 /.local/
 /.workbuddy/
+
+# Committed UI workflow dependencies required by fresh checkouts.
+!.agents/
+!.agents/skills/
+!.agents/skills/fabric-product-master-v2/
+!.agents/skills/fabric-product-master-v2/**
+!.agents/skills/fabric-ui-design/
+!.agents/skills/fabric-ui-design/**
+!.agents/skills/fabric-ui-ux-qa/
+!.agents/skills/fabric-ui-ux-qa/**
+!.agents/skills/ui-ux-pro-max/
+!.agents/skills/ui-ux-pro-max/**
+!.agents/skills/frontend-design/
+!.agents/skills/frontend-design/**
+!.agents/skills/web-design-guidelines/
+!.agents/skills/web-design-guidelines/**
+
+# Rebuildable Python skill caches
+**/__pycache__/
+*.py[cod]

@@ -20,7 +20,7 @@ const items:ProductPatternChoice[]=[{
 test('batch selected products keep thumbnails aligned with selected colorway and remove actions',()=>{
  const html=renderToStaticMarkup(React.createElement(BatchSelectedColorways,{
   items,urls:new Map([[a,'https://signed.example/a.webp'],[b,'https://signed.example/b.webp']]),
-  failedIds:new Set(),onRemove:()=>{}
+  failedIds:new Set<string>(),onRemove:()=>{}
  }));
  assert.equal((html.match(/<img /g)||[]).length,2);
  assert.equal((html.match(/<li /g)||[]).length,3);

@@ -7,6 +7,19 @@ import {createHash} from 'node:crypto';
 import {affectedUiFiles,reviewContext,createReview,validateReview} from './ui-quality-gate.mjs';
 const sha=s=>createHash('sha256').update(s).digest('hex');
 const manifest=files=>({files:Object.entries(files).map(([p,v])=>({path:p,sha256:v}))});
+
+test('UI review accepts evidence owned by a standalone application checkout',()=>{
+ const active=path.resolve(import.meta.dirname,'../..');
+ const scratch=fs.mkdtempSync(path.join(active,'artifacts','local-ui-proof-'));
+ try{
+  const screenshots=['desktop.png','dialog.png'].map(name=>{
+   const file=path.join(scratch,name);fs.writeFileSync(file,Buffer.concat([Buffer.from('89504e470d0a1a0a','hex'),Buffer.alloc(600)]));return path.relative(active,file);
+  });
+  const ctx={ui:['src/Fabric.tsx'],sourceSha256:'local',baselineReleaseId:'verified'};
+  const proof=createReview(ctx,{page:'面料库',reviewer:'local QA',screenshots});
+  assert.equal(validateReview(ctx,proof).required,true);
+ }finally{fs.rmSync(scratch,{recursive:true,force:true});}
+});
 test('UI gate scopes frontend changes but backend-only and unit-only remain lightweight',()=>{
  const before=manifest({'server/service.ts':'old','src/components/Fabric.tsx':'old','src/components/Fabric.test.ts':'old','src/components/lib.css':'old'});
  const backend=affectedUiFiles(before,manifest({'server/service.ts':'new','src/components/Fabric.tsx':'old','src/components/Fabric.test.ts':'new','src/components/lib.css':'old'}));
@@ -16,8 +29,7 @@ test('UI gate scopes frontend changes but backend-only and unit-only remain ligh
 });
 test('UI review blocks stale source, stale baseline, missing screenshots and forged status',()=>{
  const active=path.resolve(import.meta.dirname,'../..');
- const project=path.resolve(active,'../..');
- const scratch=fs.mkdtempSync(path.join(project,'artifacts','ui-gate-fixture-'));
+ const scratch=fs.mkdtempSync(path.join(active,'artifacts','ui-gate-fixture-'));
  const workspace=fs.mkdtempSync(path.join(os.tmpdir(),'fabric-ui-check-'));
  try{
   const baseline='verified-release-fixture';

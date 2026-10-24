@@ -72,6 +72,17 @@ test('quick browser gate only accepts dedicated Fabric list component changes',(
  assert(!targetedFabricUiAllowed(['src/components/product-master-v2/FabricLibraryV2.tsx','server/auth.ts']));
  assert(!targetedFabricUiAllowed([]));
 });
+
+test('tooling relocation registers exact UI entries and test files without allowing arbitrary configuration',()=>workspace(root=>{
+ fs.mkdirSync(path.join(root,'tests/ui'),{recursive:true});
+ const paths=['package-lock.json','playwright.ui.config.ts','tests/ui/local.spec.ts','ui-ux-pilot.html'];
+ for(const file of paths)fs.writeFileSync(path.join(root,file),'reviewed tooling');
+ assert.deepEqual(reviewedSourceDiff({root,head:'base'}).changed,paths);
+ assert.throws(()=>acceptReviewedSource({root,head:'base'},paths.slice(1)),/Unreviewed/);
+ assert.deepEqual(acceptReviewedSource({root,head:'base'},paths),paths);
+ assert.deepEqual(reviewedSourceDiff({root,head:'base'}).changed,[]);
+ assert.throws(()=>acceptReviewedSource({root,head:'base'},['unrelated-config.json']),/Unsafe/);
+}));
 test('release pointer changes only after actual verified release evidence and preserves other fields',()=>workspace(root=>{
  const release={id:'new-release',dir:path.join(root,'artifacts/releases/new-release'),
   archiveSha256:'a'.repeat(64),manifest:{baseline:{releaseId:'old'}},

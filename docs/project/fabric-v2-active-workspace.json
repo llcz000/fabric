@@ -11,5 +11,7 @@
     "utc": "2026-10-23T09:59:50.362Z",
     "artifactSha256": "524eead33b0ed606e7b7856403a76403f3de28fbbf1c54d1f9505fe3c7bf493f",
     "evidence": "artifacts/releases/20261023t095703554-2938438a/release-result.json"
-  }
+  },
+  "role": "application",
+  "developmentRef": "codex/v2-current-preserve-20261023"
 }

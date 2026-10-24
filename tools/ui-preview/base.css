@@ -1,0 +1,228 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Noto+Sans+SC:wght@300;400;500;700;800&display=swap');
+@import "tailwindcss";
+
+/* Enable class-based dark mode (toggle .dark on <html>) and OS preference fallback */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", "Noto Sans SC", system-ui, -apple-system, sans-serif;
+  --font-mono: "Courier New", "Lucida Console", monospace;
+
+  /* ── Brand (sky/cyan) scale ─────────────────────── */
+  --color-brand-50: #f0f7ff;
+  --color-brand-100: #e0effe;
+  --color-brand-200: #bae0fd;
+  --color-brand-300: #7cc5fc;
+  --color-brand-400: #38a5f8;
+  --color-brand-500: #0ea5e9;
+  --color-brand-600: #0284c7;
+  --color-brand-700: #0369a1;
+  --color-brand-800: #075985;
+  --color-brand-900: #0c4a6e;
+
+  /* ── Semantic colors ────────────────────────────── */
+  --color-success-50: #ecfdf5;
+  --color-success-500: #10b981;
+  --color-success-600: #059669;
+  --color-success-700: #047857;
+  --color-warning-50: #fffbeb;
+  --color-warning-500: #f59e0b;
+  --color-warning-600: #d97706;
+  --color-danger-50: #fef2f2;
+  --color-danger-500: #ef4444;
+  --color-danger-600: #dc2626;
+  --color-danger-700: #b91c1c;
+  --color-info-50: #eff6ff;
+  --color-info-500: #3b82f6;
+  --color-info-600: #2563eb;
+
+  /* ── Radius scale (unified) ─────────────────────── */
+  --radius-sm: 0.5rem;   /* 8px  */
+  --radius-md: 0.75rem;  /* 12px */
+  --radius-lg: 1rem;     /* 16px */
+  --radius-xl: 1.5rem;   /* 24px */
+
+  /* ── Shadow scale (brand-tinted) ────────────────── */
+  --shadow-sm: 0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.06);
+  --shadow-md: 0 4px 12px -2px rgb(15 23 42 / 0.08), 0 2px 6px -2px rgb(15 23 42 / 0.05);
+  --shadow-lg: 0 12px 32px -8px rgb(15 23 42 / 0.14), 0 4px 12px -4px rgb(15 23 42 / 0.08);
+
+  /* ── Motion ─────────────────────────────────────── */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Base custom styles */
+.font-mono {
+  font-family: "Courier New", "Lucida Console", monospace;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: #f6f8fb;
+  color: #1e293b;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ── Dark mode surface tokens (applied via .dark on <html>) ── */
+.dark body {
+  background-color: #0b1220;
+  color: #e2e8f0;
+}
+.dark .bg-white { background-color: #131c2e; }
+.dark .bg-slate-50 { background-color: #0f1726; }
+.dark .border-slate-100 { border-color: #1e293b; }
+.dark .border-slate-200 { border-color: #243044; }
+.dark .text-slate-800 { color: #e2e8f0; }
+.dark .text-slate-700 { color: #cbd5e1; }
+.dark .text-slate-600 { color: #94a3b8; }
+.dark .text-slate-500 { color: #7c8aa0; }
+.dark .text-slate-400 { color: #64748b; }
+.dark .shadow-xs, .dark .shadow-sm, .dark .shadow-md { box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.4); }
+
+/* Entrance animation used by route transitions and staggered lists */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+  animation: fade-in 240ms var(--ease-out-soft) both;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Interactive elements transition */
+a, button, input, select, textarea {
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+/* Uniform grid borders: negative margin collapses adjacent borders to 1px */
+.print-grid {
+  gap: 0 !important;
+  background: none !important;
+}
+
+.print-grid > div {
+  border: 1px solid #000 !important;
+  margin-right: -1px !important;
+  margin-bottom: -1px !important;
+}
+
+/* Print Styles */
+@media print {
+  /* Hide all interactive app elements */
+  body {
+    background-color: white !important;
+    color: black !important;
+    font-size: 11pt !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  @page {
+    margin: 0;
+    size: 240mm 140mm;
+  }
+
+  /* Center print container to align header and table */
+  .print-container {
+    box-sizing: border-box !important;
+    width: 240mm !important;
+    min-width: 240mm !important;
+    max-width: 240mm !important;
+    min-height: 140mm !important;
+    margin: 0 auto !important;
+    padding: 8mm 10mm !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: transparent !important;
+    color: black !important;
+  }
+
+  /* Remove rounded corners and shadows from outer wrapper in print */
+  .preview-wrapper {
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    max-width: 100% !important;
+  }
+
+  /* Preserve grid background colors when printing */
+  .print-grid,
+  .print-grid > div {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .print-grid > div {
+    min-width: 0 !important;
+  }
+
+  /* Make sure tables print borders and background properly */
+  table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+    table-layout: auto !important;
+    max-width: 100% !important;
+  }
+
+  th, td {
+    border: 1px solid #000 !important;
+    color: black !important;
+    padding: 3px 4px !important;
+    font-size: 9pt !important;
+  }
+
+  th {
+    background-color: #f1f5f9 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Keep signature lines and text clean */
+  .signature-section {
+    page-break-inside: avoid !important;
+  }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Animated visual ripples */
+@keyframes ripple {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}

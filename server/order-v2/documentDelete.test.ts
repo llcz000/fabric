@@ -6,7 +6,7 @@ import type {AppPrincipal} from '../access/types';
 const actor:AppPrincipal={userId:'7',sessionId:'11',role:'sales',username:'sales',displayName:'业务员',canManageOwnOrders:true,canManageProducts:true};
 function fixture(owner:string|null,fail=false){
  const calls:string[]=[];let lineCount=2,orderCount=1,commits=0,rollbacks=0;
- const connection={async beginTransaction(){},async commit(){commits++;},async rollback(){rollbacks++;lineCount=2;orderCount=1;},release(){},async query(sql:string){calls.push(sql);
+ const connection={async beginTransaction(){},async commit(){commits++;},async rollback(){rollbacks++;lineCount=2;orderCount=1;},release(){},async query(sql:string):Promise<[unknown,unknown]>{calls.push(sql);
   if(sql.includes('FROM v2_access_users'))return [[{id:'7',role:actor.role,is_active:1,can_manage_own_orders:1,can_manage_products:1}],[]] as [unknown,unknown];
   if(sql.includes('FROM v2_access_sessions'))return [[{id:'11'}],[]] as [unknown,unknown];
   if(sql.startsWith('SELECT id,created_by_user_id,order_no FROM orders'))return [[{id:'5',order_no:'XS5',created_by_user_id:owner}],[]] as [unknown,unknown];

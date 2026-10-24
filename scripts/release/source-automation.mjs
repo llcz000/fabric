@@ -6,9 +6,10 @@ import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 const sha=data=>createHash('sha256').update(data).digest('hex');
 const read=file=>JSON.parse(fs.readFileSync(file,'utf8'));
-const relativeSafe=name=>typeof name==='string'&&/^(?:src|server|scripts)\/(?:[A-Za-z0-9_./-]+)$/.test(name)&&!name.split('/').some(x=>x==='..'||x==='.'||!x);
+const relativeSafe=name=>typeof name==='string'&&/^(?:src|server|scripts|tests|tools)\/(?:[A-Za-z0-9_./-]+)$/.test(name)&&!name.split('/').some(x=>x==='..'||x==='.'||!x);
+const toolingEntries=['package-lock.json','playwright.ui.config.ts',...['pilot','share-demo','wechat-review','wechat-route','internal-chrome','internal-cards','internal-fabrics','internal-patterns'].map(x=>'ui-ux-'+x+'.html')];
 // Explicit user-reviewed entry files may change with UI workflow work, never arbitrary pinned configuration.
-const reviewedPathAllowed=name=>relativeSafe(name)||name==='AGENTS.md'||name==='package.json';
+const reviewedPathAllowed=name=>relativeSafe(name)||name==='AGENTS.md'||name==='package.json'||toolingEntries.includes(name);
 function atomicJson(file,value){const next=file+'.next';fs.writeFileSync(next,JSON.stringify(value,null,2)+'\n','utf8');fs.renameSync(next,file);}
 export function reviewedSourceDiff({root,head}){
  const pointer=read(path.join(root,'docs/project/fabric-v2-active-workspace.json'));
@@ -44,7 +45,11 @@ export function reviewedSourceDiff({root,head}){
    else if(item.isFile())actual.set(name,sha(fs.readFileSync(target)));
   }
  };
- for(const dir of ['src','server','scripts'])walk(dir);
+ for(const dir of ['src','server','scripts','tests','tools'])if(fs.existsSync(path.join(root,dir)))walk(dir);
+ for(const name of toolingEntries)if(fs.existsSync(path.join(root,name))){
+  if(fs.lstatSync(path.join(root,name)).isSymbolicLink())throw Error('Unexpected tooling symlink: '+name);
+  actual.set(name,sha(fs.readFileSync(path.join(root,name))));
+ }
  const changed=[...new Set([...actual.keys(),...previous.keys()])].filter(name=>actual.get(name)!==previous.get(name)).sort();
  return {pointer,manifest,file,changed,actual};
 }

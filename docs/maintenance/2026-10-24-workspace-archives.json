@@ -472,5 +472,18 @@
     }
   ],
   "deletedOriginalContents": false,
-  "netDiskSpaceFreedClaimed": false
+  "netDiskSpaceFreedClaimed": false,
+  "followupArchive": {
+    "date": "2026-10-24",
+    "scope": "retired-root-application-and-duplicate-application-tools",
+    "archiveRoot": "D:/fabric-knowledge-backups/workspace-followups-20261024-104247",
+    "manifest": "retirement-plan.json",
+    "manifestSha256": "b690ed87c381dc6e516bd953d79259d1f5b752d64868d88f577387a5986da42d",
+    "entries": 94,
+    "files": 465,
+    "relocatedOriginals": "relocated/root/{relative}",
+    "independentBackups": "before/root/{originalRelative}",
+    "verification": "root-archive-verification.json",
+    "restore": "Verify manifest and selected file hashes; restore only selected legacy files to a separate review directory, compare with current application, never overwrite newer sources."
+  }
 }

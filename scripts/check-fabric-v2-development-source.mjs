@@ -32,6 +32,6 @@ try{
    else if(item.isFile()&&!expected.has(relative))throw Error('Unvalidated new source: '+relative);
   }
  };
- for(const dir of ['src','server','scripts'])walk(dir);
+ for(const dir of ['src','server','scripts','tests','tools'])if(fs.existsSync(path.join(root,dir)))walk(dir);
  console.log(JSON.stringify({status:'verified-local-source',workspace:root,baseHead:head,files:manifest.files.length,requirementsSha256:manifest.requirements.sha256,releaseAuthorized:false},null,2));
 }catch(error){console.error(error.message);process.exitCode=1;}

@@ -1,0 +1,50 @@
+import {test,expect} from '@playwright/test';
+test('fabric library actual V2 component removes redundant intro, filters by name, shows reset only when needed',async({page})=>{
+ await page.goto('/ui-ux-internal-fabrics.html',{waitUntil:'domcontentloaded'});
+ await expect(page.getByRole('heading',{name:'面料库',exact:true})).toBeVisible();
+ await expect(page.getByText('面料品号、品名、成分与规格统一管理')).toHaveCount(0);
+ await expect(page.getByRole('button',{name:'清空筛选'})).toHaveCount(0);
+ await expect(page.locator('tbody tr')).toHaveCount(3);
+ await page.getByRole('textbox',{name:'搜索品名'}).fill('棉麻');
+ await expect(page.locator('tbody tr')).toHaveCount(1);
+ await expect(page.getByRole('button',{name:'清空筛选'})).toBeVisible();
+ await page.getByRole('button',{name:'清空筛选'}).click();
+ await expect(page.locator('tbody tr')).toHaveCount(3);
+ await expect(page.getByRole('button',{name:'清空筛选'})).toHaveCount(0);
+ await page.screenshot({path:'artifacts/ui-ux-pilot/fabric-library-design-desktop.png',fullPage:true});
+});
+test('fabric manager inline edit, delete confirm and column visibility remain functional',async({page})=>{
+ await page.goto('/ui-ux-internal-fabrics.html',{waitUntil:'domcontentloaded'});
+ await expect(page.locator('tbody tr')).toHaveCount(3);
+ const menu=page.getByRole('button',{name:'列设置'});
+ await menu.click();
+ const panel=page.getByRole('group',{name:'列显示设置'});
+ await expect(panel).toBeVisible();
+ await panel.getByRole('checkbox',{name:'备注'}).uncheck();
+ await expect(page.getByRole('columnheader',{name:'备注'})).toHaveCount(0);
+ await page.keyboard.press('Escape');
+ await expect(menu).toBeFocused();
+ const edit=page.getByRole('button',{name:'编辑'}).first();
+ await edit.click();
+ await expect(page.getByRole('button',{name:'保存',exact:true})).toBeVisible();
+ await page.screenshot({path:'artifacts/ui-ux-pilot/fabric-library-design-edit.png',fullPage:true});
+ await page.getByRole('button',{name:'取消',exact:true}).click();
+ await expect(page.getByRole('checkbox',{name:'包含停用'})).toHaveCount(0);
+ await expect(page.locator('tbody tr')).toHaveCount(3);
+ await page.getByRole('button',{name:'删除'}).last().click();
+ const dlg=page.getByRole('alertdialog',{name:/确认删除面料/});
+ await expect(dlg.getByRole('button',{name:'确认删除'})).toBeVisible();
+ await expect(dlg.getByRole('button',{name:'取消'})).toBeVisible();
+ await page.screenshot({path:'artifacts/ui-ux-pilot/fabric-library-design-delete.png'});
+ await dlg.getByRole('button',{name:'取消'}).click();
+ await expect(dlg).toBeHidden();
+});
+test('fabric page 390px layout scrolls table internally without full document overflow',async({page})=>{
+ // See the dedicated edit-unit regression below for actual control geometry and unit values.
+ await page.setViewportSize({width:390,height:820});
+ await page.goto('/ui-ux-internal-fabrics.html',{waitUntil:'domcontentloaded'});
+ await expect(page.getByRole('button',{name:'新增面料'})).toBeVisible();
+ const widths=await page.evaluate(()=>({client:document.documentElement.clientWidth,scroll:document.documentElement.scrollWidth}));
+ expect(widths.scroll).toBeLessThanOrEqual(widths.client+1);
+ await page.screenshot({path:'artifacts/ui-ux-pilot/fabric-library-design-mobile.png',fullPage:true});
+});

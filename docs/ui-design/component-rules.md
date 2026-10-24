@@ -4,6 +4,8 @@
 
 版本：0.1｜2026-10-14。业务数值和权限最终引用 [当前需求](../product-master/product-master-v2-requirements.md)；此文档规定 UI 如何表达与实现它们。
 
+源码路径均相对当前活动应用根目录；定位方法见[项目结构说明](project-structure-audit.md)。
+
 ## 复用已有实现
 
 2026-10-18补充：文件选择器cancel不能当成退出父对话框，父onCancel按target/currentTarget隔离，仍保留真正脏表单退出确认。已选产品表勾选以稳定条目ID绑定，一行一框，不能用同来源色卡ID绑定多行；页内全选与跨页保留分开，移除动作统一入口并明确只处理所选货号。部分保存流程只锁已确认成功部分，明确失败维度仍可修订重试。
@@ -12,11 +14,11 @@
 
 | 场景 | 现有位置 | 复用边界 |
 |---|---|---|
-| 花型母版 / 配色 | [PatternLibraryV2](../../src/components/product-master-v2/PatternLibraryV2.tsx)、patternModel | 配色独立图片、数字身份与标签分开 |
-| 面料编辑 / 导入 | [FabricLibraryV2](../../src/components/product-master-v2/FabricLibraryV2.tsx)、[FabricImportV2](../../src/components/product-master-v2/FabricImportV2.tsx) | 规格单位、引用保护和仅 XLSX 导入 |
-| 产品列表 / 编辑 | [ProductCatalogV2](../../src/components/product-master-v2/ProductCatalogV2.tsx)、[ProductEditorV2](../../src/components/product-master-v2/ProductEditorV2.tsx) | 列表、图片角色、保存状态 |
-| 实体色卡 | [SampleCardLibraryV2](../../src/components/product-master-v2/SampleCardLibraryV2.tsx) | 两项新增、稳定码、六列文本 Excel |
-| 三种单据共用选品 | [ProductSelectorDialog](../../src/components/document-product-selector/ProductSelectorDialog.tsx) | 历史明细身份、管理员手工例外 |
+| 花型母版 / 配色 | PatternLibraryV2（`src/components/product-master-v2/PatternLibraryV2.tsx`）、patternModel | 配色独立图片、数字身份与标签分开 |
+| 面料编辑 / 导入 | FabricLibraryV2（`src/components/product-master-v2/FabricLibraryV2.tsx`）、FabricImportV2（`src/components/product-master-v2/FabricImportV2.tsx`） | 规格单位、引用保护和仅 XLSX 导入 |
+| 产品列表 / 编辑 | ProductCatalogV2（`src/components/product-master-v2/ProductCatalogV2.tsx`）、ProductEditorV2（`src/components/product-master-v2/ProductEditorV2.tsx`） | 列表、图片角色、保存状态 |
+| 实体色卡 | SampleCardLibraryV2（`src/components/product-master-v2/SampleCardLibraryV2.tsx`） | 两项新增、稳定码、六列文本 Excel |
+| 三种单据共用选品 | ProductSelectorDialog（`src/components/document-product-selector/ProductSelectorDialog.tsx`） | 历史明细身份、管理员手工例外 |
 | 私有选样读取 | server/customer-samples/ | 按当前 DTO 设计，不沿用旧属性快照 UI |
 
 同名旧版 ProductLibrary、product-library 目录继续存在，不能凭文件名把它们当 V2 的正式入口。独立组件、评审壳和正式 App 接线分别验收。不要新增平行组件替代已有业务逻辑，复用 API/model 的检索、校验和请求状态。

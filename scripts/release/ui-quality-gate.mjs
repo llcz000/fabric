@@ -9,6 +9,13 @@ const digest=p=>createHash('sha256').update(fs.readFileSync(p)).digest('hex');
 const read=p=>JSON.parse(fs.readFileSync(p,'utf8'));
 const inside=(base,file)=>file===base||file.startsWith(base+path.sep);
 const assert=(ok,message)=>{if(!ok)throw Error('UI quality gate: '+message);};
+const evidenceRoots=[path.join(root,'artifacts')];
+const controllerPointer=path.join(project,'docs/project/fabric-v2-active-workspace.json');
+if(fs.existsSync(controllerPointer)){
+ const locator=read(controllerPointer);
+ // Previously frozen reviews may refer to the registered controller's screenshots.
+ if(locator.role==='controller'&&path.resolve(project,locator.workspace)===root)evidenceRoots.push(path.join(project,'artifacts'));
+}
 export function affectedUiFiles(before,after){
  const old=new Map(before.files.map(x=>[x.path,x.sha256]));
  const neu=new Map(after.files.map(x=>[x.path,x.sha256]));
@@ -34,7 +41,7 @@ export function reviewContext({pointer,baseline,workspace=root}){
 }
 function screenshotFile(file){
  const resolved=path.resolve(root,file);
- assert(inside(project,resolved)&&inside(path.join(project,'artifacts'),resolved),'screenshot must be under project artifacts');
+ assert(evidenceRoots.some(base=>inside(base,resolved)),'screenshot must be under application or registered controller artifacts');
  assert(/\.png$/i.test(file)&&fs.statSync(resolved).isFile(),'PNG screenshot missing');
  assert(fs.statSync(resolved).size>500,'screenshot invalid/too small');
  const magic=fs.readFileSync(resolved).subarray(0,8).toString('hex');

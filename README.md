@@ -1,60 +1,49 @@
-# Fabric DMS 面料单据管理系统
+# Fabric DMS 当前应用
 
-面向面料贸易业务的内部管理工具，支持样布码单、销售发货码单、定金单、产品图库、Excel 导入导出和库存台账。
+本目录包含正式应用源码、开发脚本、UI 预览、测试和已提交的项目规范，可独立检出。工作空间中的根控制器可以路由到此处；开发与测试不需要父目录的源码、工具或 node_modules。
 
-项目使用 React + Vite 前端、Express 后端和 MySQL。MySQL 未配置时可使用本地 JSON 作为开发降级存储；生产环境应配置唯一的权威数据库。
+## 首次准备与日常开发
 
-## 本地运行
+~~~powershell
+npm ci
+npm run workspace:init
+npm run v2:source
+npm run ui:preflight
+~~~
 
-要求：Node.js LTS、npm；生产数据建议使用 MySQL。
+workspace:init 仅从干净的已提交源码创建被忽略的本地校验清单；已有清单不覆盖，源码或 HEAD 漂移须明确审查。按 .env.example 配置本地开发环境后使用 npm run dev。业务运行需要其数据库/存储配置；本地 UI 预览和规范门禁不访问生产。
 
-1. 安装依赖：`npm.cmd install`
-2. 复制 `.env.example` 为 `.env`
-3. 设置一个随机的 `ADMIN_PASSWORD`
-4. 按需填写 `DB_*` 和腾讯云 `COS_*`
-5. 启动开发环境：`npm.cmd run dev`
-6. 打开 `http://127.0.0.1:3000`
+~~~powershell
+npm run lint
+npm run test:unit -- src/components/product-master-v2/BatchSelectedColorways.test.ts
+npm run build
+npm run test:ui:ux
+npm run test:ui:workflow
+~~~
 
-服务缺少 `ADMIN_PASSWORD` 时会拒绝启动，不再使用默认密码。
+按改动选择定向验证；全量单测与类型检查串行运行。类型检查明确使用 4GB Node 堆，避免本项目在默认 2GB 堆上内存耗尽。
 
-## 验证
+## 审查、提交与临时输出
 
-```powershell
-npm.cmd run lint
-npm.cmd run build
-npm.cmd run test:security
-npm.cmd run test:all
-npm.cmd run test:image-assets
-npm.cmd run test:image-assets:smoke
-```
+修改源码后用 scripts/release/source-automation.mjs inspect 查看真实差异；审查并验证后，对精确文件集合执行 accept。需求及未列入白名单的固定配置不会由源码 accept 自动通过。
 
-## 生产运行
+~~~powershell
+node scripts/release/source-automation.mjs inspect
+# 根据实际已审查差异执行 accept <精确路径> ...，再 git add 精确文件
+npm run workspace:commit -- --message "说明本次已审查改动"
+npm run workspace:status
+npm run workspace:clean
+~~~
 
-```powershell
-npm.cmd run build
-$env:NODE_ENV='production'
-npm.cmd run start
-```
+提交检查暂存树、Git 钩子、源码及提交后状态，成功后仅刷新本地开发清单 HEAD。不会自动暂存、跳过验证、改冻结发布清单、推送或部署。clean 默认预览，仅有明确标记的死进程测试编译输出可加 --apply 清理；原始输入、截图、发布包和运行数据不在通用清理范围。
 
-生产部署前必须完成凭证轮换、HTTPS、数据库备份、登录限流验证、上传验证和 SSRF 测试。不要提交 `.env`、上传文件、JSON fallback 数据库或客户数据。
+## 目录与知识
 
-部署后可用 `GET /api/health` 做负载均衡或进程存活检查。该端点无需登录，仅返回服务状态、当前存储模式和运行时长。进程收到 `SIGTERM`/`SIGINT` 时会停止接收新连接并关闭数据库连接池。
+- src/、server/、server.ts：正式前后端应用。
+- scripts/：开发、测试、维护及统一发布工具。
+- tools/ui-preview/：只供本地评审的隔离入口和演示样式，复用真实组件，不进入正式浏览器入口。
+- tests/ui/、playwright.ui.config.ts：本机 UI 浏览器测试；需要私有 Excel/图片的用例按本机授权素材准备，不提交客户素材。
+- docs/、.agents/skills/：当前知识和规范；[首页](docs/00-首页.md)、[当前状态](docs/project/项目现状.md)、[开发验证](docs/development/开发与验证规范.md)。
+- artifacts/、tmp/、.local/、uploads/、template/：按用途保留的证据、临时输出、私有配置和运行数据，排除提交。
 
-默认限流窗口为 15 分钟：普通 API 每个客户端 IP 1000 次，登录失败每个客户端 IP 10 次，成功登录不消耗登录失败额度。可通过 `RATE_LIMIT_WINDOW_MS`、`API_RATE_LIMIT_MAX`、`LOGIN_RATE_LIMIT_MAX` 调整。应用只信任本机反向代理提供的客户端 IP；如果 Nginx/负载均衡不在同一主机，需要按实际网络边界修改可信代理配置。
-
-## 统一图片资产
-
-公司 Logo/二维码与产品图片走同一套图片资产生命周期：浏览器直传私有 COS 隔离区，服务端 Sharp 校验 + SHA-256 去重，后台生成 original/display/thumbnail，业务表只存资产 ID 与 object key。普通展示用短期签名 URL，样布码单导出走同源受控内容接口。功能开关（IMAGE_ASSETS_ENABLED、COMPANY_IMAGE_ASSETS_ENABLED、PRODUCT_IMAGE_ASSETS_ENABLED）、迁移/上传命令、回收与对账流程见 docs/solutions/architecture-patterns/image-asset-operations.md。
-
-## 项目知识库
-
-使用 Obsidian 打开 `Fabric-DMS-Knowledge-Base/`。入口是 `00-首页.md`，其中包含架构、API、数据模型、清理审计、安全基线和优化路线图。
-
-## 主要目录
-
-- `src/`：React 前端
-- `server.ts`：Express API 和服务启动
-- `scripts/`：图片与安全验证脚本
-- `uploads/`：本地图片运行数据，不提交 Git
-- `template/`：Excel 模板运行数据，不提交 Git
-- `Fabric-DMS-Knowledge-Base/`：项目知识库
+旧根原件和历史工作目录见[恢复索引](docs/maintenance/2026-10-24-workspace-archives.json)。部署需独立提供本机私有配置，并使用现有统一发布工具；本地初始化或测试通过不代表生产验收或发布授权。
