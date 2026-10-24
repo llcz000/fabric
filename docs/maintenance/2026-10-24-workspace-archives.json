@@ -484,6 +484,19 @@
     "relocatedOriginals": "relocated/root/{relative}",
     "independentBackups": "before/root/{originalRelative}",
     "verification": "root-archive-verification.json",
-    "restore": "Verify manifest and selected file hashes; restore only selected legacy files to a separate review directory, compare with current application, never overwrite newer sources."
+    "restore": "Verify manifest and selected file hashes; restore only selected legacy files to a separate review directory, compare with current application, never overwrite newer sources.",
+    "compiledSkillCaches": {
+      "files": 6,
+      "manifest": "skill-cache-relocation.json",
+      "manifestSha256": "7dc9d26bd26221864ad37c4b0f173e8a8ecd99a5f9655cb46aeb8094d3d41abd",
+      "relocatedOriginals": "skill-cache-originals/{owner}",
+      "independentBackups": "skill-cache-backups/{owner}"
+    },
+    "finalEvidence": [
+      "fresh-application-verification.json",
+      "independent-review.txt",
+      "baseline-comparison.json",
+      "verification.json"
+    ]
   }
 }
