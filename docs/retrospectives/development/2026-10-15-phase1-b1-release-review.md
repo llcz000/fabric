@@ -1,5 +1,7 @@
 # Fabric V2｜一期Go/No-Go与ACP B1只读链接交付（2026-10-15）
 
+> 2026-10-24 目录整理：本文部分历史路径对应的临时文件、已退役源码副本或旧发布证据已完整迁至仓库外；原路径作为历史定位保留，按[归档恢复索引](../../maintenance/2026-10-24-workspace-archives.json)中的范围和逐文件 SHA256 查找原件。未完成的业务 Gate 仍按当前进度保留。
+
 > 文档定位：本轮研发/验收复盘。业务事实：唯一[需求v1.50](../../product-master/product-master-v2-requirements.md)。一期状态：[Go/No-Go](../../product-master/product-master-v2-phase1-delivery-readiness.md)；当前阶段：[唯一进度](../../product-master/product-master-v2-progress.md)。
 
 ## 任务、发现和根因

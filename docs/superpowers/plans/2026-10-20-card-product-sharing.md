@@ -1,5 +1,7 @@
 # 色卡级花型产品分享实施计划
 
+> 2026-10-24 目录整理：本文部分历史路径对应的临时文件、已退役源码副本或旧发布证据已完整迁至仓库外；原路径作为历史定位保留，按[归档恢复索引](../../maintenance/2026-10-24-workspace-archives.json)中的范围和逐文件 SHA256 查找原件。未完成的业务 Gate 仍按当前进度保留。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans for native execution or superpowers:subagent-driven-development if the user selects delegated execution. Steps use checkbox syntax for tracking.
 
 **Goal:** 将新分享入口从产品库移至色卡库，让客户通过独立稳定链接查看该卡所有有效配色产品的三类图片。

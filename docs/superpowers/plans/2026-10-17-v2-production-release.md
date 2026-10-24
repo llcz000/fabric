@@ -1,5 +1,7 @@
 # Fabric V2 Production Release Implementation Plan
 
+> 2026-10-24 目录整理：本文部分历史路径对应的临时文件、已退役源码副本或旧发布证据已完整迁至仓库外；原路径作为历史定位保留，按[归档恢复索引](../../maintenance/2026-10-24-workspace-archives.json)中的范围和逐文件 SHA256 查找原件。未完成的业务 Gate 仍按当前进度保留。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: executing-plans，单Agent逐项执行，最后一次独立只读审查。
 
 **Goal:** 按2026-10-17用户“继续要部署还有哪些工作项都一并完成”授权，补齐已批准V2业务的生产接线、迁移/回退和真实环境验证后部署。
