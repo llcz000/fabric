@@ -58,5 +58,11 @@ test('archive gate accepts a verified, superseded historical note with transferr
   plan.entries[0].source='docs/product-master/product-master-v2-requirements.md';
   put(plan.entries[0].source,sourceText);
   r=run();assert.equal(r.status,2,'business requirements cannot be archived by this tool');
+  for(const candidate of ['docs/superpowers/plans/2026-10-23-completed-task.md','docs/superpowers/specs/2026-10-23-approved-design.md','docs/superpowers/plans/current.md']){
+   plan.entries[0].source=candidate;plan.entries[0].reason='superseded';
+   put(candidate,sourceText);
+   r=run();
+   assert.equal(r.status,candidate.includes('/plans/2026-')?0:2,'only dated execution plans may enter the same evidence gate: '+candidate+' '+r.stdout);
+  }
  }finally{fs.rmSync(parent,{recursive:true,force:true});}
 });

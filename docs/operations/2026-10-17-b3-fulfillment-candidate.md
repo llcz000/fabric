@@ -1,6 +1,6 @@
 # B3 客户选样、寄样与跟进：真实候选证据
 
-2026-10-17；对应[执行计划](../superpowers/plans/2026-10-17-b3-fulfillment-workspace.md)，唯一当前状态见[V2进度](../product-master/product-master-v2-progress.md)。这是独立恢复库候选，不是正式上线。
+2026-10-17；对应[执行计划](../retrospectives/development/2026-10-15-fabric-v2-efficiency-b3.md)，唯一当前状态见[V2进度](../product-master/product-master-v2-progress.md)。这是独立恢复库候选，不是正式上线。
 
 最新整合分支改名codex/v2-phase2-completion-20261017，完整发布PR #6。补入手机拍照/选图本地识别：真实卡PNG、显式提交去重、错误恢复及延迟识别守卫已验，照片不上传；B2/B3浏览器最终17项（原13项全部保留），B1另10项通过；统一1250项（1249通过/1跳过）和完整lint/build通过。最新包/恢复17项与正式未签收事项见[整合发布交接](2026-10-17-v2-combined-release-handoff.md)。以下1235项/原包是B3检查点，不冒充最新结果。
 

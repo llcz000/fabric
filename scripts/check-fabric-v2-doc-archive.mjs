@@ -52,7 +52,8 @@ function evaluate(entry,excluded){
  const s=entry.source;
  documentPath(s);
  if(!(/^docs\/product-master\/[^/]+\.md$/.test(s)||
-     /^docs\/retrospectives\/development\/[^/]+\.md$/.test(s)))fail('Not a process-history document: '+s);
+     /^docs\/retrospectives\/development\/[^/]+\.md$/.test(s)||
+     /^docs\/superpowers\/plans\/\d{4}-\d{2}-\d{2}-[^/]+\.md$/.test(s)))fail('Not a process-history document: '+s);
  if(/\/README\.md$|requirements\.md$|progress\.md$|approved-decisions\.md$/.test(s))
   fail('Protected business/decision/status document: '+s);
  if(!fs.existsSync(documentPath(s)))fail('Original is missing; review before removal: '+s);

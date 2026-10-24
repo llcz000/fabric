@@ -37,25 +37,20 @@
   ],
   "retained": {
     "agentWorkspaces": [
-      "stats-20261017",
-      "ui-release-20261019",
       "v2-quality-20261020"
     ],
     "releaseDirectories": [
       "20261023t092834635-0c5da157",
       "20261023t095703554-2938438a"
     ],
-    "activeTmp": [
-      "fabric-import-user.xlsx",
-      "G0153-2.webp",
-      "library-transfer/"
-    ],
+    "activeTmp": [],
     "protected": [
       "All Git worktrees/branches",
       "Current code and source manifests",
       "Environment, runtime/customer data, uploads and templates",
       "Current/open-gate evidence, UI designs and original input assets"
-    ]
+    ],
+    "privateTestInputs": ".local/test-inputs/"
   },
   "temporaryHistory": [
     {
@@ -497,6 +492,76 @@
       "independent-review.txt",
       "baseline-comparison.json",
       "verification.json"
+    ]
+  },
+  "singleWorkspaceCleanup": {
+    "date": "2026-10-24",
+    "status": "relocated-originals-and-independent-backups-verified",
+    "archiveRoot": "D:/fabric-knowledge-backups/single-workspace-docs-20261024-114200",
+    "manifest": "archive-manifest.json",
+    "manifestSha256": "14b71679c657acb81e5765a3768b0609a28642ce3b48021bbe36708f63ddd4a0",
+    "documentPlans": {
+      "root": 24,
+      "active": 21,
+      "reason": "superseded",
+      "originals": "originals/{owner}/docs/superpowers/plans/{name}",
+      "independentBackups": "backups/{owner}/reviewed-originals/docs/superpowers/plans/{name}",
+      "preflight": [
+        "root-doc-review.json",
+        "active-doc-review.json",
+        "root-archive-preflight.log",
+        "active-archive-preflight.log"
+      ],
+      "retainedConstraints": "Existing thematic documents listed per entry, plus existing V2 progress for pending Gates"
+    },
+    "worktrees": [
+      {
+        "name": "stats-20261017",
+        "previous": "D:\\fabric\\.agent-workspaces\\stats-20261017",
+        "archived": "D:\\fabric-knowledge-backups\\single-workspace-docs-20261024-114200\\worktrees\\stats-20261017",
+        "files": 255,
+        "head": "33f1da44be5a38b26496c8c55abea7eda7693adb",
+        "branch": null,
+        "uncommittedStatus": "archive-manifest.json worktrees[].status",
+        "independentBackups": "backups/stats-20261017",
+        "method": "git worktree move, histories and dirty state retained"
+      },
+      {
+        "name": "ui-release-20261019",
+        "previous": "D:\\fabric\\.agent-workspaces\\ui-release-20261019",
+        "archived": "D:\\fabric-knowledge-backups\\single-workspace-docs-20261024-114200\\worktrees\\ui-release-20261019",
+        "files": 896,
+        "head": "4f56b152a1ef3e8ee7079bf47c6c77b0cb4881b1",
+        "branch": "codex/fabric-ui-experience-20261019",
+        "uncommittedStatus": "archive-manifest.json worktrees[].status",
+        "independentBackups": "backups/ui-release-20261019",
+        "method": "git worktree move, histories and dirty state retained"
+      }
+    ],
+    "privateInputs": {
+      "workspace": "D:\\fabric\\.agent-workspaces\\v2-quality-20261020",
+      "originals": [
+        ".local/test-inputs/fabric-import-user.xlsx",
+        ".local/test-inputs/G0153-2.webp"
+      ],
+      "sha256": "archive-manifest.json inputs[]",
+      "ignored": true
+    },
+    "retiredHelpers": [
+      "tmp/library-transfer/library_file_transfer.py",
+      "tmp/library-transfer/library_hosted_apps.py"
+    ],
+    "receipts": [
+      "relocation-receipt.json",
+      "project-retirements.json",
+      "verification.json"
+    ],
+    "restore": [
+      "Verify archive-manifest.json SHA256 and then the exact file SHA256 against its entry before restoring.",
+      "Restore only the selected original from originals/{owner}/{source} or its independent backup, compare any current destination; never overwrite a newer directory.",
+      "Old worktrees remain registered at the external archive path. Use git worktree move from that path to a separate safe review directory only after checking no running tasks; do not copy the backed-up .git pointer over a current checkout.",
+      "Private original inputs are kept in the active ignored .local/test-inputs directory. Restore to a nonconflicting local file if needed; never commit customer originals.",
+      "WebCodex unregister receipts record the removed IDs; moving a worktree does not re-register it."
     ]
   }
 }

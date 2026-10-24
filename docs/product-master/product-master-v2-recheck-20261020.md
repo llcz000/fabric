@@ -16,7 +16,7 @@
 
 **保留边界：** 旧版本已经跳过的低序号无法可靠区分“从未使用”与“已删除”；本轮未自动改历史序号或生产数据，防止重用历史身份。手工先导高号再补低号仍受原计数器规则约束，建议同母版按完整低到高批次导入。客户档案开发未包含在本轮修复中。
 
-实现/测试及证据见活动源码 artifacts/pattern-import-fixes-20261020；计划见 docs/superpowers/plans/2026-10-20-pattern-import-review-fixes.md。没有部署、生产DB/COS写入、Git提交或推送。
+实现/测试及证据见活动源码 artifacts/pattern-import-fixes-20261020；计划见 docs/product-master/product-master-v2-recheck-20261020.md。没有部署、生产DB/COS写入、Git提交或推送。
 
 范围：活动源码 D:/fabric/.agent-workspaces/v2-quality-20261020；Git HEAD 4f56b152a1ef3e8ee7079bf47c6c77b0cb4881b1，本次检查相对646文件色卡增量清单新增的8项修改和5项新增。13项当前文件摘要均与15:15发布的source-fence一致。本轮检查未修改业务实现、未重新部署或执行生产数据写入；生产发布状态引用既有发布记录，本轮未独立复验线上。
 
@@ -40,3 +40,10 @@
 现有全量测试全绿仍漏掉上述业务边界；建议先处理两个P1，再处理导入策略和弹窗生命周期。色卡关联已有实现，客户档案仍是工程设计，不能算作客户资料功能已开发完成。
 
 证据位于活动工作区及主目录 artifacts/latest-code-review-20261020：quality-results.json、各final-*.log、review-snapshot.json、latest-*-repro.log及两个复现脚本。业务依据见[唯一需求](product-master-v2-requirements.md)1.3/1.4；发布依据见[花型整删与批量导入发布记录](../operations/2026-10-20-pattern-bulk-release.md)。
+
+
+## 实施计划归档后保留约束（2026-10-24）
+
+以下约束从已被本文替代的执行计划提炼，历史实现状态以原日期为准，现行业务以最新需求为准；不是新增需求或本轮业务验收。
+
+- 导入低号失败或 POST 结果不确定时暂停同母版后续项，其它母版继续；不自动修计数器或补历史号。busy 防双击/关闭/离页，强制卸载后不继续上传和 POST；产品图片前后端20MB，公司资源仍2MB，并保留 MIME/像素校验。

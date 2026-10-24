@@ -104,7 +104,11 @@ test('commit rejects untracked files created by post-commit hooks before refresh
 });
 
 test('real test runner records its owning PID before running and removes its output',()=>{
- const folder=fs.mkdtempSync(path.join(project,'tmp/runner-owner-fixture-'));
+ const pointer=JSON.parse(fs.readFileSync(path.join(project,'docs/project/fabric-v2-active-workspace.json'),'utf8'));
+ const application=pointer.role==='application'?project:path.resolve(project,pointer.workspace);
+ const parent=path.join(application,'tmp'),existed=fs.existsSync(parent);
+ fs.mkdirSync(parent,{recursive:true});
+ const folder=fs.mkdtempSync(path.join(parent,'runner-owner-fixture-'));
  const resultFile=path.join(folder,'owner.json'),testFile=path.join(folder,'owner.test.ts');
  const source=[
   "import fs from 'node:fs';import path from 'node:path';import test from 'node:test';",
@@ -115,11 +119,11 @@ test('real test runner records its owning PID before running and removes its out
  fs.writeFileSync(testFile,source);
  try{
   const env={...process.env};delete env.NODE_TEST_CONTEXT;
-  const result=spawnSync(process.execPath,['scripts/run-ts-tests.mjs',testFile],{cwd:project,encoding:'utf8',env});
+  const result=spawnSync(process.execPath,['scripts/run-ts-tests.mjs',testFile],{cwd:application,encoding:'utf8',env});
   assert.equal(result.status,0,result.stdout+'\n'+result.stderr);
   const evidence=JSON.parse(fs.readFileSync(resultFile,'utf8'));
   assert.equal(evidence.owner.format,'fabric-test-output-v1');
   assert.equal(evidence.owner.pid,result.pid);
   assert.equal(fs.existsSync(evidence.output),false);
- }finally{fs.rmSync(folder,{recursive:true,force:true});}
+ }finally{fs.rmSync(folder,{recursive:true,force:true});if(!existed)fs.rmdirSync(parent);}
 });
