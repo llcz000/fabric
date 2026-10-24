@@ -1,4 +1,16 @@
 # Fabric 历史 Git 工作树逐文件审查（2026-10-24）
+## 最终 Git 工作树收敛（2026-10-24，最新状态）
+
+用户再次明确要求清理全部历史工作树。本轮已对剩余 4 个注册目录执行原生 `git worktree remove`，并在退出前验证旧 HEAD 是正式应用祖先、141 个历史未提交文件在原有审计清单中的 SHA256 双份副本完整。旧产品导入检出另外与此前 274 个文件的全量备份逐文件核对一致。保全旧 B3 的 15 个下载目录、旧部署验收的 3 个下载目录和旧发布审查的 1 个下载目录，实际共 **23 个下载文件 SHA256 校验通过**，外部归档路径为 `D:/fabric-knowledge-backups/historical-worktree-audit-20261024050527/qa-downloads-before-retirement/`。通常可重建的编译结果、依赖和浏览器 Profile 不另做多 GB 备份。
+
+最终退出的 4 个注册工作树：`b3-fulfillment`（118 项）、`v2-deployment-completion`（11 项）、`product-library-images-import`（4 项）、`release-review-20261017`（8 项）。已验证前三个目录的原路径消失；第四个目录只残留一个指向 `D:/fabric/node_modules` 的 junction 链接及空父目录，**不是 Git 工作树**。安全检查阻止移除该残留链接，未绕过执行限制，也未触碰共享依赖目标。
+
+最终 Git 审计：`registeredWorktrees: 2`、`legacyWorktrees: []`、`projectClean: true`、`allRegisteredClean: true`、活动并行任务 0。两个保留工作树分别是 `D:/fabric`（控制入口）和 `D:/fabric/.agent-workspaces/v2-quality-20261020`（正式应用）。所有 10 个历史工作树均已退役，历史未提交记录在已注册历史工作树中降至 0。退出操作没有合入历史源码，也没有部署线上。
+
+已删除旧 B3 及部署分支引用 `codex/v2-phase2-completion-20261017`、`codex/v2-production-deploy-20261017`（历史 HEAD 均属正式应用祖先）。`codex/fabric-v2-integration-review-20261017` 与 `codex/product-schema-init` 两个不再附着工作树的**旧本地分支引用**仍存在；分支清除遇到执行限制，未进行变通操作。这两个引用不影响 worktree 清单或两个正式工作区的 Git clean 状态。
+
+历史审计章节保留原始 12 个工作树、395 项变更的时点快照，不再代表当前项目状态；任何未来版本检查均以运行时 `npm run parallel -- audit` 为准。恢复凭证在 `docs/maintenance/2026-10-24-workspace-archives.json` 中登记。
+
 
 > 范围：只审查旧工作树，不更改当前业务实现或线上数据。正式控制目录为 `D:/fabric`；唯一正式应用工作树为 `D:/fabric/.agent-workspaces/v2-quality-20261020`。本文与[并行开发与合并规范](../development/Fabric并行开发与合并规范.md)配合使用；业务价值判定以[项目需求总览](../project/项目需求总览.md)为准。
 ## 最新处理决定及实际清理结果（2026-10-24，以此节为准）
