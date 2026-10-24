@@ -571,8 +571,20 @@
     "manifestSha256": "0af553d0dae84dcd03bf3737c09762bb2b8a7161f72d6186d2084f22cfa874c7",
     "moveVerification": "move-verification.json",
     "archivedWorktrees": [
-      {"name":"multi-user-order-product-permissions","branch":"codex/multi-user-order-product-permissions","head":"2ccb0e8f2d2ad520b7ef1617a0c21f7e0ebcb203","files":217,"uncommittedEntries":3},
-      {"name":"product-library-images-import","branch":"codex/product-schema-init","head":"7e2d81d89ad3a08b3f01f6712dfb65d09ebd2817","files":274,"uncommittedEntries":4}
+      {
+        "name": "multi-user-order-product-permissions",
+        "branch": "codex/multi-user-order-product-permissions",
+        "head": "2ccb0e8f2d2ad520b7ef1617a0c21f7e0ebcb203",
+        "files": 217,
+        "uncommittedEntries": 3
+      },
+      {
+        "name": "product-library-images-import",
+        "branch": "codex/product-schema-init",
+        "head": "7e2d81d89ad3a08b3f01f6712dfb65d09ebd2817",
+        "files": 274,
+        "uncommittedEntries": 4
+      }
     ],
     "procedure": "Independent SHA256 verified backup, then git worktree move. Rechecked every moved file, HEAD, branch and full dirty status; empty original .worktrees directory removed.",
     "restore": "Verify manifest.json SHA256 then each selected file hash; use git worktree move from archiveRoot/worktrees/{name} to a separate empty directory; do not copy backup .git pointers over newer checkouts.",
@@ -629,8 +641,18 @@
   "historicalWorktreeFinalCleanup": {
     "date": "2026-10-24",
     "purpose": "Close all previous transient Git worktrees; keep current controller and active application as only registered worktrees.",
-    "before": {"registeredWorktrees": 6, "legacyWorktrees": 4, "legacyDirtyEntries": 141},
-    "after": {"registeredWorktrees": 2, "legacyWorktrees": 0, "legacyDirtyEntries": 0, "projectClean": true, "allRegisteredClean": true},
+    "before": {
+      "registeredWorktrees": 6,
+      "legacyWorktrees": 4,
+      "legacyDirtyEntries": 141
+    },
+    "after": {
+      "registeredWorktrees": 2,
+      "legacyWorktrees": 0,
+      "legacyDirtyEntries": 0,
+      "projectClean": true,
+      "allRegisteredClean": true
+    },
     "retired": [
       "C:/Users/yangx/.codex/worktrees/b3-fulfillment/fabric",
       "C:/Users/yangx/.codex/worktrees/v2-deployment-completion/fabric",
@@ -658,5 +680,29 @@
       "D:/fabric/.agent-workspaces/v2-quality-20261020"
     ],
     "releaseAuthorized": false
+  },
+  "currentSingleRootProcessCleanup": {
+    "date": "2026-10-24",
+    "workspace": "D:/fabric",
+    "initialHead": "91fc4f3689bcccd165089561ff9ce2bb3e116163",
+    "archiveRoot": "D:/fabric-knowledge-backups/current-doc-cleanup-20261024",
+    "manifest": "manifest.json",
+    "manifestSha256": "6801130d99b6c0588fc22ccf4c9cee829dbb43680b75b185fa5a5692e02531f5",
+    "reviewPlan": "review-plan.json",
+    "reviewSha256": "844044387f5a3e57ee6edb04e6d4e00047f4a5c95b904589d0ccccb7a53f476b",
+    "preflightCandidates": 72,
+    "restoredProofDependencies": 2,
+    "netArchivedDocuments": 70,
+    "currentRegisteredWorktrees": 1,
+    "protectedApplicationFiles": 602,
+    "receipts": [
+      "archive-preflight.log",
+      "relocation-receipt.json",
+      "restored-proof-dependencies.json",
+      "verification.json"
+    ],
+    "recoveryGuide": "docs/maintenance/文档整合与恢复.md",
+    "noProductionWrites": true,
+    "noPush": true
   }
 }

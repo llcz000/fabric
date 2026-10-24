@@ -129,6 +129,7 @@ export function commitWorkspace(root=canonical,{message}={}){
   function known(folder){
    for(const item of fs.readdirSync(path.join(active,folder),{withFileTypes:true})){
     const relative=folder+'/'+item.name;
+    if(relative==='scripts/generate_mockup.py')continue; // Preserve the same local-only helper excluded by the source gate.
     if(item.isSymbolicLink()||(item.isDirectory()?!known(relative):!expected.has(relative)))return false;
    }
    return true;

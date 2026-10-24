@@ -64,7 +64,7 @@ Stitch 原生图为视觉来源；本地附件仅统一当前背景、清除自�
 
 ## 当前页面交付完整性
 
-对照[预期清单](../../artifacts/product-master-ui/stitch/current/review-delivery.json)与[最新原生快照](../../artifacts/product-master-ui/stitch/current/canvas-snapshot.json)逐页验证；不是只核对已生成页面数量。操作规则见[持续迭代流程第8节](product-master-v2-ui-iteration-workflow.md#8-stitch-画布与本地原型交付流程2026-10-11-生效)，遗漏原因见[复盘](../retrospectives/development/2026-10-12-stitch-user-edit-overwrite.md)。
+对照[预期清单](../../artifacts/product-master-ui/stitch/current/review-delivery.json)与[最新原生快照](../../artifacts/product-master-ui/stitch/current/canvas-snapshot.json)逐页验证；不是只核对已生成页面数量。操作规则见[持续迭代流程第8节](product-master-v2-ui-iteration-workflow.md#8-stitch-画布与本地原型交付流程2026-10-11-生效)，遗漏原因见[复盘](../retrospectives/README.md)。
 
 
 2026-10-11 当前产品列表修订按[需求v1.28](product-master-v2-requirements.md)与[产品UI记录](product-master-v2-ui-review.md)执行：花型图首列、货号 / 品名、题材与颜色标签分列、产品图集中查看、货号 / 品名分类搜索；此前列表面料主图及泛搜索叙述仅为历史过程。新当前列表屏幕为34e1ea042ea74086bce8ee2dcb2b7748。页面批准状态保持待评审。
@@ -104,4 +104,4 @@ Stitch 原生图为视觉来源；本地附件仅统一当前背景、清除自�
 
 ## 2026-10-12 恢复用户在Stitch添加的备注列（v1.35）
 
-用户明确其在Stitch给产品列表新增备注列。旧12列稿被本轮沿用旧文档“11列”提示词覆盖；实际HTML已核对。恢复完整当前列表1ac8dc0f5f65419aaa80bc264a43abde：花型图、货号、品名、成分、克重、门幅/cm、题材、颜色标签、图片数量、备注、启用状态、操作。备注来自产品自身，空值“—”，长文可完整查看；数字配色及其余单元格保持。原生5项与本地6项检查通过。正式需求v1.35/AC-72，流程8.1.1与受保护列交付检查已补充；详情见[复盘](../retrospectives/development/2026-10-12-stitch-user-edit-overwrite.md)。旧11列指令不作为当前口径，应用未实施。
+用户明确其在Stitch给产品列表新增备注列。旧12列稿被本轮沿用旧文档“11列”提示词覆盖；实际HTML已核对。恢复完整当前列表1ac8dc0f5f65419aaa80bc264a43abde：花型图、货号、品名、成分、克重、门幅/cm、题材、颜色标签、图片数量、备注、启用状态、操作。备注来自产品自身，空值“—”，长文可完整查看；数字配色及其余单元格保持。原生5项与本地6项检查通过。正式需求v1.35/AC-72，流程8.1.1与受保护列交付检查已补充；详情见[复盘](../retrospectives/README.md)。旧11列指令不作为当前口径，应用未实施。

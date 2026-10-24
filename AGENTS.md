@@ -4,7 +4,7 @@
 
 ## 工作空间命令位置（2026-10-24）
 
-根目录为控制与规范入口，正式应用由 docs/project/fabric-v2-active-workspace.json 定位。根目录已不保留应用 src/server 或重复应用脚本。常用 npm 命令从根目录自动路由；本文其余 node scripts/... 业务、ACP/Orchestrator 和专项检查命令均在活动应用目录执行。根目录仍可执行 ui:preflight 及工作空间/知识维护工具。独立应用检出使用自身已提交的规范和工具，先运行 workspace:init 建立本地清单；初始化不授予发布权限。
+D:/fabric 为唯一正式应用、规范和命令入口；src/server/scripts/docs 均位于根目录，所有常用 npm、业务与专项检查命令在根目录执行。docs/project/fabric-v2-active-workspace.json 的 application 角色指向本根目录；不再使用已退役的 Controller/Active 路由。全新检出先运行 workspace:init 建立本地清单；初始化不授予发布权限。
 
 
 ## 开发前

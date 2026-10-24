@@ -36,7 +36,7 @@
 
 `GET /api/v2/documents/:id/matching-items`接受与列表相同筛选、默认20/最多50，返回`{orderId,total,limit,offset,items}`。每条items为`{id,productNo,colorNo,productName,meters,amount,pieces}`；先检查同范围单头存在且满足筛选，再在COUNT和明细页重复同一owner/明细条件，无权限或不命中返回404。多个明细条件始终在同一条`i`上AND。列表按`order_date DESC,id DESC`，返回持久`settled`；结清过滤仅样布/销售。合计与明细的样布行计1匹、销售计保存的分匹JSON条数、定金不计匹数；已有综合明细合计仍排除定金合同额。
 
-编辑、保存、预览和Excel统一使用实际V2集合`/api/v2/documents`及单据资源`/:id`，不再生成重复`/documents/documents`。独立评审`?view=documents`提供29张内存单据、sales/admin范围及一次失败演示，不回退原生fetch、不模拟保存/文件导出。浏览器证据与开放Gate见[查询复盘](../retrospectives/development/2026-10-16-document-query.md)。
+编辑、保存、预览和Excel统一使用实际V2集合`/api/v2/documents`及单据资源`/:id`，不再生成重复`/documents/documents`。独立评审`?view=documents`提供29张内存单据、sales/admin范围及一次失败演示，不回退原生fetch、不模拟保存/文件导出。浏览器证据与开放Gate见[查询复盘](../retrospectives/README.md)。
 
 ### 经营统计接口补充（2026-10-16）
 
@@ -45,7 +45,7 @@
 - `topProducts: {productName, meters}[]`：直接按已存`order_items.product_name`去首尾空格并归并空名为「未命名的面料」，累计三类单据明细米数；米数倒序、品名升序、数据库`LIMIT 5`。不连接当前产品库追写历史品名，不汇总定金金额。
 - `recentOrders: {id, orderNo, date, receivingUnit, type, totalMeters, totalAmount}[]`：开单日期倒序、同日ID倒序、数据库`LIMIT 4`，ID保持字符串。`type`沿用持久值`sample/bulk/deposit`，`totalAmount`为本单金额，定金单对应合同额；这是单据摘要，不是定金收款合计。
 
-汇总、排名、最近单据共用同一服务端owner/日期谓词；空数据返回零汇总和两个空数组。异常或非法数值使整份HTTP响应安全失败，不返回部分成功。该接口未接旧大盘，SQL契约替身不证明真实MySQL聚合/排序、驱动BIGINT/日期解码或性能；[本轮复盘](../retrospectives/development/2026-10-16-order-statistics.md)记录验收范围与开放Gate。
+汇总、排名、最近单据共用同一服务端owner/日期谓词；空数据返回零汇总和两个空数组。异常或非法数值使整份HTTP响应安全失败，不返回部分成功。该接口未接旧大盘，SQL契约替身不证明真实MySQL聚合/排序、驱动BIGINT/日期解码或性能；[本轮复盘](../retrospectives/README.md)记录验收范围与开放Gate。
 
 **本轮局部回归**：历史公司快照非NULL的已存样布单据重读后使用最新公司信息；更新公司资料再次重读反映新值，Excel一致，定金单取当前定金条款，产品行与金额保持冻结，当前设置缺失则明确失败。**未覆盖**：V2 `/documents/:id` 返回对象如何呈现最新公司设置、旧版React/PNG/JSON界面、收款码/品牌Logo/签名等扩展公司字段、真实持久MySQL，以及正式纸张人工签收。以上均不得宣称完成。
 

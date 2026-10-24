@@ -1,6 +1,6 @@
 # P2 登录、权限与成员管理技术说明
 
-用途：V2认证与权限接线。**现行角色规则以[项目需求总览2.1](../project/项目需求总览.md#roles)优先**，阶段状态见[进度](product-master-v2-progress.md)；早期授权设计见[历史规格10.1](product-master-v2-requirements.md)。旧路由切换见[切流约束](product-master-v2-p2-legacy-cutover-gate.md)。2026-10-15本机已按简化角色规则更新部分服务端代码，不代表线上已启用。
+用途：V2认证与权限接线。**现行角色规则以[项目需求总览2.1](../project/项目需求总览.md#roles)优先**，阶段状态见[进度](product-master-v2-progress.md)；早期授权设计见[历史规格10.1](product-master-v2-requirements.md)。旧路由切换见[切流约束](README.md)。2026-10-15本机已按简化角色规则更新部分服务端代码，不代表线上已启用。
 
 ## 身份和权限
 

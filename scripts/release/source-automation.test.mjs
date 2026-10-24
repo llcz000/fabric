@@ -65,6 +65,19 @@ test('source guard blocks unapproved file additions and requirements changes',()
  fs.writeFileSync(path.join(root,'docs/project/requirements.md'),'changed');
  assert.throws(()=>acceptReviewedSource(ctx,[]),/requirements/i);
 }));
+
+test('reviewed source refresh preserves the documented local mockup helper exclusion only',()=>workspace(root=>{
+ const ctx={root,head:'base'};
+ fs.writeFileSync(path.join(root,'scripts/generate_mockup.py'),'private local helper');
+ assert.deepEqual(reviewedSourceDiff(ctx).changed,[]);
+ fs.writeFileSync(path.join(root,'src/app.tsx'),'reviewed');
+ assert.deepEqual(acceptReviewedSource(ctx,['src/app.tsx']),['src/app.tsx']);
+ const manifest=JSON.parse(fs.readFileSync(path.join(root,'artifacts/candidate/manifest.json')));
+ assert(!manifest.files.some(entry=>entry.path==='scripts/generate_mockup.py'));
+ fs.writeFileSync(path.join(root,'scripts/other_local.py'),'not approved');
+ assert.deepEqual(reviewedSourceDiff(ctx).changed,['scripts/other_local.py']);
+ assert.throws(()=>acceptReviewedSource(ctx,[]),/unreviewed/i);
+}));
 test('quick browser gate only accepts dedicated Fabric list component changes',()=>{
  assert(targetedFabricUiAllowed(['src/components/product-master-v2/FabricLibraryV2.tsx']));
  assert(targetedFabricUiAllowed(['src/components/product-master-v2/FabricLibraryV2.test.ts','src/components/product-master-v2/FabricLibraryV2.tsx']));

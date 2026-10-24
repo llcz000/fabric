@@ -19,4 +19,4 @@
 - **预览**：`http://127.0.0.1:52991/ui-ux-internal-cards.html`，使用实际组件＋正式 CSS，3条演示数据。截图位于 `artifacts/ui-ux-pilot/card-library-design-review-{desktop,view,share,qr,delete,mobile}.png`。本机 HTTP 只能展示分享弹窗的失败重试样式：正式分享链接必须为 HTTPS 同源，测试样板不生成真实 token，不能称作生产分享成功演示。
 - **验收**：25/25 Playwright/Edge 流程 PASS（含已有微信客户页回归）；34/34 业务/列设置单测 PASS；定向 TypeScript PASS，正式活动客户端 Vite build PASS。已实际查看六张截图：视觉排列、标题简化、三类正常浏览关闭与删除安全确认符合本轮设计目标。仍待用户本人确认视觉。
 - **候选范围**：改动 `SampleCardLibraryV2.tsx`、`SampleCardTable.tsx`、`SampleCardPatternsDialog.tsx`、`CardShareDialog.tsx`、`v2Experience.css`；新增 `src/components/ui/DialogDismissButton.tsx`。新候选清单 `artifacts/card-library-one-pass-ui-20261021/source-manifest.json`，共 723 项；原已发布微信分享页面组件 `PublicPatternPage`/`PublicCardGallery`/`PublicProductImage` 未修改。
-- **更新后的状态（2026-10-21）**：用户批准后已通过统一发布工具正式上线，发布 ID `20261021t134811458-b98988bc`，详情见 [上线记录](card-library-one-pass-release-2026-10-21.md)。上线工具自动验证 PASS，已登录真实操作的最终视觉体验仍需用户生产验收；客户微信 H5 的已验收行为继续保留。
+- **更新后的状态（2026-10-21）**：用户批准后已通过统一发布工具正式上线，发布 ID `20261021t134811458-b98988bc`，详情见 [上线记录](README.md)。上线工具自动验证 PASS，已登录真实操作的最终视觉体验仍需用户生产验收；客户微信 H5 的已验收行为继续保留。

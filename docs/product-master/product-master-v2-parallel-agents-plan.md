@@ -12,7 +12,7 @@
 >
 > **2026-10-14历史基线，不代表当前代码结果**：旧v1.49及当时B2-5h测试记录仅作追溯。最新现行需求为v1.50，阶段质量证据以[最新交付](product-master-v2-b3-history-ui-review.md)为准。正式`server.ts`/`src/App.tsx`仍未切V2；MySQL迁移与部署须单独授权。旧HEAD不可作为包含未跟踪V2源码的完整隔离基线。
 
-**2026-10-15 ACP交付Gate已实测**：按[ACP协作交付链](product-master-v2-agent-context-handbook.md#现行-acp-协作交付链2026-10-15)真实执行「最新快照SHA256→独立Project→ACP E B1投影TDD RED/GREEN→规格及安全复核→三方SHA256→主控对2文件版本保护真实合并→全量874项873通过/1跳过、完整lint/build通过」，证据见[ACP真实合并记录](../maintenance/2026-10-15-ACP-协作闭环.md)。工具`fabric-v2-acp-prepare.mjs`与`fabric-v2-acp-merge-gate.mjs`已具备安全防护，**不等于已解除双ACP编码容量上限**。两个独立Codex窗口共享主目录的任务仍须协调；旧489/后续443文件快照均只对应生成时点，最新合并后下一批必须另建快照与Project。
+**2026-10-15 ACP交付Gate已实测**：按[ACP协作交付链](product-master-v2-agent-context-handbook.md#现行-acp-协作交付链2026-10-15)真实执行「最新快照SHA256→独立Project→ACP E B1投影TDD RED/GREEN→规格及安全复核→三方SHA256→主控对2文件版本保护真实合并→全量874项873通过/1跳过、完整lint/build通过」，证据见[ACP真实合并记录](../maintenance/文档整合与恢复.md)。工具`fabric-v2-acp-prepare.mjs`与`fabric-v2-acp-merge-gate.mjs`已具备安全防护，**不等于已解除双ACP编码容量上限**。两个独立Codex窗口共享主目录的任务仍须协调；旧489/后续443文件快照均只对应生成时点，最新合并后下一批必须另建快照与Project。
 
 ## 任务划分
 

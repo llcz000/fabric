@@ -11,7 +11,7 @@
 
 ## 历史验收证据
 
-2026-10-12 MySQL8.0.46：`fabric_v2_test_20261012_p1c`两次初始化，1张公司配置桩、5张共享图片基础表、8张V2表共14张且0业务行，未建旧产品表；`fabric_v2_test_20261012_p1c2`完成V1→固定ALTER→版本2账本→全结构复核，重跑不重复ALTER。原输出`P1C_IMAGE_V2_ISOLATED_PASS`、`P1C2_VERSIONED_REHEARSAL_PASS`。详细原文、时间及哈希由[维护记录](../maintenance/2026-10-15-项目内容清理.md)定位。
+2026-10-12 MySQL8.0.46：`fabric_v2_test_20261012_p1c`两次初始化，1张公司配置桩、5张共享图片基础表、8张V2表共14张且0业务行，未建旧产品表；`fabric_v2_test_20261012_p1c2`完成V1→固定ALTER→版本2账本→全结构复核，重跑不重复ALTER。原输出`P1C_IMAGE_V2_ISOLATED_PASS`、`P1C2_VERSIONED_REHEARSAL_PASS`。详细原文、时间及哈希由[维护记录](../maintenance/文档整合与恢复.md)定位。
 
 **2026-10-15新增AC-71锁/备份恢复离线审查合同**：`migrationLockRollbackPlan.ts`复用已存配色永久编号快照检验，要求沙箱目标/观察身份一致、备份/异库恢复及审核引用一致、显式认知MySQL DDL隐式提交无法靠事务ROLLBACK撤销；只生成`executable:false`审查步骤。ACP执行终态取消，总控独立复验23/23及双文件安全合并。真实锁、事务、备份、恢复与迁移批准仍需独立验收，不能据离线合同宣称正式迁移安全。
 

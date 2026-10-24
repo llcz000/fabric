@@ -40,6 +40,7 @@ export function reviewedSourceDiff({root,head}){
  const walk=dir=>{
   for(const item of fs.readdirSync(path.join(root,dir),{withFileTypes:true})){
    const name=dir+'/'+item.name,target=path.join(root,name);
+   if(name==='scripts/generate_mockup.py')continue; // Same documented local-only exception as the source gate and initializer.
    if(item.isSymbolicLink())throw Error('Unexpected source symlink: '+name);
    if(item.isDirectory())walk(name);
    else if(item.isFile())actual.set(name,sha(fs.readFileSync(target)));

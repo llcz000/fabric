@@ -2,7 +2,7 @@
 
 ## 业务边界与真实状态
 - Fabric 各管理库、客户、单据及内部分享操作仅员工使用；**只有色卡 `/c/<43字符token>` 链接打开的客户页面向外展示**。
-- 根据 [色卡分享发布记录](../product-master/product-master-v2-card-sharing-20261020.md)，2026-10-20 正式色卡分享已上线。历史 B1 `PublicPatternGallery` 的未挂载状态**不适用于**已上线的 `/c/` 色卡分享链。上线≠微信实机验收，本轮未部署更新。
+- 根据 [色卡分享发布记录](../product-master/README.md)，2026-10-20 正式色卡分享已上线。历史 B1 `PublicPatternGallery` 的未挂载状态**不适用于**已上线的 `/c/` 色卡分享链。上线≠微信实机验收，本轮未部署更新。
 - 正式实现位于当前活跃工作树：`.agent-workspaces/v2-quality-20261020/src/components/customer-share/PublicCardGallery.tsx`、`PublicProductImage.tsx`、`PublicPatternPage.tsx`。真实服务器上的图片流通依旧按现有 token 验证、公开 DTO 白名单和展示图二次授权来处理，没有改公共令牌、数据库/COS或 server routes。
 
 ## 已落地的微信 H5 UI
@@ -22,7 +22,7 @@
 
 ## 最新延伸（2026-10-21 发布前验证）
 
-已补充真实图像本机验证、微信模拟公开 API / 弱网 / 永久撤权测试、图片单张重试。最新验证及源清单阻断详见 [微信 H5 发布前验收记录](wechat-share-release-readiness-2026-10-21.md)。原发布冻结清单需保留，不可为通过检查直接覆盖。
+已补充真实图像本机验证、微信模拟公开 API / 弱网 / 永久撤权测试、图片单张重试。最新验证及源清单阻断详见 [微信 H5 发布前验收记录](README.md)。原发布冻结清单需保留，不可为通过检查直接覆盖。
 
 ## 上线前应做的微信实机检查
 - 安卓微信与 iOS 微信内从聊天直接打开一条真实的有效 `/c/` HTTPS 链接：首屏可读、页面无需登录，不请求内部敏感接口。

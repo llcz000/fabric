@@ -9,8 +9,8 @@
 | 要审什么 | 入口与必须保留的边界 |
 |---|---|
 | 一期七页批准与屏幕身份 | [Stitch登记](product-master-v2-stitch-design-review.md)、artifacts/product-master-ui/stitch/current/review-delivery.json；花型/配色、面料、产品列表/维护、导入和共用选品。产品12列及备注保护、货号/品名独立AND；旧11列与颜色身份字段不恢复 |
-| 当前React三库及维护 | [P4浏览器](product-master-v2-p4-browser-qa.md)、[产品编辑](product-master-v2-p4-browser-qa.md)、[配色同次保存](product-master-v2-p4-browser-qa.md)，独立评审入口product-master-v2-review.html；内存API不是真实业务保存 |
-| 面料导入 | [P5专题](product-master-v2-p5-browser-and-mysql-gate.md)；只xlsx、七列模板/八列行号预览、默认跳过/管理员明确更新，窄屏内部横滚 |
+| 当前React三库及维护 | [P4浏览器](README.md)、[产品编辑](README.md)、[配色同次保存](README.md)，独立评审入口product-master-v2-review.html；内存API不是真实业务保存 |
+| 面料导入 | [P5专题](README.md)；只xlsx、七列模板/八列行号预览、默认跳过/管理员明确更新，窄屏内部横滚 |
 | 三单据共用选品 | [P6选择器](product-master-v2-p6-document-write-read.md)、[单据工作区](product-master-v2-p6-document-write-read.md)；库内选品/管理员手工、四级启用与历史行冻结分开验，UI通过不证明真实保存打印 |
 | 二期实体色卡 | [色卡记录](product-master-v2-b2-5h-scan-lock-order.md)、[生命周期专题](product-master-v2-b2-5h-scan-lock-order.md)；v1.48色卡稿获确认，单母版＋面料、六列文本xlsx、QR同源；不恢复标签下载/多母版/客户扫卡 |
 | B3选样明细 | [交互评审](product-master-v2-b3-history-ui-review.md)、[10月15日实现](product-master-v2-b3-history-ui-review.md)；资料实时刷新与移除/重扫审计按v1.50，不拿旧首次属性快照稿作当前规则 |

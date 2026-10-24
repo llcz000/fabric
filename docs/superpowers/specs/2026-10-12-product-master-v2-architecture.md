@@ -12,7 +12,7 @@
 
 - 现有技术栈：React/Vite/TypeScript → Express → MySQL（并存在 JSON fallback 和浏览器 IndexedDB 路径）；图片资产由 server/image-assets/* 提供隔离上传、派生图、受控访问、引用/回收能力；不自行创建第二套图片存储。
 - server.ts:507-578 定义 orders、order_items、products、product_images 旧物理结构；server.ts:148-203 是单密码+内存token及产品路由装配（静态 principalId=admin）；server/appAssembly.ts 按图片资产开关决定新旧 /api/products 的路由优先级，迁移时要逐种开关测试。
-- server/products/types.ts、routes.ts、mysqlRepository.ts 当前产品写入 itemNo/productName/composition/weight/width、总图20张和产品标签；不符合「具体花型版本＋面料」关联。server/products/schema.ts:5-18 的 ALTER ... ADD ... IF NOT EXISTS 在目标 MySQL 8.0 不兼容，见[部署失败复盘](../../retrospectives/development/2026-09-26-product-schema-deployment.md)。
+- server/products/types.ts、routes.ts、mysqlRepository.ts 当前产品写入 itemNo/productName/composition/weight/width、总图20张和产品标签；不符合「具体花型版本＋面料」关联。server/products/schema.ts:5-18 的 ALTER ... ADD ... IF NOT EXISTS 在目标 MySQL 8.0 不兼容，见[部署失败复盘](../../retrospectives/README.md)。
 - server.ts:768-800 的订单校验把 weight/width 转为数值且缺省为0；server.ts:1046-1069、1138-1163 的订单明细新增/编辑为插入、编辑时先全部 DELETE 再 INSERT；旧明细 ID 不能在当前 PUT 链路里稳定存活。
 - src/types.ts、src/components/DocumentEditor.tsx 为三类前端单据的不同字段；src/lib/documentPrintModel.ts 和 server/documentPrintAdapter.ts、server/documentExcel.ts 共享打印模型；sales/bulk 映射不得改变、既有定金和销售计算口径不得改变。
 - 当前 Git 工作区有大量**已有**文档/设计变更；本设计不得触发业务表删除、历史数据迁移、源素材清理、部署或自动提交。
@@ -105,7 +105,7 @@
 
 - 角色仅管理员/业务员；业务员默认看全部三库，但不能写；orders.manage_own 控制本人单据增删改；products.manage 控制三库维护、标签/图片及面料导入新增。
 - **例外**：Excel重复品号的「明确更新已有面料」仅管理员；产品资料导出与账号权限配置仅管理员；管理员手工开单仅管理员。业务员两权限无继承，不能访问别人单据。
-- 账号停用立即失效，权限撤销后已持会话写请求不能再获授权；至少一个有效管理员。复用[历史多用户权限实施计划](../plans/2026-08-31-fabric-dms-multi-user-order-product-permissions.md)中的已适用设计，不能把该历史计划视为已完成。
+- 账号停用立即失效，权限撤销后已持会话写请求不能再获授权；至少一个有效管理员。复用[历史多用户权限实施计划](../../project/项目设计.md)中的已适用设计，不能把该历史计划视为已完成。
 - 图片上传、访问和解除关联均校验产品/配色资源权限；API客户端不提交真实文件存储路径；不可把已签名COS URL持久化或公开图片源图给外部（外部扫码二期）。
 
 ## 7. 渐进迁移、风险与上线 Gate
@@ -118,7 +118,7 @@
 | 规格单位和空值误写 | order_items.weight DECIMAL，OrderItemSchema默认0 | 新单据独立nullable快照/显示适配，旧值保留，gsm/mm不混算 |
 | 废弃旧产品路由但仍被app装配 | server/appAssembly.ts | 移除或明确阻断旧产品CRUD/导入，不保留双写兼容；所有三库入口统一V2 API并在后台做权限验证 |
 | 性能/图像压力 | 2,000条目标；现有图片服务 | SQL索引/批量查询、缩略图分页、原图懒加载、P95采样 |
-| 用户独立Stitch改动被覆盖 | [2026-10-12复盘](../../retrospectives/development/2026-10-12-stitch-user-edit-overwrite.md) | 远程HTML/截图/画布三方差异核对，保护产品备注列 |
+| 用户独立Stitch改动被覆盖 | [2026-10-12复盘](../../retrospectives/README.md) | 远程HTML/截图/画布三方差异核对，保护产品备注列 |
 | 已有库存、单据与数据回退 | 项目既有传统业务及fallback | 隔离测试库、正式备份、灰度/回滚方案；业务数据不随部署或文档清理删除 |
 
 发布前强制：①需求/UI剩余项确认；②目标数据库结构、备份及回滚复核；③ lint/build/相关单测/安全/图片/打印Excel回归；④三单据真实权限及历史行测试；⑤2,000条查询与图片加载压测；⑥目标commit、PM2、storage=mysql、业务API与数据一致性检查。**提交/推送/部署/导入真实数据需另行明确授权**。

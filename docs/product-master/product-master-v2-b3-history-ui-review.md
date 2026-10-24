@@ -4,7 +4,7 @@
 
 ## 最新可操作候选（2026-10-17）
 
-新独立工作台已接列表/新建与创建者显式授权、原色卡补选/扫码、分批寄样及跟进。真实恢复库元数据/事务和浏览器均有独立证据，见[当前候选](../operations/2026-10-17-b3-fulfillment-candidate.md)。以下早期隔离过程的未完成描述保留其时点；不代表正式生产已升级，实体扫码和人工UI仍开放。
+新独立工作台已接列表/新建与创建者显式授权、原色卡补选/扫码、分批寄样及跟进。真实恢复库元数据/事务和浏览器均有独立证据，见[当前候选](../operations/统一发布工具.md)。以下早期隔离过程的未完成描述保留其时点；不代表正式生产已升级，实体扫码和人工UI仍开放。
 
 ## 用户确认及预览
 
@@ -29,7 +29,7 @@
 
 2026-10-15历史人工补选RED→GREEN、定向21/21和局部tsc通过；真实本机HTTP＋内存SQL替身、浏览器新增/重复/移除/恢复、停用隐藏、最新资料和异常恢复已验证。该记录只证明当时按产品补选，不证明当前色卡流程。
 
-2026-10-17当前证据与最终回归见[唯一进度](product-master-v2-progress.md)和[同题复盘](../retrospectives/development/2026-10-15-fabric-v2-efficiency-b3.md#2026-10-17仅基于色卡补选)。专项代码包括`sessionCardSelection.test.ts/sessionCardSearch.test.ts`、统一HTTP `v2CatalogAssembly.test.ts`、真实client/model及review harness测试；浏览器脚本`scripts/card-selection-browser-qa.mjs`。
+2026-10-17当前证据与最终回归见[唯一进度](product-master-v2-progress.md)和[同题复盘](../retrospectives/README.md)。专项代码包括`sessionCardSelection.test.ts/sessionCardSearch.test.ts`、统一HTTP `v2CatalogAssembly.test.ts`、真实client/model及review harness测试；浏览器脚本`scripts/card-selection-browser-qa.mjs`。
 
 ## 未完成Gate与保留
 

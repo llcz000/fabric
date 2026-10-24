@@ -64,5 +64,10 @@ test('archive gate accepts a verified, superseded historical note with transferr
    r=run();
    assert.equal(r.status,candidate.includes('/plans/2026-')?0:2,'only dated execution plans may enter the same evidence gate: '+candidate+' '+r.stdout);
   }
+  for(const candidate of ['docs/operations/2026-10-21-release-result.md','docs/maintenance/2026-10-24-old-audit.md','docs/ui-design/pilot-2026-10-21-result.md','docs/ui-design/product-positioning-2026-10-21.md','docs/ui-design/wechat-card-share-2026-10-21.md','docs/ui-design/one-pass-ui-review-2026-10-21.md']){
+   plan.entries[0].source=candidate;put(candidate,sourceText);r=run();
+   const normative=/product-positioning|wechat-card-share|one-pass-ui-review/.test(candidate);
+   assert.equal(r.status,normative?2:0,'dated process notes share the evidence gate; current UI rules stay protected: '+candidate+' '+r.stdout);
+  }
  }finally{fs.rmSync(parent,{recursive:true,force:true});}
 });

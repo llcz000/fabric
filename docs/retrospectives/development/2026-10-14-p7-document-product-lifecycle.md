@@ -19,7 +19,7 @@
 
 历史真实回环HTTP使用原业务服务与状态化SQL替身；三单据状态流4/4曾通过。不证明InnoDB真实并发/FK、COS对象删除或30日时间到达；缺真实授权/写入、正式App/性能/备份回滚时仍不能上线。原始B2-4在途红测不由本任务改动，最终统一回归须等冻结代码。
 
-实现与场景入口：[P7统一HTTP专题](../../product-master/product-master-v2-p7-local-http-assembly.md)。
+实现与场景入口：[P7统一HTTP专题](../../product-master/README.md)。
 
 ## 证据追溯
 

@@ -53,7 +53,11 @@ function evaluate(entry,excluded){
  documentPath(s);
  if(!(/^docs\/product-master\/[^/]+\.md$/.test(s)||
      /^docs\/retrospectives\/development\/[^/]+\.md$/.test(s)||
-     /^docs\/superpowers\/plans\/\d{4}-\d{2}-\d{2}-[^/]+\.md$/.test(s)))fail('Not a process-history document: '+s);
+     /^docs\/superpowers\/plans\/\d{4}-\d{2}-\d{2}-[^/]+\.md$/.test(s)||
+     /^docs\/(?:operations|maintenance)\/\d{4}-\d{2}-\d{2}-[^/]+\.md$/.test(s)||
+     /^docs\/ui-design\/[^/]+-\d{4}-\d{2}-\d{2}(?:-[^/]+)?\.md$/.test(s)))fail('Not a process-history document: '+s);
+ if(['product-positioning-2026-10-21.md','wechat-card-share-2026-10-21.md','one-pass-ui-review-2026-10-21.md'].some(name=>s==='docs/ui-design/'+name))
+  fail('Protected current UI rule: '+s);
  if(/\/README\.md$|requirements\.md$|progress\.md$|approved-decisions\.md$/.test(s))
   fail('Protected business/decision/status document: '+s);
  if(!fs.existsSync(documentPath(s)))fail('Original is missing; review before removal: '+s);

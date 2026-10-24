@@ -146,7 +146,7 @@ enabled = true
 
 ## 8. Stitch 画布与本地原型交付流程（2026-10-11 生效）
 
-适用于用户指定Stitch进行Fabric UI评审的工作。依据本次[产品列表画布遗漏复盘](../retrospectives/development/2026-10-12-stitch-user-edit-overwrite.md)。本节是现行操作规则，第1～6节工具选型与接入信息保留其原核对日期；第7节的清理规则继续适用。
+适用于用户指定Stitch进行Fabric UI评审的工作。依据本次[产品列表画布遗漏复盘](../retrospectives/README.md)。本节是现行操作规则，第1～6节工具选型与接入信息保留其原核对日期；第7节的清理规则继续适用。
 
 ### 8.1 先确定交付范围与页面身份
 
@@ -165,7 +165,7 @@ enabled = true
 5. 更新后核对原保留项和本轮变更均存在。返回DomOperationEvent或成功文字时仍检查实际文件/画布；未形成完整保存稿不宣称交付。保存当前ID、HTML指纹、表头及核对时间作为下一轮基线，验证新稿后再清理旧稿。
 6. 编辑与清理之间若发现用户又修改了源页，先重读差异并合并，不能覆盖或删除新增内容；截图和文件资源不一致时分别说明，修正同步后再交付。
 
-交付清单可为表格页登记requiredColumns与columnCount。交付脚本检查当前HTML中的字段顺序和列数，缺少备注时失败；它仍不能自动监听Stitch、识别全部视觉修改或代替实际画布检查。本规则源于[用户独立修改被覆盖复盘](../retrospectives/development/2026-10-12-stitch-user-edit-overwrite.md)。
+交付清单可为表格页登记requiredColumns与columnCount。交付脚本检查当前HTML中的字段顺序和列数，缺少备注时失败；它仍不能自动监听Stitch、识别全部视觉修改或代替实际画布检查。本规则源于[用户独立修改被覆盖复盘](../retrospectives/README.md)。
 
 ### 8.2 生成或更新后核验画布
 

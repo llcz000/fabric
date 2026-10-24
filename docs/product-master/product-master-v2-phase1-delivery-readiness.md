@@ -1,10 +1,10 @@
 # Fabric 产品主数据 V2｜一期交付 Go / No-Go 与开放 Gate（2026-10-15）
 
-当前活动开发源为 `D:/fabric/.agent-workspaces/v2-quality-20261020`；2026-10-20 12:02已获用户明确授权并发布[旧入口退役与质量修复增量](../operations/2026-10-20-v2-quality-release.md)。共享主目录常用npm命令已指向该工作树，静态前后端sourceGate均true。本文下方早期未接线/No-Go属于历史；完整八类外部Gate不会因本次增量HTTP检查自动重签，仍按对应版本和验收范围解释。
+当前活动开发源为 `D:/fabric/.agent-workspaces/v2-quality-20261020`；2026-10-20 12:02已获用户明确授权并发布[旧入口退役与质量修复增量](../operations/统一发布工具.md)。共享主目录常用npm命令已指向该工作树，静态前后端sourceGate均true。本文下方早期未接线/No-Go属于历史；完整八类外部Gate不会因本次增量HTTP检查自动重签，仍按对应版本和验收范围解释。
 
-**2026-10-19最终执行更新**：用户UI签收及部署授权后，正式V2已在HTTPS上线；八类Gate已由release_review按实际边界签收，使用[本次证据清单](../operations/2026-10-19-v2-production-evidence.json)运行--evidence核验摘要。正式迁移/旧原列保护/同版本只读/权限/公网复验均有[真实证据](../operations/2026-10-19-v2-production-release.md)。下文No-Go/未接线/未实库为早期历史，不覆盖当前结论；默认--status不读取证据，releaseAuthorized字段恒false也不代替/撤销用户授权。
+**2026-10-19最终执行更新**：用户UI签收及部署授权后，正式V2已在HTTPS上线；八类Gate已由release_review按实际边界签收，使用[本次证据清单](../operations/2026-10-19-v2-production-evidence.json)运行--evidence核验摘要。正式迁移/旧原列保护/同版本只读/权限/公网复验均有[真实证据](../operations/统一发布工具.md)。下文No-Go/未接线/未实库为早期历史，不覆盖当前结论；默认--status不读取证据，releaseAuthorized字段恒false也不代替/撤销用户授权。
 
-**2026-10-17 最新核对**：受控正式server/App源码接线已实现并在真实恢复库候选运行；下文早期“未接线/未实库”记录仅描述当时版本及尚未切换的正式旧应用。最新状态见[V2进度](product-master-v2-progress.md)、[一期部署证据](../operations/2026-10-17-v2-production-candidate-evidence.md)和[B1/B3整合候选](../operations/2026-10-17-b1-public-pattern-candidate.md)。完整lint/build及最终1250项单测通过，旧内存问题不再阻塞当前工作树。只读预检双入口sourceGate均true，八项外部签收pending，readyForReview=false/releaseAuthorized=false。用户已有部署授权；人工七页UI/实体设备与正式新备份/密钥/迁移/切流/复测按真实证据关闭，不拿候选测试代签生产验收。本文保留。
+**2026-10-17 最新核对**：受控正式server/App源码接线已实现并在真实恢复库候选运行；下文早期“未接线/未实库”记录仅描述当时版本及尚未切换的正式旧应用。最新状态见[V2进度](product-master-v2-progress.md)、[一期部署证据](../operations/统一发布工具.md)和[B1/B3整合候选](../operations/统一发布工具.md)。完整lint/build及最终1250项单测通过，旧内存问题不再阻塞当前工作树。只读预检双入口sourceGate均true，八项外部签收pending，readyForReview=false/releaseAuthorized=false。用户已有部署授权；人工七页UI/实体设备与正式新备份/密钥/迁移/切流/复测按真实证据关闭，不拿候选测试代签生产验收。本文保留。
 
 > 文档定位：**一期 P0–P7 正式交付单一决策入口**。业务功能边界以[唯一需求 v1.50](product-master-v2-requirements.md)为准，最新开发进度以[当前进度](product-master-v2-progress.md)为准。这里是**只读交付检查**，不批准生产MySQL写入、旧数据清理、COS操作或部署。
 
@@ -36,7 +36,7 @@
 
 在完成独立人工审核和不可变证据归档后，才能将某项改为`passed`，并写入`reviewedBy`、`proof`（如`docs/operations/phase1-migration-evidence.md#review`）和准确计算的`proofSha256`。摘要只证明**被读取的字节未改动**，不证明审核人身份、数据真实性、实库安全或上线授权。证据文件修改后必须重新审查并更新摘要；切忌把模板当真实证明。
 
-**R1新增技术切片（2026-10-15）**：研发实现了[独立V2沙箱HTTP启动入口](product-master-v2-p7-sandbox-preview.md)，能不经过旧`server.ts`和它的自动建表/JSON fallback，独立校验沙箱目标实例、允许HTTP本机联调。当前仅以本机内存SQL测试，**尚未连接真实MySQL、没有新UI七页正式导航，也没有生产上线授权**。角色简化的P2/P3/P5服务端切片、P6当前公司名/地址/电话/条款的独立打印/XLSX切片现已本机整改并测试通过，但**成员设置旧授权字段、完整公司收款/签字、正式UI与实库验收**仍在开放Gate内；不得因代码测试全绿而关闭P2/P6。
+**R1新增技术切片（2026-10-15）**：研发实现了[独立V2沙箱HTTP启动入口](README.md)，能不经过旧`server.ts`和它的自动建表/JSON fallback，独立校验沙箱目标实例、允许HTTP本机联调。当前仅以本机内存SQL测试，**尚未连接真实MySQL、没有新UI七页正式导航，也没有生产上线授权**。角色简化的P2/P3/P5服务端切片、P6当前公司名/地址/电话/条款的独立打印/XLSX切片现已本机整改并测试通过，但**成员设置旧授权字段、完整公司收款/签字、正式UI与实库验收**仍在开放Gate内；不得因代码测试全绿而关闭P2/P6。
 
 ## P0–P7 交付阻断清单（按建议优先级）
 
