@@ -4,6 +4,10 @@ import datetime,gzip,hashlib,json,os,pathlib,re,shutil,subprocess,sys,tarfile,ti
 def must(value,message):
     if not value:raise RuntimeError(message)
 def sha(file):return hashlib.sha256(pathlib.Path(file).read_bytes()).hexdigest()
+def allowed_browser_file(name):
+    return (name=='dist/index.html' or name in ('dist/favicon.svg','dist/favicon.ico') or
+            re.fullmatch(r'dist/favicon-[0-9a-f]{8}\.svg',name) is not None or
+            re.fullmatch(r'dist/assets/[A-Za-z0-9_-][A-Za-z0-9_.-]*\.(?:js|css|woff2?|png|jpe?g|webp|svg|ico)',name) is not None)
 def writable(value):
     must(isinstance(value,dict) and value.get('mode')=='v2' and ('readOnly' not in value or value['readOnly'] is False),'Writable runtime contract failed')
 def http_contract(value):
@@ -127,7 +131,7 @@ class Release:
         for n,v in m['files'].items():
             must(re.fullmatch(r'[A-Za-z0-9_./-]+',n) is not None and '..' not in pathlib.PurePosixPath(n).parts and not n.startswith('/'),'Unsafe manifest filename')
             f=self.stage/n;must(f.is_file() and not f.is_symlink() and sha(f)==v['sha256'] and f.stat().st_size==v['size'],'Frozen file drift: '+n)
-        must(m['browserFiles'] and all(n in m['files'] and (n=='dist/index.html' or n in ['dist/favicon.svg','dist/favicon.ico'] or re.fullmatch(r'dist/assets/[A-Za-z0-9_-][A-Za-z0-9_.-]*\.(?:js|css|woff2?|png|jpe?g|webp|svg|ico)',n)) for n in m['browserFiles']),'Invalid browser file manifest')
+        must(m['browserFiles'] and all(n in m['files'] and allowed_browser_file(n) for n in m['browserFiles']),'Invalid browser file manifest')
         return m
     def unpack(self):
         self.stage.mkdir(mode=0o700,parents=True,exist_ok=True);safe_extract(self.stage/'release.tar.gz',self.stage,self.archive_sha);m=self.load();return {'archiveSha256':self.archive_sha,'files':len(m['files'])}

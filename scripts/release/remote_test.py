@@ -14,6 +14,12 @@ def fixture_directory():
         shutil.rmtree(target)
 
 class ReleaseTests(unittest.TestCase):
+    def test_versioned_favicon_is_an_immutable_allowlisted_resource(self):
+        for name in ['dist/favicon-6dc80a36.svg','dist/favicon.svg','dist/favicon.ico','dist/assets/hashed-index.js']:
+            self.assertTrue(remote.allowed_browser_file(name),name)
+        for name in ['dist/favicon-other.svg','dist/favicon-123.svg','dist/favicon-FFFFFFFF.svg','dist/../favicon-6dc80a36.svg','dist/random.svg','dist/favicon-6dc80a36.html']:
+            self.assertFalse(remote.allowed_browser_file(name),name)
+
     def test_pattern_reuse_allows_only_exact_generated_column(self):
         before='pattern_masters\tid\tbigint unsigned\tNO\tNULL\tauto_increment'
         added='pattern_masters\tactive_master_no\tvarchar(64)\tYES\tNULL\tSTORED GENERATED'
