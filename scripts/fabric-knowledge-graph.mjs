@@ -196,7 +196,7 @@ export function buildKnowledge(root = ROOT, override = undefined) {
   for (const ac of acceptance) {
     node('ac:'+ac,'acceptance', ac);
     edge('doc:'+reg.acceptanceFile,'ac:'+ac,'defines');
-    for (const id of acLinks.get(ac)||[]) if (canonical.has(id)) edge('req:'+id,'ac:'+ac,'verified-by-acceptance','explicit');
+    for (const id of acLinks.get(ac)||[]) if (canonical.has(id)) edge('req:'+id,'ac:'+ac,'has-acceptance-scenario','explicit');
   }
   for (const domain of domainDefs) {
     node('domain:'+domain.id,'domain',domain.name);
@@ -227,7 +227,9 @@ export function buildKnowledge(root = ROOT, override = undefined) {
       if (content.includes(data.name)) edge('doc:'+file,key,'mentions-path','text-reference');
     }
   }
-  const uncovered=reqIds.filter(id=>![...acLinks.values()].some(ids=>ids.includes(id)));
+  const covered=new Set([...acLinks.values()].flat());
+  const uncovered=reqIds.filter(id=>!covered.has(id));
+  if (uncovered.length) fail('Canonical requirement lacks direct AC: '+uncovered.join(', '));
   return { root, registry:reg, canonical, acceptance, acLinks, uncovered, documents:docDefs, reqIds, domainSources, perRequirement, nodes:[...nodes.values()], edges, errors, warnings };
 }
 function affected(graph, reqIds, paths) {
@@ -306,7 +308,7 @@ function printMap(graph, format) {
     return;
   }
   console.log('文档:',documents.length,'需求:',reqIds.length,'验收:',graph.acceptance.length,'已关联需求:',reqIds.length-graph.uncovered.length,'无直接AC:',graph.uncovered.length,'节点:',nodes.length,'关联:',edges.length,'影响域:',registry.domains.length);
-  if (graph.uncovered.length) console.log('无直接AC的需求（可能为跨域、后续范围或待补验证）:',cut(graph.uncovered,25));
+  console.log('直接AC仅说明有明确验收场景，不代表自动化已执行或库存已实现。');
   for (const d of registry.domains) {
     const owned=reqIds.filter(id=>d.req.some(x=>assigned(x,id)));
     const files=graph.domainSources.get(d.id)||[];
@@ -321,6 +323,7 @@ function main() {
   if (command==='audit') {
     console.log('PASS docs admission, sole requirement authority, unique IDs and domain coverage');
     console.log('Docs',graph.documents.length,'requirements',graph.reqIds.length,'mapped AC',graph.acLinks.size,'requirements with direct AC',graph.reqIds.length-graph.uncovered.length,'without direct AC',graph.uncovered.length,'domains',graph.registry.domains.length,'nodes',graph.nodes.length,'edges',graph.edges.length);
+    console.log('Note: direct AC coverage means test scenarios are defined, not that tests passed or future-scope features are implemented.');
     graph.warnings.forEach(w=>console.log('WARN',w));
     return;
   }

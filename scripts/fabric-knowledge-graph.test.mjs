@@ -85,6 +85,14 @@ test('unmapped canonical IDs are rejected rather than hidden',()=>{
     assert(buildKnowledge(root).errors.some(s=>s.includes('no domain: MISSING-02')));
   });
 });
+test('a new domain-mapped requirement without any direct AC fails the gate',()=>{
+  fixture(({root,put,business})=>{
+    put(business,'# Business\n| REQ-01 | already covered |\n| REQ-02 | new current requirement |\n');
+    const graph=buildKnowledge(root);
+    assert.deepEqual(graph.uncovered,['REQ-02']);
+    assert(graph.errors.some(error=>error.includes('Canonical requirement lacks direct AC: REQ-02')));
+  });
+});
 test('duplicate canonical requirement IDs are rejected',()=>{
   fixture(({root,put,business})=>{
     put(business,'| REQ-01 | a |\n| REQ-01 | b |\n');
@@ -113,6 +121,13 @@ test('duplicate AC requirement IDs cannot conceal missing trace coverage',()=>{
   fixture(({root,put,acceptance})=>{
     put(acceptance,'| AC-01 | REQ-01, REQ-01 | Scenario | Expected |\n');
     assert(buildKnowledge(root).errors.some(e=>e.includes('duplicate requirement references')));
+  });
+});
+test('requirement-to-AC edges describe specified scenarios, not test execution',()=>{
+  fixture(({root})=>{
+    const graph=buildKnowledge(root);
+    assert(graph.edges.some(e=>e.from==='req:REQ-01' && e.to==='ac:AC-01' && e.relation==='has-acceptance-scenario'));
+    assert(!graph.edges.some(e=>e.relation==='verified-by-acceptance'));
   });
 });
 test('source path impact returns candidate domain without claiming test execution',()=>{
