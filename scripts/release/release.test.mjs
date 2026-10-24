@@ -35,4 +35,10 @@ test('confirmed automatic rollback is retained locally and prevents treating the
  const run={};recordRollbackReceipt(run,{state:'code-rolled-back',databaseRestored:false,newTablesAndBusinessWritesPreserved:true});assert.equal(run.rolledBack,true);assert.equal(run.automaticRollback.databaseRestored,false);const unknown={};recordRollbackReceipt(unknown,{state:'guarded-rollback-failed'});assert.notEqual(unknown.rolledBack,true);assert.equal(unknown.automaticRollback.state,'guarded-rollback-failed');
 });
 
+test('UI browser release gate runs from the single repository root, not a retired parent workspace',()=>{
+ const cli=fs.readFileSync(new URL('./cli.mjs',import.meta.url),'utf8');
+ assert.match(cli,/npm run test:ui:ux/);
+ assert.doesNotMatch(cli,/npm --prefix \.\.\/\.\. run test:ui:ux/);
+});
+
 test('business simplification requires its registered migration before building a new delete writer',async()=>{const {requireBusinessSimplificationMigration}=await import('./core.mjs');assert.throws(()=>requireBusinessSimplificationMigration(['server/audit/deletionAudit.ts'],[]),/requires/);assert.doesNotThrow(()=>requireBusinessSimplificationMigration(['server/audit/deletionAudit.ts'],['business-simplification']));assert.deepEqual(parseArgs(['prepare','--migrations','business-simplification']).migrations,['business-simplification']);});
