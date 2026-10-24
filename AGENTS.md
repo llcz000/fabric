@@ -1,4 +1,6 @@
 # Fabric 项目知识维护
+**2026-10-24 单一正式检出规范**：`D:/fabric` 同时是唯一控制入口与正式应用源码工作树，源码 `src/`、`server/`、`server.ts`、`scripts/`、`docs/` 在同一根目录。不得再从 `.agent-workspaces/v2-quality-20261020` 读取或写入现行业务代码，旧 Controller/Active 双工作树模式已废弃。临时并行任务另建 `fabric/parallel/*` worktree，审查合并后退役。开发、源码身份、构建、测试及发布预检均从 `D:/fabric` 运行，生产部署仍需独立授权。
+
 
 ## 工作空间命令位置（2026-10-24）
 

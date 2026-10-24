@@ -1,6 +1,10 @@
 # Fabric Multi-Agent Orchestrator V2｜第一阶段可运行任务队列
 
+> 2026-10-24 目录整理：本文部分历史路径对应的临时文件、已退役源码副本或旧发布证据已完整迁至仓库外；原路径作为历史定位保留，按[归档恢复索引](../maintenance/2026-10-24-workspace-archives.json)中的范围和逐文件 SHA256 查找原件。未完成的业务 Gate 仍按当前进度保留。
+
 > 文档类型：执行方案及当前代码能力。最新业务规则唯一源：[项目需求总览](项目需求总览.md)；功能及上线状态：[项目现状](项目现状.md)。本项目原有ACP隔离、安全合并与计量链：[Agent手册](../product-master/product-master-v2-agent-context-handbook.md)。**本模块不等于已形成两名或多名真实同时编码的ACP Agent。**
+
+> **2026-10-24 新增日常 Git 工作树合并与退役门禁**：参见[并行开发与合并规范](../development/Fabric并行开发与合并规范.md)，在 `D:/fabric` 执行 `npm run parallel -- ...`。它管理独立 Git 工作树与主线集成，不替代本页业务队列、ACP 实际运行记录或业务验收。
 
 ## 已实现（2026-10-15）
 

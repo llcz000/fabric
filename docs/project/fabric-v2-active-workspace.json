@@ -1,5 +1,5 @@
 {
-  "workspace": ".agent-workspaces/v2-quality-20261020",
+  "workspace": ".",
   "baselineHead": "4f56b152a1ef3e8ee7079bf47c6c77b0cb4881b1",
   "sourceManifest": "artifacts/workspace-preservation-20261023/source-manifest.json",
   "note": "Released 2026-10-20 21:25 Asia/Shanghai: folder/multiple-file import, light customer profiles and sample-card sharing. Real MySQL restore rehearsal and eight additive tables verified; server 16 and independent public 21 checks passed. Artifact 6a6a36b96558c0b65d044d5ae25c71bc0af8aabf8126809416d70418ac024f5e. No full suite per user; browser/WeChat acceptance pending.",
@@ -13,5 +13,5 @@
     "evidence": "artifacts/releases/20261023t095703554-2938438a/release-result.json"
   },
   "role": "application",
-  "developmentRef": "codex/v2-current-preserve-20261023"
+  "developmentRef": "codex/fabric-single-root-20261024"
 }

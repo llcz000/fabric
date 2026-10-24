@@ -563,5 +563,100 @@
       "Private original inputs are kept in the active ignored .local/test-inputs directory. Restore to a nonconflicting local file if needed; never commit customer originals.",
       "WebCodex unregister receipts record the removed IDs; moving a worktree does not re-register it."
     ]
+  },
+  "legacyWorktreeRelocation": {
+    "date": "2026-10-24",
+    "archiveRoot": "D:/fabric-knowledge-backups/legacy-worktrees-20261024-120358",
+    "manifest": "manifest.json",
+    "manifestSha256": "0af553d0dae84dcd03bf3737c09762bb2b8a7161f72d6186d2084f22cfa874c7",
+    "moveVerification": "move-verification.json",
+    "archivedWorktrees": [
+      {"name":"multi-user-order-product-permissions","branch":"codex/multi-user-order-product-permissions","head":"2ccb0e8f2d2ad520b7ef1617a0c21f7e0ebcb203","files":217,"uncommittedEntries":3},
+      {"name":"product-library-images-import","branch":"codex/product-schema-init","head":"7e2d81d89ad3a08b3f01f6712dfb65d09ebd2817","files":274,"uncommittedEntries":4}
+    ],
+    "procedure": "Independent SHA256 verified backup, then git worktree move. Rechecked every moved file, HEAD, branch and full dirty status; empty original .worktrees directory removed.",
+    "restore": "Verify manifest.json SHA256 then each selected file hash; use git worktree move from archiveRoot/worktrees/{name} to a separate empty directory; do not copy backup .git pointers over newer checkouts.",
+    "otherHistoricalWorktrees": "Eight external worktrees still contain unique source, tests, staged changes or QA evidence; retained without reset/clean."
+  },
+  "historicalWorktreeAudit": {
+    "date": "2026-10-24",
+    "report": "docs/maintenance/2026-10-24-historical-worktree-audit.md",
+    "archiveRoot": "D:/fabric-knowledge-backups/historical-worktree-audit-20261024050527",
+    "manifest": "audit-manifest.json",
+    "manifestSha256": "0c45249b3dc85b97f3aae8bdac9104cbd86d2048d3c5c20b711285d308e06a04",
+    "historicalWorktrees": 10,
+    "uncommittedEntries": 395,
+    "sha256VerifiedCopies": 790,
+    "scope": "Only tracked/untracked Git changes and deleted HEAD blobs; excludes ignored local data and full checkout state",
+    "worktreeRemovals": 0,
+    "worktreeMoves": 0,
+    "result": "Current root and application Git clean, old worktrees preserved and independently classified",
+    "restore": "Use inventory JSON and verified primary/independent changed-file snapshots. This is the pre-cleanup audit snapshot; later removals/moves are recorded separately in historicalWorktreeCleanup."
+  },
+  "historicalWorktreeCleanup": {
+    "date": "2026-10-24",
+    "decision": "Current application is authoritative. Discard legacy permission scope code, canManageOwnOrders grant tests and old forged-owner/cross-user API tests. No migration or replacement test work.",
+    "originalAuditManifestSha256": "0c45249b3dc85b97f3aae8bdac9104cbd86d2048d3c5c20b711285d308e06a04",
+    "retiredWorktrees": [
+      "multi-user-order-product-permissions",
+      "stats-20261017",
+      "fabric-v2-core-merge-20261017",
+      "product-share-release",
+      "ui-experience-20261019",
+      "ui-release-20261019"
+    ],
+    "retiredCount": 6,
+    "registeredWorktreesBefore": 12,
+    "registeredWorktreesAfter": 6,
+    "remainingLegacyWorktrees": 4,
+    "remainingLegacyDirtyEntries": 141,
+    "movedWithoutRetiring": {
+      "from": "D:/fabric-v2-release-review-20261017",
+      "to": "D:/fabric-knowledge-backups/historical-worktree-audit-20261024050527/release-review-20261017"
+    },
+    "retiredIgnoredFilesManifest": "D:/fabric-knowledge-backups/historical-worktree-audit-20261024050527/ignored-before-retirement/manifest.json",
+    "retiredIgnoredFilesManifestSha256": "cf0a3a5404d0eeb7f6ea4ea641aa0dfb500564984b0ad96061bf45ce4bf50a82",
+    "discardedPermissionsBundle": "D:/fabric-knowledge-backups/historical-worktree-audit-20261024050527/discarded-permissions-history.bundle",
+    "discardedPermissionsBundleSha256": "bfaf2933dabc8f2ba0fa356522c2c7bd9b246afcd35ddef39cf0f201412ee10d",
+    "removedObsoleteLocalBranches": [
+      "codex/multi-user-order-product-permissions",
+      "codex/fabric-ui-experience-20261019",
+      "codex/fabric-v2-phase1-core-merge-20261017"
+    ],
+    "remainingRationale": "Old B3 and deployment checkouts have substantial ignored working data; the archived import checkout contains local import backups/reports; the release-review checkout was moved intact with ignored data. No current product source changed.",
+    "releaseAuthorized": false
+  },
+  "historicalWorktreeFinalCleanup": {
+    "date": "2026-10-24",
+    "purpose": "Close all previous transient Git worktrees; keep current controller and active application as only registered worktrees.",
+    "before": {"registeredWorktrees": 6, "legacyWorktrees": 4, "legacyDirtyEntries": 141},
+    "after": {"registeredWorktrees": 2, "legacyWorktrees": 0, "legacyDirtyEntries": 0, "projectClean": true, "allRegisteredClean": true},
+    "retired": [
+      "C:/Users/yangx/.codex/worktrees/b3-fulfillment/fabric",
+      "C:/Users/yangx/.codex/worktrees/v2-deployment-completion/fabric",
+      "D:/fabric-knowledge-backups/legacy-worktrees-20261024-120358/worktrees/product-library-images-import",
+      "D:/fabric-knowledge-backups/historical-worktree-audit-20261024050527/release-review-20261017"
+    ],
+    "snapshots": {
+      "fullHistoryChangedFilesSha256Manifest": "0c45249b3dc85b97f3aae8bdac9104cbd86d2048d3c5c20b711285d308e06a04",
+      "fullProductImportBackup": "D:/fabric-knowledge-backups/legacy-worktrees-20261024-120358/backups/product-library-images-import",
+      "fullProductImportFilesSha256Verified": 274,
+      "qaDownloadsBackup": "D:/fabric-knowledge-backups/historical-worktree-audit-20261024050527/qa-downloads-before-retirement",
+      "qaDownloadsSha256VerifiedFiles": 23
+    },
+    "obsoleteBranchesRemoved": [
+      "codex/v2-phase2-completion-20261017",
+      "codex/v2-production-deploy-20261017"
+    ],
+    "orphanReferences": [
+      "codex/fabric-v2-integration-review-20261017",
+      "codex/product-schema-init"
+    ],
+    "orphanDirectory": "D:/fabric-knowledge-backups/historical-worktree-audit-20261024050527/release-review-20261017 (only junction node_modules -> D:/fabric/node_modules remains, removal blocked)",
+    "remainingWorktrees": [
+      "D:/fabric",
+      "D:/fabric/.agent-workspaces/v2-quality-20261020"
+    ],
+    "releaseAuthorized": false
   }
 }

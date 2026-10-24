@@ -1,6 +1,6 @@
 # Fabric DMS 当前应用
 
-本目录包含正式应用源码、开发脚本、UI 预览、测试和已提交的项目规范，可独立检出。工作空间中的根控制器可以路由到此处；开发与测试不需要父目录的源码、工具或 node_modules。
+`D:\\fabric` 是唯一正式应用源码及项目管理目录，开发、测试、UI 验收与统一发布工具均从这里运行。不存在额外的活动应用检出；历史 `.agent-workspaces/v2-quality-20261020` 已被替代，严禁继续向旧工作树提交业务代码。
 
 ## 首次准备与日常开发
 
@@ -46,4 +46,4 @@ npm run workspace:clean
 - docs/、.agents/skills/：当前知识和规范；[首页](docs/00-首页.md)、[当前状态](docs/project/项目现状.md)、[开发验证](docs/development/开发与验证规范.md)。
 - artifacts/、tmp/、.local/、uploads/、template/：按用途保留的证据、临时输出、私有配置和运行数据，排除提交。
 
-旧根原件和历史工作目录见[恢复索引](docs/maintenance/2026-10-24-workspace-archives.json)。部署需独立提供本机私有配置，并使用现有统一发布工具；本地初始化或测试通过不代表生产验收或发布授权。
+旧分支和历史工作目录的恢复记录见[恢复索引](docs/maintenance/2026-10-24-workspace-archives.json)。并行开发使用 `npm run parallel -- audit/start/gate/integrate/finish/retire` 创建临时任务工作树，验收完成后安全退出，最终集成必须回到唯一根目录。部署需独立提供本机私有配置，并使用现有统一发布工具；本地初始化或测试通过不代表生产验收或发布授权。

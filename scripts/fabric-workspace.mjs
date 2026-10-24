@@ -36,9 +36,19 @@ function counts(dir){
  }
  return {files,bytes};
 }
+function inspectGit(root){
+ try{
+  const top=git(root,['rev-parse','--show-toplevel']);
+  if(path.normalize(top).toLowerCase()!==path.normalize(root).toLowerCase())return {available:false,clean:null,statusEntries:null};
+  const status=git(root,['status','--porcelain=v1','-uall']);
+  return {available:true,branch:git(root,['branch','--show-current']),head:git(root,['rev-parse','HEAD']),clean:!status,statusEntries:status?status.split('\n').length:0};
+ }catch{return {available:false,clean:null,statusEntries:null};}
+}
 export function inspectWorkspace(root=canonical){
- const state=locations(root),status=git(state.active,['status','--porcelain=v1','-uall']);
- return {...state,application:{branch:git(state.active,['branch','--show-current']),head:git(state.active,['rev-parse','HEAD']),clean:!status,statusEntries:status?status.split('\n').length:0},artifacts:[...new Set([state.controller,state.active])].map(workspace=>({workspace,tmp:counts(path.join(workspace,'tmp')),artifacts:counts(path.join(workspace,'artifacts'))})),cleanup:planCleanup(root)};
+ const state=locations(root),application=inspectGit(state.active),controllerGit=state.active===state.controller?application:inspectGit(state.controller);
+ if(!application.available)throw Error('Active application checkout is not a Git worktree');
+ const projectClean=controllerGit.available?controllerGit.clean&&application.clean:null;
+ return {...state,application,controllerGit,projectClean,artifacts:[...new Set([state.controller,state.active])].map(workspace=>({workspace,tmp:counts(path.join(workspace,'tmp')),artifacts:counts(path.join(workspace,'artifacts'))})),cleanup:planCleanup(root)};
 }
 function alive(pid){
  try{process.kill(pid,0);return true;}catch(error){return error.code!=='ESRCH';}

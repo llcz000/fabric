@@ -29,7 +29,9 @@
     "test:ui:workflow": "node --test scripts/ui-workflow-gate.test.mjs",
     "workspace:status": "node scripts/fabric-workspace.mjs status",
     "workspace:clean": "node scripts/fabric-workspace.mjs clean",
-    "workspace:commit": "node scripts/fabric-workspace.mjs commit"
+    "workspace:commit": "node scripts/fabric-workspace.mjs commit",
+    "parallel": "node scripts/fabric-parallel-git.mjs",
+    "test:parallel": "node --test scripts/fabric-parallel-git.test.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

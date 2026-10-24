@@ -21,6 +21,9 @@ backup_converted.json
 面料单据数据库备份*.json
 YB-*.json
 
+# Legacy nested checkouts and transient parallel task worktrees
+/.agent-workspaces/
+
 # Local experiments and caches
 .transformers_cache/
 tmp/
