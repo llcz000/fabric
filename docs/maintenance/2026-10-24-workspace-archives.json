@@ -591,6 +591,39 @@
     "worktreeRemovals": 0,
     "worktreeMoves": 0,
     "result": "Current root and application Git clean, old worktrees preserved and independently classified",
-    "restore": "Use inventory JSON and verified primary/independent changed-file snapshots. Original Git worktrees and ignored local files remain at their pre-review paths; never delete full worktrees based on changed-file snapshots alone."
+    "restore": "Use inventory JSON and verified primary/independent changed-file snapshots. This is the pre-cleanup audit snapshot; later removals/moves are recorded separately in historicalWorktreeCleanup."
+  },
+  "historicalWorktreeCleanup": {
+    "date": "2026-10-24",
+    "decision": "Current application is authoritative. Discard legacy permission scope code, canManageOwnOrders grant tests and old forged-owner/cross-user API tests. No migration or replacement test work.",
+    "originalAuditManifestSha256": "0c45249b3dc85b97f3aae8bdac9104cbd86d2048d3c5c20b711285d308e06a04",
+    "retiredWorktrees": [
+      "multi-user-order-product-permissions",
+      "stats-20261017",
+      "fabric-v2-core-merge-20261017",
+      "product-share-release",
+      "ui-experience-20261019",
+      "ui-release-20261019"
+    ],
+    "retiredCount": 6,
+    "registeredWorktreesBefore": 12,
+    "registeredWorktreesAfter": 6,
+    "remainingLegacyWorktrees": 4,
+    "remainingLegacyDirtyEntries": 141,
+    "movedWithoutRetiring": {
+      "from": "D:/fabric-v2-release-review-20261017",
+      "to": "D:/fabric-knowledge-backups/historical-worktree-audit-20261024050527/release-review-20261017"
+    },
+    "retiredIgnoredFilesManifest": "D:/fabric-knowledge-backups/historical-worktree-audit-20261024050527/ignored-before-retirement/manifest.json",
+    "retiredIgnoredFilesManifestSha256": "cf0a3a5404d0eeb7f6ea4ea641aa0dfb500564984b0ad96061bf45ce4bf50a82",
+    "discardedPermissionsBundle": "D:/fabric-knowledge-backups/historical-worktree-audit-20261024050527/discarded-permissions-history.bundle",
+    "discardedPermissionsBundleSha256": "bfaf2933dabc8f2ba0fa356522c2c7bd9b246afcd35ddef39cf0f201412ee10d",
+    "removedObsoleteLocalBranches": [
+      "codex/multi-user-order-product-permissions",
+      "codex/fabric-ui-experience-20261019",
+      "codex/fabric-v2-phase1-core-merge-20261017"
+    ],
+    "remainingRationale": "Old B3 and deployment checkouts have substantial ignored working data; the archived import checkout contains local import backups/reports; the release-review checkout was moved intact with ignored data. No current product source changed.",
+    "releaseAuthorized": false
   }
 }

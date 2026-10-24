@@ -1,6 +1,27 @@
 # Fabric 历史 Git 工作树逐文件审查（2026-10-24）
 
 > 范围：只审查旧工作树，不更改当前业务实现或线上数据。正式控制目录为 `D:/fabric`；唯一正式应用工作树为 `D:/fabric/.agent-workspaces/v2-quality-20261020`。本文与[并行开发与合并规范](../development/Fabric并行开发与合并规范.md)配合使用；业务价值判定以[项目需求总览](../project/项目需求总览.md)为准。
+## 最新处理决定及实际清理结果（2026-10-24，以此节为准）
+
+用户明确批准废弃旧权限分支中的单据所有者旧实现、`canManageOwnOrders` 旧授权开关测试以及伪造创建人/跨用户旧 HTTP 测试；**完全以正式活动应用的现行实现为准，不再立项移植旧测试，也不回迁历史代码**。本文后续表格中“保留待审/补测试”等描述仅反映历史审查时点，不再构成待办。
+
+**已真正退出 Git 工作树注册的历史目录（6 个）：**
+
+- `multi-user-order-product-permissions`：旧权限独有文件的 217 个文件全量归档副本及 3 个变更文件的双份 SHA256 快照均核验；历史分支 5 个独有提交打包为已通过 `git bundle verify` 的 `discarded-permissions-history.bundle` 后，删除了旧分支引用。
+- `stats-20261017`：2 项历史改动，已核验双份备份；退出旧工作树。
+- `fabric-v2-core-merge-20261017`：先用 Git 工作树移动到外部归档，再对 5 项已暂存历史代码核验双份备份并退出工作树，已合并的旧分支引用已删除。
+- `product-share-release`：103 项变更双份快照核验，另外保全忽略日志与资料，退出旧工作树；遗留两个符号链接及空目录已删除，实际链接目标未删除。
+- `ui-experience-20261019`：79 项变更双份快照核验，另外保全忽略日志与 tmp，退出工作树。
+- `ui-release-20261019`：62 项变更双份快照核验，另外保全忽略日志与 tmp，退出工作树；旧已合并分支引用已删除。
+
+**本轮还将** `D:/fabric-v2-release-review-20261017` **通过原生 `git worktree move` 迁入** `D:/fabric-knowledge-backups/historical-worktree-audit-20261024050527/release-review-20261017`。其 8 项未提交改动、Git HEAD 和被忽略的原始目录仍完整保留；这是归档迁移，不是退出 Git 注册。
+
+**备份与恢复：**历史 395 项变更的两份 SHA256 文件快照继续保存在 `D:/fabric-knowledge-backups/historical-worktree-audit-20261024050527/`；被清理的产品分享/UI 工作树另有 `ignored-before-retirement/manifest.json`（SHA256: `cf0a3a5404d0eeb7f6ea4ea641aa0dfb500564984b0ad96061bf45ce4bf50a82`）。旧权限唯一 Git 提交历史 bundle 位于同目录，SHA256: `bfaf2933dabc8f2ba0fa356522c2c7bd9b246afcd35ddef39cf0f201412ee10d`。普通可重新安装的依赖和编译产物未作为重要原件保存。
+
+**实际剩余状态：**正式控制目录和活动应用仍各 1 个干净 Git 工作树；总注册工作树由 12 降至 **6**，历史工作树由 10 降至 **4**，剩余历史未提交记录由 395 降至 **141**。四个剩余工作树是 `b3-fulfillment`（118 项，旧目录含约 2.3GB 忽略数据）、`v2-deployment-completion`（11 项，含旧浏览器/测试资料）、`product-library-images-import`（4 项，存在导入原始备份/报告）及已经迁移的 `release-review-20261017`（8 项，含旧浏览器/测试资料）。它们暂不做危险的强制物理清除；日常开发只以正式应用工作树为准，旧目录不参与版本开发和合并。
+
+此处 `git worktree remove --force` 仅用于**用户明确废弃且经过双份哈希核对、忽略资料备份确认的历史目录**；不应用于常规并行任务的 `retire` 门禁。原始审查文档下文所述“本轮未删除”是第一次审查的历史记录，并非上述最新状态。
+
 
 ## 实测范围与证据
 
