@@ -44,3 +44,33 @@ Git 注册工作树共 **12 个**：正式控制目录、正式活动应用各 1
 本轮 **未删除、未迁移、未清空任何历史工作树**。两个低风险候选的“正常退出旧检出”操作和随后非破坏性迁移操作均未取得执行许可，均已停止，未重试等价绕过；原始 Git 工作树仍在原路径，HEAD/分支和未提交状态未变。
 
 截至复核时，`npm run parallel -- audit` 应显示：`projectClean: true`，`registeredWorktrees: 12`，`allRegisteredClean: false`，历史未提交共 395 项。**当前两个正式工作区干净，全部历史树尚未退役**。是否完成退役应以实际 Git 注册状态而非文档计划为准。
+## 2026-10-24 业务兼容性与退役阻断复审
+
+### 独有权限分支：历史保留、禁止直接合并
+
+旧权限分支有 5 个正式应用未包含的历史提交（adf4143、0031a6c、d44fcde、fe5bea4、2ccb0e8）以及 orderScope.ts、orderScope.test.ts、orderApiScope.test.ts 三个独有文件。旧代码使用 created_by_user_id 的 SQL/内存范围限制；正式应用当前已由 server/access/policy.ts、sessions.ts、server/order-v2/orderQueries.ts、documentRoutes.ts 等执行后台 owner 范围约束。最新 CUSTOMER-05 同样明确不能突破单据 owner 权限，不能因为业务员目前只有一个人就取消后台隔离。
+
+重要不兼容：旧 orderApiScope.test.ts 假定 canManageOwnOrders 关闭后业务员开单/编辑/删除返回 403；现行角色规则明确该旧授权字段仅作兼容，有效 admin/sales 角色有对应业务权限。因此**不能 cherry-pick 旧分支或移植旧断言**。旧测试中的伪造创建人、跨业务员读/写/导出应保留作为将来按当前接口重写 HTTP 回归的参考。
+
+在正式活动应用进行只读业务检验，运行指定现有测试文件 server/access/policy.test.ts、server/order-v2/orderQueries.test.ts、server/order-v2/documentDelete.test.ts，**28/28 PASS**。覆盖账号/owner 权限、删除其他人单据的 404、列表和统计 SQL owner 范围。此专项验证不等于完整端到端或正式 MySQL 验收。
+
+### 旧分享与 UI：主要功能已覆盖，历史差异保持可查
+
+product-share-release 的 57 项未提交代码文件路径在当前应用全部存在，其中 28 项内容与现行不同；与旧 ui-release-20261019 存在 35 个内容完全一致的同路径文件。b3-fulfillment 与 ui-experience-20261019 有 46 个字节一致的同路径文件。旧 ui-experience 独有三个 src/product-master-v2-review 的早期预览/样板模块，旧 ui-release 另有 currentShellAcceptance.tsx；均不属于现行正式业务代码，不能为了清除旧目录而重新接线。
+
+正式应用已运行 server/customer-share/patternShareCatalog.test.ts、server/customer-share/productSharing.test.ts、src/components/product-master-v2/PatternLibraryV2.test.ts，**33/33 PASS**，包括现行公开产品信息白名单、产品/花型分享入口边界、16 种题材、列表创建产品。旧分享/页面源码**不整体覆盖当前实现**；如果后续发现独有业务场景缺失，必须单独立项复核具体文件。
+
+### 忽略文件风险复核（不能把 Git ignored 当垃圾）
+
+| 候选树 | 变更文件保全 | 额外忽略目录 | 结论 |
+|---|---|---|---|
+| stats-20261017 | 2 项、双份 SHA256 已核验，旧 HEAD 为正式应用祖先 | 0 | 技术上优先退出候选；本轮未退役 |
+| fabric-v2-core-merge-20261017 | 5 项已暂存计算/查询/CI 文件，双份 SHA256 已核验，旧 HEAD 为正式应用祖先；正式代码有后续扩展 | 0 | 技术上优先退出候选；禁止用旧实现覆盖新代码 |
+| v2-deployment-completion | 11 项纯 QA 截图/PDF/结果文件已保全 | dist/node_modules/tmp 共约 402 MB，tmp 2,376 文件约 143 MB，包含浏览器 Profile 和测试 XLSX 下载 | 不可直接删除；先区分 QA 原件与可重建缓存 |
+| fabric-v2-release-review-20261017 | 8 项旧源码及打包页面已保全 | dist/node_modules/tmp/.agents 共约 303 MB，tmp 2,420 文件约 53 MB，含浏览器 Profile 与临时安装 | 不可直接删除；先审查本地原件 |
+| product-library-images-import | 4 个 .local 导入/Schema 辅助脚本已保全 | 另有导入报告及备份资料 | 保留，不自动清理 |
+| multi-user-order-product-permissions | 3 个独有文件已保全 | 有 5 个独有 Git 提交 | 保留审查证据，不直接合并旧权限方案 |
+
+Codex 托管的 B3、分享、UI 旧工作树及已归档的 ui-release 仍保留差异，未归零的未提交状态不是正式开发工作区的脏文件。历史工作树退役需同时确认原 HEAD、未提交字节内容、忽略文件、独有提交、外部 Agent 是否使用，再安全执行正常 Git 退役并以注册列表验证；本轮未移动、未删除任意旧树。
+
+**实测结论**：两个正式工作目录 Git 干净；旧树仍为 10 个、395 项未提交。下一次优先处理 stats 与 core-merge 两项零 ignored 目录的候选，然后单独审查部署/发布的临时下载与浏览器 Profile，不得对 400MB/300MB 目录执行一键清理。
