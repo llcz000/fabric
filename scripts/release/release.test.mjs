@@ -16,6 +16,16 @@ test('explicit quick UI flag is only for a fresh run or prepare',()=>{
 });
 function fixture(fn){const dir=fs.mkdtempSync(path.join(os.tmpdir(),'fabric-release-'));try{fs.mkdirSync(path.join(dir,'assets'));fs.writeFileSync(path.join(dir,'index.html'),'<link rel="icon" href="/favicon.svg"><script src="/assets/app.js"></script><link href="/assets/app.css" rel="stylesheet">');fs.writeFileSync(path.join(dir,'favicon.svg'),'<svg/>');fs.writeFileSync(path.join(dir,'assets/app.js'),'export {};');fs.writeFileSync(path.join(dir,'assets/app.css'),'.a{background:url(./sample.png)}');fs.writeFileSync(path.join(dir,'assets/sample.png'),'png');fs.writeFileSync(path.join(dir,'server.cjs'),'private backend');return fn(dir);}finally{fs.rmSync(dir,{recursive:true,force:true});}}
 test('browser manifest includes actual root favicon and CSS dependencies but excludes backend',()=>fixture(dir=>{const names=collectBrowserFiles(dir);assert(names.includes('favicon.svg'));assert(names.includes('assets/sample.png'));assert(!names.includes('server.cjs'));}));
+test('content-addressed favicon is accepted without overwriting an existing immutable favicon',()=>fixture(dir=>{
+ const html=path.join(dir,'index.html');
+ fs.writeFileSync(html,'<link rel="icon" href="/favicon-6dc80a36.svg"><script src="/assets/app.js"></script><link href="/assets/app.css" rel="stylesheet">');
+ fs.writeFileSync(path.join(dir,'favicon-6dc80a36.svg'),'<svg/>');
+ const files=collectBrowserFiles(dir);
+ assert(files.includes('favicon-6dc80a36.svg'));
+ assert(!files.includes('favicon.svg'));
+ fs.writeFileSync(html,fs.readFileSync(html,'utf8').replace('favicon-6dc80a36.svg','favicon-unversioned.svg'));
+ assert.throws(()=>collectBrowserFiles(dir),/static allowlist/);
+}));
 test('missing favicon is rejected before upload or service restart',()=>fixture(dir=>{fs.unlinkSync(path.join(dir,'favicon.svg'));assert.throws(()=>collectBrowserFiles(dir),/favicon/);}));
 test('missing CSS dependency and traversal are rejected locally',()=>fixture(dir=>{fs.unlinkSync(path.join(dir,'assets/sample.png'));assert.throws(()=>collectBrowserFiles(dir),/sample/);fs.writeFileSync(path.join(dir,'assets/app.css'),'url(../../secret.png)');assert.throws(()=>collectBrowserFiles(dir),/outside/);}));
 test('frozen artifact rejects changed, missing or escaped paths',()=>fixture(dir=>{const files={'index.html':{sha256:hash(fs.readFileSync(path.join(dir,'index.html'))),size:fs.statSync(path.join(dir,'index.html')).size}};verifyFiles(dir,files);fs.appendFileSync(path.join(dir,'index.html'),'changed');assert.throws(()=>verifyFiles(dir,files));assert.throws(()=>verifyFiles(dir,{'../x':files['index.html']}));}));
