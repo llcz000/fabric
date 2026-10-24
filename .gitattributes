@@ -1,0 +1,4 @@
+# Preserve vendored UI skills verbatim, including their upstream whitespace.
+.agents/skills/ui-ux-pro-max/** -text -whitespace
+.agents/skills/frontend-design/** -text -whitespace
+.agents/skills/web-design-guidelines/** -text -whitespace

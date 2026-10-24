@@ -53,3 +53,8 @@ docs/ui-design/
 未检验实际页面对比度、键盘行为、正式 App接线、真实MySQL、线上版本或最新Stitch画布。不从旧项目现状文档推断“V2完全未实现”，也不从独立组件测试推断“已上线”。
 
 2026-10-15文档清理更新了项目现状和索引，移出已删除的design-md/enhance-prompt/remotion安装登记；其余UI技能和设计资产保留。此更新仅核对文档与文件，不新增画布/浏览器/生产验收。
+
+
+## 现行源码定位（2026-10-24）
+
+规范中的 src/、server/、tools/ 和应用 scripts/ 路径均相对当前活动应用根目录。控制目录按 docs/project/fabric-v2-active-workspace.json 的 workspace 定位；role 为 application 的独立检出直接使用自身目录。旧根应用源码及重复脚本已按维护恢复索引归档，不再作为开发或验收入口；规范用相对源码定位而不把某一本机嵌套路径当成可移植链接。

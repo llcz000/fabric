@@ -7,7 +7,7 @@
 ## 已实现（2026-10-15）
 
 - [任务清单](fabric-v2-agent-queue.json)：按**最新业务需求编号**标注5个待办：V2单据查询UI、经营统计Top5/最近4单、三库xlsx导出、销售单10匹输入、两角色扫码。提供优先级、领域Owner、准确的读/写文件、先行依赖和仍开放的真实验收Gate。与旧产品库AC-xx角色清单**分离**，不会错误套用旧角色/已取消需求。
-- [调度器](../../scripts/fabric-v2-orchestrator.mjs)：校验需求编号确实出现在总览、任务没有环/重复、仅允许少量精确源码读写路径、禁止旧版正式入口和生产配置；检查依赖、已有文件占用及外部声明的席位上限。默认**只读、slots=0**。任务之间文件有交集时自动阻断同时派发，依赖任务必须完成独立验收。
+- [调度器](../../.agent-workspaces/v2-quality-20261020/scripts/fabric-v2-orchestrator.mjs)：校验需求编号确实出现在总览、任务没有环/重复、仅允许少量精确源码读写路径、禁止旧版正式入口和生产配置；检查依赖、已有文件占用及外部声明的席位上限。默认**只读、slots=0**。任务之间文件有交集时自动阻断同时派发，依赖任务必须完成独立验收。
 - 显式`--reserve`才在`tmp/fabric-v2-agent-queue.state.json`写入**本机占位状态**，原子写入且文件锁使用`wx`；竞争时拒绝，锁被遗留时**禁止自动删除或过期抢占**。需求源及清单使用SHA-256绑定；源变动需要总控人工重新整理，不能基于过期计划自行执行。
 - `--handoff`需真实格式的`wc_agent_run_*`标识，但只记“待复核”，工具并不能代替Runner证明这个ID的真实性；`--review`需总控显式提供所写验收清单并做摘要记录，**清单内容仅是总控签收声明，工具未对现实的测试日志/ACP调用验真**。下游仅在记录`reviewed`后可排队。受阻任务可标记`--block`，没有自动重试/清锁。
 - 原脚本`fabric-v2-acp-task-intake.mjs`、`fabric-v2-safe-baseline.mjs`、`fabric-v2-acp-prepare.mjs`、`fabric-v2-workspace-freshness.mjs`、`fabric-v2-acp-merge-gate.mjs`、`fabric-v2-acp-efficiency.mjs`仍各自有效。本阶段**尚未自动调用这些工具、没有ACP编程代理自动派发、没有模型额度探针，也没有实际多ACP并发**。

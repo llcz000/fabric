@@ -4,14 +4,16 @@
 
 版本：0.1｜2026-10-14。此阶段整理已有视觉语言，未改样式源码，也未从实时 Stitch 画布重新提取设计系统。
 
+源码路径均相对当前活动应用根目录；定位方法见[项目结构说明](project-structure-audit.md)。
+
 ## 依据与适用范围
 **优先决策（2026-10-21）**：内部全部业务 UI 按 [内部效率与客户分享边界](product-positioning-2026-10-21.md) 设计。高端美感不等于高装饰密度；内部工作台要快速搜索/编辑/查看，避免大面积 Hero、画廊和没有任务价值的统计。只有色卡分享链接客户可见部分强调媒体展示；下方历史色值是现状盘点，不要求新页面复制旧风格。
 
 优先顺序：用户最新明确决定及当前业务需求 → 已批准页面的相关设计 → 当前 V2 组件 → 通用建议。若新建议与已批准稿不同，提出可审查差异，不把建议当既有批准。
 
 实际源码存在两套视觉值：
-- [全局 CSS](../../src/index.css)：品牌蓝 brand-500 #0ea5e9、brand-600 #0284c7；body 背景 #f8fafc、文字 #1e293b。用于既有全局样式。
-- [V2 产品列表](../../src/components/product-master-v2/ProductCatalogV2.tsx)、[面料列表](../../src/components/product-master-v2/FabricLibraryV2.tsx)、[色卡列表](../../src/components/product-master-v2/SampleCardLibraryV2.tsx)：蓝紫灰表格与面板，下表为整理出的语义映射。
+- 全局 CSS（`src/index.css`）：品牌蓝 brand-500 #0ea5e9、brand-600 #0284c7；body 背景 #f8fafc、文字 #1e293b。用于既有全局样式。
+- V2 产品列表（`src/components/product-master-v2/ProductCatalogV2.tsx`）、面料列表（`src/components/product-master-v2/FabricLibraryV2.tsx`）、色卡列表（`src/components/product-master-v2/SampleCardLibraryV2.tsx`）：蓝紫灰表格与面板，下表为整理出的语义映射。
 
 V2 页面优先延续当前 V2 局部风格；不要只因全局存在另一套品牌蓝就批量替换。第一阶段没有建立共享 CSS token 或通用组件实现；下列语义名用于沟通，尚不是代码变量。
 

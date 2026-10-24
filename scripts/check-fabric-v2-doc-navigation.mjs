@@ -3,6 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root=process.cwd();
+const pointer=JSON.parse(fs.readFileSync(path.join(root,'docs/project/fabric-v2-active-workspace.json'),'utf8'));
+const application=pointer.role==='application'?root:path.resolve(root,pointer.workspace);
 const read=(rel)=>fs.readFileSync(path.join(root,rel),'utf8');
 const checks=[];
 const must=(name,check)=>{try{check();checks.push({name,ok:true});}
@@ -15,7 +17,7 @@ const classification='docs/文档分类与检索.md';
 must('one current business spec and status',()=>{
  has(stage,/product-master-v2-requirements\.md/);
  has(stage,/product-master-v2-progress\.md/);
- const version=/^\| 版本 \| (v[0-9]+\.[0-9]+) \|/m.exec(read('docs/product-master/product-master-v2-requirements.md'))?.[1];
+ const version=/^\|\s*版本\s*\|\s*(v[0-9]+\.[0-9]+)(?:\s|（|\|)/m.exec(read('docs/product-master/product-master-v2-requirements.md'))?.[1];
  assert(version,'Current requirement version absent');
  assert(read(stage).includes('V2唯一需求'+version),'Stage entry requirement version is stale');
 });
@@ -40,7 +42,7 @@ must('all stage code/test locators exist',()=>{
    const loc=match[1].replace(/^node /,'').split(' ')[0];
    if(!loc.includes('/'))continue;
    checked++;
-   assert(fs.existsSync(path.join(root,loc)),'Missing stage source/test locator: '+loc);
+   assert(fs.existsSync(path.join(application,loc)),'Missing active stage source/test locator: '+loc);
   }
  }
  assert(checked>=20,'Stage code locator coverage suspiciously low');
@@ -63,7 +65,7 @@ must('ACP isolation and three-way merge gates',()=>{
  for(const name of ['fabric-v2-acp-prepare.mjs','fabric-v2-acp-prepare.test.mjs',
   'fabric-v2-acp-merge-gate.mjs','fabric-v2-acp-merge-gate.test.mjs',
   'fabric-v2-workspace-freshness.mjs']){
-  assert(fs.existsSync(path.join(root,'scripts',name)),'Missing ACP tool: '+name);
+  assert(fs.existsSync(path.join(application,'scripts',name)),'Missing ACP tool: '+name);
  }
  for(const word of ['coding_agent_start','coding_agent_observe','idempotency_key',
   'fabric-v2-acp-merge-gate.mjs','fabric-v2-acp-prepare.mjs','TDD','双重审查']){
@@ -74,7 +76,7 @@ must('ACP isolation and three-way merge gates',()=>{
 });
 must('focused single-AC ACP intake after documentation cleanup',()=>{
  for(const file of ['scripts/fabric-v2-acp-task-intake.mjs','scripts/fabric-v2-acp-task-intake.test.mjs']){
-  assert(fs.existsSync(path.join(root,file)),'Missing ACP intake tool/test: '+file);
+  assert(fs.existsSync(path.join(application,file)),'Missing ACP intake tool/test: '+file);
  }
  has('AGENTS.md',/fabric-v2-acp-task-intake\.mjs/);
  has('docs/product-master/product-master-v2-agent-context-handbook.md',/更新后资料的 ACP 单AC派发检查/);
@@ -82,7 +84,7 @@ must('focused single-AC ACP intake after documentation cleanup',()=>{
 });
 must('observed ACP efficiency accounting stays required',()=>{
  for(const name of ['fabric-v2-acp-efficiency.mjs','fabric-v2-acp-efficiency.test.mjs']){
-  assert(fs.existsSync(path.join(root,'scripts',name)),'Missing ACP measured-efficiency module: '+name);
+  assert(fs.existsSync(path.join(application,'scripts',name)),'Missing ACP measured-efficiency module: '+name);
  }
  has('AGENTS.md',/ACP实测收益强制记账/);
  has('docs/product-master/product-master-v2-agent-context-handbook.md',/持续衡量 ACP 收益/);
@@ -91,7 +93,7 @@ must('observed ACP efficiency accounting stays required',()=>{
 must('current multi-agent orchestrator queue is discoverable and read-only by default',()=>{
  for(const name of ['scripts/fabric-v2-orchestrator.mjs','scripts/fabric-v2-orchestrator.test.mjs',
   'docs/project/fabric-v2-agent-queue.json','docs/project/Fabric-Multi-Agent-Orchestrator-V2.md']){
-  assert(fs.existsSync(path.join(root,name)),'Missing orchestrator component: '+name);
+  assert(fs.existsSync(path.join(name.startsWith('scripts/')?application:root,name)),'Missing orchestrator component: '+name);
  }
  has('AGENTS.md',/Orchestrator V2/);
  has('docs/project/项目现状.md',/Fabric-Multi-Agent-Orchestrator-V2\.md/);
@@ -106,7 +108,7 @@ must('mandatory task-completion archive policy',()=>{
   assert(read(archiveRule).includes(flag),'Archive policy missing '+flag);
  }
  for(const route of ['scripts/check-fabric-v2-doc-archive.mjs','scripts/check-fabric-v2-doc-archive.test.mjs']){
-  assert(fs.existsSync(path.join(root,route)),'Archive preflight tool/test missing: '+route);
+  assert(fs.existsSync(path.join(application,route)),'Archive preflight tool/test missing: '+route);
  }
  has('docs/development/开发与验证规范.md',/归档候选/);
  has('.agents/skills/fabric-product-master-v2/SKILL.md',/Mandatory doc-lifecycle handoff/);

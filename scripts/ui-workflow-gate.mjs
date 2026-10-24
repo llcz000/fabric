@@ -58,6 +58,11 @@ function sources(){
 export function activeWorkspace(base=canonical, pointer=pointerFile){
  if(!exists(pointer))fail('active workspace pointer missing');
  const data=json(pointer);
+ if(data.role==='application'){
+  const local=fs.realpathSync(base);
+  if(!exists(path.join(local,'server.ts'))||!fs.existsSync(path.join(local,'src')))fail('standalone application source missing');
+  return {root:local,active:local,pointer:data};
+ }
  if(typeof data.workspace!=='string'||path.isAbsolute(data.workspace)||data.workspace.includes('..'))fail('unsafe workspace pointer');
  const candidate=path.resolve(base,data.workspace);
  if(!fs.existsSync(candidate))fail('declared active workspace is absent: '+candidate);
@@ -93,9 +98,9 @@ function syncOrInspect(active,sync){
 }
 function requireRunner(root,active){
  for(const rel of ['playwright.ui.config.ts','scripts/serve-ui-ux-pilot.mjs']){
-  if(!exists(path.join(root,rel)))fail('root UI test runner missing: '+rel);
+  if(!exists(path.join(active,rel)))fail('application UI test runner missing: '+rel);
  }
- const scripts=json(path.join(root,'package.json')).scripts??{};
+ const scripts=json(path.join(active,'package.json')).scripts??{};
  if(!scripts['test:ui:ux'])fail('root test:ui:ux entry missing');
  const localScripts=json(path.join(active,'package.json')).scripts??{};
  if(!localScripts['ui:preflight']||!localScripts['ui:verify'])fail('active npm UI entry points missing');
@@ -107,7 +112,7 @@ export function preflight({sync=false,root=canonical,active}={}){
  const state=syncOrInspect(active,sync);
  if(!sync&&state.mismatched.length)fail('stale/missing UI rules: '+state.mismatched.join(', ')+'; run npm run ui:preflight -- --sync');
  requireRunner(root,active);
- return {status:'pass',mode:sync?'sync':'inspect',active,canonicalFiles:state.canonicalFiles,updated:state.updated,uiRulesSha256:checksum(sources().map(rel=>rel+':'+sha(path.join(root,rel))).join('\n')),source:'D:/fabric canonical files',writes:sync?state.updated:0};
+ return {status:'pass',mode:sync?'sync':'inspect',active,canonicalFiles:state.canonicalFiles,updated:state.updated,uiRulesSha256:checksum(sources().map(rel=>rel+':'+sha(path.join(root,rel))).join('\n')),source:unix(root)+' canonical files',writes:sync?state.updated:0};
 }
 function artifact(root,active,rel,ext){
  if(typeof rel!=='string'||!rel||path.isAbsolute(rel)||rel.includes('..')||rel.includes('\\'))fail('invalid artifact path: '+rel);

@@ -11,6 +11,10 @@ const inside=(root,file)=>file.startsWith(root+path.sep);
 function locations(root){
  const controller=fs.realpathSync(root);
  const pointer=JSON.parse(fs.readFileSync(path.join(controller,'docs/project/fabric-v2-active-workspace.json'),'utf8'));
+ if(pointer.role==='application'){
+  if(!fs.existsSync(path.join(controller,'src'))||!fs.existsSync(path.join(controller,'server')))throw Error('Standalone application source missing');
+  return {controller,active:controller,pointer};
+ }
  if(typeof pointer.workspace!=='string'||path.isAbsolute(pointer.workspace)||pointer.workspace.split(/[\\/]/).includes('..'))throw Error('Unsafe active workspace path');
  const active=fs.realpathSync(path.resolve(controller,pointer.workspace));
  if(!inside(controller,active))throw Error('Active source must stay inside the controller');
@@ -34,7 +38,7 @@ function counts(dir){
 }
 export function inspectWorkspace(root=canonical){
  const state=locations(root),status=git(state.active,['status','--porcelain=v1','-uall']);
- return {...state,application:{branch:git(state.active,['branch','--show-current']),head:git(state.active,['rev-parse','HEAD']),clean:!status,statusEntries:status?status.split('\n').length:0},artifacts:[state.controller,state.active].map(workspace=>({workspace,tmp:counts(path.join(workspace,'tmp')),artifacts:counts(path.join(workspace,'artifacts'))})),cleanup:planCleanup(root)};
+ return {...state,application:{branch:git(state.active,['branch','--show-current']),head:git(state.active,['rev-parse','HEAD']),clean:!status,statusEntries:status?status.split('\n').length:0},artifacts:[...new Set([state.controller,state.active])].map(workspace=>({workspace,tmp:counts(path.join(workspace,'tmp')),artifacts:counts(path.join(workspace,'artifacts'))})),cleanup:planCleanup(root)};
 }
 function alive(pid){
  try{process.kill(pid,0);return true;}catch(error){return error.code!=='ESRCH';}
@@ -60,7 +64,7 @@ function cacheCandidate(dir){
 }
 export function planCleanup(root=canonical){
  const {controller,active}=locations(root),items=[];
- for(const workspace of [controller,active]){
+ for(const workspace of new Set([controller,active])){
   const tmp=path.join(workspace,'tmp');
   if(!fs.existsSync(tmp))continue;
   if(fs.lstatSync(tmp).isSymbolicLink()){items.push({path:tmp,action:'retain',reason:'linked-temp-root'});continue;}

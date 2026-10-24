@@ -44,6 +44,16 @@ const deadPid=()=>Number(execFileSync(process.execPath,['-e','process.stdout.wri
 test('status identifies the declared active source without writing files',async()=>{
  const f=fixture();try{const {inspectWorkspace}=await tools();const before=fs.readdirSync(f.root);const state=inspectWorkspace(f.root);assert.equal(state.active,f.active);assert.equal(state.controller,f.root);assert.equal(state.application.clean,true);assert.deepEqual(fs.readdirSync(f.root),before);}finally{f.close();}
 });
+
+test('standalone application can inspect and clean itself without a controller checkout',async()=>{
+ const f=fixture();try{
+  f.write('docs/project/fabric-v2-active-workspace.json',JSON.stringify({role:'application',sourceManifest:'artifacts/local/source-manifest.json'}));
+  const {inspectWorkspace,cleanWorkspace}=await tools();
+  const state=inspectWorkspace(f.active);
+  assert.equal(state.active,f.active);assert.equal(state.controller,f.active);assert.equal(state.artifacts.length,1);
+  assert.deepEqual(cleanWorkspace(f.active).removed,[]);
+ }finally{f.close();}
+});
 test('cleanup defaults to preview and only removes marked dead generated output',async()=>{
  const f=fixture();try{const {cleanWorkspace}=await tools();const stale=cache(f,'tests-abcdef',deadPid()),live=cache(f,'tests-ghijkl',process.pid);f.write('tmp/customer-baseline/source.ts','unique source');f.write('tmp/tests-mnopqr/fixture.test.cjs','unmarked output');const preview=cleanWorkspace(f.root);assert.equal(fs.existsSync(stale),true);assert.equal(preview.removed.length,0);const done=cleanWorkspace(f.root,{apply:true});assert.deepEqual(done.removed,[stale]);assert.equal(fs.existsSync(live),true);assert.equal(fs.existsSync(path.join(f.active,'tmp/customer-baseline/source.ts')),true);assert.equal(fs.existsSync(path.join(f.active,'tmp/tests-mnopqr')),true);}finally{f.close();}
 });

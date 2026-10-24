@@ -6,9 +6,9 @@
 
 ## 已落实的模型
 
-[src/lib/documentPrintModel.ts](../../../src/lib/documentPrintModel.ts)的buildDocumentPrintModel统一类型、标题、公司联系信息、单号/客户/日期、列、分匹明细、汇总、条款、签名/收货信息和支付码标签。前后端各用薄适配器归一化camelCase和数据库snake_case；sample/deposit/sales与旧bulk在共享模型处理，不能各自再拼一套业务口径。
+[src/lib/documentPrintModel.ts](../../../.agent-workspaces/v2-quality-20261020/src/lib/documentPrintModel.ts)的buildDocumentPrintModel统一类型、标题、公司联系信息、单号/客户/日期、列、分匹明细、汇总、条款、签名/收货信息和支付码标签。前后端各用薄适配器归一化camelCase和数据库snake_case；sample/deposit/sales与旧bulk在共享模型处理，不能各自再拼一套业务口径。
 
-[DocumentPreview](../../../src/components/DocumentPreview.tsx)负责HTML/CSS、销售分匹跨行与外层滚动；[documentExcel](../../../server/documentExcel.ts)负责ExcelJS单元格、合并、图片与打印设置。两者内容、顺序、标签和语义一致，不要求像素一致。销售明细每段十个分匹槽；定金单不恢复无用备注列。格式精度、中文大写、金额及收货电话/地址同时检查。
+[DocumentPreview](../../../.agent-workspaces/v2-quality-20261020/src/components/DocumentPreview.tsx)负责HTML/CSS、销售分匹跨行与外层滚动；[documentExcel](../../../.agent-workspaces/v2-quality-20261020/server/documentExcel.ts)负责ExcelJS单元格、合并、图片与打印设置。两者内容、顺序、标签和语义一致，不要求像素一致。销售明细每段十个分匹槽；定金单不恢复无用备注列。格式精度、中文大写、金额及收货电话/地址同时检查。
 
 ## 保留的固定约束
 
