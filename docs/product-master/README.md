@@ -10,7 +10,7 @@
 
 需求第2节范围；第3/10节人员权限；第4节三库与永久数字配色；第5/6节图片与录入；第7节启停删除；第8节检索；第9节三单据、分享、色卡/客户选样；第12节搜索对应AC。批准依据保留[色卡决定](product-master-v2-b2-5-approved-decisions.md)，与现行正文冲突按最新需求处理。
 
-色卡级分享已按确认设计和实施计划在本地实现，见[本地实现验收记录](product-master-v2-card-sharing-20261020.md)、[书面设计](../superpowers/specs/2026-10-20-card-product-sharing-design.md)和[已执行实施计划](../superpowers/plans/2026-10-20-card-product-sharing.md)。全量检查通过，真实迁移、部署及浏览器/实体微信验收尚未执行。
+色卡级分享已按确认设计和实施计划在本地实现，见[本地实现验收记录](product-master-v2-card-sharing-20261020.md)、[书面设计](../superpowers/specs/2026-10-20-card-product-sharing-design.md)和[已执行实施计划](product-master-v2-card-sharing-20261020.md)。全量检查通过，真实迁移、部署及浏览器/实体微信验收尚未执行。
 
 2026-10-20 16:55追加：文件夹/多文件导入及轻量客户档案纳入本轮，见[本轮设计](../superpowers/specs/2026-10-20-folder-import-light-customers-design.md)。本地业务实现与接线已完成，见[实现与复查记录](product-master-v2-light-customers-20261020.md)；依用户指示采用专项验证，不跑全量测试，真实迁移与上线尚未执行。
 
