@@ -47,7 +47,7 @@
   "task":"补充已批准人工补选的特定安全回归测试",
   "remainingGate":"仅本机服务端测试；UI已接受，真库及正式App未验",
   "edit":["server/customer-samples/sessionManual.test.ts"],
-  "read":["server/customer-samples/sessionManual.ts","docs/product-master/product-master-v2-b3-history-ui-review.md"]
+  "read":["server/customer-samples/sessionManual.ts","docs/ui-design/component-rules.md"]
 }
 ```
 
@@ -107,7 +107,7 @@ node scripts/fabric-v2-workspace-freshness.mjs <本轮最新SNAPSHOT> <该Agent�
 - 总控独占`server.ts`、`src/App.tsx`、`server/product-master/v2CatalogAssembly.ts`和统一进度；不并行跑全量`scripts/run-ts-tests.mjs`与`npm.cmd run lint`（临时目录竞态）。
 - 如Agent反复遍历知识库、运行无关命令或读大文件，优先中止并**重发窄任务brief**。上下文缓存不能代替现行业务稿；默认复用React预览，**只有实际使用Stitch远程稿时**才执行实时画布/截图核对。
 - 双ACP同时启动的历史尝试曾返回`coding_agent_capacity_full`；**并发容量应在每次派发前动态确认**，不能把两个已登记任务写成“同时执行”。任何历史489/448/443文件快照均只对应创建时点；每次派发使用当前源码新快照及独立工作区，并先运行`fabric-v2-workspace-freshness.mjs`，禁止从旧Git HEAD直接创建缺失V2的worktree。
-- 工作区Git变更数量随开发而变，不把历史统计写成实时状态。已有可信源码基线见[阶段交付记录](product-master-v2-b3-history-ui-review.md)，它不是Git提交或生产数据备份；新改动须重新生成/校验新基线再隔离。不得贸然`git add -A`、stash、reset、clean、复制.env或删除旧数据库。
+- 工作区Git变更数量随开发而变，不把历史统计写成实时状态。历史阶段原件按[恢复索引](../maintenance/文档整合与恢复.md#产品主数据与根目录的恢复)追溯；新派发须生成并校验当前可信源码基线，它不是Git提交或生产数据备份。不得贸然`git add -A`、stash、reset、clean、复制.env或删除旧数据库。
 
 ## 结果度量（每个Agent交接记录）
 `brief_characters`、`read_file_count`、`read_lines_or_bytes`、`TTFR（任务到首次RED测试）`、`RED/GREEN秒数`、`retry_count`、`cross_owner_edits`、`tests/failures`。最终关注：单位验收AC的执行时长和复测通过率，不追求最高token或Agent数量。

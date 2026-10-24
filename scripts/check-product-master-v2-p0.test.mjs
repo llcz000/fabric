@@ -13,13 +13,14 @@ const register = 'docs/product-master/product-master-v2-stitch-design-review.md'
 const progress = 'docs/product-master/product-master-v2-progress.md';
 const current = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
-function run(overrides = {}, source=gate) {
+function run(overrides = {}, source=gate, directoryListing=fs.readdirSync) {
   const messages = [];
   const taskProcess = { cwd: () => root, exitCode: 0 };
   vm.runInNewContext(source, {
     path,
     fs: {
       ...fs,
+      readdirSync:directoryListing,
       readFileSync(file, encoding) {
         const relative = path.relative(root, file).split(path.sep).join('/');
         return Object.hasOwn(overrides, relative) ? overrides[relative] : fs.readFileSync(file, encoding);
@@ -93,4 +94,29 @@ test('navigation rejects an obsolete specification presented as current',()=>{
   const file='docs/product-master/product-master-v2-agent-context-handbook.md';
   const result=run({[file]:current(file).replace('不替代现行业务需求','不替代现行v1.50业务需求')},source);
   assert.match(result.output,/FAIL current agent source of truth: Outdated current requirement/);
+});
+
+test('P0 routes current design without requiring retired technical process prose',()=>{
+  const result=run({'docs/product-master/product-master-v2-p0-technical-baseline.md':''});
+  assert.equal(result.status,0,result.output);
+});
+
+test('navigation uses current collaboration rules without a historical agent plan',()=>{
+  const source=current('scripts/check-fabric-v2-doc-navigation.mjs').replace(/^import .*;\r?\n/gm,'');
+  const result=run({'docs/product-master/product-master-v2-parallel-agents-plan.md':''},source);
+  assert.equal(result.status,0,result.output);
+});
+
+test('retiring stage prose still requires current migration and historical data contracts',()=>{
+  const result=run({'docs/project/数据与API.md':''});
+  assert.equal(result.status,1,result.output);
+});
+
+test('navigation validates a compact current index without a historical link-count quota',()=>{
+  const source=current('scripts/check-fabric-v2-doc-navigation.mjs').replace(/^import .*;\r?\n/gm,'');
+  const listing=(dir,options)=>fs.readdirSync(dir,options).filter(entry=>{
+    const relative=path.relative(root,dir).split(path.sep).join('/');
+    return relative==='docs'?['00-首页.md','product-master'].includes(entry.name):entry.name==='README.md';
+  });
+  const result=run({},source,listing);assert.equal(result.status,0,result.output);
 });

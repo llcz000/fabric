@@ -13,8 +13,8 @@
 
 ## P0 本轮进度记录（2026-10-12，不属于实施完成记录）
 
-- 已完成源码级 P0-1 盘点、兼容迁移的初选论证、一期 DTO/API 候选和剩余批准决策表；见 [P0技术基线](../../product-master/product-master-v2-p0-technical-baseline.md)。
-- **P0-2 已通过远程SSH只读核验**：生产MySQL 8.0.46运行正常，`fabric_db`准确记录数、表/列/索引/5条指向旧products的FK已检查，PM2在线且`health.storage=mysql`；旧产品1,211、旧产品图片关联1,008、历史单据118、明细148、全局图片资产977。详见[远程数据库审计](../../product-master/product-master-v2-remote-db-audit.md)。未执行任何DDL、DELETE或服务重启。
+- 已完成源码级 P0-1 盘点、兼容迁移的初选论证、一期 DTO/API 候选和剩余批准决策表；见 [P0技术基线](../../maintenance/文档整合与恢复.md#产品主数据与根目录的恢复)。
+- **P0-2 已通过远程SSH只读核验**：生产MySQL 8.0.46运行正常，`fabric_db`准确记录数、表/列/索引/5条指向旧products的FK已检查，PM2在线且`health.storage=mysql`；旧产品1,211、旧产品图片关联1,008、历史单据118、明细148、全局图片资产977。详见[远程数据库审计](../../maintenance/文档整合与恢复.md#产品主数据与根目录的恢复)。未执行任何DDL、DELETE或服务重启。
 - P0-3 按v1.36取消旧产品兼容，真实DB核验发现`fabrics`是旧订单结构、不是面料主数据。建议`v2_fabrics`＋`v2_products`在线并行建表、V2切换成功后按5条旧FK和944个被引用资产的引用计数/回收机制安全清退旧产品域；具体可运行清退脚本仍待设计/隔离库演练。P0-4数字配色自动分配、页面观感及Excel兼容仍待用户审查；P0-5是候选契约而非已实施接口。
 - P0整体Gate **未通过**；P1-A DDL修复有具体测试切片，但未开始改业务源码或数据库，未运行应用测试、未提交/部署。下面原始复选框保留原意，不提前勾选P0已完成。
 
@@ -25,8 +25,8 @@
 - [x] **隔离环境准备**：本机`npm ci`、远程MySQL 8.0.46独立测试数据库`fabric_v2_test_20261012`，绝不连接旧`fabric_db`作开发写操作。
 - [x] **8张V2原生表schema第一切片**：`server/product-master/schema.ts` 和 `schema.test.ts`，独立`v2_fabrics/v2_products`及母版/配色/标签/资产链接，7个单测和远程 MySQL 8.0.46新建/半建/重复初始化及约束测试通过；回滚测试样本后新业务表0行。
 - [x] **D-01数据库结构补充切片（v1.38）**：新增`pattern_masters.next_colorway_no`及大于0约束（默认1），TDD先失败后通过，`schema.test.ts` **8/8**，远程单独`fabric_v2_test_20261012_d01`建表/重复初始化/约束通过，无业务残留；需另行实现FOR UPDATE事务分配API，且此前隔离库的旧schema不自动迁移。
-- [x] **P1-C-1首段：安全初始化分流**：`server/image-assets/schema.ts`可选择显式V2（5张共享图片表＋8张V2原生表、不触发旧产品DDL），默认保持旧业务；`bootstrapIsolatedV2Schema`只允许固定`fabric_v2_test_20261012_p1c`并验证确认标记、`company_config(id)`。两次真实MySQL8.0.46隔离引导成功、14表业务记录0行；详见[P1-C交付记录](../../product-master/product-master-v2-p1c2-schema-versioning.md)。
-- [x] **P1-C-2隔离校验与版本升级演练已验证**：`schemaContract.ts`检查重要列类型/可空、组合唯一索引和排序、V2关联FK与ON DELETE规则、关键CHECK；显式引导在DDL前识别旧V1缺计数列并fail-closed。在另一个测试库`fabric_v2_test_20261012_p1c2`实现空V1→V2受限ALTER和`v2_schema_migrations`测试账本、两次严验，重复运行不重复升级。详见[P1-C-2记录](../../product-master/product-master-v2-p1c2-schema-versioning.md)。**[ ] 正式迁移执行器/迁移锁/回退和`server.ts`接入仍待P7及P2/P3/P6整合Gate；不能自动部署或宣称正式切换完成。**
+- [x] **P1-C-1首段：安全初始化分流**：`server/image-assets/schema.ts`可选择显式V2（5张共享图片表＋8张V2原生表、不触发旧产品DDL），默认保持旧业务；`bootstrapIsolatedV2Schema`只允许固定`fabric_v2_test_20261012_p1c`并验证确认标记、`company_config(id)`。两次真实MySQL8.0.46隔离引导成功、14表业务记录0行；详见[P1-C交付记录](../../maintenance/文档整合与恢复.md#产品主数据与根目录的恢复)。
+- [x] **P1-C-2隔离校验与版本升级演练已验证**：`schemaContract.ts`检查重要列类型/可空、组合唯一索引和排序、V2关联FK与ON DELETE规则、关键CHECK；显式引导在DDL前识别旧V1缺计数列并fail-closed。在另一个测试库`fabric_v2_test_20261012_p1c2`实现空V1→V2受限ALTER和`v2_schema_migrations`测试账本、两次严验，重复运行不重复升级。详见[P1-C-2记录](../../maintenance/文档整合与恢复.md#产品主数据与根目录的恢复)。**[ ] 正式迁移执行器/迁移锁/回退和`server.ts`接入仍待P7及P2/P3/P6整合Gate；不能自动部署或宣称正式切换完成。**
 - [x] **本地质量门槛**：`npm run lint`、`npm run test:unit`、`npm run build`、`git diff --check`通过，未提交或部署。
 - [ ] **P1未完成**：虽已完成V2/旧模式显式分流、重要列类型/索引/FK/CHECK检查及独立版本化迁移演练，正式`server.ts`依然默认旧域（包括旧不兼容DDL），尚未切换V2路由/API；完整非关键字段默认值与CHECK表达式核验、生产迁移器/锁/备份/回退、真实图片生命周期、角色权限、订单保存变更和发布门槛仍未交付；代码尚未上生产服务。
 - 逐项状态及证据见[进度总表](../../product-master/product-master-v2-progress.md)；当前P0-4业务规则已确认，不因测试DDL通过而冒称持久编号事务、双格式Excel解析或整体P0/P1已验收。
@@ -65,7 +65,7 @@ P1与P2可分工准备但共享 server.ts/数据库初始化入口，合并时�
 ### P0｜现状冻结与技术决策（前置）
 
 - [ ] P0-1 核对当前 Git 差异和分支；标识所有现有未提交资料；输出被修改的server/App/路由文件及各自负责人；不触碰旧改动。
-- [x] P0-2 已通过现有SSH连接远程`fabric_db`执行只读检查：MySQL版本、表/列/索引/FK、旧产品及关联的精确COUNT、历史单据保全范围，详见[2026-10-12远程审计](../../product-master/product-master-v2-remote-db-audit.md)。未执行迁移或客户数据导出。
+- [x] P0-2 已通过现有SSH连接远程`fabric_db`执行只读检查：MySQL版本、表/列/索引/FK、旧产品及关联的精确COUNT、历史单据保全范围，详见[2026-10-12远程审计](../../maintenance/文档整合与恢复.md#产品主数据与根目录的恢复)。未执行迁移或客户数据导出。
 - [ ] P0-3 **v1.36已选业务路线**：废弃旧产品库数据/API，V2原生三库和产品表从空数据开始；盘点旧表与图片FK后冻结安全清退/重建顺序及回退方式，不设计旧产品兼容。
 - [x] P0-4 **三项业务决策均获用户确认（2026-10-12）**；以下只表示需求规则冻结，不代表应用、MySQL/COS或文件解析已经实施。
   - [x] D-01 由系统按母版从1依次分配、保存后任何版本永久锁号、删除不复用、取消草稿不占号，并发需安全事务。
@@ -80,7 +80,7 @@ P1与P2可分工准备但共享 server.ts/数据库初始化入口，合并时�
 - [ ] P1-1 **第一子项已通过隔离实测**：V2显式模式完全绕开旧产品`ADD COLUMN/KEY IF NOT EXISTS`，默认线上仍按legacy运行；正式启用V2前须P2/P3/P6集成后退出旧schema/路由。V2原生DDL使用INFORMATION_SCHEMA校验，已有表缺少`next_colorway_no`必须阻断或走版本化迁移，不能用CREATE IF NOT EXISTS吞掉字段缺失；数据库初始化不依赖图片开关。
 - [ ] P1-2 定义花型母版、数字配色、面料、双维标签、V2原生产品与图片关联；**已授权废弃旧产品专用表/数据和入口**，在只读FK清单及隔离库验证后编制受控清退脚本和重建计划。历史三种单据、库存/客户/公司数据及共享image_assets继续保留，不得以CASCADE误清理。
   - **已核实的表名冲突/部署次序**：远程`fabrics`虽0行，却是旧订单/金额表，不能用作面料主数据；为在线并行建设，优先`v2_fabrics`与`v2_products`，V2验证通过并切换后再清退5条外键指向旧products的旧关联表。1,008旧产品关联贡献全局ref_count=1008；若解除引用触发回收，必须先设计资产保全/回收安全机制。
-- [ ] P1-3整体未完成；**[x] P1-D-1阶段性隔离验收通过**：远程只读核实已有`order_items.id`主键、正式`orders.order_date DATE`等真实schema，旧订单119、明细150且7单无明细；提供可空`orders.created_by_user_id`及V2用户FK的加法DDL、结构漂移fail-closed、服务端本人SQL范围与事务原地修改旧明细业务字段，不自动回填旧单owner。合成三种历史单在隔离MySQL8.0.46上两次演练并确认原行ID和快照不变，见[P1-D-1记录](../../product-master/product-master-v2-p1d2-lines.md)。**[x] P1-D-2数据层切片在隔离MySQL通过**：order_items增可空V2产品ID/来源/JSON冻结快照、FK/CHECK，旧行不推断来源，独立事务中按owner锁现有行、ID保留或显式删除、服务端校验启用产品与admin手工规则；8新增单测、全量374单测，真实MySQL8.0.46三类旧单/新单快照重复2次通过，见[P1-D-2记录](../../product-master/product-master-v2-p1d2-lines.md)。**[ ] P1-D/P6未完成**：完整金额/各匹米数/扣损/汇总公式、旧表列宽扩容、前后端实际保存/导出/打印/搜索全权限闭环，生产无DDL/上线。
+- [ ] P1-3整体未完成；**[x] P1-D-1阶段性隔离验收通过**：远程只读核实已有`order_items.id`主键、正式`orders.order_date DATE`等真实schema，旧订单119、明细150且7单无明细；提供可空`orders.created_by_user_id`及V2用户FK的加法DDL、结构漂移fail-closed、服务端本人SQL范围与事务原地修改旧明细业务字段，不自动回填旧单owner。合成三种历史单在隔离MySQL8.0.46上两次演练并确认原行ID和快照不变，见[P1-D-1记录](../../maintenance/文档整合与恢复.md#产品主数据与根目录的恢复)。**[x] P1-D-2数据层切片在隔离MySQL通过**：order_items增可空V2产品ID/来源/JSON冻结快照、FK/CHECK，旧行不推断来源，独立事务中按owner锁现有行、ID保留或显式删除、服务端校验启用产品与admin手工规则；8新增单测、全量374单测，真实MySQL8.0.46三类旧单/新单快照重复2次通过，见[P1-D-2记录](../../maintenance/文档整合与恢复.md#产品主数据与根目录的恢复)。**[ ] P1-D/P6未完成**：完整金额/各匹米数/扣损/汇总公式、旧表列宽扩容、前后端实际保存/导出/打印/搜索全权限闭环，生产无DDL/上线。
 - [ ] P1-4 建立MySQL 8目标版本实库演练：全新库、已有旧表且部分DDL完成、重复初始化，含唯一约束/外键；模拟SQL测试只作补充。
 - [ ] P1-5 针对失败启动/降级：核验health.storage=mysql及真实业务API，遇初始化失败阻断后续导入部署，提供回滚SQL/兼容恢复步骤（不得盲目回滚结构）。
 
@@ -92,9 +92,9 @@ P1与P2可分工准备但共享 server.ts/数据库初始化入口，合并时�
 
 ### P2｜身份权限底座
 
-- [ ] P2-1整体（正式生产会话/订单归属尚未接入）：**[x] 首段安全底座已完成并隔离实测**，仅admin/sales和两独立授权、加盐scrypt密码、session仅存token散列、每请求join当前权限、SQL本人单据条件、两张独立MySQL账号/会话表。验证见[P2-1记录](../../product-master/product-master-v2-p2-access-foundation.md)。**[ ]** 实际生产服务持久登录/用户创建/会话撤销、旧118单归属迁移及后台全接口归属过滤仍待后续，不扩展角色维度。
-- [ ] P2-2正式服务集成未完成；**[x] 独立HTTP切片已通过**：独立`createV2AccessRouter`（login/me/logout，token散列持久会话）、`requireV2Principal`（每请求校验当前角色授权）、`requireV2Action`（共享三库读/独立写、面料覆盖/导出/手工/成员仅admin）、`requireV2OrderAccess`（owner对他人404，DB不可用503）。HTTP测试6/6，本地351/351单测；**[ ]** 真实MySQL+HTTP整链、当前`server.ts`/旧订单路由接入、`created_by_user_id`迁移及旧打印导出跨人权限测试仍待完成。见[P2-2交付记录](../../product-master/product-master-v2-p2-access-foundation.md)。
-- [ ] P2-3整体尚未完成；**[x] P2-3a成员账号管理隔离验证通过**：管理员账号创建、独立双授权、停用/降级、密码重置与会话撤销，`FOR UPDATE`锁当前有效管理员并重新核验actor；真实MySQL8.0.46＋独立HTTP完成并发两管理员互相停用测试，至少保留1位有效管理员。新增8测试、全量359/359，详见[P2-3a记录](../../product-master/product-master-v2-p2-access-foundation.md)。**[x] P2-3b子切片：独立V2 SQL按本人订单列表/编号搜索/统计、管理员无主旧单可见**；与旧V2详情、读回、打印及Excel一致，远程MySQL8.0.46多业务员/无主旧单HTTP实测，单测7新增/全量444通过，见[P6-5/P2-3b报告](../../product-master/product-master-v2-p6-document-write-read.md)。**[ ] P2-3b整体继续未完成**：旧server.ts的`GET/POST/PUT/DELETE /api/orders`及`/api/export_template`、公司/图片/标签/导入/库存和统计路径的服务端鉴权与旧JSON兜底仍未切；账号审计、并发竞态和生产迁移Gate仍待完成。
+- [ ] P2-1整体（正式生产会话/订单归属尚未接入）：**[x] 首段安全底座已完成并隔离实测**，仅admin/sales和两独立授权、加盐scrypt密码、session仅存token散列、每请求join当前权限、SQL本人单据条件、两张独立MySQL账号/会话表。验证见[P2-1记录](../../maintenance/文档整合与恢复.md#产品主数据与根目录的恢复)。**[ ]** 实际生产服务持久登录/用户创建/会话撤销、旧118单归属迁移及后台全接口归属过滤仍待后续，不扩展角色维度。
+- [ ] P2-2正式服务集成未完成；**[x] 独立HTTP切片已通过**：独立`createV2AccessRouter`（login/me/logout，token散列持久会话）、`requireV2Principal`（每请求校验当前角色授权）、`requireV2Action`（共享三库读/独立写、面料覆盖/导出/手工/成员仅admin）、`requireV2OrderAccess`（owner对他人404，DB不可用503）。HTTP测试6/6，本地351/351单测；**[ ]** 真实MySQL+HTTP整链、当前`server.ts`/旧订单路由接入、`created_by_user_id`迁移及旧打印导出跨人权限测试仍待完成。见[P2-2交付记录](../../maintenance/文档整合与恢复.md#产品主数据与根目录的恢复)。
+- [ ] P2-3整体尚未完成；**[x] P2-3a成员账号管理隔离验证通过**：管理员账号创建、独立双授权、停用/降级、密码重置与会话撤销，`FOR UPDATE`锁当前有效管理员并重新核验actor；真实MySQL8.0.46＋独立HTTP完成并发两管理员互相停用测试，至少保留1位有效管理员。新增8测试、全量359/359，详见[P2-3a记录](../../maintenance/文档整合与恢复.md#产品主数据与根目录的恢复)。**[x] P2-3b子切片：独立V2 SQL按本人订单列表/编号搜索/统计、管理员无主旧单可见**；与旧V2详情、读回、打印及Excel一致，远程MySQL8.0.46多业务员/无主旧单HTTP实测，单测7新增/全量444通过，见[P6-5/P2-3b报告](../../maintenance/文档整合与恢复.md#产品主数据与根目录的恢复)。**[ ] P2-3b整体继续未完成**：旧server.ts的`GET/POST/PUT/DELETE /api/orders`及`/api/export_template`、公司/图片/标签/导入/库存和统计路径的服务端鉴权与旧JSON兜底仍未切；账号审计、并发竞态和生产迁移Gate仍待完成。
 - [ ] **P2-3b旧入口防绕过闸门子切片（本轮已实现/隔离验收，正式切流未完成）**：`server/access/legacyCutoverGuard.ts`及`server.ts`第一middleware；默认`legacy`保持现网兼容，未来授权`deny_legacy`仅放行`/api/v2`及健康/静态，旧`/api/login`、订单所有HTTP、导出、库存、公司/图片、上传、产品单删/批删全部410，原handler不执行；模拟HTTP扫描所有直接注册旧API＋真实远程MySQL V2登录/本人订单读回后旧路由拦截，新增4项、**全量448/448通过**。详见[旧路由切流闸门与禁止上线门槛](../../product-master/README.md)。**[ ] 当前`server.ts`没有挂`/api/v2`路由、旧App仍调用旧登录及localStorage兜底，禁止开启切流开关，须P2-4、P3-P6和真实迁移完成后再切。**
 - [ ] P2-4 React 登录、权限管理与当前用户态；无权限按钮隐藏仅为UI，后端始终执行鉴权。
 - [ ] P2-5 测试 admin/sales/无授权/有单据权限/有三库权限/双权限、跨人单据ID猜测、手工模式绕过、会话过期与停用。
@@ -141,12 +141,12 @@ P1与P2可分工准备但共享 server.ts/数据库初始化入口，合并时�
 
 ### P6｜三种单据V2关联与旧单兼容
 
-- [ ] P6-1整体未完成：**[x] P6-1a独立React选品组件与后端V2列表接口隔离验收通过**，货号/品名AND、仅四级启用、SQL转义、全库稳定分页、可空规格及短效图片签名适配点；用`orders.create_own`确保三库授权不自动获得开单权，三类单据单行草稿只换产品信息不改业务字段。远程MySQL8.0.46独立44条合成产品及真实HTTP会话联调、44减4无效=40结果、分页无重漏，新增10项、全量394项通过。见[P6-1验收](../../product-master/product-master-v2-p6-document-write-read.md)。**[ ] P6-1b**仍需真实COS签名器/当前React编辑器三单据接入、保存/回读真实v2_product_id与浏览器交互及2千条性能验收；旧`server.ts`未挂载。
-- [ ] P6-2整体未完成。**[x] P6-2a独立V2单据保存数据层/HTTP隔离验收**：sample/deposit/bulk创建于同一个MySQL事务，锁定当前账号和会话、服务器分配owner并重新查四级启用产品、冻结JSON资料快照、金额汇总，管理员显式手工而业务员不能伪造；真实MySQL8.0.46+HTTP三单据连续创建/回读并模拟撤销授权与半失败回滚，见[P6-2/3报告](../../product-master/product-master-v2-p6-document-write-read.md)。**[x] P6-2b独立表头合同＋快照隔离验收**：沿用旧orders签字、收货人、电话、地址、款式号、结清列，新增`v2_display_snapshot JSON NULL`（正式库未迁移），服务端严格白名单并原事务读写历史冻结资料，MySQL8真实3单回读/错误回滚通过，见[表头与工作区](../../product-master/product-master-v2-p6-document-write-read.md)。**[ ] 正式旧UI/打印、浏览器E2E及部署仍未完成**。
-- [ ] P6-3整体未完成。**[x] P6-3a独立V2 PATCH/GET隔离验收**：已抽出可复用原ID事务内更新，显式增/删、服务端owner检查、跨人404、旧单NULL归属admin-only、停用原产品保留旧关联只允许业务字段编辑、真正替换成另一款产品保持米数/单价/金额/ID但刷新新快照，React DTO适配器不传客户端总额或伪造来源。远程MySQL8.0.46+HTTP回读已测。**[x] P6-3b独立React组件与DTO映射切片**：`V2DocumentWorkspace`三单完整表头/库内选品/手工/米数/匹数/扣损与V2 POST/GET/PATCH、源于持久化数据的回读；SSR与纯函数专项通过，MySQL8真实HTTP后端联调已做，见[报告](../../product-master/product-master-v2-p6-document-write-read.md)。**[ ] 正式旧订单`PUT`替换、当前App入口实际接入与浏览器网络交互仍未执行**，不得冒称页面已上线。
-- [ ] P6-4整体未完成：**[x] P6-4a独立打印/Excel模型＋权限接口隔离通过**：已保存产品/公司冻结快照、mm/gsm与可空规格、销售V2未填匹米数打印0匹不造假（原旧打印默认行为仍不改）、扣损和定金百分比共用print-model，ExcelJS真实XLSX加载；V2本人/管理员受权GET打印JSON和二进制Excel、新独立React预览入口。远程MySQL8.0.46真HTTP两轮通过；**全项目437/437测试**，见[P6-4验收](../../product-master/product-master-v2-p6-document-write-read.md)。**[ ] P6-4b图片/Logo/支付码签名、实际浏览器/实体打印机、正式server.ts/App切换与原历史导出权限收口仍未完成**。
-  - **[x] P6-CALC-1独立计算/数据事务子切片隔离验收**（**不等于P6-4完整验收**）：后端sample/deposit/bulk分别校验米数×单价、销售扣损及匹数、定金百分比，金额整数分舍入；V2独立`reconcileOrderLinesAndTotals`在同一SQL事务内更新行金额与订单总计，原行ID不变。远程MySQL8.0.46独立库完整三类合成单验证、重复保存与失败回滚通过，新增10项、全量384/384，见[P6计算切片](../../product-master/product-master-v2-p6-document-write-read.md)。**正式server.ts、打印与导出仍未切换**；旧打印无匹米数时的回退口径需统一。
-- [ ] P6-5整体未完成。**[x] 独立V2产品禁删/停用与本人单据范围切片**：`deleteUnusedV2Product`事务内锁定产品及操作人+session、查订单明细和媒体关联，MySQL `fk_v2_order_line_product ON DELETE RESTRICT`防并发误删，禁删409；停用保留原订单、旧明细；独立V2真实HTTP权限/管理员与销售及MySQL8.0.46 FK直删试验通过。V2订单列表/统计统一owner SQL过滤、读写/打印Excel已有owner门禁。见[验收](../../product-master/product-master-v2-p6-document-write-read.md)。**[ ] 待P3正式产品CRUD接入该保护、B2/B3样品引用真实FK、所有旧路由及生产切流/浏览器验收**。
+- [ ] P6-1整体未完成：**[x] P6-1a独立React选品组件与后端V2列表接口隔离验收通过**，货号/品名AND、仅四级启用、SQL转义、全库稳定分页、可空规格及短效图片签名适配点；用`orders.create_own`确保三库授权不自动获得开单权，三类单据单行草稿只换产品信息不改业务字段。远程MySQL8.0.46独立44条合成产品及真实HTTP会话联调、44减4无效=40结果、分页无重漏，新增10项、全量394项通过。见[P6-1验收](../../maintenance/文档整合与恢复.md#产品主数据与根目录的恢复)。**[ ] P6-1b**仍需真实COS签名器/当前React编辑器三单据接入、保存/回读真实v2_product_id与浏览器交互及2千条性能验收；旧`server.ts`未挂载。
+- [ ] P6-2整体未完成。**[x] P6-2a独立V2单据保存数据层/HTTP隔离验收**：sample/deposit/bulk创建于同一个MySQL事务，锁定当前账号和会话、服务器分配owner并重新查四级启用产品、冻结JSON资料快照、金额汇总，管理员显式手工而业务员不能伪造；真实MySQL8.0.46+HTTP三单据连续创建/回读并模拟撤销授权与半失败回滚，见[P6-2/3报告](../../maintenance/文档整合与恢复.md#产品主数据与根目录的恢复)。**[x] P6-2b独立表头合同＋快照隔离验收**：沿用旧orders签字、收货人、电话、地址、款式号、结清列，新增`v2_display_snapshot JSON NULL`（正式库未迁移），服务端严格白名单并原事务读写历史冻结资料，MySQL8真实3单回读/错误回滚通过，见[表头与工作区](../../maintenance/文档整合与恢复.md#产品主数据与根目录的恢复)。**[ ] 正式旧UI/打印、浏览器E2E及部署仍未完成**。
+- [ ] P6-3整体未完成。**[x] P6-3a独立V2 PATCH/GET隔离验收**：已抽出可复用原ID事务内更新，显式增/删、服务端owner检查、跨人404、旧单NULL归属admin-only、停用原产品保留旧关联只允许业务字段编辑、真正替换成另一款产品保持米数/单价/金额/ID但刷新新快照，React DTO适配器不传客户端总额或伪造来源。远程MySQL8.0.46+HTTP回读已测。**[x] P6-3b独立React组件与DTO映射切片**：`V2DocumentWorkspace`三单完整表头/库内选品/手工/米数/匹数/扣损与V2 POST/GET/PATCH、源于持久化数据的回读；SSR与纯函数专项通过，MySQL8真实HTTP后端联调已做，见[报告](../../maintenance/文档整合与恢复.md#产品主数据与根目录的恢复)。**[ ] 正式旧订单`PUT`替换、当前App入口实际接入与浏览器网络交互仍未执行**，不得冒称页面已上线。
+- [ ] P6-4整体未完成：**[x] P6-4a独立打印/Excel模型＋权限接口隔离通过**：已保存产品/公司冻结快照、mm/gsm与可空规格、销售V2未填匹米数打印0匹不造假（原旧打印默认行为仍不改）、扣损和定金百分比共用print-model，ExcelJS真实XLSX加载；V2本人/管理员受权GET打印JSON和二进制Excel、新独立React预览入口。远程MySQL8.0.46真HTTP两轮通过；**全项目437/437测试**，见[P6-4验收](../../maintenance/文档整合与恢复.md#产品主数据与根目录的恢复)。**[ ] P6-4b图片/Logo/支付码签名、实际浏览器/实体打印机、正式server.ts/App切换与原历史导出权限收口仍未完成**。
+  - **[x] P6-CALC-1独立计算/数据事务子切片隔离验收**（**不等于P6-4完整验收**）：后端sample/deposit/bulk分别校验米数×单价、销售扣损及匹数、定金百分比，金额整数分舍入；V2独立`reconcileOrderLinesAndTotals`在同一SQL事务内更新行金额与订单总计，原行ID不变。远程MySQL8.0.46独立库完整三类合成单验证、重复保存与失败回滚通过，新增10项、全量384/384，见[P6计算切片](../../maintenance/文档整合与恢复.md#产品主数据与根目录的恢复)。**正式server.ts、打印与导出仍未切换**；旧打印无匹米数时的回退口径需统一。
+- [ ] P6-5整体未完成。**[x] 独立V2产品禁删/停用与本人单据范围切片**：`deleteUnusedV2Product`事务内锁定产品及操作人+session、查订单明细和媒体关联，MySQL `fk_v2_order_line_product ON DELETE RESTRICT`防并发误删，禁删409；停用保留原订单、旧明细；独立V2真实HTTP权限/管理员与销售及MySQL8.0.46 FK直删试验通过。V2订单列表/统计统一owner SQL过滤、读写/打印Excel已有owner门禁。见[验收](../../maintenance/文档整合与恢复.md#产品主数据与根目录的恢复)。**[ ] 待P3正式产品CRUD接入该保护、B2/B3样品引用真实FK、所有旧路由及生产切流/浏览器验收**。
 - [ ] P6-6 三单据组合的真实API+DB+打印/Excel回归：管理员/业务员、手工/库内/旧单、保存/取消/替换、订单打印导出、并发篡改。
 
 **P6 Gate**：AC-39、44、45、48～51、63～64及提案AC-67/68（获批后）均有证据；绝不以旧单据存在为手工录入授权。

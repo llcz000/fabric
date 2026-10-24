@@ -5,7 +5,7 @@ import path from 'node:path';
 const base=process.cwd();
 const index='docs/product-master/README.md';
 const requirements='docs/product-master/product-master-v2-requirements.md';
-const report='docs/product-master/product-master-v2-p0-technical-baseline.md';
+const report='docs/project/数据与API.md';
 const register='docs/product-master/product-master-v2-stitch-design-review.md';
 const state='docs/project/项目现状.md';
 const failures=[];
@@ -14,10 +14,13 @@ const check=(name,fn)=>{
  try{fn();console.log('PASS',name);}
  catch(error){failures.push(name);console.error('FAIL',name,error.message);}
 };
-check('current requirements and historical baseline routing',()=>{
+check('current requirements and technical contract routing',()=>{
  const current=read(requirements);
  if(!current.includes('product-master-v2-stitch-design-review.md'))throw Error('Current requirements must link the UI approval register');
- if(!read(report).includes('历史参考'))throw Error('P0 snapshot must be explicitly historical');
+ const contract=read(report);
+ for(const phrase of ['MySQL DDL隐式提交','同一物理连接','原行ID保持']){
+  if(!contract.includes(phrase))throw Error('Current safety contract missing: '+phrase);
+ }
  for(const target of ['项目需求总览.md','项目现状.md']){
   if(!read(index).includes(target))throw Error('Missing current authority: '+target);
  }

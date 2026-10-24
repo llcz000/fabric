@@ -14,7 +14,7 @@ const profiles = Object.freeze({
   A: {
     goal: 'P1/B2-5 MySQL schema and isolated verification readiness',
     acceptance: ['AC-71', 'AC-96', 'AC-98', 'AC-99'],
-    contextFiles: ['server/product-master/schema.ts', 'server/customer-samples/schema.ts', 'docs/product-master/product-master-v2-b2-5h-scan-lock-order.md'],
+    contextFiles: ['server/product-master/schema.ts', 'server/customer-samples/schema.ts', 'docs/product-master/product-master-v2-phase1-delivery-readiness.md'],
     ownedPaths: ['scripts/test-v2-b25-mysql.ts', 'server/product-master/schema.ts',
       'server/product-master/colorwayMigrationPreflight.ts',
       'server/product-master/colorwayMigrationPreflight.test.ts',
@@ -54,7 +54,7 @@ const profiles = Object.freeze({
     goal: 'B1 secure customer-facing pattern sharing and B3 selection handoff',
     acceptance: ['AC-73', 'AC-74', 'AC-75', 'AC-84'],
     contextFiles: ['server/customer-share/publicPatternProjection.ts', 'server/customer-share/patternLinkStore.ts',
-      'docs/product-master/product-master-v2-b3-history-ui-review.md'],
+      'docs/ui-design/component-rules.md'],
     ownedPaths: ['server/customer-share/',
       'server/customer-samples/sessionManual.ts', 'server/customer-samples/sessionManual.test.ts',
       'server/customer-samples/sessionManualRoutes.ts',
@@ -64,14 +64,14 @@ const profiles = Object.freeze({
       'src/components/product-master-v2/sampleSelectionClient.ts',
       'src/components/product-master-v2/sampleSelectionClient.test.ts'],
     boundaries: ['公开分享链接与业务员实体色卡扫码严格隔离，不暴露选样/寄样/客户信息',
-      'AC-84人工补选UI已接受，勿重新设计；正式接线/实库、B1签发授权/H5仍待验，勿把纯投影或映射合同当公网上线'],
+      '人工补选按当前要求，不重复设计；正式接线/实库/公开分享按本次证据判断，勿把纯投影或映射合同当公网上线'],
   },
 });
 
 const gates = Object.freeze([
   'TDD RED -> GREEN',
   '专项测试 + 检查变更路径',
-  '总控串行全量测试 -> lint -> build',
+  '按变更影响串行验证；全量测试/lint/build仅在范围或交付门禁要求时执行',
   'spec核对 + 代码复核 + 待审事项保留',
 ]);
 

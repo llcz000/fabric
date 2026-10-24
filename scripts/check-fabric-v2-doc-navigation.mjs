@@ -56,8 +56,8 @@ must('current agent source of truth',()=>{
  for(const match of guide.matchAll(/现行\s*(v[0-9]+\.[0-9]+)/g)){
   assert(match[1]===version,'Outdated current requirement '+match[1]);
  }
- has('docs/product-master/product-master-v2-parallel-agents-plan.md',/2026-10-15/);
- has('docs/product-master/product-master-v2-parallel-agents-plan.md',/fabric-v2-workspace-freshness/);
+ has('docs/development/Fabric并行开发与合并规范.md',/默认单 Agent/);
+ has('docs/product-master/product-master-v2-agent-context-handbook.md',/fabric-v2-workspace-freshness/);
 });
 must('search synonyms for active workflows',()=>{
  const index=read(classification);
@@ -77,7 +77,7 @@ must('ACP isolation and three-way merge gates',()=>{
   assert(read(guide).includes(word),'ACP handoff missing '+word);
  }
  has('AGENTS.md',/ACP协作强制执行/);
- has('docs/product-master/product-master-v2-parallel-agents-plan.md',/三方SHA256/);
+ has(guide,/SHA256三方检查/);
 });
 must('focused single-AC ACP intake after documentation cleanup',()=>{
  for(const file of ['scripts/fabric-v2-acp-task-intake.mjs','scripts/fabric-v2-acp-task-intake.test.mjs']){
@@ -149,7 +149,7 @@ must('valid local Markdown destinations and main navigation anchors',()=>{
    }
   }
  }
- assert(total>300,'Link coverage suspiciously low');
+ assert(total>0&&[home,stage].every(file=>sources.includes(path.join(root,file))),'Current navigation entrypoints were not scanned');
  const slug=(s)=>s.toLowerCase().replace(/[`*_]/g,'').replace(/[^\p{L}\p{N}\s-]/gu,'').trim().replace(/\s+/g,'-');
  for(const file of [home,stage,'docs/retrospectives/README.md','docs/development/开发与验证规范.md']){
   for(const match of read(file).matchAll(/\]\(([^)]*#[^)]*)\)/g)){

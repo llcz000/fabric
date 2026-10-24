@@ -45,7 +45,7 @@
 
 **v1.36已确认的数据与兼容边界**：用户明确允许清空旧版产品库并淘汰旧产品CRUD/导入，不需要V2读取旧产品数据、保持旧产品ID或在V2表上扩列兼容。因此不再选择「旧products扩列」路线，目标是**V2原生products及三库独立关系**。物理是否复用products表名、旧产品关联表的移除次序，仍需先以只读INFORMATION_SCHEMA确认FK及关联范围，在隔离库验证。清理仅覆盖旧产品专用表及其引用，不能误删orders/order_items、库存/客户/公司资料、共用image_assets及仍在其他资源使用的COS对象；若旧订单无product_id FK，保留其快照文本，不强制建立历史产品映射。**本技术授权范围已明确，但真实数据库尚未连接，未执行删除或迁移。**
 
-**2026-10-12 实际远程数据库核验更新**：SSH已访问生产`fabric_db`，MySQL 8.0.46、PM2 online、health.storage=mysql。线上旧`products`1,211条、5条外键引用；`product_image_assets`1,008条使用944个全局图片资产；历史订单118单/148明细不引用旧产品ID。**远程`fabrics`虽0行却是旧订单业务结构而不是V2面料表**，故冻结优先物理命名建议为`v2_fabrics`、`v2_products`和独立V2图片关联表；在线并行开发，不要求旧产品数据兼容。图片引用回收需先做事务与安全留存策略，绝不在开发期直接DROP旧域。详见[远程只读审计](../../product-master/product-master-v2-remote-db-audit.md)。
+**2026-10-12 实际远程数据库核验更新**：SSH已访问生产`fabric_db`，MySQL 8.0.46、PM2 online、health.storage=mysql。线上旧`products`1,211条、5条外键引用；`product_image_assets`1,008条使用944个全局图片资产；历史订单118单/148明细不引用旧产品ID。**远程`fabrics`虽0行却是旧订单业务结构而不是V2面料表**，故冻结优先物理命名建议为`v2_fabrics`、`v2_products`和独立V2图片关联表；在线并行开发，不要求旧产品数据兼容。图片引用回收需先做事务与安全留存策略，绝不在开发期直接DROP旧域。详见[远程只读审计](../../maintenance/文档整合与恢复.md#产品主数据与根目录的恢复)。
 
 ### 3.1 数字配色顺序分配（D-01业务规则已批准，事务实现待验收）
 

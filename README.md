@@ -47,3 +47,16 @@ npm run workspace:clean
 - artifacts/、tmp/、.local/、uploads/、template/：按用途保留的证据、临时输出、私有配置和运行数据，排除提交。
 
 旧分支和历史工作目录的恢复记录见[恢复索引](docs/maintenance/文档整合与恢复.md)。并行开发使用 `npm run parallel -- audit/start/gate/integrate/finish/retire` 创建临时任务工作树，验收完成后安全退出，最终集成必须回到唯一根目录。部署需独立提供本机私有配置，并使用现有统一发布工具；本地初始化或测试通过不代表生产验收或发布授权。
+
+## 根目录文件的保留标准
+
+| 文件 | 实际用途与处理 |
+|---|---|
+| index.html、server.ts | 正式前端/后端入口，保留 |
+| 其余 *review.html、*sandbox.html、*workbench.html、ui-ux-*.html | 被Vite/Playwright/浏览器QA明确引用的测试/评审源码入口，保留；不进入默认生产前端构建 |
+| vite.config.ts、vite.camera.config.ts、playwright.ui.config.ts、tsconfig.json | 构建/相机/测试/类型检查配置，保留 |
+| package.json、package-lock.json | 命令、依赖和精确安装锁，保留 |
+| skills-lock.json | 工具技能安装来源锁，保留；不是业务数据或一次运行日志 |
+| database_fallback.json | 旧本机兼容导入工具识别的数据，保留；正式V2不回退此文件 |
+
+文件名/扩展名不能决定是否为垃圾。新增临时报告、构建输出和截图不落根目录；旧AI宿主metadata.json无当前运行/测试依赖，已按[恢复说明](docs/maintenance/文档整合与恢复.md)归档。入口若退役，需同时修复真实调用方并精确更新源码清单，不能直接删除HTML使专项测试失效。

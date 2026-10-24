@@ -1,6 +1,6 @@
 # 产品主数据｜需求与代码速查
 
-**现行唯一基线**：[项目需求总览](../project/项目需求总览.md) + [V2唯一需求v1.53](product-master-v2-requirements.md)。项目正式运行状态只看[项目现状](../project/项目现状.md)，V2阶段汇总看[模块进度](product-master-v2-progress.md)，P1～P7/B1～B3在本页按源码入口查；旧阶段实施计划不再作为开发任务。
+**现行唯一基线**：[项目需求总览](../project/项目需求总览.md) + [V2唯一需求v1.53](product-master-v2-requirements.md)。项目正式运行状态只看[项目现状](../project/项目现状.md)，V2阶段汇总看[模块进度](product-master-v2-progress.md)，P1～P7/B1～B3在本页按源码入口查；旧阶段实施计划不再作为开发任务；阶段实现/审计原文已由[技术契约](../project/数据与API.md)承接并移出日常目录。
 
 ## 业务功能直达
 

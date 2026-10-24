@@ -8,7 +8,7 @@ import {evaluateAcpTask,auditAcpProfiles,formatAcpTaskBrief} from './fabric-v2-a
 const root=process.cwd();
 const valid=()=>({format:'fabric-v2-acp-task-v1',agent:'E',ac:'AC-84',
  task:'完成已批准人工补选UI之后的独立只读检验',remainingGate:'本地HTTP范围验收，不改变已接受UI',
- edit:['server/customer-samples/sessionManual.test.ts'],read:['server/customer-samples/sessionManual.ts','docs/product-master/product-master-v2-b3-history-ui-review.md']});
+ edit:['server/customer-samples/sessionManual.test.ts'],read:['server/customer-samples/sessionManual.ts','docs/ui-design/component-rules.md']});
 test('five owner profiles resolve to existing context and cannot share any owned path',()=>{
  const report=auditAcpProfiles(root);
  assert.equal(report.ok,true,JSON.stringify(report.issues));

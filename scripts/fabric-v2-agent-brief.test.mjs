@@ -48,3 +48,11 @@ test('each scoped owner has unique edit paths for independent workstreams', () =
     }
   }
 });
+
+test('role contexts use current contracts and no superseded process report',()=>{
+  for(const id of profileIds()){
+    const brief=buildBrief(id);
+    assert.ok(brief.contextFiles.every(file=>!/(?:b2-5h-scan-lock-order|b3-history-ui-review)\.md$/.test(file)),id);
+    assert.ok(!brief.gates.some(gate=>gate.includes('总控串行全量测试')),id);
+  }
+});
