@@ -1,5 +1,7 @@
 # 轻量客户档案与目录导入接线复盘
 
+> 2026-10-24 目录整理：本文部分历史路径对应的临时文件、已退役源码副本或旧发布证据已完整迁至仓库外；原路径作为历史定位保留，按[归档恢复索引](../../maintenance/2026-10-24-workspace-archives.json)中的范围和逐文件 SHA256 查找原件。未完成的业务 Gate 仍按当前进度保留。
+
 触发：用户要求文件夹/多文件导入，轻量客户档案一次落地，并要求缩减为专项测试；开发期间另有UI/统计源码更新。
 
 范围及实际证据统一见[本地实现记录](../../product-master/product-master-v2-light-customers-20261020.md)，当前状态见[V2进度](../../product-master/product-master-v2-progress.md)。

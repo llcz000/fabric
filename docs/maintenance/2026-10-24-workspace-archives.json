@@ -1,0 +1,476 @@
+{
+  "schemaVersion": 1,
+  "archivedAt": "2026-10-24",
+  "status": "relocated-originals-and-independent-backups-verified",
+  "acceptance": {
+    "currentRelease": "20261023t095703554-2938438a",
+    "rollbackRelease": "20261023t092834635-0c5da157",
+    "scope": "User confirmed online acceptance; current pointer used because no separate version was supplied. Other historical feature and physical-device gates remain as recorded."
+  },
+  "originalRoots": {
+    "root": "D:\\fabric",
+    "active": "D:\\fabric\\.agent-workspaces\\v2-quality-20261020"
+  },
+  "archiveRoot": "D:/fabric-knowledge-backups/post-acceptance-workspace-20261024-100448",
+  "relocatedOriginals": "relocated/{owner}/{relative}",
+  "independentBackups": "verified-backups/{owner}/{relative}",
+  "detailedManifest": {
+    "file": "archive-plan.json",
+    "sha256": "a7d9241e2972058e5dfd8588eee5abc6f971975ac9f879be071b59e115fffed2",
+    "entries": 618,
+    "files": 9789,
+    "bytes": 628116027,
+    "includes": "Every exact original/destination/backup path, per-file relative path, size and SHA256"
+  },
+  "verification": [
+    "archive-verification.json",
+    "relocation-receipt.json",
+    "project-retirements.json",
+    "webcodex-projects-before.json"
+  ],
+  "restore": [
+    "Find the exact owner/relative entry in archive-plan.json and verify this manifest SHA256 first.",
+    "Verify selected file SHA256 against the manifest, then copy only the required file from relocated or verified-backups to its original path.",
+    "Compare any existing destination before restoring; never overwrite a newer workspace or whole directory.",
+    "Frozen release JSON keeps its original paths. Restore the complete selected release directory and referenced inputs before using it again.",
+    "Retired WebCodex registration settings are in webcodex-projects-before.json; restoring files alone does not re-register a project."
+  ],
+  "retained": {
+    "agentWorkspaces": [
+      "stats-20261017",
+      "ui-release-20261019",
+      "v2-quality-20261020"
+    ],
+    "releaseDirectories": [
+      "20261023t092834635-0c5da157",
+      "20261023t095703554-2938438a"
+    ],
+    "activeTmp": [
+      "fabric-import-user.xlsx",
+      "G0153-2.webp",
+      "library-transfer/"
+    ],
+    "protected": [
+      "All Git worktrees/branches",
+      "Current code and source manifests",
+      "Environment, runtime/customer data, uploads and templates",
+      "Current/open-gate evidence, UI designs and original input assets"
+    ]
+  },
+  "temporaryHistory": [
+    {
+      "owner": "root",
+      "prefix": "tmp/",
+      "entries": 509,
+      "exactPaths": "archive-plan.json candidates[]",
+      "exceptions": []
+    },
+    {
+      "owner": "active",
+      "prefix": "tmp/",
+      "entries": 53,
+      "exactPaths": "archive-plan.json candidates[]",
+      "exceptions": [
+        "fabric-import-user.xlsx",
+        "G0153-2.webp",
+        "library-transfer/"
+      ]
+    }
+  ],
+  "directoryUnits": [
+    {
+      "owner": "root",
+      "relative": ".agent-workspaces/acp-a-2026-10-15t08-24-01-824z-c2c4b4",
+      "kind": "retired-isolated-source-snapshot",
+      "files": 428,
+      "bytes": 3593528
+    },
+    {
+      "owner": "root",
+      "relative": ".agent-workspaces/acp-a-2026-10-15t08-46-12-036z-d475c5",
+      "kind": "retired-isolated-source-snapshot",
+      "files": 432,
+      "bytes": 3638769
+    },
+    {
+      "owner": "root",
+      "relative": ".agent-workspaces/acp-a-2026-10-15t12-12-25-035z-276fdc",
+      "kind": "retired-isolated-source-snapshot",
+      "files": 441,
+      "bytes": 3703736
+    },
+    {
+      "owner": "root",
+      "relative": ".agent-workspaces/acp-a-2026-10-15t12-16-04-521z-8f6163",
+      "kind": "retired-isolated-source-snapshot",
+      "files": 441,
+      "bytes": 3707701
+    },
+    {
+      "owner": "root",
+      "relative": ".agent-workspaces/acp-d-2026-10-15t09-40-46-399z-1546dc",
+      "kind": "retired-isolated-source-snapshot",
+      "files": 437,
+      "bytes": 3637323
+    },
+    {
+      "owner": "root",
+      "relative": ".agent-workspaces/acp-e-2026-10-15t06-19-32-318z-3da56d",
+      "kind": "retired-isolated-source-snapshot",
+      "files": 444,
+      "bytes": 3686964
+    },
+    {
+      "owner": "root",
+      "relative": ".agent-workspaces/acp-e-2026-10-15t06-28-17-786z-617be4",
+      "kind": "retired-isolated-source-snapshot",
+      "files": 444,
+      "bytes": 3694176
+    },
+    {
+      "owner": "root",
+      "relative": ".agent-workspaces/acp-e-2026-10-15t07-01-38-550z-7af4d1",
+      "kind": "retired-isolated-source-snapshot",
+      "files": 446,
+      "bytes": 3704784
+    },
+    {
+      "owner": "root",
+      "relative": ".agent-workspaces/acp-e-2026-10-15t07-33-11-222z-b6b799",
+      "kind": "retired-isolated-source-snapshot",
+      "files": 451,
+      "bytes": 3739100
+    },
+    {
+      "owner": "root",
+      "relative": ".agent-workspaces/pilot-a-20261015",
+      "kind": "retired-isolated-source-snapshot",
+      "files": 482,
+      "bytes": 3930410
+    },
+    {
+      "owner": "root",
+      "relative": ".agent-workspaces/pilot-b-20261015",
+      "kind": "retired-isolated-source-snapshot",
+      "files": 478,
+      "bytes": 3899885
+    },
+    {
+      "owner": "root",
+      "relative": ".agent-workspaces/pilot-b-v150-20261015",
+      "kind": "retired-isolated-source-snapshot",
+      "files": 490,
+      "bytes": 3953592
+    },
+    {
+      "owner": "root",
+      "relative": ".agent-workspaces/review-cleanup-20261020",
+      "kind": "retired-isolated-source-snapshot",
+      "files": 995,
+      "bytes": 260278468
+    },
+    {
+      "owner": "root",
+      "relative": "artifacts/card-product-share-20261020",
+      "kind": "superseded-implementation-evidence",
+      "files": 51,
+      "bytes": 741872
+    },
+    {
+      "owner": "root",
+      "relative": "artifacts/code-review-20261020",
+      "kind": "superseded-implementation-evidence",
+      "files": 20,
+      "bytes": 473219
+    },
+    {
+      "owner": "root",
+      "relative": "artifacts/folder-import-light-customers-20261020",
+      "kind": "superseded-implementation-evidence",
+      "files": 40,
+      "bytes": 591742
+    },
+    {
+      "owner": "root",
+      "relative": "artifacts/latest-code-review-20261020",
+      "kind": "superseded-implementation-evidence",
+      "files": 14,
+      "bytes": 164574
+    },
+    {
+      "owner": "root",
+      "relative": "artifacts/light-customers-release-20261020-r2",
+      "kind": "superseded-implementation-evidence",
+      "files": 8,
+      "bytes": 12407
+    },
+    {
+      "owner": "root",
+      "relative": "artifacts/pattern-import-fixes-20261020",
+      "kind": "superseded-implementation-evidence",
+      "files": 29,
+      "bytes": 690031
+    },
+    {
+      "owner": "root",
+      "relative": "artifacts/product-card-customers-20261020",
+      "kind": "superseded-implementation-evidence",
+      "files": 1,
+      "bytes": 101039
+    },
+    {
+      "owner": "root",
+      "relative": "artifacts/v2-quality-refactor-20261020",
+      "kind": "superseded-implementation-evidence",
+      "files": 39,
+      "bytes": 1011409
+    },
+    {
+      "owner": "root",
+      "relative": "artifacts/v2-quality-release-20261020",
+      "kind": "superseded-implementation-evidence",
+      "files": 24,
+      "bytes": 2150837
+    },
+    {
+      "owner": "active",
+      "relative": "artifacts/releases/20261020t142622221-bcaede31",
+      "kind": "older-frozen-release-history",
+      "files": 32,
+      "bytes": 7272169
+    },
+    {
+      "owner": "active",
+      "relative": "artifacts/releases/20261020t143024848-6353f30e",
+      "kind": "older-frozen-release-history",
+      "files": 1,
+      "bytes": 44
+    },
+    {
+      "owner": "active",
+      "relative": "artifacts/releases/20261021t034745398-bac97431",
+      "kind": "older-frozen-release-history",
+      "files": 35,
+      "bytes": 3313207
+    },
+    {
+      "owner": "active",
+      "relative": "artifacts/releases/20261021t081437059-8f214e9e",
+      "kind": "older-frozen-release-history",
+      "files": 36,
+      "bytes": 7372171
+    },
+    {
+      "owner": "active",
+      "relative": "artifacts/releases/20261021t081722632-881267a4",
+      "kind": "older-frozen-release-history",
+      "files": 36,
+      "bytes": 7364838
+    },
+    {
+      "owner": "active",
+      "relative": "artifacts/releases/20261021t082938014-4db8dea9",
+      "kind": "older-frozen-release-history",
+      "files": 22,
+      "bytes": 7304907
+    },
+    {
+      "owner": "active",
+      "relative": "artifacts/releases/20261021t083051888-2d0eede0",
+      "kind": "older-frozen-release-history",
+      "files": 24,
+      "bytes": 7307304
+    },
+    {
+      "owner": "active",
+      "relative": "artifacts/releases/20261021t120746473-e5a8dff9",
+      "kind": "older-frozen-release-history",
+      "files": 40,
+      "bytes": 8105990
+    },
+    {
+      "owner": "active",
+      "relative": "artifacts/releases/20261021t122729174-f6830828",
+      "kind": "older-frozen-release-history",
+      "files": 40,
+      "bytes": 8106817
+    },
+    {
+      "owner": "active",
+      "relative": "artifacts/releases/20261021t134811458-b98988bc",
+      "kind": "older-frozen-release-history",
+      "files": 40,
+      "bytes": 8112123
+    },
+    {
+      "owner": "active",
+      "relative": "artifacts/releases/20261021t144929293-15b5eddb",
+      "kind": "older-frozen-release-history",
+      "files": 42,
+      "bytes": 8122055
+    },
+    {
+      "owner": "active",
+      "relative": "artifacts/releases/20261022t024407456-151f7787",
+      "kind": "older-frozen-release-history",
+      "files": 42,
+      "bytes": 12202809
+    },
+    {
+      "owner": "active",
+      "relative": "artifacts/releases/20261022t025546134-377809bd",
+      "kind": "older-frozen-release-history",
+      "files": 40,
+      "bytes": 12220971
+    },
+    {
+      "owner": "active",
+      "relative": "artifacts/releases/20261022t032046559-fec0b9fc",
+      "kind": "older-frozen-release-history",
+      "files": 37,
+      "bytes": 8159349
+    },
+    {
+      "owner": "active",
+      "relative": "artifacts/releases/20261022t033216324-c5f9d529",
+      "kind": "older-frozen-release-history",
+      "files": 39,
+      "bytes": 8168892
+    },
+    {
+      "owner": "active",
+      "relative": "artifacts/releases/20261022t035125033-4cd5d9ab",
+      "kind": "older-frozen-release-history",
+      "files": 37,
+      "bytes": 8221331
+    },
+    {
+      "owner": "active",
+      "relative": "artifacts/releases/20261022t050140199-55572ab8",
+      "kind": "older-frozen-release-history",
+      "files": 28,
+      "bytes": 11484914
+    },
+    {
+      "owner": "active",
+      "relative": "artifacts/releases/20261022t050437512-9f6d5872",
+      "kind": "older-frozen-release-history",
+      "files": 26,
+      "bytes": 7346364
+    },
+    {
+      "owner": "active",
+      "relative": "artifacts/releases/20261022t050802262-2c500318",
+      "kind": "older-frozen-release-history",
+      "files": 39,
+      "bytes": 8530469
+    },
+    {
+      "owner": "active",
+      "relative": "artifacts/releases/20261022t051056457-ece61336",
+      "kind": "older-frozen-release-history",
+      "files": 40,
+      "bytes": 12665159
+    },
+    {
+      "owner": "active",
+      "relative": "artifacts/releases/20261022t061136470-5349740f",
+      "kind": "older-frozen-release-history",
+      "files": 28,
+      "bytes": 14140554
+    },
+    {
+      "owner": "active",
+      "relative": "artifacts/releases/20261022t062100128-45b52777",
+      "kind": "older-frozen-release-history",
+      "files": 1,
+      "bytes": 89
+    },
+    {
+      "owner": "active",
+      "relative": "artifacts/releases/20261022t062234601-986ce210",
+      "kind": "older-frozen-release-history",
+      "files": 1,
+      "bytes": 305
+    },
+    {
+      "owner": "active",
+      "relative": "artifacts/releases/20261022t062407421-bdca145c",
+      "kind": "older-frozen-release-history",
+      "files": 41,
+      "bytes": 8542843
+    },
+    {
+      "owner": "active",
+      "relative": "artifacts/releases/20261022t063817538-ae5e91ba",
+      "kind": "older-frozen-release-history",
+      "files": 42,
+      "bytes": 15338006
+    },
+    {
+      "owner": "active",
+      "relative": "artifacts/releases/20261022t065556161-1c48a683",
+      "kind": "older-frozen-release-history",
+      "files": 41,
+      "bytes": 8545459
+    },
+    {
+      "owner": "active",
+      "relative": "artifacts/releases/20261022t083556849-b7071a21",
+      "kind": "older-frozen-release-history",
+      "files": 41,
+      "bytes": 8591728
+    },
+    {
+      "owner": "active",
+      "relative": "artifacts/releases/20261022t092331239-723b17f8",
+      "kind": "older-frozen-release-history",
+      "files": 41,
+      "bytes": 8595855
+    },
+    {
+      "owner": "active",
+      "relative": "artifacts/releases/20261022t095523456-2d6c46b4",
+      "kind": "older-frozen-release-history",
+      "files": 41,
+      "bytes": 8603690
+    },
+    {
+      "owner": "active",
+      "relative": "artifacts/releases/20261022t101804959-0cd2ae5e",
+      "kind": "older-frozen-release-history",
+      "files": 41,
+      "bytes": 8606877
+    },
+    {
+      "owner": "active",
+      "relative": "artifacts/releases/20261023t031612467-bb25e48d",
+      "kind": "older-frozen-release-history",
+      "files": 43,
+      "bytes": 9040075
+    },
+    {
+      "owner": "active",
+      "relative": "artifacts/releases/20261023t051028030-82baa9b8",
+      "kind": "older-frozen-release-history",
+      "files": 43,
+      "bytes": 9063993
+    },
+    {
+      "owner": "active",
+      "relative": "artifacts/releases/20261023t084330664-c29bbe1c",
+      "kind": "older-frozen-release-history",
+      "files": 45,
+      "bytes": 16393153
+    },
+    {
+      "owner": "active",
+      "relative": "artifacts/releases/20261023t085615057-b2ac7559",
+      "kind": "older-frozen-release-history",
+      "files": 45,
+      "bytes": 16392909
+    }
+  ],
+  "deletedOriginalContents": false,
+  "netDiskSpaceFreedClaimed": false
+}
