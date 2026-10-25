@@ -1,6 +1,6 @@
 import {test,expect} from '@playwright/test';
 import {mkdir} from 'node:fs/promises';
-const start='/ui-ux-pilot.html';
+const start='/tools/ui-preview/entries/ui-ux-pilot.html';
 const screenshots='artifacts/ui-ux-pilot';
 test.beforeEach(async({page})=>{
  await page.goto(start,{waitUntil:'domcontentloaded'});
@@ -37,13 +37,13 @@ test('internal share action opens isolated customer preview, copied URL is local
  await expect(dialog).toBeVisible();
  await expect(dialog.getByRole('region',{name:'关联产品 G0886-3-F018'})).toBeVisible();
  await expect(dialog.getByText('面料图').first()).toBeVisible();
- await expect(dialog.getByRole('link',{name:'打开客户展示样板'})).toHaveAttribute('href',/ui-ux-share-demo.html\?demoCard=demo-1/);
+ await expect(dialog.getByRole('link',{name:'打开客户展示样板'})).toHaveAttribute('href',/\/tools\/ui-preview\/entries\/ui-ux-share-demo\.html\?demoCard=demo-1/);
  await context.grantPermissions(['clipboard-read','clipboard-write']);
  await dialog.getByRole('button',{name:'复制本机演示链接'}).click();
  await expect(dialog.getByRole('status')).toContainText('本机');
  const link=await page.evaluate(()=>navigator.clipboard.readText());
  expect(new URL(link).host).toBe(new URL(page.url()).host);
- expect(link).toContain('ui-ux-share-demo.html?demoCard=demo-1');
+ expect(link).toContain('tools/ui-preview/entries/ui-ux-share-demo.html?demoCard=demo-1');
  expect(link).not.toContain('token');
  await dialog.getByRole('button',{name:'关闭预览'}).click();
  await expect(trigger).toBeFocused();
@@ -83,7 +83,7 @@ test('360px internal compact mobile controls and keyboard focus',async({page})=>
 });
 test('mobile customer demo has image-first sections with no internal actions',async({page})=>{
  await page.setViewportSize({width:360,height:780});
- await page.goto('/ui-ux-share-demo.html?demoCard=demo-2',{waitUntil:'domcontentloaded'});
+ await page.goto('/tools/ui-preview/entries/ui-ux-share-demo.html?demoCard=demo-2',{waitUntil:'domcontentloaded'});
  await expect(page.locator('[data-view="customer-demo"]')).toBeVisible();
  await expect(page.getByRole('heading',{name:'花型配色'})).toBeVisible();
  await expect(page.getByRole('heading',{name:'面料与应用展示'})).toBeVisible();
@@ -93,7 +93,7 @@ test('mobile customer demo has image-first sections with no internal actions',as
  await page.screenshot({path:screenshots+'/customer-share-mobile.png',fullPage:true});
 });
 test('invalid local demo URL fails closed without internal data',async({page})=>{
- await page.goto('/ui-ux-share-demo.html?demoCard=not-exist',{waitUntil:'domcontentloaded'});
+ await page.goto('/tools/ui-preview/entries/ui-ux-share-demo.html?demoCard=not-exist',{waitUntil:'domcontentloaded'});
  await expect(page.getByRole('heading',{name:'该演示色卡不存在'})).toBeVisible();
  await expect(page.locator('.share-product')).toHaveCount(0);
 });

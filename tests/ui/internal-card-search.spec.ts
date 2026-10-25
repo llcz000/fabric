@@ -1,6 +1,6 @@
 import {test,expect} from '@playwright/test';
 test('real internal card list search supports clear button and Escape without losing input focus',async({page})=>{
- await page.goto('/ui-ux-internal-cards.html',{waitUntil:'domcontentloaded'});
+ await page.goto('/tools/ui-preview/entries/ui-ux-internal-cards.html',{waitUntil:'domcontentloaded'});
  const search=page.getByRole('searchbox',{name:'查找色卡'});
  await expect(search).toBeVisible();
  await expect(page.locator('table tbody tr')).toHaveCount(3);
@@ -24,7 +24,7 @@ test('real internal card list search supports clear button and Escape without lo
 test('real color-card table keeps modest fabric name width, 4 actions separated and no header sorting',async({page})=>{
  for(const viewport of [1440,1024,800]){
   await page.setViewportSize({width:viewport,height:900});
-  await page.goto('/ui-ux-internal-cards.html',{waitUntil:'domcontentloaded'});
+  await page.goto('/tools/ui-preview/entries/ui-ux-internal-cards.html',{waitUntil:'domcontentloaded'});
   const row=page.locator('table tbody tr').first();
   await expect(row).toBeVisible();
   await expect(page.getByRole('button',{name:'列设置'})).toBeVisible();
@@ -55,7 +55,7 @@ test('real color-card table keeps modest fabric name width, 4 actions separated 
  }
 });
 test('actual color-card column settings keep original interaction and preserve mandatory actions',async({page})=>{
- await page.goto('/ui-ux-internal-cards.html',{waitUntil:'domcontentloaded'});
+ await page.goto('/tools/ui-preview/entries/ui-ux-internal-cards.html',{waitUntil:'domcontentloaded'});
  const trigger=page.getByRole('button',{name:'列设置'});
  await trigger.click();
  const panel=page.getByRole('group',{name:'列显示设置'});
@@ -76,7 +76,7 @@ test('actual color-card column settings keep original interaction and preserve m
 });
 
 test('page and modal visual review: remove redundant copy and use compact accessible dismiss buttons',async({page})=>{
- await page.goto('/ui-ux-internal-cards.html',{waitUntil:'domcontentloaded'});
+ await page.goto('/tools/ui-preview/entries/ui-ux-internal-cards.html',{waitUntil:'domcontentloaded'});
  await expect(page.getByRole('heading',{name:'实体色卡',exact:true})).toBeVisible();
  await expect(page.getByText('列表与Excel导出')).toHaveCount(0);
  await expect(page.getByText('一张色卡由一个花型母版与一种面料品号唯一绑定')).toHaveCount(0);
@@ -120,7 +120,7 @@ test('page and modal visual review: remove redundant copy and use compact access
 });
 test('compact heading and actions remain usable on narrow internal viewport',async({page})=>{
  await page.setViewportSize({width:390,height:820});
- await page.goto('/ui-ux-internal-cards.html',{waitUntil:'domcontentloaded'});
+ await page.goto('/tools/ui-preview/entries/ui-ux-internal-cards.html',{waitUntil:'domcontentloaded'});
  await expect(page.getByRole('heading',{name:'实体色卡'})).toBeVisible();
  await expect(page.getByRole('searchbox',{name:'查找色卡'})).toBeVisible();
  await expect(page.getByRole('button',{name:'新增色卡'})).toBeVisible();

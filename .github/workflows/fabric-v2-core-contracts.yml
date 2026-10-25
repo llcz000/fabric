@@ -36,5 +36,7 @@ jobs:
         run: node node_modules/vite/bin/vite.js build --config scripts/vite-v2-workbench.config.ts
       - name: Assert production bundle excludes V2 write workbench
         run: |
-          test ! -e dist/product-master-v2-workbench.html
-          test -e tmp/v2-workbench-frontend-dist/product-master-v2-workbench.html
+          test ! -e dist/tools/v2-sandbox/entries/product-master-v2-workbench.html
+          test -e tmp/v2-workbench-frontend-dist/tools/v2-sandbox/entries/product-master-v2-workbench.html
+      - name: Enforce root and isolated HTML entry structure
+        run: npm run structure:check

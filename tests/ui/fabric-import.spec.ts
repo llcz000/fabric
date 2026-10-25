@@ -4,7 +4,7 @@ for(const mobile of [false,true]){
  test('fabric import template + actual 79-row workbook '+(mobile?'mobile':'desktop'),async({page})=>{
   test.skip(!existsSync('.local/test-inputs/fabric-import-user.xlsx'),'Local authorized workbook is absent; never commit customer input');
   await page.setViewportSize(mobile?{width:390,height:844}:{width:1280,height:900});
-  await page.goto('/ui-ux-internal-fabrics.html?import=1');
+  await page.goto('/tools/ui-preview/entries/ui-ux-internal-fabrics.html?import=1');
   await expect(page.getByRole('heading',{name:'模板示例'})).toBeVisible();
   await expect(page.getByLabel('品号来源列')).toHaveCount(0);
   await expect(page.getByLabel('工作表',{exact:true})).toHaveCount(0);

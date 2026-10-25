@@ -10,7 +10,7 @@ try{
  server=await createServer({server:{host:'127.0.0.1',port:52998,strictPort:true,hmr:false,watch:{ignored:['**/artifacts/**','**/tmp/**','**/dist/**','**/dist-camera/**']}},clearScreen:false,logLevel:'error'});await server.listen();
  browser=await chromium.launch({channel:'msedge',headless:true});const page=await browser.newPage({viewport:{width:1366,height:768}});
  page.on('pageerror',e=>errors.push(e.message));
- const go=async(q='')=>{await page.goto('http://127.0.0.1:52998/customer-ui-review.html'+q,{waitUntil:'networkidle'});await page.getByRole('heading',{name:'客户档案',exact:true}).waitFor();};
+ const go=async(q='')=>{await page.goto('http://127.0.0.1:52998/tools/ui-review/entries/customer-ui-review.html'+q,{waitUntil:'networkidle'});await page.getByRole('heading',{name:'客户档案',exact:true}).waitFor();};
  const shot=async(name)=>page.screenshot({path:path.join(out,name+'.png'),fullPage:true});
  const view=()=>page.getByRole('button',{name:'查看档案',exact:true}).first(),edit=()=>page.getByRole('button',{name:'编辑客户',exact:true}).first(),del=()=>page.getByRole('button',{name:'删除客户',exact:true}).first();
  const profile=()=>page.locator('dialog.customer-dialog'),form=()=>profile().getByRole('form',{name:'客户档案表单'}),close=()=>profile().getByRole('button',{name:'关闭客户窗口'}),save=()=>profile().getByRole('button',{name:'保存',exact:true});

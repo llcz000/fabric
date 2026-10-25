@@ -60,11 +60,11 @@ try{
  // from dist and never served by the app's existing server.ts.
  await build({configFile:path.join(root,'vite.config.ts'),base:'./',
   build:{outDir:site,emptyOutDir:true,copyPublicDir:false,
-   rollupOptions:{input:path.join(root,'product-master-v2-review.html')}}});
+   rollupOptions:{input:path.join(root,'tools/ui-review/entries/product-master-v2-review.html')}}});
  vite=createServer(async(req,res)=>{
   try{
    const requested=decodeURIComponent(new URL(req.url??'/',base).pathname).replace(/^\/+/,''),
-    dest=path.resolve(site,requested||'product-master-v2-review.html');
+    dest=path.resolve(site,requested||'tools/ui-review/entries/product-master-v2-review.html');
    if(!dest.startsWith(site+path.sep)) {res.writeHead(403);res.end();return;}
    const data=await readFile(dest);
    const ext=path.extname(dest),mime=ext==='.js'?'text/javascript':ext==='.css'?'text/css':
@@ -73,7 +73,7 @@ try{
   }catch{res.writeHead(404);res.end('Not found');}
  });
  await new Promise((resolve,reject)=>{vite.once('error',reject);vite.listen(port,'127.0.0.1',resolve);});
- await until(async()=>{try{const r=await fetch(base+'/product-master-v2-review.html');return r.ok;}catch{return false;}},'local built-preview server');
+ await until(async()=>{try{const r=await fetch(base+'/tools/ui-review/entries/product-master-v2-review.html');return r.ok;}catch{return false;}},'local built-preview server');
  edge=launch('C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',[
   '--headless=new','--disable-gpu','--disable-background-networking','--disable-sync','--disable-extensions',
   '--no-first-run','--no-default-browser-check','--remote-debugging-port='+debug,
@@ -102,7 +102,7 @@ try{
   'window.addEventListener("unhandledrejection",e=>window.__reviewErrors.push(String(e.reason)));'});
  for(const width of [320,360,1280,1440]){
   await send('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<600});
-  await send('Page.navigate',{url:base+'/product-master-v2-review.html'});
+  await send('Page.navigate',{url:base+'/tools/ui-review/entries/product-master-v2-review.html'});
   await until(()=>js('document.querySelector("main[data-review-view=pattern]")?.textContent?.includes("G0179")'),'pattern '+width);
   await assert('!document.querySelector("[aria-label=配色序号筛选]")','pattern numeric colorway filter removed '+width);
   await until(()=>js('[...document.querySelectorAll("main [role=table] img")].some(x=>x.naturalWidth===320)'),'pattern actual thumbnail resolution '+width);

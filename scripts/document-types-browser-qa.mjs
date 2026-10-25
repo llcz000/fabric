@@ -6,7 +6,7 @@ import {mkdir,mkdtemp,readFile,writeFile} from 'node:fs/promises';
 import path from 'node:path';
 const root=process.cwd(),dir=path.join(root,'artifacts/product-master-ui/qa/document-types'),site=path.join(root,'artifacts/product-master-ui/qa/query-v2/site');
 await mkdir(dir,{recursive:true});
-if(!process.argv.includes('--built'))await build({configFile:path.join(root,'vite.config.ts'),base:'./',build:{outDir:site,emptyOutDir:true,copyPublicDir:false,rollupOptions:{input:path.join(root,'product-master-v2-review.html')}}});
+if(!process.argv.includes('--built'))await build({configFile:path.join(root,'vite.config.ts'),base:'./',build:{outDir:site,emptyOutDir:true,copyPublicDir:false,rollupOptions:{input:path.join(root,'tools/ui-review/entries/product-master-v2-review.html')}}});
 let base='',ws,serial=0;const pending=new Map(),checks=[],screens=[];
 const server=createServer(async(req,res)=>{try{const file=path.resolve(site,decodeURIComponent(new URL(req.url??'/',base).pathname).replace(/^\//,''));if(!file.startsWith(site+path.sep)){res.writeHead(403).end();return;}
  res.setHeader('Content-Type',file.endsWith('.js')?'text/javascript':file.endsWith('.css')?'text/css':'text/html; charset=utf-8');res.end(await readFile(file));}catch{res.writeHead(404).end();}});
@@ -29,7 +29,7 @@ try{
  ws.addEventListener('message',e=>{const message=JSON.parse(e.data),handler=pending.get(message.id);if(handler){pending.delete(message.id);message.error?handler.reject(Error(message.error.message)):handler.resolve(message.result);}});
  await send('Page.enable');await send('Runtime.enable');await send('Emulation.setDeviceMetricsOverride',{width:1400,height:1100,deviceScaleFactor:1,mobile:false});
  await send('Page.addScriptToEvaluateOnNewDocument',{source:"window.__errors=[];addEventListener('error',e=>window.__errors.push(e.message));addEventListener('unhandledrejection',e=>window.__errors.push(String(e.reason)));"});
- await send('Page.navigate',{url:base+'/product-master-v2-review.html?view=documents'});
+ await send('Page.navigate',{url:base+'/tools/ui-review/entries/product-master-v2-review.html?view=documents'});
  await until(()=>js(`Boolean(document.querySelector('select[name="type"]'))`),'query page');
  for(const type of ['sample','deposit','bulk']){
   await input('select[name="type"]',type,'select');await click('查询');await sleep(100);

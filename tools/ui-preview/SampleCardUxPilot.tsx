@@ -26,7 +26,7 @@ export function SampleCardUxPilot(){
  const returnFocus=useRef<HTMLButtonElement|null>(null);
  const cards=useMemo(()=>PILOT_CARDS.filter(c=>[c.cardNo,c.masterNo,c.fabricNo,c.fabricName].some(s=>s.toLowerCase().includes(query.trim().toLowerCase()))),[query]);
  const card=active?PILOT_CARDS.find(c=>c.id===active.cardId):undefined;
- const customerPreview=card?new URL('/ui-ux-share-demo.html?demoCard='+encodeURIComponent(card.id),window.location.origin).toString():'';
+ const customerPreview=card?new URL('/tools/ui-preview/entries/ui-ux-share-demo.html?demoCard='+encodeURIComponent(card.id),window.location.origin).toString():'';
  function open(e:React.MouseEvent<HTMLButtonElement>,id:string,action:Action){returnFocus.current=e.currentTarget;setFeedback('');setActive({cardId:id,action});}
  async function copyDemoLink(){
   try{await navigator.clipboard.writeText(customerPreview);setFeedback('本机客户展示样板链接已复制，仅用于本机评审。');}

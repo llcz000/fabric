@@ -82,10 +82,10 @@ try{
  await mkdir(dir,{recursive:true});await mkdir(downloads,{recursive:true});
  await build({configFile:path.join(root,'vite.config.ts'),base:'./',
   build:{outDir:site,emptyOutDir:true,copyPublicDir:false,
-   rollupOptions:{input:path.join(root,'product-master-v2-review.html')}}});
+   rollupOptions:{input:path.join(root,'tools/ui-review/entries/product-master-v2-review.html')}}});
  http=createServer(async(req,res)=>{
   try{
-   const requested=decodeURIComponent(new URL(req.url??'/',base).pathname).replace(/^\/+/,''),dest=path.resolve(site,requested||'product-master-v2-review.html');
+   const requested=decodeURIComponent(new URL(req.url??'/',base).pathname).replace(/^\/+/,''),dest=path.resolve(site,requested||'tools/ui-review/entries/product-master-v2-review.html');
    if(!dest.startsWith(site+path.sep)){res.writeHead(403);res.end();return;}
    const buf=await readFile(dest),ext=path.extname(dest);
    res.writeHead(200,{'Content-Type':ext==='.js'?'text/javascript':ext==='.css'?'text/css':ext==='.html'?'text/html':'application/octet-stream',
@@ -125,7 +125,7 @@ try{
  await send('Browser.setDownloadBehavior',{behavior:'allow',downloadPath:downloads,eventsEnabled:true});
  for(const width of [320,360,1440]){
   await send('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<600});
-  await send('Page.navigate',{url:base+'/product-master-v2-review.html?view=sampleCards'});
+  await send('Page.navigate',{url:base+'/tools/ui-review/entries/product-master-v2-review.html?view=sampleCards'});
   await until(()=>js('document.querySelector("main[data-review-view=sampleCards]")?.textContent.includes("实体色卡")'),'deep-linked card page '+width);
   await check('document.querySelector("nav button[aria-current=page]")?.textContent==="色卡库"','deep-linked card tab '+width);
   await check('document.documentElement.scrollWidth<=innerWidth+3','no card body overflow '+width);

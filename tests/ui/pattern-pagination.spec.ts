@@ -1,6 +1,6 @@
 import {test,expect} from '@playwright/test';
 test('76 masters / 144 versions: all four pages complete and unique, last-page controls and filtering reset',async({page})=>{
- await page.goto('/ui-ux-internal-patterns.html');
+ await page.goto('/tools/ui-preview/entries/ui-ux-internal-patterns.html');
  const footer=page.getByRole('navigation',{name:'花型分页'});
  await expect(footer).toContainText('共 76 个花型 · 144 个配色');
  await expect(footer).toContainText('第 1 / 4 页');
@@ -23,7 +23,7 @@ test('76 masters / 144 versions: all four pages complete and unique, last-page c
  await expect(footer).toContainText('第 1 / 1 页');
 });
 test('out-of-range page recovers after concurrent catalog shrink',async({page})=>{
- await page.goto('/ui-ux-internal-patterns.html?shrink=1');
+ await page.goto('/tools/ui-preview/entries/ui-ux-internal-patterns.html?shrink=1');
  const footer=page.getByRole('navigation',{name:'花型分页'});
  for(let i=1;i<=3;i++){await expect(footer).toContainText('第 '+i+' / 4 页');await footer.getByRole('button',{name:'下一页'}).click();}
  await expect(footer).toContainText('共 2 个花型');
@@ -32,7 +32,7 @@ test('out-of-range page recovers after concurrent catalog shrink',async({page})=
 });
 
 test('bulk import explains replacement and a failed lower colorway does not block the next image',async({page})=>{
- await page.goto('/ui-ux-internal-patterns.html');
+ await page.goto('/tools/ui-preview/entries/ui-ux-internal-patterns.html');
  await page.getByRole('button',{name:'导入花型库',exact:true}).click();
  const dialog=page.getByRole('dialog',{name:'批量导入花型库'});
  await expect(dialog).toContainText('已删除编号可复用');

@@ -1,6 +1,6 @@
 import {test,expect} from '@playwright/test';
 test('fabric library actual V2 component removes redundant intro, filters by name, shows reset only when needed',async({page})=>{
- await page.goto('/ui-ux-internal-fabrics.html',{waitUntil:'domcontentloaded'});
+ await page.goto('/tools/ui-preview/entries/ui-ux-internal-fabrics.html',{waitUntil:'domcontentloaded'});
  await expect(page.getByRole('heading',{name:'面料库',exact:true})).toBeVisible();
  await expect(page.getByText('面料品号、品名、成分与规格统一管理')).toHaveCount(0);
  await expect(page.getByRole('button',{name:'清空筛选'})).toHaveCount(0);
@@ -14,7 +14,7 @@ test('fabric library actual V2 component removes redundant intro, filters by nam
  await page.screenshot({path:'artifacts/ui-ux-pilot/fabric-library-design-desktop.png',fullPage:true});
 });
 test('fabric manager inline edit, delete confirm and column visibility remain functional',async({page})=>{
- await page.goto('/ui-ux-internal-fabrics.html',{waitUntil:'domcontentloaded'});
+ await page.goto('/tools/ui-preview/entries/ui-ux-internal-fabrics.html',{waitUntil:'domcontentloaded'});
  await expect(page.locator('tbody tr')).toHaveCount(3);
  const menu=page.getByRole('button',{name:'列设置'});
  await menu.click();
@@ -42,7 +42,7 @@ test('fabric manager inline edit, delete confirm and column visibility remain fu
 test('fabric page 390px layout scrolls table internally without full document overflow',async({page})=>{
  // See the dedicated edit-unit regression below for actual control geometry and unit values.
  await page.setViewportSize({width:390,height:820});
- await page.goto('/ui-ux-internal-fabrics.html',{waitUntil:'domcontentloaded'});
+ await page.goto('/tools/ui-preview/entries/ui-ux-internal-fabrics.html',{waitUntil:'domcontentloaded'});
  await expect(page.getByRole('button',{name:'新增面料'})).toBeVisible();
  const widths=await page.evaluate(()=>({client:document.documentElement.clientWidth,scroll:document.documentElement.scrollWidth}));
  expect(widths.scroll).toBeLessThanOrEqual(widths.client+1);

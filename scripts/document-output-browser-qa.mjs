@@ -9,7 +9,7 @@ import sharp from 'sharp';
 const root=process.cwd(),dir=path.join(root,'artifacts/product-master-ui/qa/document-output');
 const site=path.join(dir,'site'),downloads=await mkdtemp(path.join(root,'tmp/document-output-downloads-'));
 await mkdir(dir,{recursive:true});
-if(!process.argv.includes('--built'))await build({configFile:path.join(root,'vite.config.ts'),base:'./',build:{outDir:site,emptyOutDir:true,copyPublicDir:false,rollupOptions:{input:path.join(root,'product-master-v2-review.html')}}});
+if(!process.argv.includes('--built'))await build({configFile:path.join(root,'vite.config.ts'),base:'./',build:{outDir:site,emptyOutDir:true,copyPublicDir:false,rollupOptions:{input:path.join(root,'tools/ui-review/entries/product-master-v2-review.html')}}});
 let base='',ws,serial=0;const pending=new Map(),checks=[],files=[],completed=new Map();
 const server=createServer(async(req,res)=>{try{
  const file=path.resolve(site,decodeURIComponent(new URL(req.url??'/',base).pathname).replace(/^\//,''));
@@ -49,7 +49,7 @@ try{
  await send('Browser.setDownloadBehavior',{behavior:'allow',downloadPath:downloads,eventsEnabled:true});
  await send('Emulation.setDeviceMetricsOverride',{width:1400,height:1100,deviceScaleFactor:1,mobile:false});
  await send('Page.addScriptToEvaluateOnNewDocument',{source:`window.__errors=[];addEventListener('error',e=>window.__errors.push(e.message));addEventListener('unhandledrejection',e=>window.__errors.push(String(e.reason)));`});
- await send('Page.navigate',{url:base+'/product-master-v2-review.html?view=documents'});
+ await send('Page.navigate',{url:base+'/tools/ui-review/entries/product-master-v2-review.html?view=documents'});
  await until(()=>js(`Boolean(document.querySelector('select[name="type"]'))`),'query');
  for(const type of ['sample','deposit','bulk']){
   await js(`(()=>{const e=document.querySelector('select[name="type"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(e,${JSON.stringify(type)});e.dispatchEvent(new Event('change',{bubbles:true}));})()`);

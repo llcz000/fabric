@@ -7,7 +7,7 @@ import path from 'node:path';
 const root=process.cwd(),dir=path.join(root,'artifacts/product-master-ui/qa/card-selection-compact'),site=path.join(root,'artifacts/product-master-ui/qa/query-v2/site');
 let base='',debug=0;
 await mkdir(dir,{recursive:true});
-if(!process.argv.includes('--built'))await build({configFile:path.join(root,'vite.config.ts'),base:'./',build:{outDir:site,emptyOutDir:true,copyPublicDir:false,rollupOptions:{input:path.join(root,'product-master-v2-review.html')}}});
+if(!process.argv.includes('--built'))await build({configFile:path.join(root,'vite.config.ts'),base:'./',build:{outDir:site,emptyOutDir:true,copyPublicDir:false,rollupOptions:{input:path.join(root,'tools/ui-review/entries/product-master-v2-review.html')}}});
 const server=createServer(async(req,res)=>{try{
  const file=path.resolve(site,decodeURIComponent(new URL(req.url??'/',base).pathname).replace(/^\/+/,''));
  if(!file.startsWith(site+path.sep)){res.writeHead(403).end();return;}
@@ -38,7 +38,7 @@ try{
  ws.addEventListener('message',e=>{const message=JSON.parse(e.data);const handler=pending.get(message.id);if(handler){pending.delete(message.id);message.error?handler.reject(Error(message.error.message)):handler.resolve(message.result);}});
  await send('Page.enable');await send('Runtime.enable');await send('Emulation.setDeviceMetricsOverride',{width:1440,height:1080,deviceScaleFactor:1,mobile:false});
  await send('Page.addScriptToEvaluateOnNewDocument',{source:"window.__errors=[];window.__imageAccess=[];addEventListener('fabric-review:image-access',e=>window.__imageAccess.push(e.detail));addEventListener('error',e=>window.__errors.push(e.message));addEventListener('unhandledrejection',e=>window.__errors.push(String(e.reason)));"});
- await send('Page.navigate',{url:base+'/product-master-v2-review.html?view=sampleSelection'});
+ await send('Page.navigate',{url:base+'/tools/ui-review/entries/product-master-v2-review.html?view=sampleSelection'});
  await until(()=>js(`Boolean([...document.querySelectorAll('button')].find(x=>x.textContent.trim()==='人工补选'))`),'selection page');
  await click('人工补选');await ready();
  await check(`document.querySelector('${pane} th').textContent==='色卡编号'`,'card number is first column');

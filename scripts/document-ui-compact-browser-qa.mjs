@@ -16,7 +16,7 @@ try{
  const page=await browser.newPage({viewport:{width:1440,height:960},deviceScaleFactor:1});
  page.on('pageerror',err=>errors.push(err.message));
  page.on('console',message=>{if(message.type()==='error')errors.push(message.text());});
- const url='http://127.0.0.1:52996/document-ui-review.html';
+ const url='http://127.0.0.1:52996/tools/ui-review/entries/document-ui-review.html';
  await page.goto(url,{waitUntil:'networkidle'});
  await page.getByRole('button',{name:'选择客户 / 快速建档'}).waitFor();
  const shot=async name=>{await page.screenshot({path:path.join(out,name+'.png'),fullPage:true});screens.push(name+'.png');};

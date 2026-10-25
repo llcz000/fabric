@@ -88,8 +88,8 @@ test('quick browser gate only accepts dedicated Fabric list component changes',(
 
 test('tooling relocation registers exact UI entries and test files without allowing arbitrary configuration',()=>workspace(root=>{
  fs.mkdirSync(path.join(root,'tests/ui'),{recursive:true});
- const paths=['package-lock.json','playwright.ui.config.ts','tests/ui/local.spec.ts','ui-ux-pilot.html'];
- for(const file of paths)fs.writeFileSync(path.join(root,file),'reviewed tooling');
+ const paths=['package-lock.json','playwright.ui.config.ts','tests/ui/local.spec.ts','tools/ui-preview/entries/ui-ux-pilot.html'];
+ for(const file of paths){const target=path.join(root,file);fs.mkdirSync(path.dirname(target),{recursive:true});fs.writeFileSync(target,'reviewed tooling');}
  assert.deepEqual(reviewedSourceDiff({root,head:'base'}).changed,paths);
  assert.throws(()=>acceptReviewedSource({root,head:'base'},paths.slice(1)),/Unreviewed/);
  assert.deepEqual(acceptReviewedSource({root,head:'base'},paths),paths);

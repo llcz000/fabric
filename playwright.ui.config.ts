@@ -22,7 +22,7 @@ export default defineConfig({
  webServer:{
   command:'node scripts/serve-ui-ux-pilot.mjs',
   env:{FABRIC_UI_UX_MODE:'test'},
-  url:origin+'/ui-ux-pilot.html',
+  url:origin+'/tools/ui-preview/entries/ui-ux-pilot.html',
   reuseExistingServer:false,
   timeout:120_000,
  },

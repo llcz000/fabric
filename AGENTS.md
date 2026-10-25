@@ -12,6 +12,9 @@
 
 D:/fabric 为唯一正式应用、规范和命令入口；src/server/scripts/docs 均位于根目录，所有常用 npm、业务与专项检查命令在根目录执行。docs/project/fabric-v2-active-workspace.json 的 application 角色指向本根目录；不再使用已退役的 Controller/Active 路由。全新检出先运行 workspace:init 建立本地清单；初始化不授予发布权限。
 
+## 工程目录与 HTML 入口强制规则
+根目录只保留正式应用入口 `index.html`；禁止把 UI 样板、评审、验收、V2 沙箱/联调 HTML 放回根目录。对应入口分别归档到 `tools/ui-preview/entries/`、`tools/ui-review/entries/`、`tools/v2-sandbox/entries/`，实际组件仍放在 `src/` 或 `tools/ui-preview/`。新增/移动入口必须同步 Vite 配置、浏览器测试、QA 脚本、CI 和文档引用；不得通过删除验收测试或放宽沙箱门禁使检查变绿。运行 `npm run structure:check` 验证根目录与生产 `dist/` 只含正式 HTML；该检查纳入 `test:all` 和 CI。隔离评审构建只能输出到 `artifacts/` 或 `tmp/`，绝不进入生产 `dist/`。
+
 
 ## 开发前
 

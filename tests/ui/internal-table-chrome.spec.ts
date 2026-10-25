@@ -1,5 +1,5 @@
 import {test,expect} from '@playwright/test';
-const url='/ui-ux-internal-chrome.html';
+const url='/tools/ui-preview/entries/ui-ux-internal-chrome.html';
 test.beforeEach(async({page})=>{
  await page.goto(url,{waitUntil:'domcontentloaded'});
  await page.evaluate(()=>localStorage.removeItem('fabric.ui.qa.columns'));

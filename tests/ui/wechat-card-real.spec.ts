@@ -1,6 +1,6 @@
 import {test,expect} from '@playwright/test';
 import {mkdir} from 'node:fs/promises';
-const path='/ui-ux-wechat-review.html';
+const path='/tools/ui-preview/entries/ui-ux-wechat-review.html';
 test('WeChat-like 390px mobile gallery keeps all content and image actions within viewport',async({browser})=>{
  const context=await browser.newContext({viewport:{width:390,height:844},deviceScaleFactor:3,isMobile:true,hasTouch:true,userAgent:'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.50'});
  const page=await context.newPage();

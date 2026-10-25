@@ -1,7 +1,7 @@
 import {test,expect,type Page} from '@playwright/test';
 import {mkdir} from 'node:fs/promises';
 
-const entry='/ui-ux-wechat-route.html';
+const entry='/tools/ui-preview/entries/ui-ux-wechat-route.html';
 const token='a'.repeat(43);
 const ref=(char:string)=>'display:'+char.repeat(43);
 const color=(no:number,product:string,displays:string[],details:string[],effects:string[])=>({

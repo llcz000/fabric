@@ -7,12 +7,12 @@ import path from 'node:path';
 import {createFrontendStaticRouter} from './frontendStatic';
 test('production serves frontend assets but never backend bundle, maps or arbitrary review files',async()=>{
  const root=await mkdtemp(path.join(os.tmpdir(),'fabric-v2-static-'));await mkdir(path.join(root,'assets'));
- for(const name of ['index.html','favicon.svg','favicon-6dc80a36.svg','server.cjs','server.cjs.map','product-master-v2-review.html','assets/app.js'])await writeFile(path.join(root,name),'fixture');
+ for(const name of ['index.html','favicon.svg','favicon-6dc80a36.svg','server.cjs','server.cjs.map','tools/ui-review/entries/product-master-v2-review.html','assets/app.js']){const file=path.join(root,name);await mkdir(path.dirname(file),{recursive:true});await writeFile(file,'fixture');}
  const app=express();app.use(createFrontendStaticRouter(root));const server=app.listen(0,'127.0.0.1');await new Promise<void>(r=>server.once('listening',r));
  try{
   const base='http://127.0.0.1:'+(server.address() as {port:number}).port;
   for(const name of ['/','/index.html','/favicon.svg','/favicon-6dc80a36.svg','/assets/app.js'])assert.equal((await fetch(base+name)).status,200);
-  for(const name of ['/server.cjs','/server.cjs.map','/product-master-v2-review.html','/assets/app.js.map','/favicon-anything.svg','/favicon-123.svg','/favicon-AAAAAAAA.svg','/%73erver.cjs','/p/'+'a'.repeat(43)])assert.equal((await fetch(base+name)).status,404,name);
+  for(const name of ['/server.cjs','/server.cjs.map','/tools/ui-review/entries/product-master-v2-review.html','/assets/app.js.map','/favicon-anything.svg','/favicon-123.svg','/favicon-AAAAAAAA.svg','/%73erver.cjs','/p/'+'a'.repeat(43)])assert.equal((await fetch(base+name)).status,404,name);
   assert.match((await fetch(base)).headers.get('cache-control')??'',/no-store/);
  }finally{server.closeAllConnections();await new Promise<void>(r=>server.close(()=>r()));assert.equal(path.dirname(path.resolve(root)),path.resolve(os.tmpdir()));assert(path.basename(root).startsWith('fabric-v2-static-'));await rm(root,{recursive:true,force:true});}
 });

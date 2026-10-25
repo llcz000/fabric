@@ -36,7 +36,7 @@ test('opted-in Vite sandbox uses loopback-only proxy, isolated build and no lega
   assert.deepEqual(Object.keys(cfg.server?.proxy??{}),['/api/v2']);
   assert.equal(cfg.server?.proxy?.['/api/v2']?.target,'http://127.0.0.1:3456');
   assert.equal(cfg.build?.outDir,'tmp/v2-sandbox-frontend-dist');
-  assert.equal(cfg.build?.rollupOptions?.input?.sandbox,resolve(root,'product-master-v2-sandbox.html'));
+  assert.equal(cfg.build?.rollupOptions?.input?.sandbox,resolve(root,'tools/v2-sandbox/entries/product-master-v2-sandbox.html'));
  }finally{
   if(prev===undefined)delete process.env.FABRIC_V2_SANDBOX_FRONTEND;
   else process.env.FABRIC_V2_SANDBOX_FRONTEND=prev;

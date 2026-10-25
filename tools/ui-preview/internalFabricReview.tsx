@@ -33,7 +33,7 @@ const apiFetch=(async(input:RequestInfo|URL,init?:RequestInit)=>{
 function Screen(){
  const [message,setMessage]=useState('');
  return <div className="v2-shell"><ConfirmProvider>
-  {location.search.includes('import=1')?<FabricImportV2 apiFetch={apiFetch} canManage onCancel={()=>{location.href='/ui-ux-internal-fabrics.html';}}/>:<FabricLibraryV2 apiFetch={apiFetch} canManage allowExport onImport={()=>setMessage('本机演示：不会读取 Excel')}
+  {location.search.includes('import=1')?<FabricImportV2 apiFetch={apiFetch} canManage onCancel={()=>{location.href='/tools/ui-preview/entries/ui-ux-internal-fabrics.html';}}/>:<FabricLibraryV2 apiFetch={apiFetch} canManage allowExport onImport={()=>setMessage('本机演示：不会读取 Excel')}
    onViewProducts={item=>setMessage(item.fabricNo+' 关联产品 · 本机演示')}/>}
   {message?<p role="status" className="mx-5 text-sm text-slate-500">{message}</p>:null}
  </ConfirmProvider></div>;

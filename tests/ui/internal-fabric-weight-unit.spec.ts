@@ -3,7 +3,7 @@ import {test,expect} from '@playwright/test';
 test('weight unit and number remain fully visible when editing at desktop and narrow widths',async({page})=>{
  for(const viewport of [1440,1100,390]){
   await page.setViewportSize({width:viewport,height:900});
-  await page.goto('/ui-ux-internal-fabrics.html',{waitUntil:'domcontentloaded'});
+  await page.goto('/tools/ui-preview/entries/ui-ux-internal-fabrics.html',{waitUntil:'domcontentloaded'});
   await expect(page.locator('tbody tr')).toHaveCount(3);
   await page.getByRole('button',{name:'编辑'}).first().click();
   const row=page.locator('tbody tr').first();
@@ -42,7 +42,7 @@ test('weight unit and number remain fully visible when editing at desktop and na
 });
 
 test('existing mm, unset weight and default create gsm retain their exact values',async({page})=>{
- await page.goto('/ui-ux-internal-fabrics.html',{waitUntil:'domcontentloaded'});
+ await page.goto('/tools/ui-preview/entries/ui-ux-internal-fabrics.html',{waitUntil:'domcontentloaded'});
  await page.getByRole('button',{name:'编辑'}).nth(1).click();
  const row=page.locator('tbody tr').nth(1);
  await expect(row.getByRole('textbox',{name:'克重数值'})).toHaveValue('16.5');

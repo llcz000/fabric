@@ -28,7 +28,7 @@ test('local real G0626 textile imagery: mobile renders actual fabric/detail/look
   const buf=await readFile(path.join(assets,file));
   await route.fulfill({status:200,contentType:'image/webp',body:buf,headers:{'Cache-Control':'no-store'}});
  });
- await page.goto('/ui-ux-wechat-route.html',{waitUntil:'domcontentloaded'});
+ await page.goto('/tools/ui-preview/entries/ui-ux-wechat-route.html',{waitUntil:'domcontentloaded'});
  await expect(page.getByRole('heading',{name:'G0626-F018'})).toBeVisible();
  await expect(page.getByRole('heading',{name:'G0626-1-F018'})).toBeVisible();
  const first=page.locator('img').first();

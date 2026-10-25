@@ -16,6 +16,6 @@ export default defineConfig(({command})=>{
   server:{host:'127.0.0.1',port:4466,strictPort:true,
    proxy:{'/api/v2':{target:'http://127.0.0.1:3456',changeOrigin:false}}},
   build:{outDir:'tmp/v2-workbench-frontend-dist',emptyOutDir:true,
-   rollupOptions:{input:{workbench:path.resolve(process.cwd(),'product-master-v2-workbench.html')}}}
+   rollupOptions:{input:{workbench:path.resolve(process.cwd(),'tools/v2-sandbox/entries/product-master-v2-workbench.html')}}}
  };
 });

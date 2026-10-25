@@ -20,7 +20,7 @@ export default defineConfig(({command})=>{
   },
   build:{
    outDir:'tmp/v2-sandbox-frontend-dist',emptyOutDir:true,
-   rollupOptions:{input:{sandbox:path.resolve(process.cwd(),'product-master-v2-sandbox.html')}}
+   rollupOptions:{input:{sandbox:path.resolve(process.cwd(),'tools/v2-sandbox/entries/product-master-v2-sandbox.html')}}
   }
  };
 });
