@@ -7,7 +7,7 @@ import {SampleSelectionWorkspaceV2} from './SampleSelectionWorkspaceV2';
 import type {SampleSessionPage} from '../../../server/customer-samples/sessionRead';
 
 const page:SampleSessionPage={
- session:{id:'51',customerReference:'客户A',status:'open'},
+ session:{id:'51',customerReference:'客户A'},
  total:1,selectedCardCount:1,limit:20,offset:0,
  items:[{id:'61',productId:'81',
   current:{productNo:'0012-1-F018',patternNo:'0012',colorwayNo:1,fabricNo:'F018',
@@ -31,13 +31,14 @@ test('B3 selected items display current master data and card source first withou
  assert(html.includes('最新丝绸'));assert(html.includes('真丝100%'));
  assert(html.includes('0012-F018'));assert(html.includes('已失效'));
  assert(html.includes('18 gsm'));assert(html.includes('145'));
- const header=html.slice(html.indexOf('<thead>'),html.indexOf('</thead>'));assert(header.indexOf('色卡编号')<header.indexOf('货号'));
+ const header=html.slice(html.indexOf('<thead'),html.indexOf('</thead>'));assert(header.indexOf('色卡编号')<header.indexOf('货号'));
  assert(!html.includes('>有效<'));
  assert(html.includes('移除'));
 });
-test('B3 closed session is strictly read-only and never presents a remove action',()=>{
- const html=renderToStaticMarkup(React.createElement(SampleSelectionPanel,{...props,initialPage:{...page,session:{...page.session,status:'closed'}}}));
- assert(html.includes('已结束'));assert(!html.includes('移除该款'));
+test('legacy closed session remains editable when the caller has write permission',()=>{
+ const legacyPage={...page,session:{...page.session,status:'closed'}};
+ const html=renderToStaticMarkup(React.createElement(SampleSelectionPanel,{...props,initialPage:legacyPage}));
+ assert(!html.includes('已结束'));assert(html.includes('移除所选'));assert(html.includes('勾选货号'));
 });
 test('B3 empty response does not fabricate selection records or reveal customer name from another page',()=>{
  const html=renderToStaticMarkup(React.createElement(SampleSelectionPanel,{...props,initialPage:{...page,items:[],total:0,selectedCardCount:0}}));

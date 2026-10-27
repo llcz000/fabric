@@ -112,14 +112,15 @@ test('P4-3 injected V2 fetch handles 201/200 and 409; backend still owns referen
 test('P4-3 table matches eight compact columns, explicit 3 referenced, optional blanks, no fake audit flags',()=>{
  const html=renderToStaticMarkup(React.createElement(FabricV2Table,{
   page:{items:[silk,empty],total:2,limit:50,offset:0},
-  onPage:()=>{},onEdit:()=>{},onDelete:()=>{},canManage:true
+  onPage:()=>{},onEdit:()=>{},onDelete:()=>{},onViewProducts:()=>{},canManage:true
  }));
  const headers=Array.from(html.matchAll(/<th\b[^>]*>([\s\S]*?)<\/th>/g)).map(x=>x[1].replace(/<[^>]+>/g,'').trim());
  assert.deepEqual(headers,['品号','品名','成分','克重','门幅 / cm','备注','关联产品','操作']);
  assert(html.includes('F018')&&html.includes('丝质雪纺'));
  assert(html.includes('16.5 mm')&&html.includes('145.5'));
  assert(html.includes('title="可用于高档礼服"'));
- assert(html.includes('已关联 3'));
+ assert(html.includes('aria-label="查看 F018 关联产品 3 个"'));
+ assert(html.includes('aria-label="查看 F019 关联产品 0 个"'));
  assert(html.includes('—'));
  assert(!html.includes('待完善')&&!html.includes('审核状态'));
  assert(html.includes('编辑')&&html.includes('删除'));

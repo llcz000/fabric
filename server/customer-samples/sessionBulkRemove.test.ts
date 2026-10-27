@@ -18,6 +18,6 @@ test('bulk card removal covers all source-matched products, appends audit, and r
  const db=new Db();assert.deepEqual(await removeSampleSessionCards(db,actor,'3',['7','8']),{sessionId:'3',removedCount:2});assert.equal(db.events.length,2);assert.equal(db.commits,1);
  const locate=db.calls.find(c=>c.sql.includes('EXISTS'))!;assert(locate.sql.includes('customer_sample_manual_events'));assert(!locate.sql.includes('LIMIT'));assert(locate.sql.includes('FOR UPDATE'));
  const failed=new Db();failed.fail=true;await assert.rejects(removeSampleSessionCards(failed,actor,'3',['7']));assert(failed.items.every(i=>i.removed_at===null));assert.equal(failed.events.length,0);
- for(const key of ['closed','grant']){const denied=new Db();if(key==='closed')denied.closed=true;else denied.grant=false;await assert.rejects(removeSampleSessionCards(denied,actor,'3',['7']));assert.equal(denied.commits,0);}
+ for(const key of ['grant']){const denied=new Db();if(key==='closed')denied.closed=true;else denied.grant=false;await assert.rejects(removeSampleSessionCards(denied,actor,'3',['7']));assert.equal(denied.commits,0);}const closed=new Db();closed.closed=true;assert.deepEqual(await removeSampleSessionCards(closed,actor,'3',['7']),{sessionId:'3',removedCount:2});
  for(const cards of [[],['7','7'],['bad'],['7','999']]){const denied=new Db();await assert.rejects(removeSampleSessionCards(denied,actor,'3',cards));assert(denied.items.every(item=>item.removed_at===null));}
 });

@@ -1,3 +1,4 @@
+import {inventoryProductCards,migrateProductCards,PRODUCT_CARDS_PLAN_SHA256} from '../../server/customer-samples/productCardBackfill';
 import {migrateBusinessSimplification,BUSINESS_SIMPLIFICATION_PLAN_SHA256} from '../../server/audit/businessSimplificationSchema';
 import {rehearseBusinessSimplification} from './business-simplification-rehearsal';
 import {migrateFabricNumber,FABRIC_NUMBER_PLAN_SHA256} from '../../server/product-master/fabricNumberSchema';
@@ -17,6 +18,7 @@ import {migrateCustomers,CUSTOMER_PLAN_SHA256} from '../../server/customers/sche
 import {migrateCardShareLinks,CARD_SHARE_PLAN_SHA256} from '../../server/customer-share/cardShareMigration';
 import {rehearseCustomers} from './customer-rehearsal';
 const registry={
+ 'product-auto-cards':{sha256:PRODUCT_CARDS_PLAN_SHA256,apply:(p:any,t:any,b:string)=>migrateProductCards(p,t,b)},
  'business-simplification':{sha256:BUSINESS_SIMPLIFICATION_PLAN_SHA256,apply:(p:any,t:any,b:string)=>migrateBusinessSimplification(p,t,b)},
  'fabric-number-nonempty':{sha256:FABRIC_NUMBER_PLAN_SHA256,apply:(p:any,t:any,b:string)=>migrateFabricNumber(p,t,b)},
  'pattern-number-reuse':{sha256:PATTERN_NUMBER_REUSE_PLAN_SHA256,apply:(p:any,t:any,b:string)=>migratePatternNumberReuse(p,t,b)},
@@ -28,20 +30,22 @@ const registry={
 };
 async function main(){
  const [mode,database,serverUuid,backupSha,rawIds]=process.argv.slice(2);
- assert(['migrate','rehearse','plans'].includes(mode));
+ assert(['migrate','rehearse','plans','inventory'].includes(mode));
  const ids=rawIds?.split(',')??[];assert(ids.length&&new Set(ids).size===ids.length&&ids.every(x=>Object.hasOwn(registry,x)));
  const plans=Object.fromEntries(ids.map(id=>[id,registry[id as keyof typeof registry].sha256]));
  if(mode==='plans'){console.log(JSON.stringify(plans));return;}
- assert(/^[A-Za-z0-9_]{1,64}$/.test(database));assert(/^[a-f0-9-]{36}$/.test(serverUuid));assert(/^[a-f0-9]{64}$/.test(backupSha));
+ assert(/^[A-Za-z0-9_]{1,64}$/.test(database));assert(/^[a-f0-9-]{36}$/.test(serverUuid));if(mode!=='inventory')assert(/^[a-f0-9]{64}$/.test(backupSha));
  if(mode==='rehearse')assert(/^fabric_release_check_[a-f0-9]{16}$/.test(database));else assert.equal(database,'fabric_db');
  const pool=mysql.createPool({socketPath:'/var/run/mysqld/mysqld.sock',user:'root',database,supportBigNumbers:true,bigNumberStrings:true,dateStrings:true,connectionLimit:3});
  try{
   const target={database,serverUuid},results:Record<string,unknown>={};
+  if(mode==='inventory'){assert.deepEqual(ids,['product-auto-cards']);const [identity]:any=await pool.query('SELECT DATABASE() AS database_name,@@server_uuid AS server_uuid');assert.equal(identity[0]?.database_name,database);assert.equal(identity[0]?.server_uuid,serverUuid);console.log(JSON.stringify(await inventoryProductCards(pool)));return;}
   for(const id of ids){const migration=registry[id as keyof typeof registry];const result=await migration.apply(pool,target,backupSha);assert.equal(result.planSha256,migration.sha256);results[id]=result;}
   let checks:string[]=[];
   if(mode==='rehearse'){
    for(const id of ids)assert((await registry[id as keyof typeof registry].apply(pool,target,backupSha)).alreadyApplied);
    checks.push('registered migration repeat idempotency');
+   if(ids.includes('product-auto-cards')){assert.equal((await inventoryProductCards(pool)).missing,0);checks.push('all current product groups have cards; repeat migration preserves IDs and QR');}
    if(ids.includes('business-simplification'))checks.push(...await rehearseBusinessSimplification(pool));
    if(ids.includes('fabric-number-nonempty'))checks.push(...await rehearseFabricNumbers(pool));
    if(ids.includes('pattern-number-reuse'))checks.push(...await rehearsePatternNumberReuse(pool));

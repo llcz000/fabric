@@ -10,11 +10,16 @@ function fixture(){
  CREATE TABLE customer_profile_events(id INTEGER PRIMARY KEY AUTOINCREMENT,customer_id INTEGER,actor_user_id INTEGER,event_type TEXT,detail_json TEXT,created_at TEXT DEFAULT CURRENT_TIMESTAMP);
  CREATE TABLE customer_sample_sessions(id INTEGER PRIMARY KEY AUTOINCREMENT,customer_reference TEXT,created_by_user_id INTEGER,status TEXT DEFAULT 'open',deleted_at TEXT,created_at TEXT DEFAULT CURRENT_TIMESTAMP);
  CREATE TABLE customer_sample_session_access(id INTEGER PRIMARY KEY AUTOINCREMENT,session_id INTEGER,user_id INTEGER,can_manage INTEGER);
+ CREATE TABLE customer_sample_selected_cards(session_id INTEGER,card_id INTEGER,PRIMARY KEY(session_id,card_id));
+ CREATE TABLE customer_sample_items(session_id INTEGER,product_id INTEGER,removed_at TEXT);
+ CREATE TABLE customer_sample_item_sources(session_id INTEGER,product_id INTEGER,card_id INTEGER);
+ CREATE TABLE customer_sample_manual_events(session_id INTEGER,product_id INTEGER,card_id INTEGER);
  CREATE TABLE customer_session_links(session_id INTEGER PRIMARY KEY,customer_id INTEGER,row_version INTEGER DEFAULT 1,linked_by_user_id INTEGER);
  CREATE TABLE customer_requests(actor_user_id INTEGER,request_id TEXT,payload_hash TEXT,result_json TEXT,PRIMARY KEY(actor_user_id,request_id));
  CREATE TABLE customer_followups(id INTEGER PRIMARY KEY AUTOINCREMENT,customer_id INTEGER,actor_user_id INTEGER,session_id INTEGER,contacted_on TEXT,feedback TEXT,outcome TEXT);
  CREATE TABLE customer_followup_tasks(id INTEGER PRIMARY KEY AUTOINCREMENT,customer_id INTEGER,assignee_user_id INTEGER,source_followup_id INTEGER,due_on TEXT,next_action TEXT,status TEXT DEFAULT 'open',row_version INTEGER DEFAULT 1);
  CREATE TABLE orders(id INTEGER PRIMARY KEY,template_type TEXT,order_date TEXT,order_no TEXT,receiving_unit TEXT,total_amount DECIMAL,created_by_user_id INTEGER);CREATE TABLE customer_order_links(order_id INTEGER PRIMARY KEY,customer_id INTEGER,row_version INTEGER DEFAULT 1,linked_by_user_id INTEGER); CREATE TABLE sample_shipments(id INTEGER PRIMARY KEY,session_id INTEGER,shipped_at TEXT);CREATE TABLE sample_followups(id INTEGER PRIMARY KEY,session_id INTEGER,contacted_on TEXT,outcome TEXT);`);
+ db.function('UNIX_TIMESTAMP',(value:any)=>Date.parse(String(value).replace(' ','T')+'Z')/1000);
  db.function('JSON_UNQUOTE',(v:any)=>v);db.function('CONVERT_TZ',(v:any,_from:any,_to:any)=>new Date(Date.parse(String(v).replace(' ','T')+'Z')+8*3600000).toISOString().slice(0,19).replace('T',' '));db.function('UTC_TIMESTAMP',()=> '2026-10-20 08:00:00');db.function('DATE_FORMAT',(value:any,_format:any)=>value===null?null:String(value).slice(0,10));
  const calls:string[]=[],locks:string[]=[];let failSession=false;
  const connection={customerProfilesEnabled:true,beginTransaction:async()=>{db.exec('BEGIN');},commit:async()=>{db.exec('COMMIT');},rollback:async()=>{db.exec('ROLLBACK');},release(){},query:async(sql:string,args:unknown[]=[]):Promise<[unknown,unknown]>=>{

@@ -1,9 +1,10 @@
+import {exportSessionCards} from './sessionCardExport';
 import {Router,json,type RequestHandler,type ErrorRequestHandler} from 'express';
 import type {AppPrincipal} from '../access/types';
 import type {SamplePool} from './scanRepository';
-import {createSampleSession,listSampleSessions,readShipmentProgress,changeSampleSessionStatus,updateSampleSession,deleteSampleSession} from './sessionDirectory';
+import {createSampleSession,listSampleSessions,readShipmentProgress,updateSampleSession,deleteSampleSession} from './sessionDirectory';
 import {SampleSessionManualError} from './sessionManual';
-export function createSampleSessionDirectoryRouter(authenticate:RequestHandler,pool:SamplePool):Router{
+export function createSampleSessionDirectoryRouter(authenticate:RequestHandler,pool:SamplePool,scanOrigin=process.env.FABRIC_V2_PUBLIC_ORIGIN):Router{
  const router=Router();router.use((_req,res,next)=>{res.setHeader('Cache-Control','no-store');next();});
  router.patch('/sessions/:sessionId',authenticate,json({strict:true,limit:'8kb'}),async(req,res)=>{
   if(Object.keys(req.query).length||!req.is('application/json')){res.status(400).json({error:'Invalid selection request'});return;}
@@ -13,9 +14,12 @@ export function createSampleSessionDirectoryRouter(authenticate:RequestHandler,p
   if(Object.keys(req.query).length||req.headers['transfer-encoding']!==undefined||req.headers['content-length']!==undefined&&req.headers['content-length']!=='0'){res.status(400).json({error:'Invalid selection request'});return;}
   try{res.json(await deleteSampleSession(pool,res.locals.principal as AppPrincipal,String(req.params.sessionId)));}catch(error){failure(res,error);}
  });
- router.patch('/sessions/:sessionId/status',authenticate,json({strict:true,limit:'8kb'}),async(req,res)=>{
-  if(Object.keys(req.query).length||!req.is('application/json')){res.status(400).json({error:'Invalid selection request'});return;}
-  try{res.json(await changeSampleSessionStatus(pool,res.locals.principal as AppPrincipal,String(req.params.sessionId),req.body));}catch(error){failure(res,error);}
+ router.get('/sessions/:sessionId/cards/export.xlsx',authenticate,async(req,res)=>{
+  if(Object.keys(req.query).length){res.status(400).json({error:'Invalid selection query'});return;}
+  try{const bytes=await exportSessionCards(pool,res.locals.principal as AppPrincipal,String(req.params.sessionId),scanOrigin);
+   res.setHeader('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+   res.setHeader('Content-Disposition','attachment; filename="sample-cards.xlsx"');res.send(bytes);
+  }catch(error){failure(res,error);}
  });
  router.get('/sessions',authenticate,async(req,res)=>{
   const query=req.query;

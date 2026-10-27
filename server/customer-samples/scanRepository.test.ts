@@ -116,41 +116,38 @@ class Fixture {
   };
  }
 }
-test('B3 full remove/rescan/remove cycle retains immutable audits and old card source across card recreation',async()=>{
+test('B3 remove/rescan retains unchecked choices and immutable audits across card recreation',async()=>{
  const db=new Fixture();await persistSampleCardScan(db,actor,{cardToken,sessionId:'11'});
  db.items.set('11:8',{...db.items.get('11:8'),id:'81',selected_by_user_id:'7',selected_at:'2026-10-01',removed_at:null,removed_by_user_id:null});
  const source=JSON.stringify(db.sources[0]),firstScan=JSON.stringify(db.events[0]);
  await removeSampleSessionItem(db,actor,'11','81');const audit=JSON.stringify(db.removals[0]);
  assert.equal(db.items.size,2);assert.equal(db.items.get('11:8')!.removed_by_user_id,'6');
  db.card.id='13';const restored=await persistSampleCardScan(db,actor,{cardToken,sessionId:'11'});
- assert.deepEqual(restored.addedProductIds,['8']);assert.equal(db.items.get('11:8')!.id,'81');
- assert.equal(db.items.get('11:8')!.removed_at,null);assert.equal(db.items.get('11:8')!.selected_by_user_id,'7');
+ assert.deepEqual(restored.addedProductIds,[]);assert.equal(db.items.get('11:8')!.id,'81');
+ assert.equal(db.items.get('11:8')!.removed_at,'2026-10-15');assert.equal(db.items.get('11:8')!.selected_by_user_id,'7');
  assert.equal(JSON.stringify(db.sources[0]),source);assert.equal(JSON.stringify(db.events[0]),firstScan);
  assert.equal(JSON.stringify(db.removals[0]),audit);assert.equal(db.sources.length,4);assert.equal(db.cards.size,2);
- assert.deepEqual(db.events[1].added,['8']);
- await removeSampleSessionItem(db,actor,'11','81');assert.equal(db.removals.length,2);
+ assert.deepEqual(db.events[1].added,[]);
+ assert.equal(db.removals.length,1);
  assert.equal(JSON.stringify(db.removals[0]),audit);assert.equal(db.events.length,2);assert.equal(db.items.size,2);
 });
-test('B3 rescan restores the original removed row, reports added ID and preserves first source event',async()=>{
+test('B3 rescan keeps unchecked colorways removed and preserves first source event',async()=>{
  const db=new Fixture();await persistSampleCardScan(db,actor,{cardToken,sessionId:'11'});
  db.items.set('11:8',{...db.items.get('11:8'),id:'81',selected_by_user_id:'7',selected_at:'2026-10-01',removed_at:'2026-10-15',removed_by_user_id:'6'});
  const sources=JSON.stringify(db.sources),cards=[...db.cards];
  const result=await persistSampleCardScan(db,actor,{cardToken,sessionId:'11'});
- assert.deepEqual(result.addedProductIds,['8']);assert.deepEqual(result.alreadySelectedProductIds,['9']);
- assert.deepEqual(db.events[1].added,['8']);assert.equal(db.items.size,2);
- assert.deepEqual(db.items.get('11:8'),{product_id:'8',id:'81',selected_by_user_id:'7',selected_at:'2026-10-01',removed_at:null,removed_by_user_id:null});
+ assert.deepEqual(result.addedProductIds,[]);assert.deepEqual(result.alreadySelectedProductIds,['9']);
+ assert.deepEqual(db.events[1].added,[]);assert.equal(db.items.size,2);
+ assert.deepEqual(db.items.get('11:8'),{product_id:'8',id:'81',selected_by_user_id:'7',selected_at:'2026-10-01',removed_at:'2026-10-15',removed_by_user_id:'6'});
  assert.equal(JSON.stringify(db.sources),sources);assert.deepEqual([...db.cards],cards);
  const third=await persistSampleCardScan(db,actor,{cardToken,sessionId:'11'});
  assert.deepEqual(third.addedProductIds,[]);
 });
-test('B3 restore failure rolls back scan event and retains removal state and source history',async()=>{
+test('B3 scanning never attempts to restore a deliberately unchecked product',async()=>{
  const db=new Fixture();await persistSampleCardScan(db,actor,{cardToken,sessionId:'11'});
- db.items.set('11:8',{product_id:'8',removed_at:'2026-10-15',removed_by_user_id:'6'});
- const before=JSON.stringify({items:[...db.items],events:db.events,sources:db.sources,cards:[...db.cards]});
- db.failOnRestore=true;
- await assert.rejects(persistSampleCardScan(db,actor,{cardToken,sessionId:'11'}),/restore failure/);
- assert.equal(JSON.stringify({items:[...db.items],events:db.events,sources:db.sources,cards:[...db.cards]}),before);
- assert.equal(db.rollbacks,1);
+ db.items.set('11:8',{product_id:'8',removed_at:'2026-10-15',removed_by_user_id:'6'});db.failOnRestore=true;
+ const result=await persistSampleCardScan(db,actor,{cardToken,sessionId:'11'});
+ assert.deepEqual(result.addedProductIds,[]);assert.equal(db.items.get('11:8')!.removed_at,'2026-10-15');assert.equal(db.rollbacks,0);
 });
 test('B3 removed product stays removed when current card excludes it',async()=>{
  const db=new Fixture();await persistSampleCardScan(db,actor,{cardToken,sessionId:'11'});

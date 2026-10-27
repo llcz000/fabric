@@ -4,6 +4,7 @@ import express from 'express';
 import ExcelJS from 'exceljs';
 import {hashSessionToken} from '../access/password';
 import {createSampleCardLibraryRouter} from './cardLibraryRoutes';
+import {SampleCardError} from './cardLibrary';
 
 const bearer='a'.repeat(64);
 const card=(id='11',no='0012-F018')=>({id,masterId:'1',masterNo:'0012',fabricId:'2',fabricNo:'F018',cardNo:no,description:'绢纺',composition:'100%S',weightValue:16,weightUnit:'mm' as const,widthValue:140,qrPayload:'A_raw_stable_card_token_1234567890_'+id,isActive:true});
@@ -33,6 +34,13 @@ async function exercise(run:(url:string,db:AuthDb,state:{calls:string[];failure:
  finally{await new Promise<void>((resolve,reject)=>server.close(e=>e?reject(e):resolve()));}
 }
 function request(url:string,method='GET',body?:unknown,auth=true){return fetch(url,{method,headers:{...(auth?{authorization:'Bearer '+bearer}:{}),...(body===undefined?{}:{'content-type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)})});}
+test('product-linked card retirement returns only the validated count without exposing internal SQL',async()=>{
+ await exercise(async(url,_db,state)=>{
+  state.failure=new SampleCardError('Card has 3 products; delete associated products first',409);
+  const response=await request(url+'/11','DELETE');assert.equal(response.status,409);
+  assert.deepEqual(await response.json(),{error:'Card has products',productCount:3});
+ });
+});
 test('B2-3 admin and sales can manage/export without product/order permission; disabled session immediately denied',async()=>{
  await exercise(async(url,db,state)=>{
   assert.equal((await request(url,'GET',undefined,false)).status,401);

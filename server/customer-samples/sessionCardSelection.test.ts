@@ -35,11 +35,12 @@ test('card scope rejects uncarded/cross-card products and stale unavailable sele
  await assert.rejects(addManualSampleItem(db,actor,{...input,productIds:['8','9']}),status(409));
  const result=await addManualSampleItem(db,actor,input);assert.deepEqual(result.items.map(x=>x.productId),['8']);
 });
-test('retired/absent cards, disabled parents, revoked token/login/grant and closed session fail closed',async()=>{
- for(const field of ['card','parentActive','token','login','grant','open'] as const){
+test('retired/absent cards, disabled parents, revoked token/login/grant fail closed but legacy closed sessions remain usable',async()=>{
+ for(const field of ['card','parentActive','token','login','grant'] as const){
   const db=new CardSelectionFixture();db[field]=false;
   await assert.rejects(addManualSampleItem(db,actor,input));assert.equal(db.items.length,0);assert.equal(db.events.length,0);assert.equal(db.rollbacks,1);
  }
+ const legacyClosed=new CardSelectionFixture();legacyClosed.open=false;await addManualSampleItem(legacyClosed,actor,input);assert.equal(legacyClosed.items.length,2);
  const db=new CardSelectionFixture();db.retired=true;await assert.rejects(addManualSampleItem(db,actor,input),status(404));
 });
 test('whole-card failure rolls back earlier products, source card and all audit events',async()=>{

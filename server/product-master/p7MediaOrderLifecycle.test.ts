@@ -18,6 +18,7 @@ const empty=()=>({fabricDisplay:[] as string[],detail:[] as string[],aiEffect:[]
 const assets=[shared,unique,rollbackImage];
 
 class Db{
+ cards:Record<string,any>[]=[];tokens:Record<string,any>[]=[];
  products:Row[]=[];images:Image[]=[];orders:Row[]=[];lines:Row[]=[];
  assets=new Map<string,Asset>(assets.map(id=>[id,{status:'ready',ref_count:0,recycled_at:null,purge_after:null}]));
  trace:{sql:string;params:unknown[]}[]=[];nextProduct=7;nextImg=1;nextOrder=40;nextLine=70;
@@ -34,6 +35,23 @@ class Db{
   if(sql.startsWith('SELECT id,role,is_active')&&sql.includes('FROM v2_access_users'))
    return out([{id:'2',role:'sales',is_active:1,can_manage_products:1,can_manage_own_orders:1}]);
   if(sql.startsWith('SELECT id FROM v2_access_sessions WHERE id=?'))return out([{id:'9'}]);
+  if(sql.includes('FROM pattern_masters WHERE id=?'))return [[{id:String(params[0]),master_no:'G017',is_active:1}],[]];
+  if(sql.includes('SELECT c.id,c.card_no,c.master_id,c.fabric_id,c.deleted_at FROM sample_cards'))return [this.cards.filter(c=>c.id===String(params[0])),[]];
+  if(sql.startsWith('SELECT master_id,fabric_id FROM sample_cards'))return [this.cards.filter(c=>c.id===String(params[0])),[]];
+  if(sql.startsWith('SELECT')&&sql.includes('FROM sample_cards c'))return [this.cards.filter(c=>c.deleted_at==null&&c.master_id===String(params[0])&&c.fabric_id===String(params[1])).map(c=>({...c,master_no:'G017',fabric_no:'F0'+c.fabric_id,fabric_name:'雪纺',composition:null,weight_value:null,weight_unit:null,width_value:null,token_hash:this.tokens.find(t=>t.card_id===c.id)?.token_hash})),[]];
+  if(sql.startsWith('INSERT INTO sample_cards')){
+   const id=String(this.cards.length+1);this.cards.push({id,master_id:String(params[0]),fabric_id:String(params[1]),card_no:params[2],qr_payload:params[3],is_active:1,reprint_revision:'0',printed_revision:'0'});return [{insertId:id},[]];
+  }
+  if(sql.startsWith('INSERT INTO sample_card_tokens')){this.tokens.push({card_id:String(params[0]),token_hash:params[1]});return [{affectedRows:1},[]];}
+  if(sql.startsWith('SELECT token_hash,revoked_at FROM sample_card_tokens'))return [this.tokens.filter(t=>t.card_id===String(params[0])),[]];
+  if(sql.startsWith('UPDATE sample_card_tokens SET revoked_at=')){
+   this.tokens.find(t=>t.card_id===String(params[0]))!.revoked_at='now';return [{affectedRows:1},[]];
+  }
+  if(sql.startsWith('UPDATE sample_cards SET deleted_at=')){Object.assign(this.cards.find(c=>c.id===String(params[0]))!,{deleted_at:'now',is_active:0});return [{affectedRows:1},[]];}
+  if(sql.startsWith('SELECT id,pattern_colorway_id,fabric_id FROM v2_products WHERE id=?'))return [structuredClone(this.products.filter(p=>p.id===String(params[0]))),[]];
+  if(sql.startsWith('INSERT INTO business_delete_events'))return [{affectedRows:1},[]];
+  if(sql.startsWith('SELECT p.id FROM v2_products p JOIN pattern_colorways c'))return [this.products.filter(p=>p.fabric_id===String(params[1])).map(p=>({id:p.id})),[]];
+  if(sql.startsWith('SELECT id FROM pattern_colorways WHERE master_id=?'))return [[{id:'12'},{id:'13'}],[]];
   if(sql.startsWith('SELECT')&&sql.includes('FROM pattern_colorways c JOIN pattern_masters m'))
    return out([{id:'12',master_id:'11',colorway_no:2,master_no:'G017',is_active:1,master_active:1}]);
   if(sql.startsWith('SELECT id,fabric_no,is_active FROM v2_fabrics WHERE id=?'))
@@ -158,10 +176,10 @@ class Db{
    release(){db.releases++;}
   };
  }
- snapshot(){return structuredClone({products:this.products,images:this.images,assets:this.assets,
+ snapshot(){return structuredClone({cards:this.cards,tokens:this.tokens,products:this.products,images:this.images,assets:this.assets,
    orders:this.orders,lines:this.lines});}
  restore(s:ReturnType<Db['snapshot']>){
-  this.products=s.products;this.images=s.images;this.assets=s.assets;this.orders=s.orders;this.lines=s.lines;
+  this.cards=s.cards;this.tokens=s.tokens;this.products=s.products;this.images=s.images;this.assets=s.assets;this.orders=s.orders;this.lines=s.lines;
  }
 }
 async function http(db:Db,run:(base:string)=>Promise<void>){

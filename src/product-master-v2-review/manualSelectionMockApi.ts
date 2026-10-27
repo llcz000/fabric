@@ -15,7 +15,7 @@ export function createManualSelectionReviewApi(delay=200){
  const json=(body:unknown,status=200)=>Response.json(body,{status});
  const page=(sessionId:string,limit:number,offset:number):SampleSessionPage=>{
   const all=[...selected].filter(([,x])=>!x.removed);
-  return {session:{id:sessionId,customerReference:'演示客户 A（非真实资料）',status:sessionId==='52'?'closed':'open'},total:all.length,selectedCardCount:chosenCards.size,limit,offset,
+  return {session:{id:sessionId,customerReference:'演示客户 A（非真实资料）'},total:all.length,selectedCardCount:chosenCards.size,limit,offset,
    items:all.slice(offset,offset+limit).map(([productId,item])=>{
     const c=cards.find(x=>x.id===item.cardId)!,p=c.products.find(x=>x.id===productId)!;
     return {id:item.id,productId,current:{productNo:p.productNo,patternNo:c.cardNo.split('-')[0],colorwayNo:p.colorwayNo,fabricNo:c.cardNo.split('-')[1],

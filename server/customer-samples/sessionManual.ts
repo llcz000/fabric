@@ -33,18 +33,18 @@ export async function lockSelectionIdentity(tx:SampleTx,actor:AppPrincipal){
  const [login]=await tx.query('SELECT id FROM v2_access_sessions WHERE id=? AND user_id=? AND revoked_at IS NULL AND expires_at>UTC_TIMESTAMP() FOR SHARE',[actor.sessionId,actor.userId]);
  if(selectionRows(login).length!==1)throw new SampleSessionManualError(403);
 }
-export async function lockSelectionAccess(tx:SampleTx,actor:AppPrincipal,sessionId:string,write:boolean,allowClosed=false){
+export async function lockSelectionAccess(tx:SampleTx,actor:AppPrincipal,sessionId:string,write:boolean){
  if(!validSelectionId(sessionId))throw new SampleSessionManualError(400);
  await lockSelectionIdentity(tx,actor);
  let customer:Awaited<ReturnType<typeof lockCustomerSessionAccess>>;
  try{customer=await lockCustomerSessionAccess(tx,actor,sessionId,write);}catch(e){if(e instanceof CustomerError)throw new SampleSessionManualError(e.status===503?409:e.status);throw e;}
  const lock=write?'FOR UPDATE':'FOR SHARE';
- const [sessions]=await tx.query('SELECT id,status FROM customer_sample_sessions WHERE id=? AND deleted_at IS NULL '+lock,[sessionId]);
+ const [sessions]=await tx.query('SELECT id FROM customer_sample_sessions WHERE id=? AND deleted_at IS NULL '+lock,[sessionId]);
  const session=selectionRows(sessions)[0];if(!session)throw new SampleSessionManualError(404);
  if(!customer){const [access]=await tx.query('SELECT can_manage FROM customer_sample_session_access WHERE session_id=? AND user_id=? AND can_manage=1 '+lock,[sessionId,actor.userId]);
  const grants=selectionRows(access);if(grants.length!==1||Number(grants[0].can_manage)!==1)throw new SampleSessionManualError(404);}
- if(write&&!allowClosed&&session.status!=='open')throw new SampleSessionManualError(409);
- if(session.status!=='open'&&session.status!=='closed')throw new SampleSessionManualError(409);
+ 
+ 
 }
 /** Only card-based selections. Omitted productIds means whole current card;
  * an explicit subset must still be wholly eligible, or the entire request rolls back.

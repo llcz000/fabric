@@ -40,3 +40,15 @@ test('private card search pages cards and exposes only eligible card-contained p
   authorized=false;assert.equal((await fetch(url)).status,401);
  }finally{server.closeAllConnections();await new Promise<void>(r=>server.close(()=>r()));}
 });
+
+import {parseSelectionCardFilters,searchSelectionCards} from './sessionCardSearch';
+test('scan workspace queries only session-owned previously added cards even when unchecked',async()=>{
+ const filters=parseSelectionCardFilters({selected:'true',limit:'20',offset:'0'});assert.equal(filters.selected,true);
+ assert.throws(()=>parseSelectionCardFilters({selected:'false'}));
+ const db=new CardSelectionFixture(),seen:string[]=[];
+ const pool={async getConnection(){const tx=await db.getConnection(),original=tx.query;tx.query=async(sql:string,args:unknown[]=[])=>{
+  if(sql.includes('FROM sample_cards c JOIN')){seen.push(sql);assert.match(sql,/customer_sample_selected_cards/);assert.match(sql,/selected_card.session_id=\?/);assert(args.includes('11'));return sql.includes('COUNT(*)')?[[{total:0}],[]]:[[],[]];}return original(sql,args);
+ };return tx;}};
+ await searchSelectionCards(pool,{userId:'6',sessionId:'1',role:'sales'} as any,'11',filters);assert.equal(seen.length,2);
+ assert(!seen.some(sql=>sql.includes('removed_at IS NULL')));
+});

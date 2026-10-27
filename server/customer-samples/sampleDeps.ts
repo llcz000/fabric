@@ -20,7 +20,7 @@ export function createMySQLSampleScanDependencies(db:SampleDb):CardScanDependenc
    if(db.customerProfilesEnabled){try{return await transaction(db,actor,async tx=>{const linked=await lockCustomerSessionAccess(tx,actor,sessionId,true);if(linked)return true;const [raw]=await tx.query('SELECT can_manage FROM customer_sample_session_access WHERE session_id=? AND user_id=? AND can_manage=1 FOR SHARE',[sessionId,actor.userId]);return Array.isArray(raw)&&raw.length===1;});}catch{return false;}}
    const [data]=await db.query(`SELECT s.id FROM customer_sample_sessions s
     JOIN customer_sample_session_access a ON a.session_id=s.id
-    WHERE s.id=? AND s.status='open' AND s.deleted_at IS NULL AND a.user_id=? AND a.can_manage=1
+    WHERE s.id=? AND s.deleted_at IS NULL AND a.user_id=? AND a.can_manage=1
     LIMIT 1`,[sessionId,actor.userId]);
    if(!Array.isArray(data))throw Error('Invalid authorization result');
    return data.length===1;

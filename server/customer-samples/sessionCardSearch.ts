@@ -8,15 +8,16 @@ export interface SelectionCard{
  products:{id:string;productNo:string;colorwayNo:number;patternNo:string;patternImageAssetId:string|null}[];
 }
 export interface SelectionCardPage{items:SelectionCard[];total:number;limit:number;offset:number}
-export interface SelectionCardFilters{query:string;limit:number;offset:number}
+export interface SelectionCardFilters{query:string;limit:number;offset:number;selected?:boolean}
 export function parseSelectionCardFilters(raw:Record<string,unknown>):SelectionCardFilters{
- if(Object.keys(raw).some(k=>!['query','limit','offset'].includes(k)))throw new SampleSessionManualError(400);
+ if(Object.keys(raw).some(k=>!['query','limit','offset','selected'].includes(k)))throw new SampleSessionManualError(400);
+ if(raw.selected!==undefined&&raw.selected!=='true')throw new SampleSessionManualError(400);
  const query=raw.query??'';
  const number=(x:unknown,fallback:number)=>x===undefined?fallback:typeof x==='string'&&/^(0|[1-9]\d*)$/.test(x)?Number(x):NaN;
  const limit=number(raw.limit,20),offset=number(raw.offset,0);
  if(typeof query!=='string'||[...query].length>100||/[\p{Cc}\p{Cf}]/u.test(query)||
   !Number.isSafeInteger(limit)||limit<1||limit>100||!Number.isSafeInteger(offset)||offset<0||offset>1000000)throw new SampleSessionManualError(400);
- return {query:query.trim(),limit,offset};
+ return {query:query.trim(),limit,offset,...(raw.selected==='true'?{selected:true}:{})};
 }
 /** Session-scoped, QR-free candidates. An uncarded product can never enter this query. */
 export async function searchSelectionCards(pool:SamplePool,actor:AppPrincipal,sessionId:string,filters:SelectionCardFilters):Promise<SelectionCardPage>{
@@ -29,6 +30,10 @@ export async function searchSelectionCards(pool:SamplePool,actor:AppPrincipal,se
    AND EXISTS (SELECT 1 FROM v2_products p JOIN pattern_colorways cw ON cw.id=p.pattern_colorway_id
     WHERE p.fabric_id=c.fabric_id AND cw.master_id=c.master_id AND p.is_active=1 AND cw.is_active=1 AND p.is_available_for_sampling=1)`;
   const args:unknown[]=[];
+  if(filters.selected){
+   where+=' AND EXISTS (SELECT 1 FROM customer_sample_selected_cards selected_card WHERE selected_card.session_id=? AND selected_card.card_id=c.id)';
+   args.push(sessionId);
+  }
   if(filters.query){
    where+=" AND (c.card_no LIKE ? ESCAPE '!' OR m.master_no LIKE ? ESCAPE '!' OR f.fabric_no LIKE ? ESCAPE '!' OR f.fabric_name LIKE ? ESCAPE '!')";
    const term='%'+filters.query.replace(/[!%_]/g,c=>'!'+c)+'%';args.push(term,term,term,term);

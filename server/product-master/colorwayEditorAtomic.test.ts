@@ -75,12 +75,15 @@ test('combined create saves selected live color tags with permanent sequence in 
  assert.deepEqual(db.links.get(result.id),['7','8']);assert.equal(db.commits,1);
  assert(db.calls.some(x=>x.includes('shared_tags')&&x.includes('FOR SHARE')));
 });
-test('combined edit updates remark, status and tags in same transaction and retains archived historical link',async()=>{
+test('combined edit updates remark and tags atomically, retains archived links and rejects retired deactivation',async()=>{
  const db=new Db();
  const a=await createColorway(db as never,actor,'1',{});
  db.links.set(a.id,['10','7']);
- const b=await updateColorway(db as never,actor,a.id,{remark:'更新',isActive:false,tagIds:['10','8']});
- assert.equal(b.remark,'更新');assert.equal(b.isActive,false);
+ const before=structuredClone(db.items);const calls=db.calls.length;
+ await assert.rejects(updateColorway(db as never,actor,a.id,{remark:'不应保存',isActive:false,tagIds:['10','8']}),err(400));
+ assert.deepEqual(db.items,before);assert.deepEqual(db.links.get(a.id),['10','7']);assert.equal(db.calls.length,calls);
+ const b=await updateColorway(db as never,actor,a.id,{remark:'更新',tagIds:['10','8']});
+ assert.equal(b.remark,'更新');assert.equal(b.isActive,true);
  assert.deepEqual(db.links.get(a.id),['10','8']);
  assert.equal(db.commits,2);
 });

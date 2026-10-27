@@ -43,7 +43,11 @@ class IsolatedDb{
   if(sql.includes('FROM v2_access_sessions WHERE id=?'))
    return [this.sessionActive?[{id:'9'}]:[],[]];
   if(sql.startsWith('UPDATE v2_access_sessions SET revoked_at')){this.sessionActive=false;return [{affectedRows:1},[]];}
-  if(sql.includes('FROM v2_products WHERE id=? FOR UPDATE'))return [[{id:'7',is_active:1}],[]];
+  if(sql.startsWith('SELECT')&&sql.includes('FROM v2_products WHERE id=?'))return [[{id:'7',is_active:1,pattern_colorway_id:'12',fabric_id:'23'}],[]];
+  if(sql.startsWith('SELECT id FROM pattern_colorways WHERE master_id=?'))return [[{id:'12'},{id:'13'}],[]];
+  if(sql.includes('FROM pattern_colorways c JOIN pattern_masters m'))return [params[0]==='12'?[{id:'12',master_id:'41'}]:[],[]];
+  if(sql.includes('FROM pattern_masters WHERE id=?'))return [params[0]==='41'?[{id:'41',master_no:'0012',is_active:1}]:[],[]];
+  if(sql.includes('FROM v2_fabrics WHERE id=?'))return [params[0]==='23'?[{id:'23',fabric_no:'F018',is_active:1}]:[],[]];
   if(sql.includes('FROM order_items WHERE v2_product_id=?'))return [[{total:1}],[]];
   if(sql.startsWith('UPDATE v2_products SET is_active=0'))return [{affectedRows:1},[]];
   if(sql.startsWith('SELECT')&&sql.includes('FROM pattern_masters'))return [[],[]];
@@ -72,6 +76,7 @@ class IsolatedDb{
 
 /** B2-4 unified assembly SQL substitute: real HTTP + real card/scan services. */
 class CardAssemblyDb extends IsolatedDb{
+ fabricDeleted=false;tokenRevoked=false;failCardRetire=false;deletionEvents:string[]=[];
  card:Record<string,unknown>|null=null;tokenHash='';granted=true;products=1;
  items:Record<string,unknown>[]=[];event=0;removalEvents=0;manualEvents:Record<string,unknown>[]=[];sourceProducts=new Set<string>();drift=false;
  async query(sql:string,params:unknown[]=[]):Promise<[unknown,unknown]>{
@@ -79,18 +84,27 @@ class CardAssemblyDb extends IsolatedDb{
    this.calls.push({sql,params});return [[{database_name:'fabric_db',server_uuid:'test-uuid'}],[]];
   }
   const reply=(data:unknown):[unknown,unknown]=>{this.calls.push({sql,params});return [data,[]];};
+  if(sql.startsWith('SELECT id FROM v2_products WHERE fabric_id=?'))return reply(this.products?[{id:'81'}]:[]);
+  if(sql.startsWith('INSERT INTO business_delete_events')){this.deletionEvents.push(sql.includes("SELECT 'card'")?'card':String(params[0]));return reply({affectedRows:1});}
+  if(sql.startsWith('UPDATE sample_cards SET deleted_at=')){
+   if(this.failCardRetire)throw Error('injected card retirement failure');
+   this.card={...this.card,deleted_at:'retired',is_active:0};return reply({affectedRows:1});
+  }
+  if(sql.startsWith('UPDATE sample_card_tokens')){this.tokenRevoked=true;return reply({affectedRows:1});}
+  if(sql.startsWith('UPDATE v2_fabrics SET deleted_at=')){this.fabricDeleted=true;return reply({affectedRows:1});}
+  if(sql.startsWith('SELECT p.id FROM v2_products p JOIN pattern_colorways c'))return reply(Array.from({length:this.products},(_,i)=>({id:String(i+81)})));
   if(sql.startsWith('SELECT')&&sql.includes('FROM pattern_masters WHERE id=?'))return reply([{id:'41',master_no:'0012',next_colorway_no:2,is_active:1}]);
-  if(sql.startsWith('SELECT')&&sql.includes('FROM v2_fabrics WHERE id=?'))return reply([{id:'23',fabric_no:'F018',fabric_name:'丝绸',composition:'100%S',weight_value:'16',weight_unit:'mm',width_value:'140',remark:null,is_active:1}]);
+  if(sql.startsWith('SELECT')&&sql.includes('FROM v2_fabrics WHERE id=?'))return reply(this.fabricDeleted?[]:[{id:'23',fabric_no:'F018',fabric_name:'丝绸',composition:'100%S',weight_value:'16',weight_unit:'mm',width_value:'140',remark:null,is_active:1}]);
   if(sql.startsWith('INSERT INTO sample_cards')){this.card={id:'12',master_id:params[0],fabric_id:params[1],card_no:params[2],qr_payload:params[3],is_active:1,deleted_at:null};return reply({insertId:'12'});}
   if(sql.startsWith('INSERT INTO sample_card_tokens')){this.tokenHash=String(params[1]);return reply({insertId:'1'});}
   if(sql.includes('SELECT sc.id AS card_id'))return reply(Array.from({length:this.products},(_,i)=>({card_id:'12',id:String(81+i),product_no:`0012-${i+1}-F018`,colorway_no:i+1,pattern_no:`0012-${i+1}`,pattern_image_asset_id:null})));
   if(sql.includes('FROM sample_cards')){
-   const row=this.card?{...this.card,master_no:'0012',fabric_no:'F018',fabric_name:'丝绸',composition:'100%S',weight_value:'16',weight_unit:'mm',width_value:'140',token_hash:this.tokenHash}:null;
+   const row=this.card&&!(sql.includes('deleted_at IS NULL')&&this.card.deleted_at)?{...this.card,master_no:'0012',fabric_no:'F018',fabric_name:'丝绸',composition:'100%S',weight_value:'16',weight_unit:'mm',width_value:'140',token_hash:this.tokenHash}:null;
    return reply(sql.includes('COUNT(*)')?[{total:row?1:0}]:row?[row]:[]);
   }
   if(sql.includes('FROM sample_card_tokens')){
    const lockingByCard=/WHERE (?:t\.)?card_id=\?/.test(sql);
-   const matched=this.card&&(lockingByCard?params[0]==='12':this.tokenHash===params[0]);
+   const matched=this.card&&!this.tokenRevoked&&(lockingByCard?params[0]==='12':this.tokenHash===params[0]);
    return reply(matched?[{card_id:'12',master_id:'41',fabric_id:'23',is_active:1,token_hash:this.tokenHash,revoked_at:null}]:[]);
   }
   if(sql.includes('FROM customer_sample_sessions s'))return reply(this.granted?[{id:'51'}]:[]);
@@ -138,13 +152,14 @@ class CardAssemblyDb extends IsolatedDb{
  }
  async getConnection(){
   const db=this;let verified=false,snapshot:typeof this.card=null,oldHash='',oldItems:typeof this.items=[];
+  let oldFabric=false,oldRevoked=false,oldEvents:string[]=[];
   return {
    query:async(sql:string,params:unknown[]=[]):Promise<[unknown,unknown]>=>{
     if(sql.startsWith('SELECT DATABASE()'))verified=true;else assert(verified,'same physical connection identity before all business queries');
     return db.query(sql,params);
    },
-   beginTransaction:async()=>{assert(verified);snapshot=db.card;oldHash=db.tokenHash;oldItems=[...db.items];},
-   commit:async()=>{},rollback:async()=>{db.card=snapshot;db.tokenHash=oldHash;db.items=oldItems;},release:()=>{}
+   beginTransaction:async()=>{assert(verified);snapshot=structuredClone(db.card);oldHash=db.tokenHash;oldItems=[...db.items];oldFabric=db.fabricDeleted;oldRevoked=db.tokenRevoked;oldEvents=[...db.deletionEvents];},
+   commit:async()=>{},rollback:async()=>{db.card=snapshot;db.tokenHash=oldHash;db.items=oldItems;db.fabricDeleted=oldFabric;db.tokenRevoked=oldRevoked;db.deletionEvents=oldEvents;},release:()=>{}
   };
  }
 }
@@ -192,7 +207,10 @@ test('B3 unified V2 HTTP mounts private single-item removal with fresh authentic
   const hidden=await request(base,'/customer-samples/sessions/51');
   assert.equal(hidden.status,200);assert.equal((await hidden.json()).total,0);
   const restored=await request(base,'/sample-cards/scan','POST',{cardToken:card.qrPayload,sessionId:'51'});
-  assert.equal(restored.status,200);assert.deepEqual((await restored.json()).addedProductIds,['81']);
+  assert.equal(restored.status,200);assert.deepEqual((await restored.json()).addedProductIds,[]);
+  assert.equal((await (await request(base,'/customer-samples/sessions/51')).json()).total,0,'rescan must preserve deliberate removal');
+  const explicit=await request(base,'/customer-samples/sessions/51/items/manual','POST',{cardId:card.id,productIds:['81']});
+  assert.equal(explicit.status,200);assert.equal((await explicit.json()).items[0].action,'restored');
   const visible=await request(base,'/customer-samples/sessions/51');
   assert.equal(visible.status,200);assert.equal((await visible.json()).total,1);
   assert.equal(db.removalEvents,1,'restore must not erase append-only removal audit');
@@ -275,17 +293,50 @@ test('B3 unified HTTP reads granted live history for sales and admin and audits 
   db.sessionActive=false;assert.equal((await request(base,path)).status,401);
  });
 });
-test('B2-4 unified admin parent routes preserve printed card number and payload despite zero products',async()=>{
+test('B2-4 live card protects parent numbers and master deletion even with zero products',async()=>{
  const db=await cardDb();
  await withHttp(db,async base=>{
   const made=await request(base,'/sample-cards','POST',{masterId:'41',fabricId:'23'});assert.equal(made.status,201);
-  const original=(await made.json()).card;db.sessionOwner='1';
-  for(const [path,method,body] of [['/pattern-masters/41','PATCH',{masterNo:'9999'}],['/fabrics/23','PATCH',{fabricNo:'F999'}],['/pattern-masters/41','DELETE',undefined],['/fabrics/23','DELETE',undefined]] as const){
+  const original=(await made.json()).card;db.products=0;db.sessionOwner='1';
+  for(const [path,method,body] of [['/pattern-masters/41','PATCH',{masterNo:'9999'}],['/fabrics/23','PATCH',{fabricNo:'F999'}],['/pattern-masters/41','DELETE',undefined]] as const){
    const response=await request(base,path,method,body);assert.equal(response.status,409,path);
   }
   assert(!db.calls.some(c=>/^(UPDATE|DELETE FROM) (pattern_masters|v2_fabrics)/.test(c.sql)),'no parent identity DML after card reference');
   const fresh=await request(base,'/sample-cards');assert.equal(fresh.status,200);
   const persisted=(await fresh.json()).items[0];assert.equal(persisted.cardNo,original.cardNo);assert.equal(persisted.qrPayload,original.qrPayload);
+ });
+});
+test('B2-4 unified fabric deletion refuses product references before audit or card mutation',async()=>{
+ const db=await cardDb();
+ await withHttp(db,async base=>{
+  assert.equal((await request(base,'/sample-cards','POST',{masterId:'41',fabricId:'23'})).status,201);
+  const from=db.calls.length;assert.equal((await request(base,'/fabrics/23','DELETE')).status,409);
+  assert(!db.fabricDeleted);assert(!db.tokenRevoked);assert.deepEqual(db.deletionEvents,[]);
+  assert(!db.calls.slice(from).some(c=>/^(UPDATE|DELETE|INSERT)/.test(c.sql)));
+ });
+});
+test('B2-4 unified zero-product fabric deletion retires its card and QR while retaining identity and history',async()=>{
+ const db=await cardDb();
+ await withHttp(db,async base=>{
+  const made=await request(base,'/sample-cards','POST',{masterId:'41',fabricId:'23'});assert.equal(made.status,201);
+  const original=(await made.json()).card;db.products=0;const history=db.event;
+  const deleted=await request(base,'/fabrics/23','DELETE');assert.equal(deleted.status,200);assert.deepEqual(await deleted.json(),{id:'23',deleted:true});
+  assert(db.fabricDeleted);assert(db.tokenRevoked);assert(db.card?.deleted_at);assert.equal(db.card?.id,original.id);assert.equal(db.card?.qr_payload,original.qrPayload);assert.equal(db.event,history);
+  assert.deepEqual(db.deletionEvents,['fabric','card']);
+  assert.equal((await (await request(base,'/sample-cards')).json()).total,0);
+  assert.equal((await request(base,'/fabrics/23')).status,404);
+ });
+});
+test('B2-4 unified fabric deletion rolls back audit, card and QR when retirement fails, then safely retries',async()=>{
+ const db=await cardDb();
+ await withHttp(db,async base=>{
+  assert.equal((await request(base,'/sample-cards','POST',{masterId:'41',fabricId:'23'})).status,201);
+  db.products=0;db.failCardRetire=true;
+  const failed=await request(base,'/fabrics/23','DELETE');assert.equal(failed.status,503);
+  assert(!db.fabricDeleted);assert(!db.tokenRevoked);assert.equal(db.card?.deleted_at,null);assert.deepEqual(db.deletionEvents,[]);
+  assert(!JSON.stringify(await failed.json()).includes('injected'));
+  db.failCardRetire=false;assert.equal((await request(base,'/fabrics/23','DELETE')).status,200);
+  assert.deepEqual(db.deletionEvents,['fabric','card']);
  });
 });
 async function cardDb(){const db=new CardAssemblyDb();db.members=(await setup()).members;return db;}

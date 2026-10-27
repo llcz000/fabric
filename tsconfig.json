@@ -29,6 +29,7 @@
     "agent",
     ".agents",
     "dist-camera",
+    "artifacts",
     "tmp"
   ]
 }

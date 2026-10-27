@@ -47,14 +47,13 @@ test('FOLLOW-01: authorized write stores factual result with selected product li
  assert.equal(db.followups[0].args[1],'6');
  assert(db.calls.every(c=>!c.sql.includes('orders')));
 });
-test('SHIP/FOLLOW: grant, login, role and closed session fail before writes',async()=>{
- for(const kind of ['grant','login','role','closed','selection'] as const){
+test('SHIP/FOLLOW: grant, login, role and selection failures reject before writes',async()=>{
+ for(const kind of ['grant','login','role','selection'] as const){
   for(const save of [(db:Db)=>saveSampleFollowup(db,actor,follow)]){
    const db=new Db();
    if(kind==='grant')db.granted=false;
    if(kind==='login')db.login=false;
    if(kind==='role')db.userRole='admin';
-   if(kind==='closed')db.status='closed';
    if(kind==='selection')db.selected=false;
    await assert.rejects(save(db),status(kind==='grant'?404:kind==='login'||kind==='role'?403:409));
    assert.equal(db.rollbacks,1);assert.equal(db.commits,0);
@@ -62,6 +61,7 @@ test('SHIP/FOLLOW: grant, login, role and closed session fail before writes',asy
   }
  }
 });
+test('legacy closed sample still supports authorized feedback',async()=>{const db=new Db();db.status='closed';await saveSampleFollowup(db,actor,follow);assert.equal(db.commits,1);});
 test('SHIP/FOLLOW: line/link and commit failures restore batch, followup and references',async()=>{
  for(const [failAt,save] of [
   ['followLink',(db:Db)=>saveSampleFollowup(db,actor,follow)],

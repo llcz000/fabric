@@ -74,6 +74,8 @@ export function createSampleCardLibraryRouter(authDb:AccessDatabase,deps:SampleC
  const parser=json({limit:'64kb'});
  const handle=(res:Response,e:unknown)=>{
   if(e instanceof SampleCardError){
+   const linked=/^Card has ([1-9][0-9]*) products; delete associated products first$/.exec(e.message);
+   if(e.status===409&&linked){res.status(409).json({error:'Card has products',productCount:Number(linked[1])});return;}
    const status=e.status;
    const message=status===400?'Invalid card request':status===401?'Unauthorized':status===403?'Forbidden':status===404?'Card unavailable':'Card conflict';
    res.status(status).json({error:message});return;

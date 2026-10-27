@@ -190,3 +190,12 @@
  @media(max-width:800px){.v2-fabric-pagehead{align-items:flex-start}.v2-fabric-pagehead .v2-page-actions{justify-content:flex-start;width:100%}.v2-fabric-filterinput{width:140px}}
  [data-v2-delete-dialog]::backdrop{background:#0f172a66}
 }
+/* 手机端让业务字段优先占满视口，操作列随表格滚动；桌面及面料库沿用原规则。 */
+@media screen and (max-width:767px){
+ .v2-catalog .v2-library-table th.col-actions,
+ .v2-catalog .v2-library-table td.col-actions,
+ .v2-card-data .v2-library-table th.col-actions,
+ .v2-card-data .v2-library-table td.col-actions{
+  position:static;right:auto;z-index:auto;box-shadow:none;
+ }
+}

@@ -1,3 +1,4 @@
+import {ensureProductSampleCard,retireEmptyProductSampleCard,SampleCardError} from '../customer-samples/cardLibrary';
 import {recordDeletion} from '../audit/deletionAudit';
 import type {AppPrincipal} from '../access/types';
 import {withCatalogTransaction} from '../access/catalogTransaction';
@@ -115,6 +116,7 @@ async function tx<T>(pool:Pool,actor:AppPrincipal,work:(db:Query)=>Promise<T>):P
  return withCatalogTransaction(pool,actor,(message,status)=>new V2ProductError(message,status),'Insufficient product permissions',work);
 }
 function mapConflict(e:unknown):never{
+ if(e instanceof SampleCardError)throw new V2ProductError(e.message,e.status);
  const code=e&&typeof e==='object'?String((e as {code?:unknown}).code):'';
  if(code==='ER_DUP_ENTRY')throw new V2ProductError('Product combination or number already exists',409);
  if(code.startsWith('ER_ROW_IS_REFERENCED')||code==='ER_NO_REFERENCED_ROW_2')
@@ -137,6 +139,33 @@ async function identity(db:Query,colorwayId:string,fabricId:string):Promise<stri
  if(!/^[A-Z0-9]{1,64}$/.test(master)||!fabricNo.trim())
   throw Error('Invalid persisted business number');
  return master+'-'+n+'-'+fabricNo;
+}
+// Lock all masters before all fabrics, including both sides of identity edits.
+// This serializes the last-product check with creation and existing card/scan writes.
+async function lockProductIdentities(db:Query,pairs:{colorwayId:string;fabricId:string}[]):Promise<Map<string,string>>{
+ const masters=new Map<string,string>();
+ for(const colorwayId of new Set(pairs.map(x=>x.colorwayId))){
+  const [found]=await db.query('SELECT c.id,c.master_id,c.colorway_no,c.is_active,m.master_no,m.is_active AS master_active FROM pattern_colorways c JOIN pattern_masters m ON m.id=c.master_id WHERE c.id=?',[colorwayId]);
+  const color=rows(found)[0];if(!color)throw new V2ProductError('Colorway not found',404);
+  masters.set(colorwayId,sqlId(color.master_id));
+ }
+ const sort=(a:string,b:string)=>BigInt(a)<BigInt(b)?-1:BigInt(a)>BigInt(b)?1:0;
+ for(const masterId of [...new Set(masters.values())].sort(sort)){
+  const [found]=await db.query('SELECT id,master_no,is_active FROM pattern_masters WHERE id=? FOR UPDATE',[masterId]);
+  if(!rows(found).length)throw new V2ProductError('Master not found',404);
+ }
+ for(const fabricId of [...new Set(pairs.map(x=>x.fabricId))].sort(sort)){
+  const [found]=await db.query('SELECT id,fabric_no,is_active FROM v2_fabrics WHERE id=? FOR UPDATE',[fabricId]);
+  if(!rows(found).length)throw new V2ProductError('Fabric not found',404);
+ }
+ // Membership checks lock sibling colorways too; acquire them before shared image assets.
+ for(const masterId of [...new Set(masters.values())].sort(sort))
+  await db.query('SELECT id FROM pattern_colorways WHERE master_id=? ORDER BY id FOR SHARE',[masterId]);
+ return masters;
+}
+function sameIdentity(current:Row,located:Row):void{
+ if(String(current.pattern_colorway_id)!==String(located.pattern_colorway_id)||String(current.fabric_id)!==String(located.fabric_id))
+  throw new V2ProductError('Product revision conflict',409);
 }
 const columns='p.id,p.pattern_colorway_id,p.fabric_id,p.product_no,p.remark,p.is_active,p.is_available_for_sampling,p.row_version,'+
  'c.colorway_no,m.master_no,f.fabric_no,f.fabric_name,f.composition,f.weight_value,f.weight_unit,'+
@@ -196,6 +225,10 @@ async function locked(db:Query,productId:string):Promise<Row>{
  const [raw]=await db.query('SELECT id,pattern_colorway_id,fabric_id,product_no,remark,is_active,is_available_for_sampling,row_version FROM v2_products WHERE id=? FOR UPDATE',[productId]);
  const data=rows(raw)[0];if(!data)throw new V2ProductError('Product not found',404);
  return data;
+}
+async function locateIdentity(db:Query,productId:string):Promise<Row>{
+ const [raw]=await db.query('SELECT id,pattern_colorway_id,fabric_id FROM v2_products WHERE id=?',[productId]);
+ const current=rows(raw)[0];if(!current)throw new V2ProductError('Product not found',404);return current;
 }
 async function used(db:Query,productId:string):Promise<boolean>{
  const [raw]=await db.query('SELECT COUNT(*) AS total FROM order_items WHERE v2_product_id=?',[productId]);
@@ -282,14 +315,16 @@ export async function previewV2ProductsBatch(db:Query,body:unknown):Promise<{ite
 export async function createV2ProductsBatch(pool:Pool,actor:AppPrincipal,body:unknown):Promise<BatchProductResult>{
  const input=batchInput(body);
  try{return await tx(pool,actor,async db=>{
+  const masters=await lockProductIdentities(db,input.colorwayIds.map(colorwayId=>({colorwayId,fabricId:input.fabricId})));
   const result:BatchProductResult={created:[],skipped:[]};
   for(const colorway of input.colorwayIds){
    const productNo=await identity(db,colorway,input.fabricId);
    const [raw]=await db.query('SELECT id FROM v2_products WHERE pattern_colorway_id=? AND fabric_id=? LIMIT 1 FOR UPDATE',[colorway,input.fabricId]);
    const existing=rows(raw)[0];
-   if(existing){result.skipped.push({patternColorwayId:colorway,productNo,id:sqlId(existing.id)});continue;}
+   if(existing){await ensureProductSampleCard(db,masters.get(colorway)!,input.fabricId);result.skipped.push({patternColorwayId:colorway,productNo,id:sqlId(existing.id)});continue;}
    const [saved]=await db.query('INSERT INTO v2_products(pattern_colorway_id,fabric_id,product_no,remark,is_active,is_available_for_sampling) VALUES (?,?,?,?,?,?)',
     [colorway,input.fabricId,productNo,'',1,1]);
+   await ensureProductSampleCard(db,masters.get(colorway)!,input.fabricId);
    result.created.push({patternColorwayId:colorway,productNo,id:sqlId((saved as {insertId:unknown}).insertId)});
   }
   return result;
@@ -299,19 +334,24 @@ export async function createV2ProductsBatch(pool:Pool,actor:AppPrincipal,body:un
 export async function createV2Product(pool:Pool,actor:AppPrincipal,body:unknown):Promise<V2Product>{
  const patch=parse(body,true),images=patch.images??emptyImages();
  try{return await tx(pool,actor,async db=>{
+  const masters=await lockProductIdentities(db,[{colorwayId:patch.patternColorwayId!,fabricId:patch.fabricId!}]);
   const productNo=await identity(db,patch.patternColorwayId!,patch.fabricId!);
   const [record]=await db.query(
    'INSERT INTO v2_products(pattern_colorway_id,fabric_id,product_no,remark,is_active,is_available_for_sampling) VALUES (?,?,?,?,?,?)',
    [patch.patternColorwayId,patch.fabricId,productNo,patch.remark??'',patch.isActive===false?0:1,patch.isAvailableForSampling===false?0:1]);
   const newId=sqlId((record as {insertId:unknown}).insertId);
   await applyImages(db,newId,images);
+  await ensureProductSampleCard(db,masters.get(patch.patternColorwayId!)!,patch.fabricId!);
   return getV2Product(db,newId);
  });}catch(e){return mapConflict(e);}
 }
 export async function updateV2Product(pool:Pool,actor:AppPrincipal,productId:string,body:unknown):Promise<V2Product>{
  id(productId);const patch=parse(body,false);
  try{return await tx(pool,actor,async db=>{
-  const current=await locked(db,productId),oldVersion=dbVersion(current.row_version);
+  const located=await locateIdentity(db,productId);
+  const masters=await lockProductIdentities(db,[{colorwayId:sqlId(located.pattern_colorway_id),fabricId:sqlId(located.fabric_id)},
+   {colorwayId:patch.patternColorwayId??sqlId(located.pattern_colorway_id),fabricId:patch.fabricId??sqlId(located.fabric_id)}]);
+  const current=await locked(db,productId);sameIdentity(current,located);const oldVersion=dbVersion(current.row_version);
   if(oldVersion!==patch.expectedRowVersion)throw new V2ProductError('Product revision conflict',409);
   const colorId=patch.patternColorwayId??sqlId(current.pattern_colorway_id);
   const fabricId=patch.fabricId??sqlId(current.fabric_id);
@@ -326,19 +366,24 @@ export async function updateV2Product(pool:Pool,actor:AppPrincipal,productId:str
   if(Number((saved as {affectedRows?:number}).affectedRows)!==1)
    throw new V2ProductError('Product revision conflict',409);
   if(patch.images)await applyImages(db,productId,patch.images);
+  await ensureProductSampleCard(db,masters.get(colorId)!,fabricId);
+  if(changing)await retireEmptyProductSampleCard(db,actor,masters.get(sqlId(current.pattern_colorway_id))!,sqlId(current.fabric_id));
   return getV2Product(db,productId);
  });}catch(e){return mapConflict(e);}
 }
 export async function deleteV2Product(pool:Pool,actor:AppPrincipal,productId:string):Promise<{id:string;deleted:true}>{
  id(productId);
  try{return await tx(pool,actor,async db=>{
-  const current=await locked(db,productId);
+  const located=await locateIdentity(db,productId);
+  const masters=await lockProductIdentities(db,[{colorwayId:sqlId(located.pattern_colorway_id),fabricId:sqlId(located.fabric_id)}]);
+  const current=await locked(db,productId);sameIdentity(current,located);
   if(await used(db,productId))throw new V2ProductError('Ordered product cannot be deleted',409);
   await recordDeletion(db,actor,{type:'product',id:productId,label:String(current.product_no)});
   await applyImages(db,productId,emptyImages(),true);
   const [deleted]=await db.query('DELETE FROM v2_products WHERE id=?',[productId]);
   if(Number((deleted as {affectedRows?:number}).affectedRows)!==1)
    throw new V2ProductError('Product not found',404);
+  await retireEmptyProductSampleCard(db,actor,masters.get(sqlId(current.pattern_colorway_id))!,sqlId(current.fabric_id));
   return {id:productId,deleted:true};
  });}catch(e){return mapConflict(e);}
 }

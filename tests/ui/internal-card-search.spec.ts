@@ -80,7 +80,7 @@ test('page and modal visual review: remove redundant copy and use compact access
  await expect(page.getByRole('heading',{name:'实体色卡',exact:true})).toBeVisible();
  await expect(page.getByText('列表与Excel导出')).toHaveCount(0);
  await expect(page.getByText('一张色卡由一个花型母版与一种面料品号唯一绑定')).toHaveCount(0);
- await expect(page.getByRole('button',{name:'新增色卡'})).toBeVisible();
+ await expect(page.getByRole('button',{name:'新增色卡'})).toHaveCount(0);
  await page.screenshot({path:'artifacts/ui-ux-pilot/card-library-design-review-desktop.png',fullPage:true});
  const qrTrigger=page.getByRole('button',{name:'放大色卡二维码 G0886-F018'});
  await qrTrigger.click();
@@ -123,7 +123,7 @@ test('compact heading and actions remain usable on narrow internal viewport',asy
  await page.goto('/tools/ui-preview/entries/ui-ux-internal-cards.html',{waitUntil:'domcontentloaded'});
  await expect(page.getByRole('heading',{name:'实体色卡'})).toBeVisible();
  await expect(page.getByRole('searchbox',{name:'查找色卡'})).toBeVisible();
- await expect(page.getByRole('button',{name:'新增色卡'})).toBeVisible();
+ await expect(page.getByRole('button',{name:'新增色卡'})).toHaveCount(0);
  const width=await page.evaluate(()=>({client:document.documentElement.clientWidth,scroll:document.documentElement.scrollWidth}));
  expect(width.scroll).toBeLessThanOrEqual(width.client+1);
  await page.screenshot({path:'artifacts/ui-ux-pilot/card-library-design-review-mobile.png',fullPage:true});

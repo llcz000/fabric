@@ -17,6 +17,7 @@ const fmt=(p:P)=>({...p,master_no:'G017',colorway_no:p.pattern_colorway_id==='13
  master_active:1,colorway_active:1,fabric_active:1,pattern_image_asset_id:null});
 class DB {
  products:P[]=[];images:Img[]=[];assets=new Map<string,{status:string;ref_count:number}>();
+ cards:Record<string,any>[]=[];tokens:Record<string,any>[]=[];failCard=false;failRevoke=false;
  next=1;nextImage=1;hasOrder=false;grant=true;active=true;session=true;parentActive=true;
  failImage=false;fkFailure=false;unavailable=false;queries:string[]=[];rollbacks=0;commits=0;
  async query(sql:string,params:unknown[]=[]):Promise<[unknown,unknown]>{
@@ -28,6 +29,23 @@ class DB {
   }
   if(sql.includes('FROM v2_access_users'))return [this.active?[{id:'2',role:'sales',is_active:1,can_manage_products:this.grant?1:0}]:[],[]];
   if(sql.includes('FROM v2_access_sessions'))return [this.session?[{id:'9'}]:[],[]];
+  if(sql.startsWith('SELECT id FROM pattern_colorways WHERE master_id=?'))return [[{id:'12'},{id:'13'}],[]];
+  if(sql.includes('FROM pattern_masters WHERE id=?'))return [[{id:String(params[0]),master_no:'G017',is_active:1}],[]];
+  if(sql.includes('SELECT c.id,c.card_no,c.master_id,c.fabric_id,c.deleted_at FROM sample_cards'))return [this.cards.filter(c=>c.id===String(params[0])),[]];
+  if(sql.startsWith('SELECT master_id,fabric_id FROM sample_cards'))return [this.cards.filter(c=>c.id===String(params[0])),[]];
+  if(sql.startsWith('SELECT')&&sql.includes('FROM sample_cards c'))return [this.cards.filter(c=>c.deleted_at==null&&c.master_id===String(params[0])&&c.fabric_id===String(params[1])).map(c=>({...c,master_no:'G017',fabric_no:c.fabric_id==='21'?'F018':'F019',fabric_name:'雪纺',composition:null,weight_value:null,weight_unit:null,width_value:null,token_hash:this.tokens.find(t=>t.card_id===c.id)?.token_hash})),[]];
+  if(sql.startsWith('INSERT INTO sample_cards')){
+   if(this.failCard)throw Error('synthetic card failure');
+   const id=String(this.cards.length+1);this.cards.push({id,master_id:String(params[0]),fabric_id:String(params[1]),card_no:params[2],qr_payload:params[3],is_active:1,reprint_revision:'0',printed_revision:'0'});return [{insertId:id},[]];
+  }
+  if(sql.startsWith('INSERT INTO sample_card_tokens')){this.tokens.push({card_id:String(params[0]),token_hash:params[1]});return [{affectedRows:1},[]];}
+  if(sql.startsWith('SELECT token_hash,revoked_at FROM sample_card_tokens'))return [this.tokens.filter(t=>t.card_id===String(params[0])),[]];
+  if(sql.startsWith('UPDATE sample_card_tokens SET revoked_at=')){
+   if(this.failRevoke)throw Error('synthetic revoke failure');
+   this.tokens.find(t=>t.card_id===String(params[0]))!.revoked_at='now';return [{affectedRows:1},[]];
+  }
+  if(sql.startsWith('UPDATE sample_cards SET deleted_at=')){Object.assign(this.cards.find(c=>c.id===String(params[0]))!,{deleted_at:'now',is_active:0});return [{affectedRows:1},[]];}
+  if(sql.startsWith('SELECT p.id FROM v2_products p JOIN pattern_colorways c'))return [this.products.filter(p=>p.fabric_id===String(params[1])).map(p=>({id:p.id})),[]];
   if(sql.startsWith('SELECT')&&sql.includes('FROM pattern_colorways c JOIN pattern_masters m')){
    return [['12','13'].includes(String(params[0]))?[{id:String(params[0]),master_id:'11',colorway_no:String(params[0])==='13'?'3':'2',master_no:'G017',is_active:this.parentActive?1:0,master_active:1}]:[],[]];
   }
@@ -43,8 +61,8 @@ class DB {
   }
   if(sql.startsWith('SELECT')&&sql.includes('FROM v2_products WHERE pattern_colorway_id=? AND fabric_id=?'))
    return [this.products.filter(p=>p.pattern_colorway_id===String(params[0])&&p.fabric_id===String(params[1])).map(p=>({id:p.id})),[]];
-  if(sql.startsWith('SELECT')&&sql.includes('FROM v2_products WHERE id=? FOR UPDATE'))
-   return [this.products.filter(p=>p.id===String(params[0])),[]];
+  if(sql.startsWith('SELECT')&&sql.includes('FROM v2_products WHERE id=?'))
+   return [structuredClone(this.products.filter(p=>p.id===String(params[0]))),[]];
   if(sql.startsWith('SELECT')&&sql.includes('FROM order_items'))
    return [[{total:this.hasOrder?1:0}],[]];
   if(sql.startsWith('INSERT INTO v2_products')){
@@ -105,14 +123,53 @@ class DB {
  }
  async getConnection(){
   const old={products:structuredClone(this.products),images:structuredClone(this.images),
-   assets:structuredClone(this.assets)};
+   assets:structuredClone(this.assets),cards:structuredClone(this.cards),tokens:structuredClone(this.tokens)};
   return {query:this.query.bind(this),beginTransaction:async()=>{},
-   commit:async()=>{this.commits++;},rollback:async()=>{this.rollbacks++;this.products=old.products;this.images=old.images;this.assets=old.assets;},
+   commit:async()=>{this.commits++;},rollback:async()=>{this.rollbacks++;this.products=old.products;this.images=old.images;this.assets=old.assets;this.cards=old.cards;this.tokens=old.tokens;},
    release:()=>{}};
  }
 }
 const status=(code:number)=>(e:unknown)=>e instanceof V2ProductError&&e.status===code;
 const newInput={patternColorwayId:'12',fabricId:'21',remark:'细腻'};
+test('automatic cards: first product creates a card, sibling colorways reuse it and other fabrics get their own',async()=>{
+ const db=new DB();await createV2Product(db,sales,newInput);
+ assert.equal(db.cards.length,1);const qr=db.cards[0].qr_payload;
+ await createV2Product(db,sales,{...newInput,patternColorwayId:'13'});
+ assert.equal(db.cards.length,1);assert.equal(db.cards[0].qr_payload,qr);
+ await createV2Product(db,sales,{...newInput,fabricId:'22'});assert.equal(db.cards.length,2);
+});
+test('automatic cards: batch and duplicate batch reuse the same card; card failure rolls back products',async()=>{
+ const db=new DB();await createV2ProductsBatch(db,sales,{colorwayIds:['12','13'],fabricId:'21'});
+ assert.equal(db.cards.length,1);await createV2ProductsBatch(db,sales,{colorwayIds:['12','13'],fabricId:'21'});assert.equal(db.cards.length,1);
+ const broken=new DB();broken.failCard=true;await assert.rejects(createV2Product(broken,sales,newInput),/card failure/);
+ assert.equal(broken.products.length,0);assert.equal(broken.cards.length,0);
+ await assert.rejects(createV2ProductsBatch(broken,sales,{colorwayIds:['12','13'],fabricId:'21'}),/card failure/);assert.equal(broken.products.length,0);
+});
+test('automatic cards: last product retires card and QR, rebuild creates a new identity; partial deletion preserves card',async()=>{
+ const db=new DB(),one=await createV2Product(db,sales,newInput),two=await createV2Product(db,sales,{...newInput,patternColorwayId:'13'});
+ const original={...db.cards[0]};await deleteV2Product(db,sales,one.id);assert.equal(db.cards[0].deleted_at,undefined);
+ await deleteV2Product(db,sales,two.id);assert(db.cards[0].deleted_at);assert(db.tokens[0].revoked_at);
+ await createV2Product(db,sales,newInput);assert.equal(db.cards.length,2);assert.notEqual(db.cards[1].qr_payload,original.qr_payload);assert.notEqual(db.cards[1].id,original.id);
+});
+test('automatic cards: retiring failure rolls back deletion, card and media; ordered product remains protected',async()=>{
+ const db=new DB(),one=await createV2Product(db,sales,newInput);db.hasOrder=true;
+ await assert.rejects(deleteV2Product(db,sales,one.id),status(409));assert.equal(db.cards[0].deleted_at,undefined);
+ db.hasOrder=false;db.failRevoke=true;await assert.rejects(deleteV2Product(db,sales,one.id),/revoke failure/);
+ assert.equal(db.products.length,1);assert.equal(db.cards[0].deleted_at,undefined);assert.equal(db.tokens[0].revoked_at,undefined);
+});
+test('automatic cards: identity edits create target card and retire empty source, ordinary edits keep the QR',async()=>{
+ const db=new DB(),one=await createV2Product(db,sales,newInput),qr=db.cards[0]?.qr_payload;
+ await updateV2Product(db,sales,one.id,{expectedRowVersion:'1',remark:'updated'});assert.equal(db.cards[0]?.qr_payload,qr);
+ await updateV2Product(db,sales,one.id,{expectedRowVersion:'2',fabricId:'22'});
+ assert.equal(db.cards.length,2);assert(db.cards[0].deleted_at);assert.equal(db.cards[1].fabric_id,'22');
+});
+test('automatic cards lock sibling colorways before shared media to avoid a colorway-image lock cycle',async()=>{
+ const db=new DB(),asset='a1111111-1111-4111-8111-111111111111';db.assets.set(asset,{status:'ready',ref_count:0});
+ const one=await createV2Product(db,sales,{...newInput,images:{fabricDisplay:[asset],detail:[],aiEffect:[]}});
+ db.queries=[];await updateV2Product(db,sales,one.id,{expectedRowVersion:'1',images:{fabricDisplay:[],detail:[],aiEffect:[]}});
+ const siblings=db.queries.findIndex(q=>q.startsWith('SELECT id FROM pattern_colorways WHERE master_id=?'));
+ assert(siblings>=0);assert(siblings<db.queries.findIndex(q=>q.includes('FROM image_assets WHERE id IN')));
+});
 test('P3-4 create derives immutable productNo from colorway identity plus fabric, not card number',async()=>{
  const db=new DB();
  const item=await createV2Product(db,sales,newInput);

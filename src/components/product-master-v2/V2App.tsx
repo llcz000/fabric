@@ -13,7 +13,7 @@ import V2MemberManager from './V2MemberManager';
 import V2InventoryWorkspace from './V2InventoryWorkspace';
 import { SampleBusinessWorkspaceV2,Session,type RegisterSampleLeaveGuard } from './SampleBusinessWorkspaceV2';
 import {CustomerWorkspace} from '../customers/CustomerWorkspace';
-import {type CustomerSession} from '../customers/customerModel';
+import type {SampleSessionSummary} from './sampleOperationsModel';
 import {useV2LeaveProtection} from './useV2LeaveProtection';
 import { uploadImageAsset } from '../../lib/imageAssets';
 import { resolveImageUrls } from './catalogModel';
@@ -60,7 +60,7 @@ export default function V2App(){
   {view==='fabric'&&<FabricWorkspaceV2 apiFetch={apiFetch} canManage/>}
   {view==='products'&&<ProductCatalogWorkspaceV2 key={routeRevision} apiFetch={apiFetch} canManage resolveImages={resolveImages} initialPatternId={readV2Route(window.location.hash).params.get('patternId')??undefined} initialPatternNo={readV2Route(window.location.hash).params.get('createPattern')??undefined} initialBatchMasterId={readV2Route(window.location.hash).params.get('batchMasterId')??undefined} onExitPrefill={()=>navigate('products')} onUploadImage={async file=>(await uploadImageAsset(file,'product_image',{apiFetch})).id} onDeleteProduct={async product=>{const response=await apiFetch('/api/v2/products/'+product.id,{method:'DELETE'});if(!response.ok)throw Error(response.status===409?'产品已被引用，请改为停用':'产品删除失败');}} onPatternLibrary={()=>requestLeave(()=>navigate('pattern'))} onFabricLibrary={()=>requestLeave(()=>navigate('fabric'))}/>}
    {view==='cards'&&<SampleCardLibraryV2 apiFetch={apiFetch} shareEnabled={shareEnabled}/>}
-   {view==='samples'&&<SampleBusinessWorkspaceV2 key={scannedCardToken} apiFetch={apiFetch} initialCardToken={scannedCardToken??undefined} onRegisterLeaveGuard={registerSampleLeaveGuard}/>}
+   {view==='samples'&&<SampleBusinessWorkspaceV2 apiFetch={apiFetch} resolveImages={resolveImages} initialCardToken={scannedCardToken??undefined} onRegisterLeaveGuard={registerSampleLeaveGuard}/>}
    {view==='customers'&&<CustomerRoute apiFetch={apiFetch} onRegisterLeaveGuard={registerSampleLeaveGuard} onOpenDocument={id=>requestLeave(()=>navigate('preview',{id}))}/>}
   {view==='settings'&&<CompanyProfileEditor profile={company} onSave={saveCompany} apiFetch={apiFetch}/>}
   {view==='inventory'&&<V2InventoryWorkspace apiFetch={apiFetch}/>}
@@ -74,10 +74,10 @@ function CustomerRoute(props:{apiFetch:typeof fetch;onRegisterLeaveGuard:Registe
  return <CustomerRouteBody key={identity.current.revision} {...props}/>;
 }
 function CustomerRouteBody({apiFetch,onRegisterLeaveGuard,onOpenDocument}:{apiFetch:typeof fetch;onRegisterLeaveGuard:RegisterSampleLeaveGuard;onOpenDocument?(id:string):void}){
- const [active,setActive]=useState<(CustomerSession&{canManage?:boolean})|null>(null),[loading,setLoading]=useState(false),[error,setError]=useState(''),pending=useRef(false),scope=useRef(new AbortController());
+ const [active,setActive]=useState<SampleSessionSummary|null>(null),[loading,setLoading]=useState(false),[error,setError]=useState(''),pending=useRef(false),scope=useRef(new AbortController());
  useV2LeaveProtection(false,loading);
  useEffect(()=>{const c=new AbortController();scope.current=c;return()=>c.abort();},[]);
- async function open(id:string){if(pending.current||scope.current.signal.aborted)return;pending.current=true;setLoading(true);setError('');const signal=scope.current.signal;try{const r=await apiFetch('/api/v2/customer-samples/sessions/'+encodeURIComponent(id)+'?limit=1&offset=0',{signal,cache:'no-store'});if(!r.ok)throw Error();const data=await r.json(),session=data.session;if(!session||session.id!==id||typeof session.customerReference!=='string'||!['open','closed'].includes(session.status))throw Error();if(!signal.aborted)setActive(session);}catch{if(!signal.aborted)setError('选样资料不可读取，请检查当前权限后重试。');}finally{pending.current=false;if(!signal.aborted)setLoading(false);}}
- if(active)return <Session key={active.id} session={active} apiFetch={apiFetch} readOnly={active.canManage===false} onStatusChanged={setActive} onRegisterLeaveGuard={onRegisterLeaveGuard} onBack={()=>setActive(null)}/>;
+ async function open(id:string){if(pending.current||scope.current.signal.aborted)return;pending.current=true;setLoading(true);setError('');const signal=scope.current.signal;try{const r=await apiFetch('/api/v2/customer-samples/sessions/'+encodeURIComponent(id)+'?limit=1&offset=0',{signal,cache:'no-store'});if(!r.ok)throw Error();const data=await r.json(),session=data.session;if(!session||session.id!==id||typeof session.customerReference!=='string')throw Error();if(!signal.aborted)setActive(session);}catch{if(!signal.aborted)setError('选样资料不可读取，请检查当前权限后重试。');}finally{pending.current=false;if(!signal.aborted)setLoading(false);}}
+ if(active)return <Session key={active.id} session={active} mode="details" apiFetch={apiFetch} readOnly={active.canManage===false} onStatusChanged={setActive} onRegisterLeaveGuard={onRegisterLeaveGuard} onBack={()=>setActive(null)}/>;
  return <>{error&&<p role="alert" className="p-4 text-rose-700">{error}</p>}{loading&&<p role="status" className="p-4">正在读取选样详情…</p>}<div inert={loading||undefined}><CustomerWorkspace apiFetch={apiFetch} onOpenDocument={onOpenDocument} onOpenSession={id=>void open(id)}/></div></>;
 }

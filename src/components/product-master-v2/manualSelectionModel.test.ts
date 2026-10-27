@@ -14,19 +14,18 @@ test('manual search is session-scoped card search and preserves server paginatio
 });
 test('card action submits selected IDs with the source card and serializes until latest list reloads',async()=>{
  let release!:()=>void;const gate=new Promise<void>(r=>release=r);const calls:unknown[]=[];
- const add=createManualSelectionAction({sessionId:'51',isOpen:()=>true,addManual:async(...args)=>{calls.push(args);await gate;return receipt;},reload:async()=>{calls.push('reload');}});
+ const add=createManualSelectionAction({sessionId:'51',addManual:async(...args)=>{calls.push(args);await gate;return receipt;},reload:async()=>{calls.push('reload');}});
  const pending=add(card,['8']);await assert.rejects(add(card,['9']),/处理中/);
  assert.deepEqual(calls,[['51','44',['8']]]);release();assert.deepEqual(await pending,receipt);assert.equal(calls.at(-1),'reload');
 });
-test('whole-card action omits subset; explicit empty/foreign subsets and closed sessions never write',async()=>{
- let open=false;const calls:unknown[]=[];
- const add=createManualSelectionAction({sessionId:'51',isOpen:()=>open,addManual:async(...args)=>{calls.push(args);return receipt;},reload:async()=>{}});
- await assert.rejects(add(card),/已结束/);open=true;
+test('whole-card action omits subset and validates explicit empty/foreign subsets without a status gate',async()=>{
+ const calls:unknown[]=[];
+ const add=createManualSelectionAction({sessionId:'51',addManual:async(...args)=>{calls.push(args);return receipt;},reload:async()=>{}});
  await assert.rejects(add(card,[]),/配色/);await assert.rejects(add(card,['99']),/配色/);assert.equal(calls.length,0);
  await add(card);assert.deepEqual(calls,[['51','44',undefined]]);
 });
 test('search preserves authorization and successful write with failed reload reports recovery path',async()=>{
  await assert.rejects(searchManualCards(async()=>new Response(null,{status:403}),{sessionId:'51',query:'',offset:0}),(e:unknown)=>e instanceof SelectionHttpError&&e.status===403);
- const add=createManualSelectionAction({sessionId:'51',isOpen:()=>true,addManual:async()=>receipt,reload:async()=>{throw Error('offline');}});
+ const add=createManualSelectionAction({sessionId:'51',addManual:async()=>receipt,reload:async()=>{throw Error('offline');}});
  await assert.rejects(add(card,['8']),/已处理.*刷新失败/);
 });

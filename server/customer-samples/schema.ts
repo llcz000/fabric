@@ -52,6 +52,7 @@ const list:readonly SampleTable[]=[
    created_by_user_id BIGINT UNSIGNED NOT NULL,
    status ENUM('open','closed') NOT NULL DEFAULT 'open',
    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+   KEY idx_sample_session_recent(created_at,id),
    CONSTRAINT fk_sample_session_creator FOREIGN KEY (created_by_user_id) REFERENCES v2_access_users(id) ON DELETE RESTRICT
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`},
  {name:'customer_sample_session_access',sql:`CREATE TABLE customer_sample_session_access (
@@ -62,6 +63,7 @@ const list:readonly SampleTable[]=[
    granted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
    UNIQUE KEY uq_sample_session_access(session_id,user_id),
    KEY idx_sample_access_user(user_id),
+   KEY idx_sample_access_directory(user_id,can_manage,session_id),
    CONSTRAINT fk_sample_access_session FOREIGN KEY (session_id) REFERENCES customer_sample_sessions(id) ON DELETE RESTRICT,
    CONSTRAINT fk_sample_access_user FOREIGN KEY (user_id) REFERENCES v2_access_users(id) ON DELETE RESTRICT,
    CONSTRAINT ck_sample_access_manage CHECK (can_manage IN (0,1))

@@ -14,7 +14,7 @@ export interface PatternVersion{
  patternImageAssetId:string|null;remark:string;isActive:boolean;colorTags:PatternTag[];
 }
 export interface PatternMasterPageItem{
- id:string;masterNo:string;isActive:boolean;nextColorwayNo:number;
+ id:string;masterNo:string;isActive:boolean;nextColorwayNo:number;productCount:number;
  topicTags:PatternTag[];colorTags:PatternTag[];versions:PatternVersion[];
 }
 export interface PatternCatalogPage{items:PatternMasterPageItem[];total:number;totalColorways:number;limit:number;offset:number}
@@ -140,7 +140,8 @@ export async function searchPatternCatalog(db:Query,input:PatternCatalogQuery):P
  const order=input.sort==='newest'?'m.created_at DESC,m.id DESC':
   'LENGTH('+suffix+') '+direction+','+suffix+' '+direction+',m.master_no '+direction+',m.id '+direction;
  const [masterRaw]=await db.query(
-  'SELECT m.id,m.master_no,m.is_active,m.next_colorway_no FROM pattern_masters m'+filtered.sql+
+  'SELECT m.id,m.master_no,m.is_active,m.next_colorway_no,'+
+  '(SELECT COUNT(*) FROM v2_products p JOIN pattern_colorways pc ON pc.id=p.pattern_colorway_id WHERE pc.master_id=m.id) AS product_count FROM pattern_masters m'+filtered.sql+
   ' ORDER BY '+order+' LIMIT ? OFFSET ?',
   [...filtered.params,input.limit,input.offset]);
  const data=rows(masterRaw);
@@ -168,6 +169,7 @@ export async function searchPatternCatalog(db:Query,input:PatternCatalogQuery):P
   const parent=id(row.id),masterNo=String(row.master_no);
   return {id:parent,masterNo,isActive:Number(row.is_active)===1,
    nextColorwayNo:integer(row.next_colorway_no,'next sequence'),
+   productCount:integer(row.product_count??0,'product count'),
    topicTags:topicTags.get(parent)??[],colorTags:colorTags.get(parent)??[],
    versions:(versionRows.get(parent)??[]).map(v=>{
     const colorwayNo=integer(v.colorway_no,'colorwayNo');

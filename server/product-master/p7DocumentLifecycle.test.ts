@@ -90,6 +90,11 @@ class LifecycleDb{
    return row(this.orders.filter(o=>String(o.id)===String(params[0])));
   if(sql.startsWith('SELECT i.id,i.order_id,')&&sql.includes('FROM order_items i WHERE i.order_id=?'))
    return row(this.lines.filter(i=>String(i.order_id)===String(params[0])));
+  if(sql.startsWith('SELECT id,pattern_colorway_id,fabric_id FROM v2_products WHERE id=?'))return row([{id:'7',pattern_colorway_id:'12',fabric_id:'21'}]);
+  if(sql.startsWith('SELECT id FROM pattern_colorways WHERE master_id=?'))return [[{id:'12'},{id:'13'}],[]];
+  if(sql.includes('FROM pattern_colorways c JOIN pattern_masters m'))return row([{id:'12',master_id:'11'}]);
+  if(sql.includes('FROM pattern_masters WHERE id=?'))return row([{id:'11',master_no:'G017',is_active:1}]);
+  if(sql.includes('FROM v2_fabrics WHERE id=?'))return row([{id:'21',fabric_no:'F018',is_active:1}]);
   if(sql.startsWith('SELECT id,')&&sql.includes('FROM v2_products WHERE id=? FOR UPDATE'))
    return row([{id:'7',is_active:1}]);
   if(sql.includes('FROM order_items')&&sql.includes('v2_product_id=?')){

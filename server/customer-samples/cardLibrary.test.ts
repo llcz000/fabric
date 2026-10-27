@@ -12,6 +12,7 @@ type Row=Record<string,unknown>;
 const actor:AppPrincipal={userId:'6',sessionId:'1',username:'sales',displayName:'Sales',role:'sales',canManageOwnOrders:false,canManageProducts:false};
 const allow=()=>true;
 class Fixture {
+ productCount=1;
  user:Row|null={id:'6',role:'sales',is_active:1,can_manage_products:0,can_manage_own_orders:0};
  login=true; master:Row|null={id:'41',master_no:'001234',is_active:1};
  fabric:Row|null={id:'23',fabric_no:'F018',fabric_name:'绸',composition:null,weight_value:'16',weight_unit:'mm',width_value:null,is_active:1};
@@ -19,6 +20,7 @@ class Fixture {
  rollbacks=0;releases=0;failure:string|null=null;duplicate=false;reads:Row[]|null=null;
  async query(sql:string,args:unknown[]=[]):Promise<[unknown,unknown]>{
   this.queries.push({sql,args});
+  if(sql.startsWith('SELECT p.id FROM v2_products p JOIN pattern_colorways c'))return [Array.from({length:this.productCount},(_,i)=>({id:String(i+1)})),[]];
   if(sql.includes('FROM v2_access_users'))return [this.user?[this.user]:[],[]];
   if(sql.includes('FROM v2_access_sessions'))return [this.login?[{id:'1'}]:[],[]];
   if(sql.includes('FROM pattern_masters')&&!sql.includes('JOIN'))return [this.master?[this.master]:[],[]];
@@ -83,6 +85,7 @@ test('AC-87/89/94 create persists one random payload with matching scan hash, pr
 });
 test('AC-96 B2-5 retire revokes old token; archived card never exports; recreating SAME combination uses fresh ID/token and preserves old row',async()=>{
  const db=new Fixture();const first=(await createSampleCard(db,actor,{masterId:'41',fabricId:'23'},allow)).card;
+ db.productCount=0;
  await assert.rejects(retireSampleCard(db,actor,first.id),rejected(403));
  const retired=await retireSampleCard(db,actor,first.id,allow);assert.deepEqual(retired,{id:first.id,retired:true});
  assert.equal(db.cards[0].is_active,0);assert(db.cards[0].deleted_at);
@@ -90,7 +93,7 @@ test('AC-96 B2-5 retire revokes old token; archived card never exports; recreati
  assert.equal((await listSampleCards(db)).total,0);
  await assert.rejects(getSelectedSampleCards(db,[first.id]),rejected(404));
  await assert.rejects(retireSampleCard(db,actor,first.id,allow),rejected(404));
- const second=(await createSampleCard(db,actor,{masterId:'41',fabricId:'23'},allow)).card;
+ db.productCount=1;const second=(await createSampleCard(db,actor,{masterId:'41',fabricId:'23'},allow)).card;
  assert.equal(first.cardNo,second.cardNo);assert.notEqual(first.id,second.id);assert.notEqual(first.qrPayload,second.qrPayload);
  assert.equal(db.cards.length,2);assert.equal(db.tokens.length,2);
  assert(db.tokens[0].revoked_at);assert.equal(db.tokens[1].revoked_at,undefined);
@@ -100,6 +103,7 @@ test('AC-96 B2-5 retire revokes old token; archived card never exports; recreati
 });
 test('AC-96 B2-5 token revoke failure rolls back retirement and releases transaction, invalid/unauthorized ID cannot touch business rows',async()=>{
  const db=new Fixture();const first=(await createSampleCard(db,actor,{masterId:'41',fabricId:'23'},allow)).card;
+ db.productCount=0;
  db.failure='revoke';const before=db.rollbacks;
  await assert.rejects(retireSampleCard(db,actor,first.id,allow),/synthetic revoke failure/);
  assert.equal(db.rollbacks,before+1);assert.equal(db.cards[0].deleted_at,undefined);assert.equal(db.tokens[0].revoked_at,undefined);
@@ -139,7 +143,7 @@ test('AC-99 B2-5 reprint confirmation refuses stale revision after a concurrent 
  await assert.rejects(confirmSampleCardReprinted(db,actor,first.id,'2',allow),rejected(409));
  assert.equal(db.cards[0].printed_revision,'2');
  assert.deepEqual(await confirmSampleCardReprinted(db,actor,first.id,'3',allow),{id:first.id,reprintRevision:'3',needsReprint:false});
- await retireSampleCard(db,actor,first.id,allow);
+ db.productCount=0;await retireSampleCard(db,actor,first.id,allow);
  await assert.rejects(confirmSampleCardReprinted(db,actor,first.id,'3',allow),rejected(404));
 });
 test('AC-99 confirmation validates card/revision before SQL and blocks inactive principals',async()=>{
@@ -199,4 +203,12 @@ test('AC-89 existing card number drift fails explicitly instead of silently renu
  const db=new Fixture();await createSampleCard(db,actor,{masterId:'41',fabricId:'23'},allow);
  db.cards[0].master_no='9999';
  await assert.rejects(getSelectedSampleCards(db,['12']),rejected(409));
+});
+
+test('product-owned cards reject empty creation and independent retirement with live products',async()=>{
+ const db=new Fixture();db.productCount=0;
+ await assert.rejects(createSampleCard(db,actor,{masterId:'41',fabricId:'23'},allow),rejected(409));assert.equal(db.cards.length,0);
+ db.productCount=3;const first=await createSampleCard(db,actor,{masterId:'41',fabricId:'23'},allow);
+ await assert.rejects(retireSampleCard(db,actor,first.card.id,allow),e=>e instanceof SampleCardError&&e.status===409&&e.message.includes('3 products'));
+ assert.equal(db.cards[0].deleted_at,undefined);assert.equal(db.tokens[0].revoked_at,undefined);
 });

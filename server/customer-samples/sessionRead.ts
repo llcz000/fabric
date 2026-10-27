@@ -6,7 +6,7 @@ export class SampleSessionReadError extends Error{
  constructor(readonly status:400|403|404|409){super('Sample selection unavailable');this.name='SampleSessionReadError';}
 }
 export interface SampleSessionPage{
- session:{id:string;customerReference:string;status:'open'|'closed';customerId?:string|null;linkVersion?:string;canManage?:boolean};
+ session:{id:string;customerReference:string;customerId?:string|null;linkVersion?:string;canManage?:boolean};
  total:number;selectedCardCount:number;limit:number;offset:number;
  items:{id:string;productId:string;current:{productNo:string;patternNo:string;colorwayNo:number;patternImageAssetId?:string|null;fabricNo:string;fabricName:string;composition:string|null;weightValue:string|null;weightUnit:'gsm'|'mm'|null;widthCm:string|null};sources:{cardId:string;cardNo:string;retired:boolean;firstScanEventId:string|null;firstManualEventId?:string}[]}[];
 }
@@ -77,9 +77,9 @@ export async function readSampleSession(
   if(rows(loginRaw).length!==1)throw new SampleSessionReadError(403);
   const customer=await lockCustomerSessionAccess(tx,actor,sessionId,false);
   // Do not fetch customer details until the explicit session grant is checked.
-  const [sessionRaw]=await tx.query('SELECT id,status FROM customer_sample_sessions WHERE id=? AND deleted_at IS NULL FOR SHARE',[sessionId]);
+  const [sessionRaw]=await tx.query('SELECT id FROM customer_sample_sessions WHERE id=? AND deleted_at IS NULL FOR SHARE',[sessionId]);
   const session=rows(sessionRaw)[0];if(!session)throw new SampleSessionReadError(404);
-  if(session.status!=='open'&&session.status!=='closed')throw new SampleSessionReadError(409);
+  
   if(!customer){const [grantRaw]=await tx.query('SELECT can_manage FROM customer_sample_session_access WHERE session_id=? AND user_id=? AND can_manage=1 FOR SHARE',[sessionId,actor.userId]);
   const grant=rows(grantRaw);if(grant.length!==1||Number(grant[0].can_manage)!==1)throw new SampleSessionReadError(404);}
   const [summaryRaw]=await tx.query('SELECT s.customer_reference, '+
@@ -133,6 +133,6 @@ export async function readSampleSession(
   let linkage:{}|{customerId:string|null;linkVersion:string;canManage:boolean}={};
   if(tx.customerProfilesEnabled){const [raw]=await tx.query('SELECT customer_id,row_version FROM customer_session_links WHERE session_id=? FOR SHARE',[sessionId]);const l=rows(raw)[0];linkage={customerId:l?.customer_id==null?null:String(l.customer_id),linkVersion:String(l?.row_version??0),canManage:customer?customer.canEdit:true};}
   await tx.commit();began=false;
-  return {session:{id:sessionId,customerReference:summary.customer_reference,status:session.status,...linkage},total,selectedCardCount,limit,offset,items};
+  return {session:{id:sessionId,customerReference:summary.customer_reference,...linkage},total,selectedCardCount,limit,offset,items};
  }catch(error){if(began)await tx.rollback();if(error instanceof CustomerError)throw new SampleSessionReadError(error.status===503?409:error.status);throw error;}finally{tx.release();}
 }

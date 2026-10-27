@@ -14,6 +14,15 @@ def fixture_directory():
         shutil.rmtree(target)
 
 class ReleaseTests(unittest.TestCase):
+    def test_product_card_supplement_repeats_after_restart_before_new_index(self):
+        with fixture_directory() as directory:
+            stage=pathlib.Path(directory);(stage/'old-columns.txt').write_text('cols');(stage/'dist').mkdir();(stage/'dist/server.cjs').write_bytes(b'new');(stage/'dist/index.html').write_bytes(b'html')
+            r=remote.Release.__new__(remote.Release);r.prod=stage/'prod';r.stage=stage;r.local='http://127.0.0.1';r.p={'database':'fabric_db'};r.state={'phases':{'offsite':{'status':'passed'},'rehearse':{'status':'passed'}}}
+            r.load=Mock(return_value={'migrations':['product-auto-cards'],'migrationPlans':{'product-auto-cards':'sha'},'rehearse':True,'browserFiles':[]});r.baseline=Mock();r.verified_backup=Mock(return_value={'createdAt':time.time(),'tables':[]});r.columns=Mock(return_value='cols');r.login=Mock(return_value='token');r.verify=Mock(return_value={})
+            events=[];r.operator=Mock(side_effect=lambda *args:events.append(('migrate',args[3]['migrations'])) or {});r.restart=Mock(side_effect=lambda:events.append(('restart',None)));r.obj=Mock(return_value={});r.atomic=Mock(side_effect=lambda src,dest:events.append(('index' if dest.name=='index.html' else 'server',None)))
+            r.deploy()
+            self.assertEqual(events,[('migrate',['product-auto-cards']),('server',None),('restart',None),('migrate',['product-auto-cards']),('index',None)])
+            self.assertEqual(r.operator.call_args_list[1].args[3]['migrationPlans'],{'product-auto-cards':'sha'})
     def test_versioned_favicon_is_an_immutable_allowlisted_resource(self):
         for name in ['dist/favicon-6dc80a36.svg','dist/favicon.svg','dist/favicon.ico','dist/assets/hashed-index.js']:
             self.assertTrue(remote.allowed_browser_file(name),name)

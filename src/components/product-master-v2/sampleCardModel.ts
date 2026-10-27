@@ -42,6 +42,11 @@ export async function resolveScannedSampleCard(apiFetch:typeof fetch,token:strin
  return card;
 }
 async function checked(response:Response):Promise<Response>{
+ if(response.status===409){
+  const data=await response.clone().json().catch(()=>null);
+  if(data?.error==='Card has products'&&Number.isSafeInteger(data.productCount)&&data.productCount>0)
+   throw Error('当前色卡关联 '+data.productCount+' 个产品，请先处理关联产品；可通过查看花型核对。');
+ }
  if(!response.ok)throw Error(response.status===401?'登录已失效，请重新登录。':
   response.status===403?'没有色卡管理权限。':response.status===409?'主数据状态已改变，请重新选择。':'色卡请求失败（HTTP '+response.status+'）');
  return response;

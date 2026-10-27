@@ -50,7 +50,7 @@ export function SampleSelectionPanel({sessionId,load,removeItems,readOnly=false,
  const manualPending=useRef(false),removePending=useRef(false);
  const currentPage=useRef(page);currentPage.current=page;
  const manualAction=useMemo(()=>addManual?createManualSelectionAction({sessionId,addManual,
-  isOpen:()=>currentPage.current?.session.id===sessionId&&currentPage.current.session.status==='open',
+  
   reload:async()=>{
    const seq=ticket.current;
    const latest=await load(sessionId,LIMIT,0);
@@ -60,17 +60,19 @@ export function SampleSelectionPanel({sessionId,load,removeItems,readOnly=false,
   }}):null,[sessionId,addManual,load]);
  function accessLost(error:unknown){setPage(null);setSelectedItems([]);setManualOpen(false);setMessage(errorText(error));}
  async function addOne(card:SelectionCard,productIds?:string[]){
-  if(!manualAction||busy||manualPending.current||!page||page.session.status!=='open')return;
+  if(!manualAction||busy||manualPending.current||!page||readOnly)return false;
   manualPending.current=true;
   setBusy(true);setMessage('');setNotice('');
   try{
    const result=await manualAction(card,productIds);
    const count=(action:string)=>result.items.filter(x=>x.action===action).length;
    setNotice(card.cardNo+'：新增 '+count('added')+' 款，恢复 '+count('restored')+' 款，已选 '+count('already_selected')+' 款；已读取最新资料');
+   return true;
   }catch(error){
    if(selectionAccessRevoked(error))accessLost(error);
    else setMessage((error as {status?:number})?.status===409?'产品供样状态或选样单已变更，请刷新核对':
     error instanceof Error&&error.message.includes('刷新失败')?error.message:'补选失败，请重试或刷新核对');
+   return false;
   }finally{manualPending.current=false;setBusy(false);}
  }
  async function refresh(offset:number){
@@ -95,7 +97,7 @@ export function SampleSelectionPanel({sessionId,load,removeItems,readOnly=false,
  // eslint-disable-next-line react-hooks/exhaustive-deps
  },[sessionId]);
  async function rescan(){
-  if(!onRescan||!page||page.session.status!=='open'||busy)return;
+  if(!onRescan||!page||readOnly||busy)return;
   setBusy(true);setMessage('');
   try{await onRescan();await refresh(page.offset);}
   catch(error){
@@ -110,7 +112,7 @@ export function SampleSelectionPanel({sessionId,load,removeItems,readOnly=false,
   <p role={message?'alert':'status'}>{message||'正在读取选样资料…'}</p>
   {message&&<button type="button" disabled={busy} onClick={()=>void refresh(0)} className="mt-3 rounded border px-3 py-2 text-sm"><ActionIcon name="refresh"/>重试读取</button>}
  </section>;
- const closed=readOnly||page.session.status==='closed';
+ const closed=readOnly;
  const pageIds=page.items.map(item=>item.id);
  const allChecked=pageIds.length>0&&pageIds.every(id=>selectedItems.includes(id));
  const select=(id:string,on:boolean)=>setSelectedItems(before=>on?[...new Set([...before,id])]:before.filter(value=>value!==id));
@@ -126,16 +128,15 @@ export function SampleSelectionPanel({sessionId,load,removeItems,readOnly=false,
  };
  const max=Math.max(0,Math.ceil(page.total/LIMIT)-1)*LIMIT;
  return <section aria-label="客户选样明细" className="rounded-xl border border-slate-200 bg-white p-5 text-slate-800">
-  <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
-   <div><h2 className="text-lg font-semibold">客户选样明细</h2>
-    <p className="text-sm text-slate-500">{page.session.customerReference} · 已选产品 {page.total} 款 · 色卡 {page.selectedCardCount} 张</p></div>
+  <header className="mb-3 flex flex-wrap items-center justify-between gap-2">
+   <p className="text-sm text-slate-600">已选 {page.total} 款 · {page.selectedCardCount} 张色卡</p>
    <div className="flex items-center gap-2">
     {!readOnly&&manualAction&&searchManual&&<button type="button" disabled={busy||closed} onClick={()=>{setManualOpen(true);setNotice('');setMessage('');}}
      className="rounded bg-[#0053da] px-3 py-1.5 text-sm text-white disabled:opacity-40"><ActionIcon name="add"/>人工补选</button>}
-    {closed?<span className="rounded bg-slate-100 px-2 py-1 text-xs">{readOnly?'查看 · 只读':'已结束 · 只读'}</span>:<>
+    {closed?<span className="rounded bg-slate-100 px-2 py-1 text-xs">查看 · 只读</span>:<>
      {onRescan&&<button type="button" disabled={busy} onClick={()=>void rescan()} className="rounded border px-3 py-1.5 text-sm"><ActionIcon name="scan"/>重新扫码补选</button>}
     </>}
-    <button type="button" disabled={busy} onClick={()=>void refresh(page.offset)} className="rounded border px-3 py-1.5 text-sm"><ActionIcon name="refresh"/>刷新</button>
+    
    </div>
   </header>
   {!closed&&removeItems&&<div className="mb-3 flex items-center gap-3 text-sm"><label className="flex items-center gap-2"><input type="checkbox" aria-label="全选当前页货号" disabled={busy||!pageIds.length} checked={allChecked} ref={element=>{if(element)element.indeterminate=!allChecked&&pageIds.some(id=>selectedItems.includes(id));}} onChange={event=>setSelectedItems(before=>event.target.checked?[...new Set([...before,...pageIds])]:before.filter(id=>!pageIds.includes(id)))}/>全选当前页货号</label><button type="button" disabled={busy||!selectedItems.length} className="rounded border px-3 py-1 text-rose-700 disabled:opacity-40" onClick={()=>void removeSelected()}><ActionIcon name="delete"/>移除所选{selectedItems.length?'（'+selectedItems.length+'）':''}</button></div>}
@@ -146,19 +147,19 @@ export function SampleSelectionPanel({sessionId,load,removeItems,readOnly=false,
   {manualOpen&&!closed&&searchManual&&manualAction&&<ManualSelectionPane sessionId={sessionId} search={searchManual} add={addOne} resolveThumbnails={resolveThumbnails} disabled={busy}
    actionError={message} actionNotice={notice} customerReference={page.session.customerReference} onAccessLost={accessLost} onClose={()=>setManualOpen(false)}/>}
   {page.items.length===0?<p className="rounded bg-slate-50 p-6 text-center text-sm text-slate-500">暂无已选产品</p>:
-  <div className="overflow-x-auto"><table className="w-full min-w-[760px] border-collapse text-left text-sm">
-   <thead><tr className="border-b bg-slate-50 text-slate-600">
+  <div className="min-w-0"><table className="block w-full border-collapse text-left text-sm md:table md:min-w-[760px]">
+   <thead className="hidden md:table-header-group"><tr className="border-b bg-slate-50 text-slate-600">
     {['色卡编号','花型图','货号','品名','成分','克重','门幅 / cm'].map(name=><th key={name} className="px-3 py-3 font-medium">{name}</th>)}
    </tr></thead>
-   <tbody>{page.items.map(item=><tr key={item.id} className="border-b align-top">
-    <td className="px-3 py-3"><div className="flex items-start gap-2">{!closed&&removeItems&&<input type="checkbox" className="mt-1 shrink-0" data-selection-item={item.id} aria-label={'勾选货号 '+item.current.productNo} disabled={busy} checked={selectedItems.includes(item.id)} onChange={event=>select(item.id,event.target.checked)}/>}<div>{item.sources.length?item.sources.map(source=>
+   <tbody className="block md:table-row-group">{page.items.map(item=><tr key={item.id} className="grid grid-cols-[minmax(0,1fr)_56px] gap-x-3 gap-y-1 border-b px-1 py-3 md:table-row md:p-0 md:align-top">
+    <td className="col-span-2 row-start-2 min-w-0 text-xs text-slate-500 md:table-cell md:px-3 md:py-3 md:text-sm"><div className="flex items-start gap-2">{!closed&&removeItems&&<input type="checkbox" className="mt-1 shrink-0" data-selection-item={item.id} aria-label={'勾选货号 '+item.current.productNo} disabled={busy} checked={selectedItems.includes(item.id)} onChange={event=>select(item.id,event.target.checked)}/>}<div>{item.sources.length?item.sources.map(source=>
      <div key={source.cardId}>{source.cardNo}{source.retired&&<span className="ml-2 rounded bg-amber-100 px-1.5 text-amber-800">已失效</span>}</div>):'—'}</div></div></td>
-    <td className="w-20 px-3 py-3"><SelectionPatternThumbnail assetId={item.current.patternImageAssetId} url={thumbnailData.page===page&&item.current.patternImageAssetId?thumbnailData.urls.get(item.current.patternImageAssetId):undefined} patternNo={item.current.patternNo+'-'+item.current.colorwayNo} pending={thumbnailData.page===page&&thumbnailData.pending} failed={thumbnailData.page===page&&thumbnailData.failed}/></td>
-    <td className="px-3 py-3 font-medium">{item.current.productNo}</td>
-    <td className="px-3 py-3">{item.current.fabricName}</td>
-    <td className="px-3 py-3">{value(item.current.composition)}</td>
-    <td className="px-3 py-3">{item.current.weightValue===null?'—':item.current.weightValue+' '+(item.current.weightUnit??'')}</td>
-    <td className="px-3 py-3">{value(item.current.widthCm)}</td>
+    <td className="col-start-2 row-start-1 md:table-cell md:w-20 md:px-3 md:py-3"><SelectionPatternThumbnail assetId={item.current.patternImageAssetId} url={thumbnailData.page===page&&item.current.patternImageAssetId?thumbnailData.urls.get(item.current.patternImageAssetId):undefined} patternNo={item.current.patternNo+'-'+item.current.colorwayNo} pending={thumbnailData.page===page&&thumbnailData.pending} failed={thumbnailData.page===page&&thumbnailData.failed}/></td>
+    <td className="col-start-1 row-start-1 min-w-0 break-all py-1 font-medium md:table-cell md:px-3 md:py-3">{item.current.productNo}</td>
+    <td className="col-span-2 row-start-3 min-w-0 break-words text-xs text-slate-600 md:table-cell md:px-3 md:py-3 md:text-sm">{item.current.fabricName}<span className="md:hidden"> · {value(item.current.composition)} · {item.current.weightValue===null?'—':item.current.weightValue+' '+(item.current.weightUnit??'')} · {value(item.current.widthCm)} cm</span></td>
+    <td className="hidden px-3 py-3 md:table-cell">{value(item.current.composition)}</td>
+    <td className="hidden px-3 py-3 md:table-cell">{item.current.weightValue===null?'—':item.current.weightValue+' '+(item.current.weightUnit??'')}</td>
+    <td className="hidden px-3 py-3 md:table-cell">{value(item.current.widthCm)}</td>
 
    </tr>)}</tbody>
   </table></div>}

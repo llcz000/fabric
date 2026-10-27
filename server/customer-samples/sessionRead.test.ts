@@ -49,7 +49,7 @@ test('card-only manual sources are shown alongside scans without fabricating a s
 test('B3 authorized history reads latest master fields and preserves retired/recreated card sources with pagination',async()=>{
  const db=new Db();db.closed=true;db.total=2;
  const result=await readSampleSession(db,actor,'51',{limit:1,offset:1});
- assert.equal(result.session.customerReference,'客户A');assert.equal(result.session.status,'closed');
+ assert.equal(result.session.customerReference,'客户A');assert.equal('status' in result.session,false);
  assert.equal(result.total,2);assert.equal(result.selectedCardCount,2);assert.equal(result.items.length,1);
  assert.equal(result.items[0].current.fabricName,'最新丝绸');assert.equal(result.items[0].current.composition,'最新成分');assert.equal(result.items[0].current.weightUnit,'gsm');assert.equal(result.items[0].current.widthCm,'145.00');
  assert.deepEqual(result.items[0].sources.map(x=>[x.cardId,x.retired]),[['12',true],['13',false]]);

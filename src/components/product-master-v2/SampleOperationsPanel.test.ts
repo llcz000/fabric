@@ -9,12 +9,12 @@ const transport=async()=>{throw Error('No SSR requests');};
 test('retired shipment UI exposes no registration, quantities or network calls',()=>{
  const html=renderToStaticMarkup(React.createElement(SampleOperationsPanel,{apiFetch:transport,sessionId:'41',kind:'shipments',initial}));assert.match(html,/寄样流程已停用/);assert.doesNotMatch(html,/保存寄样|寄样数量|待寄/);
 });
-test('FOLLOW UI has tri-state confirmation, factual result/next date and optional product links',()=>{
+test('FOLLOW UI records session-level feedback without extra product association controls',()=>{
  const html=renderToStaticMarkup(React.createElement(SampleOperationsPanel,{apiFetch:transport,sessionId:'41',kind:'followups',initial}));
- for(const label of ['客户确认','尚未确认','反馈','反馈结果','保存反馈记录','1234-1-F018'])assert(html.includes(label),label);
+ for(const label of ['客户确认','尚未确认','反馈','反馈结果','保存反馈记录'])assert(html.includes(label),label);for(const label of ['关联产品','上一页产品','下一页产品','1234-1-F018'])assert(!html.includes(label),label);
 });
-test('closed or wrong-session data never renders an editable form/customer from another session',()=>{
+test('legacy closed session still renders editable feedback while mismatched session never exposes customer data',()=>{
  const closed={...initial,selection:{...page,session:{...page.session,status:'closed' as const}}};
- const html=renderToStaticMarkup(React.createElement(SampleOperationsPanel,{apiFetch:transport,sessionId:'41',kind:'shipments',initial:closed}));assert(!html.includes('保存寄样批次'));assert(html.includes('已停用'));
+ const html=renderToStaticMarkup(React.createElement(SampleOperationsPanel,{apiFetch:transport,sessionId:'41',kind:'followups',initial:closed}));assert(html.includes('保存反馈记录'));assert(!html.includes('已结束'));
  const other=renderToStaticMarkup(React.createElement(SampleOperationsPanel,{apiFetch:transport,sessionId:'42',kind:'shipments',initial}));assert(!other.includes('客户甲'));assert(!other.includes('1234-1-F018'));
 });

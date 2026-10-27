@@ -81,7 +81,7 @@ export async function removeSampleSessionItem(
   const [loginRaw]=await tx.query('SELECT id FROM v2_access_sessions WHERE id=? AND user_id=? AND revoked_at IS NULL AND expires_at>UTC_TIMESTAMP() FOR SHARE',[actor.sessionId,actor.userId]);
   if(rows(loginRaw).length!==1)throw new SampleSessionRemoveError(403);
   const customer=await lockCustomerSessionAccess(tx,actor,sessionId,true);
-  const [sessionRaw]=await tx.query('SELECT id,status FROM customer_sample_sessions WHERE id=? AND deleted_at IS NULL FOR UPDATE',[sessionId]);
+  const [sessionRaw]=await tx.query('SELECT id FROM customer_sample_sessions WHERE id=? AND deleted_at IS NULL FOR UPDATE',[sessionId]);
   const session=rows(sessionRaw)[0];if(!session)throw new SampleSessionRemoveError(404);
   if(!customer){const [grantRaw]=await tx.query('SELECT can_manage FROM customer_sample_session_access WHERE session_id=? AND user_id=? AND can_manage=1 FOR UPDATE',[sessionId,actor.userId]);
   const grant=rows(grantRaw);if(grant.length!==1||Number(grant[0].can_manage)!==1)throw new SampleSessionRemoveError(404);}
@@ -90,7 +90,7 @@ export async function removeSampleSessionItem(
   const item=selected[0];if(selected.length!==1||dbId(item.id)!==itemId)throw new SampleSessionRemoveError(409);
   // Missing targets remain 404; only a granted caller with an existing item
   // can learn that this session is read-only.
-  if(session.status!=='open')throw new SampleSessionRemoveError(409);
+  
   const productId=dbId(item.product_id);
   if(!Object.hasOwn(item,'removed_at')||!Object.hasOwn(item,'removed_by_user_id')||
    (item.removed_at===null)!==(item.removed_by_user_id===null))throw new SampleSessionRemoveError(409);

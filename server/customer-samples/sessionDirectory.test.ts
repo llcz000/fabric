@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {createSampleSession,listSampleSessions,readShipmentProgress,changeSampleSessionStatus,updateSampleSession,deleteSampleSession} from './sessionDirectory';
+import {createSampleSession,listSampleSessions,readShipmentProgress,updateSampleSession,deleteSampleSession} from './sessionDirectory';
 import type {AppPrincipal} from '../access/types';
 const actor={userId:'6',sessionId:'9',role:'sales'} as AppPrincipal;
 class Db{
@@ -9,19 +9,18 @@ class Db{
  active=true;login=true;grant=true;failGrant=false;commits=0;rollbacks=0;calls:{sql:string;args:unknown[]}[]=[];
  async getConnection(){return {beginTransaction:async()=>{},commit:async()=>{this.commits++;},rollback:async()=>{this.rollbacks++;},release:()=>{},query:async(sql:string,args:unknown[]=[]):Promise<[unknown,unknown]>=>{
   this.calls.push({sql,args});
-  if(sql.startsWith('SELECT id,customer_reference,status'))return [this.deleted?[]:[{id:'41',customer_reference:this.name,status:this.status}],[]];
+  if(sql.startsWith('SELECT id,customer_reference'))return [this.deleted?[]:[{id:'41',customer_reference:this.name,status:this.status}],[]];
   if(sql.startsWith('UPDATE customer_sample_sessions SET customer_reference=')){if(this.conflict)return [{affectedRows:0},[]];this.name=String(args[0]);return [{affectedRows:1},[]];}
   if(sql.startsWith('UPDATE customer_sample_sessions SET deleted_at=')){this.deleted=true;return [{affectedRows:1},[]];}
-  if(sql.startsWith('UPDATE customer_sample_sessions SET status=')){if(this.conflict)return [{affectedRows:0},[]];this.status=args[0] as typeof this.status;return [{affectedRows:1},[]];}
   if(sql.includes('FROM v2_access_users'))return [this.active?[{role:'sales',is_active:1}]:[],[]];
   if(sql.includes('FROM v2_access_sessions'))return [this.login?[{id:'9'}]:[],[]];
   if(sql.startsWith('INSERT INTO customer_sample_sessions'))return [{affectedRows:1,insertId:'41'},[]];
   if(sql.startsWith('INSERT INTO customer_sample_session_access')){if(this.failGrant)throw Error('db secret');return [{affectedRows:1},[]];}
-  if(sql.includes('SELECT id,status FROM customer_sample_sessions'))return [this.deleted?[]:[{id:'41',status:this.status}],[]];
+  if(sql.includes('SELECT id FROM customer_sample_sessions'))return [this.deleted?[]:[{id:'41',status:this.status}],[]];
   if(sql.includes('SELECT can_manage'))return [this.grant?[{can_manage:1}]:[],[]];
   if(sql.includes('AS shipped_quantity'))return [[{selected_products:'2',shipped_products:'1',shipped_quantity:'7'}],[]];
   if(sql.includes('COUNT(*) AS total'))return [[{total:this.deleted?'0':'1'}],[]];
-  if(sql.includes('customer_sample_session_access'))return [this.deleted?[]:[{id:'41',customer_reference:this.name,status:'open',created_on:'2026-10-18'}],[]];
+  if(sql.includes('customer_sample_session_access'))return [this.deleted?[]:[{id:'41',customer_reference:this.name,status:'open',created_on:'2026-10-18',created_at_ms:'1792283400000',selected_card_count:'2',selected_product_count:'6'}],[]];
   if(sql.startsWith('INSERT INTO business_delete_events'))return [{affectedRows:1},[]];
   throw Error('Unexpected SQL '+sql);
  }};}
@@ -34,20 +33,17 @@ test('selection rename uses current name CAS; deletion is a timestamp/actor mark
  assert(db.calls.slice(before).some(c=>c.sql.includes('deleted_at=UTC_TIMESTAMP()')&&c.args[0]==='6'));
  assert(!db.calls.some(c=>/^DELETE FROM|UPDATE customer_sample_items|UPDATE sample_ship/.test(c.sql)));
  assert.equal((await listSampleSessions(db,actor,{})).items.length,0);
- await assert.rejects(readShipmentProgress(db,actor,'41'));await assert.rejects(changeSampleSessionStatus(db,actor,'41',{expectedStatus:'closed',status:'open'}));
+ await assert.rejects(readShipmentProgress(db,actor,'41'));
  const denied=new Db();denied.grant=false;await assert.rejects(deleteSampleSession(denied,actor,'41'));assert(!denied.deleted);
 });
 
-test('close/reopen require locked current identity, explicit grant and expected state, conflicts roll back',async()=>{
- const db=new Db();assert.equal((await changeSampleSessionStatus(db,actor,'41',{expectedStatus:'open',status:'closed'})).status,'closed');
- assert.equal((await changeSampleSessionStatus(db,actor,'41',{expectedStatus:'closed',status:'open'})).status,'open');
- assert(db.calls.some(c=>c.sql.includes('can_manage')&&c.sql.includes('FOR UPDATE')));
- for(const setup of [(d:Db)=>{d.grant=false;},(d:Db)=>{d.login=false;},(d:Db)=>{d.status='closed';},(d:Db)=>{d.conflict=true;}]){
-  const denied=new Db();setup(denied);await assert.rejects(changeSampleSessionStatus(denied,actor,'41',{expectedStatus:'open',status:'closed'}));assert.equal(denied.commits,0);assert.equal(denied.rollbacks,1);
- }
+test('legacy closed session allows authorized maintenance without lifecycle transitions',async()=>{
+ const db=new Db();db.status='closed';
+ assert.equal((await updateSampleSession(db,actor,'41',{customerReference:'客户乙',expectedCustomerReference:'客户甲'})).customerReference,'客户乙');
+ assert.equal(db.name,'客户乙');
 });
 test('new customer selection stores actor and its explicit grant in one transaction',async()=>{
- const db=new Db();assert.deepEqual(await createSampleSession(db,actor,{customerReference:' 客户甲 '}),{id:'41',customerReference:'客户甲',status:'open'});
+ const db=new Db();assert.deepEqual(await createSampleSession(db,actor,{customerReference:' 客户甲 '}),{id:'41',customerReference:'客户甲'});
  assert.deepEqual(db.calls.find(x=>x.sql.startsWith('INSERT INTO customer_sample_sessions'))?.args,['客户甲','6']);
  assert.deepEqual(db.calls.find(x=>x.sql.startsWith('INSERT INTO customer_sample_session_access'))?.args,['41','6']);assert.equal(db.commits,1);
 });
@@ -74,5 +70,23 @@ test('shipment progress counts complete current selection and all actual batches
 
 test('directory returns stored creation date without changing grant, sorting or records',async()=>{
  const db=new Db(),result=await listSampleSessions(db,actor,{});assert.equal((result.items[0] as {createdOn?:string}).createdOn,'2026-10-18');
- const query=db.calls.find(x=>x.sql.includes('ORDER BY s.id DESC'))!;assert(query.sql.includes("DATE_FORMAT(s.created_at,'%Y-%m-%d') AS created_on"));assert(!db.calls.some(x=>/^(UPDATE|INSERT|DELETE)/.test(x.sql)));
+ const query=db.calls.find(x=>x.sql.includes('ORDER BY s.created_at DESC,s.id DESC'))!;assert(query.sql.includes("DATE_FORMAT(s.created_at,'%Y-%m-%d') AS created_on"));assert(!db.calls.some(x=>/^(UPDATE|INSERT|DELETE)/.test(x.sql)));
+});
+
+test('directory preserves separate dated selections with precise UTC creation and selected card count',async()=>{
+ const db=new Db(),result=await listSampleSessions(db,actor,{});
+ assert.equal(result.items[0].createdAt,'2026-10-18T00:30:00.000Z');
+ assert.equal(result.items[0].selectedCardCount,2);assert.equal(result.items[0].selectedProductCount,6);
+ assert(db.calls.some(x=>x.sql.includes('ORDER BY s.created_at DESC,s.id DESC')));
+});
+
+test('growing directory stays server-paged, stable-sortable and counts only requested rows',async()=>{
+ const db=new Db();await listSampleSessions(db,actor,{limit:20,offset:0});
+ const query=db.calls.find(x=>x.sql.includes('ORDER BY s.created_at DESC,s.id DESC'))!;
+ assert.match(query.sql,/LIMIT \? OFFSET \?/);assert(query.sql.includes('FROM (SELECT s.id,s.customer_reference,s.created_at'));
+ assert(query.sql.indexOf('FROM (SELECT s.id,s.customer_reference,s.created_at')>query.sql.indexOf('AS selected_card_count'));
+ assert.deepEqual(query.args.slice(-2),[20,0]);
+ assert(query.sql.includes('selected_product_count'));
+ assert(query.sql.includes('removed_at IS NULL'));
+ assert(query.sql.includes('selected_card_count'));
 });

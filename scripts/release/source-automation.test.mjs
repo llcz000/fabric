@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
-import {reviewedSourceDiff,acceptReviewedSource,syncVerifiedPointer,targetedFabricUiAllowed} from './source-automation.mjs';
+import {reviewedSourceDiff,acceptReviewedSource,acceptReviewedRequirements,syncVerifiedPointer,targetedFabricUiAllowed} from './source-automation.mjs';
 const sha=s=>createHash('sha256').update(s).digest('hex');
 function workspace(fn){
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'fabric-source-flow-'));
@@ -57,6 +57,19 @@ test('accept allows only explicitly reviewed AGENTS and package entry files, not
  fs.writeFileSync(path.join(root,'config.json'),'malicious edit');
  assert.throws(()=>acceptReviewedSource(ctx,['config.json']),/Unsafe/);
 }));
+test('typecheck config requires an exact reviewed source set and unrelated configs stay blocked',()=>workspace(root=>{
+ const ctx={root,head:'base'},file='tsconfig.json';
+ fs.writeFileSync(path.join(root,file),'original');
+ const manifestFile=path.join(root,'artifacts/candidate/manifest.json'),manifest=JSON.parse(fs.readFileSync(manifestFile,'utf8'));
+ manifest.files.push({path:file,sha256:sha('original')});fs.writeFileSync(manifestFile,JSON.stringify(manifest));
+ fs.writeFileSync(path.join(root,file),'reviewed artifact exclusion');
+ fs.writeFileSync(path.join(root,'src/app.tsx'),'pending source');
+ assert.throws(()=>acceptReviewedSource(ctx,[file]),/Unreviewed/);
+ assert.throws(()=>acceptReviewedSource(ctx,[file,'src/app.tsx','config.json']),/Unsafe/);
+ assert.deepEqual(acceptReviewedSource(ctx,['src/app.tsx',file]),['src/app.tsx',file]);
+ assert.deepEqual(reviewedSourceDiff(ctx).changed,[]);
+}));
+
 test('source guard blocks unapproved file additions and requirements changes',()=>workspace(root=>{
  fs.writeFileSync(path.join(root,'src/untracked.ts'),'new');
  const ctx={root,head:'base'};
@@ -64,6 +77,25 @@ test('source guard blocks unapproved file additions and requirements changes',()
  fs.rmSync(path.join(root,'src/untracked.ts'));
  fs.writeFileSync(path.join(root,'docs/project/requirements.md'),'changed');
  assert.throws(()=>acceptReviewedSource(ctx,[]),/requirements/i);
+}));
+test('explicit requirement acceptance pins reviewed hashes without accepting source drift',()=>workspace(root=>{
+ const ctx={root,head:'base'},file='docs/project/requirements.md';
+ fs.writeFileSync(path.join(root,file),'approved requirement');fs.writeFileSync(path.join(root,'src/app.tsx'),'unreviewed code');
+ assert.throws(()=>acceptReviewedRequirements(ctx,[{path:file,sha256:sha('wrong')}]),/hash/i);
+ assert.throws(()=>acceptReviewedRequirements(ctx,[{path:'src/app.tsx',sha256:sha('unreviewed code')}]),/requirement/i);
+ assert.deepEqual(acceptReviewedRequirements(ctx,[{path:file,sha256:sha('approved requirement')}]),[file]);
+ assert.deepEqual(reviewedSourceDiff(ctx).changed,['src/app.tsx']);
+ fs.writeFileSync(path.join(root,file),'changed again');assert.throws(()=>reviewedSourceDiff(ctx),/Requirements changed/);
+}));
+test('requirement and AC hashes must both be explicitly reviewed while code remains pending',()=>workspace(root=>{
+ const ctx={root,head:'base'},ac='docs/product-master/product-master-v2-requirements.md',req='docs/project/requirements.md';
+ fs.mkdirSync(path.join(root,'docs/product-master'),{recursive:true});fs.writeFileSync(path.join(root,ac),'old AC');
+ const file=path.join(root,'artifacts/candidate/manifest.json'),manifest=JSON.parse(fs.readFileSync(file,'utf8'));
+ manifest.files.push({path:ac,sha256:sha('old AC')});fs.writeFileSync(file,JSON.stringify(manifest));
+ fs.writeFileSync(path.join(root,ac),'approved AC');fs.writeFileSync(path.join(root,req),'approved rule');fs.writeFileSync(path.join(root,'src/app.tsx'),'pending code');
+ assert.throws(()=>acceptReviewedRequirements(ctx,[{path:req,sha256:sha('approved rule')}]),/Unreviewed requirement/);
+ acceptReviewedRequirements(ctx,[{path:req,sha256:sha('approved rule')},{path:ac,sha256:sha('approved AC')}]);
+ assert.deepEqual(reviewedSourceDiff(ctx).changed,['src/app.tsx']);
 }));
 
 test('reviewed source refresh preserves the documented local mockup helper exclusion only',()=>workspace(root=>{

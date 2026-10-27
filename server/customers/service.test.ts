@@ -1,7 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {DatabaseSync} from 'node:sqlite';
 import {CustomerService} from './service';import {lockCustomerSessionAccess} from './sessionBridge';import {profile} from './customer.testFixture';
 import {lockSelectionAccess} from '../customer-samples/sessionManual';
-import {createSampleSession,listSampleSessions,changeSampleSessionStatus} from '../customer-samples/sessionDirectory';
+import {createSampleSession,listSampleSessions,deleteSampleSession} from '../customer-samples/sessionDirectory';
 import {fixture,sales,admin,outsider,key} from './service.testFixture';
 test('customer + selection atomic idempotency; same key different content conflicts and rollback leaves no orphan',async()=>{
  const f=fixture();try{const a=await f.service.withSampleSession(sales,{requestId:key(1),profile:profile()});const b=await f.service.withSampleSession(sales,{requestId:key(1),profile:profile()});assert.equal(a.session.id,b.session.id);assert.equal(f.db.prepare('SELECT COUNT(*) n FROM customers').get()!.n,1);assert.equal(f.db.prepare('SELECT COUNT(*) n FROM customer_sample_sessions').get()!.n,1);
@@ -27,7 +27,8 @@ test('existing sample entry points honor customer revoke, administrator/view gra
  const tx=await f.pool.getConnection();await tx.beginTransaction();await assert.rejects(lockSelectionAccess(tx,outsider,a.session.id,false),{status:404});await tx.rollback();
  assert.equal((await listSampleSessions(f.pool,outsider,{})).total,0);assert.equal((await listSampleSessions(f.pool,admin,{})).total,1);
  await assert.rejects(createSampleSession(f.pool,sales,{customerReference:'不能绕过档案'}),{status:400});
- const granted=await f.service.setAccess(sales,a.customer.id,'3',{expectedRowVersion:a.customer.rowVersion,permission:'view'});await tx.beginTransaction();await lockSelectionAccess(tx,outsider,a.session.id,false);await tx.rollback();await assert.rejects(changeSampleSessionStatus(f.pool,outsider,a.session.id,{expectedStatus:'open',status:'closed'}),{status:404});
+ const granted=await f.service.setAccess(sales,a.customer.id,'3',{expectedRowVersion:a.customer.rowVersion,permission:'view'});await tx.beginTransaction();await lockSelectionAccess(tx,outsider,a.session.id,false);await tx.rollback();await assert.rejects(deleteSampleSession(f.pool,outsider,a.session.id),{status:404});
+ assert.equal(f.db.prepare('SELECT deleted_at FROM customer_sample_sessions WHERE id=?').get(a.session.id)!.deleted_at,null);assert.equal(f.db.prepare('SELECT COUNT(*) n FROM business_delete_events').get()!.n,0);
  await f.service.setAccess(sales,a.customer.id,'3',{expectedRowVersion:granted.rowVersion,permission:null});
  }finally{f.db.close();}
 });
@@ -48,4 +49,22 @@ test('next action without a date remains an undated task and followup locking ma
 
 test('name-only customer creates selection atomically and contact can be added later',async()=>{
  const f=fixture();try{const p={...profile(),contacts:[]};const a=await f.service.withSampleSession(sales,{requestId:key(21),profile:p});assert.deepEqual(a.customer.profile.contacts,[]);const updated=await f.service.update(sales,a.customer.id,{expectedRowVersion:a.customer.rowVersion,profile:{...p,contacts:[{name:'小王',phone:'123',wechat:null}]}});assert.equal(updated.profile.contacts[0].phone,'123');assert.equal((await f.service.get(sales,a.customer.id)).profile.contacts[0].name,'小王');}finally{f.db.close();}
+});
+
+test('repeat selections for one customer stay independent and directory counts only cards with a current chosen product',async()=>{
+ const f=fixture();try{
+  const first=await f.service.withSampleSession(sales,{requestId:key(31),profile:profile()});
+  const second=await f.service.withSampleSession(sales,{requestId:key(32),customerId:first.customer.id});
+  assert.notEqual(first.session.id,second.session.id);assert.equal(second.customer.id,first.customer.id);
+  f.db.prepare("UPDATE customer_sample_sessions SET created_at='2026-10-25 01:00:00' WHERE id=?").run(first.session.id);
+  f.db.prepare("UPDATE customer_sample_sessions SET created_at='2026-10-26 01:00:00' WHERE id=?").run(second.session.id);
+  f.db.prepare('INSERT INTO customer_sample_selected_cards(session_id,card_id) VALUES(?,501),(?,502),(?,503)').run(first.session.id,first.session.id,first.session.id);
+  f.db.prepare("INSERT INTO customer_sample_items(session_id,product_id,removed_at) VALUES(?,100,NULL),(?,101,'2026-10-26'),(?,102,NULL)").run(first.session.id,first.session.id,first.session.id);
+  f.db.prepare('INSERT INTO customer_sample_item_sources(session_id,product_id,card_id) VALUES(?,100,501),(?,101,502)').run(first.session.id,first.session.id);
+  f.db.prepare('INSERT INTO customer_sample_manual_events(session_id,product_id,card_id) VALUES(?,100,501),(?,102,503),(?,102,503)').run(first.session.id,first.session.id,first.session.id);
+  const result=await listSampleSessions(f.pool,sales,{});
+  assert.deepEqual(result.items.map(x=>x.id),[second.session.id,first.session.id]);
+  assert.deepEqual(result.items.map(x=>x.selectedCardCount),[0,2]);
+  assert.deepEqual(result.items.map(x=>x.createdAt),['2026-10-26T01:00:00.000Z','2026-10-25T01:00:00.000Z']);
+ }finally{f.db.close();}
 });

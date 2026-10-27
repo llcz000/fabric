@@ -71,10 +71,10 @@ export async function persistSampleCardScan(
   const customer=await lockCustomerSessionAccess(tx,actor,input.sessionId,true);
   // Serialize all scan/item mutations for the same sample session.
   const [sessionRaw]=await tx.query(
-   'SELECT id,status,created_by_user_id FROM customer_sample_sessions WHERE id=? AND deleted_at IS NULL FOR UPDATE',
+   'SELECT id,created_by_user_id FROM customer_sample_sessions WHERE id=? AND deleted_at IS NULL FOR UPDATE',
    [input.sessionId]);
   const session=readRows(sessionRaw)[0];
-  if(!session||session.status!=='open')throw new SampleScanError(404,'Sample session not found');
+  if(!session)throw new SampleScanError(404,'Sample session not found');
   if(!customer){const [accessRaw]=await tx.query(
    'SELECT can_manage FROM customer_sample_session_access WHERE session_id=? AND user_id=? AND can_manage=1 FOR UPDATE',
    [input.sessionId,actor.userId]);
@@ -154,7 +154,9 @@ export async function persistSampleCardScan(
    [input.sessionId]);
   const saved=readRows(oldRaw);
   const removedIds=new Set(saved.filter(row=>row.removed_at!=null).map(row=>id(row.product_id)));
-  const selected:SavedSampleProduct[]=saved.filter(row=>!removedIds.has(id(row.product_id))).map(row=>({productId:id(row.product_id)}));
+  // An unchecked colorway is a deliberate choice. Rescans may append new products,
+  // but only an explicit manual selection may restore a removed row.
+  const selected:SavedSampleProduct[]=saved.map(row=>({productId:id(row.product_id)}));
   let plan;
   try {plan=planCardScan({id:cardId,fabricId,masterIds},available.map(pick),selected);}
   catch {throw new SampleScanError(409,'Card/product scope inconsistent');}
@@ -167,15 +169,9 @@ export async function persistSampleCardScan(
      JSON.stringify(plan.newlyAdded.map(x=>x.productId))]);
   const eventId=id((scanInsert as {insertId:unknown}).insertId);
   for(const item of plan.newlyAdded){
-   if(removedIds.has(item.productId)){
-    const [restored]=await tx.query('UPDATE customer_sample_items SET removed_at=NULL,removed_by_user_id=NULL WHERE session_id=? AND product_id=? AND removed_at IS NOT NULL',
-     [input.sessionId,item.productId]);
-    if(!restored||typeof restored!=='object'||(restored as {affectedRows?:unknown}).affectedRows!==1)
-     throw new SampleScanError(409,'Sample restoration conflict');
-   }else await tx.query(`INSERT INTO customer_sample_items
+   await tx.query(`INSERT INTO customer_sample_items
     (session_id,product_id,selected_by_user_id)
-    VALUES (?,?,?)`,
-    [input.sessionId,item.productId,actor.userId]);
+    VALUES (?,?,?)`,[input.sessionId,item.productId,actor.userId]);
   }
   // Both newly inserted and previously selected products record this card as
   // a source, even if originally selected through another card.
@@ -193,7 +189,7 @@ export async function persistSampleCardScan(
   await tx.commit();began=false;
   return {cardId,resolvedProductIds:plan.resolvedProductIds,
    addedProductIds:plan.newlyAdded.map(x=>x.productId),
-   alreadySelectedProductIds:plan.unchangedProductIds,selectedCardCount:count};
+   alreadySelectedProductIds:plan.unchangedProductIds.filter(productId=>!removedIds.has(productId)),selectedCardCount:count};
  }catch(error){
   if(began)await tx.rollback();
   if(error instanceof CustomerError)throw new SampleScanError(error.status===403?403:error.status===404?404:409,'Sample selection unavailable');

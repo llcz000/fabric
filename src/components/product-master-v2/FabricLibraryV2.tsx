@@ -151,10 +151,10 @@ export function FabricV2Table({
    case 'remark':return <td className="min-w-0 px-3 py-3">
     <span title={item.remark??undefined} className="block min-w-0 truncate">{nullText(item.remark)}</span></td>;
    case 'products':return <td className="px-3 py-3 text-center">
-    {item.productCount>0&&onViewProducts?
-     <button type="button" className={editText} onClick={()=>onViewProducts(item)}>
-     已关联 {item.productCount}</button>:
-     <span title="关联产品数量由服务器统计">{item.productCount>0?'已关联 '+item.productCount:'—'}</span>}</td>;
+    {onViewProducts?
+     <button type="button" className={editText+' rounded px-2 py-1 focus-visible:outline-2 focus-visible:outline-[#346ef6]'} aria-label={'查看 '+item.fabricNo+' 关联产品 '+item.productCount+' 个'} onClick={()=>onViewProducts(item)}>
+     {item.productCount}</button>:
+     <span title="关联产品数量由服务器统计">{item.productCount}</span>}</td>;
    case 'actions':return <td className="col-actions px-3 py-3 text-right">
     {canManage?<div className="inline-flex gap-2">
      {onEdit?<button type="button" className="v2-icon-button" aria-label="编辑" title="编辑面料" onClick={()=>onEdit(item)}><ActionIcon name="edit"/></button>:null}

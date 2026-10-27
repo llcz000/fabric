@@ -59,12 +59,12 @@ test('fabric import shares the page toolbar and cannot discard an inline draft',
 test('UI-01 changed document draft is retained when navigation is cancelled; discard navigates',async()=>{
  const env=environment();let r!:ReactTestRenderer;
  try{r=await app(env);await act(async()=>button(r,'新增单据').props.onClick());await tick();
-  const input=r.root.findAllByType('input').find(n=>n.props.name==='customerName')!;
+  const input=r.root.findAllByType('input').find(n=>n.props.name==='docNo')!;
   await act(async()=>input.props.onChange({target:{value:'尚未保存的客户'}}));
   await act(async()=>button(r,'产品库').props.onClick());
   assert.equal(r.root.findAll(n=>n.props.role==='alertdialog').length,1,'navigation must ask before unmounting draft');
   await act(async()=>button(r,'继续编辑').props.onClick());
-  assert.equal(r.root.findAllByType('input').find(n=>n.props.name==='customerName')!.props.value,'尚未保存的客户');
+  assert.equal(r.root.findAllByType('input').find(n=>n.props.name==='docNo')!.props.value,'尚未保存的客户');
   await act(async()=>button(r,'产品库').props.onClick());await act(async()=>button(r,'放弃修改').props.onClick());await tick(30);
   assert.equal(r.root.findAll(n=>n.props['aria-label']==='V2 产品库').length,1);
  }finally{if(r)await act(async()=>r.unmount());env.cleanup();}

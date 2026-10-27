@@ -6,7 +6,6 @@ import React,{useEffect,useRef,useState,useCallback} from 'react';
 import {Image as ImageIcon,Plus,Search,X,ChevronLeft,ChevronRight,Images,RotateCcw} from 'lucide-react';
 import {ProductImageTabs,type CatalogImageResolver} from './ProductImageTabs';
 import {SampleCardPatternsDialog} from './SampleCardPatternsDialog';
-import {ProductCardCreateDialog} from './ProductCardCreateDialog';
 import type {CatalogFilters,CatalogPage,CatalogProduct} from './catalogModel';
 import {
  emptyCatalogFilters,reduceCatalogFilters,fetchCatalogPage,buildCatalogUrl,
@@ -47,11 +46,10 @@ export interface CatalogV2TableProps{
  onRemark?(product:CatalogProduct):void;
  onShare?(product:CatalogProduct):void;
   onCard?(product:CatalogProduct):void;
-  onCreateCard?(product:CatalogProduct):void;
  updating?:boolean;
 }
 export function CatalogV2Table({
-  page,patternUrls,onPatternPreview,onProductImages,onPage,canManage=false,onEdit,onDeleteRequest,onRemark,onShare,onCard,onCreateCard,updating=false
+  page,patternUrls,onPatternPreview,onProductImages,onPage,canManage=false,onEdit,onDeleteRequest,onRemark,onShare,onCard,updating=false
 }:CatalogV2TableProps){
  const [sort,setSort]=useState<SortState|null>(null);
  const [visibility,setVisibility]=useState(()=>readColumnVisibility(productColumns,PRODUCT_COLUMN_KEY));
@@ -109,8 +107,7 @@ export function CatalogV2Table({
      
      {product.sampleCard.needsReprint&&<span className="mt-1 block text-[11px] text-amber-700">需重新打印</span>}
     </>:product.sampleCard===null?<>
-     <span className="text-slate-500">未关联</span>
-     {canManage&&onCreateCard?<button type="button" disabled={updating||!product.masterActive||!product.fabricActive} className="ml-2 text-[#0053da] underline" onClick={()=>onCreateCard(product)} aria-label={'为产品 '+product.productNo+' 建色卡'}>去建色卡</button>:null}
+     <span className="text-slate-500">色卡待补齐</span>
     </>:<span className="text-slate-500">关联待读取</span>}
    </td>;
    case 'actions':return <td className="col-actions px-3 py-2 text-center"><div className="inline-flex items-center gap-2 whitespace-nowrap">
@@ -252,7 +249,7 @@ export function ProductCatalogV2({apiFetch,canManage=false,allowExport=true,onCr
  const [viewerUrls,setViewerUrls]=useState<Map<string,string>>(new Map());
  const [viewerImages,setViewerImages]=useState<{fabricDisplay:string[];detail:string[];aiEffect:string[]}|null>(null);
  const [remark,setRemark]=useState<CatalogProduct|null>(null);
-  const [viewingCard,setViewingCard]=useState<CatalogProduct|null>(null),[creatingCard,setCreatingCard]=useState<CatalogProduct|null>(null),[cardNotice,setCardNotice]=useState('');
+  const [viewingCard,setViewingCard]=useState<CatalogProduct|null>(null);
  const [pendingDelete,setPendingDelete]=useState<CatalogProduct|null>(null);
  const [deleteBusy,setDeleteBusy]=useState(false),[deleteError,setDeleteError]=useState('');
  const deleting=useRef(false);useV2LeaveProtection(false,deleteBusy);
@@ -346,7 +343,6 @@ export function ProductCatalogV2({apiFetch,canManage=false,allowExport=true,onCr
   </div>
 
    <div className="v2-catalog-status" role="status" aria-live="polite">{busy?(page?'正在更新产品…':'正在查找产品…'):page?'共 '+page.total+' 条产品':''}</div>
-   {cardNotice&&<p role="status" className="text-sm text-emerald-700">{cardNotice}</p>}
    {failure?<div role="alert" className="rounded-lg border border-rose-200 bg-white p-4 text-sm text-rose-700">
    {failure}<button type="button" onClick={()=>setRetry(n=>n+1)} className="ml-3 underline"><ActionIcon name="refresh"/>重试</button></div>:null}
    <div className="v2-catalog-viewport" aria-busy={busy} data-updating={busy}>
@@ -354,7 +350,7 @@ export function ProductCatalogV2({apiFetch,canManage=false,allowExport=true,onCr
    onPatternPreview={item=>setViewer({type:'pattern',item})}
    onProductImages={item=>setViewer({type:'product',item})}
    onPage={offset=>dispatch({type:'page',offset})} onRemark={setRemark}
-     onCard={item=>setViewingCard(item)} onCreateCard={canManage?item=>{setCardNotice('');setCreatingCard(item);}:undefined}
+     onCard={item=>setViewingCard(item)}
     canManage={canManage} onShare={onShare} onEdit={onEdit} onDeleteRequest={onDeleteRequest?item=>{setDeleteError('');setPendingDelete(item);}:undefined}/>:<div className="v2-catalog-skeleton" aria-hidden="true"/>}
    </div>
   {pendingDelete&&onDeleteRequest?<CatalogDeleteConfirmation product={pendingDelete}
@@ -364,7 +360,6 @@ export function ProductCatalogV2({apiFetch,canManage=false,allowExport=true,onCr
    <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{remark.remark}</p>
   </ImageDialog>:null}
   {viewingCard?.sampleCard&&<SampleCardPatternsDialog card={{id:viewingCard.sampleCard.id,cardNo:viewingCard.sampleCard.cardNo,masterId:viewingCard.masterId,fabricId:viewingCard.fabricId}} apiFetch={apiFetch} onClose={()=>setViewingCard(null)}/>}
-  {creatingCard&&<ProductCardCreateDialog product={creatingCard} apiFetch={apiFetch} onClose={()=>setCreatingCard(null)} onCreated={result=>{setCreatingCard(null);setCardNotice((result.created?'已生成色卡 ':'已复用现有色卡 ')+result.card.cardNo);setRetry(n=>n+1);}}/>}
   {viewer?<ImageDialog title={(viewer.type==='pattern'?'花型原图 · ':'产品图片 · ')+viewer.item.productNo} onClose={closeViewer}>
    {viewerError?<p role="alert" className="text-sm text-rose-700">{viewerError}</p>:null}
    {!viewerError&&viewer.type==='pattern'?

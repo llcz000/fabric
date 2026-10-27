@@ -51,7 +51,7 @@ test('COMPANY-01 current logo/WeChat/Alipay are read through order-scope V2 auth
   const modelResponse=await request('/print-model');assert.equal(modelResponse.status,200);
   const model=await modelResponse.json();
   assert.equal(model.companyName,'最新公司');assert.equal(model.brandName,'最新字标');
-  assert.deepEqual(model.signatureLabels,{issuer:'制单人签章',receiver:'客户签收'});
+  assert.deepEqual(model.signatureLabels,{issuer:'开单人签字',receiver:'收货人签字'});
   assert.equal(Object.keys(model.companyImages).length,3);
   for(const role of Object.keys(roles)){
    const reply=await request('/company-image/'+role);
@@ -67,8 +67,8 @@ test('COMPANY-01 current logo/WeChat/Alipay are read through order-scope V2 auth
   const values:string[]=[];workbook.worksheets[0].eachRow(row=>row.eachCell(c=>{
    if(typeof c.value==='string')values.push(c.value);
   }));
-  assert(values.some(v=>v.includes('制单人签章')));
-  assert(values.some(v=>v.includes('客户签收')));
+  assert(values.some(v=>v.includes('开单人签字')));assert(values.some(v=>v.includes('收货人签字')));assert(!values.some(v=>v.includes('制单人签章')));
+  assert(!values.some(v=>v.includes('客户签收')));
   assert(values.includes('备注条款：通用最新条款'));
  }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
 });

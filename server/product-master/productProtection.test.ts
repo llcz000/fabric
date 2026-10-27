@@ -15,7 +15,12 @@ class Db{
    if(sql.includes('FROM v2_access_users')&&sql.includes('FOR SHARE'))
     return [[o.invalidUser?[]:{id:params[0],role:'sales',is_active:1,can_manage_products:o.deniedGrant?0:1,can_manage_own_orders:0}].flat(),[]];
    if(sql.includes('FROM v2_access_sessions')&&sql.includes('FOR SHARE'))return [[{id:8}],[]];
-   if(sql.includes('FROM v2_products WHERE id=? FOR UPDATE'))return [[{id:7,is_active:1}],[]];
+   if(sql.startsWith('SELECT')&&sql.includes('FROM v2_products WHERE id=?'))return [[{id:7,is_active:1,pattern_colorway_id:'12',fabric_id:'21'}],[]];
+   if(sql.startsWith('SELECT id FROM pattern_colorways WHERE master_id=?'))return [[{id:'12'},{id:'13'}],[]];
+   if(sql.includes('FROM pattern_colorways c JOIN pattern_masters m'))return [[{id:'12',master_id:'11'}],[]];
+   if(sql.includes('FROM pattern_masters WHERE id=?'))return [[{id:'11',master_no:'G017',is_active:1}],[]];
+   if(sql.includes('FROM v2_fabrics WHERE id=?'))return [[{id:'21',fabric_no:'F018',is_active:1}],[]];
+   if(sql.startsWith('INSERT INTO business_delete_events'))return [{affectedRows:1},[]];
    if(sql.includes('FROM order_items')&&sql.includes('v2_product_id'))return [[{total:o.hasReference?1:0}],[]];
    if(sql.includes('FROM v2_product_image_assets'))return [o.hasImage?[{id:'19',product_id:'7',asset_id:'a1111111-1111-4111-8111-111111111111',role:'detail',sort_order:0}]:[],[]];
    if(sql.includes('FROM image_assets WHERE id IN'))return [[{id:'a1111111-1111-4111-8111-111111111111',status:'ready',ref_count:0}],[]];

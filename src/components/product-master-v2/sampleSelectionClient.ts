@@ -36,7 +36,7 @@ const requireId=(id:string)=>{if(!validId(id))throw Error('Invalid selection ide
 function pageOf(raw:unknown,sessionId:string):SampleSessionPage{
  if(!raw||typeof raw!=='object'||Array.isArray(raw))throw Error('Invalid selection response');
  const o=raw as Partial<SampleSessionPage>,session=o.session;
- if(!session||session.id!==sessionId||(session.status!=='open'&&session.status!=='closed')||
+ if(!session||session.id!==sessionId||
   typeof session.customerReference!=='string'||!Array.isArray(o.items)||
   !Number.isSafeInteger(o.total)||Number(o.total)<0||
   !Number.isSafeInteger(o.offset)||!Number.isSafeInteger(o.limit)||

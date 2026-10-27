@@ -10,6 +10,7 @@ export interface CatalogProduct{
  id:string;productNo:string;patternColorwayId:string;fabricId:string;masterId:string;
  masterNo:string;colorwayNo:number;fabricNo:string;fabricName:string;
  composition:string|null;weightValue:number|null;weightUnit:'gsm'|'mm'|null;
+ fabricRemark?:string|null;
  widthCm:number|null;remark:string;isActive:boolean;isAvailableForSampling:boolean;masterActive:boolean;
  colorwayActive:boolean;fabricActive:boolean;isSelectable:boolean;rowVersion:string;
  patternImageAssetId:string|null;topicTags:CatalogTag[];colorTags:CatalogTag[];
@@ -81,6 +82,7 @@ export function parseCatalogPage(raw:unknown):CatalogPage{
    !['productNo','masterNo','fabricNo','fabricName','remark'].every(k=>typeof x[k]==='string')||
    !Number.isSafeInteger(x.colorwayNo)||Number(x.colorwayNo)<1||
    !(x.composition===null||typeof x.composition==='string')||
+   !(x.fabricRemark===undefined||x.fabricRemark===null||typeof x.fabricRemark==='string')||
    !(x.weightValue===null&&x.weightUnit===null||safeNumber(x.weightValue)&&['gsm','mm'].includes(String(x.weightUnit)))||
    !(x.widthCm===null||safeNumber(x.widthCm))||
    !['isActive','isAvailableForSampling','masterActive','colorwayActive','fabricActive','isSelectable'].every(k=>typeof x[k]==='boolean')||

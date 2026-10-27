@@ -22,6 +22,7 @@ test('manual UI adapters use real private HTTP authentication and session-scoped
   if(sql.includes('customer_reference'))return [[{customer_reference:'演示客户',total:0,selected_card_count:0}],[]];
   if(sql.includes('FROM customer_sample_sessions'))return [[{id:'51',status:'closed'}],[]];
   if(sql.includes('FROM customer_sample_items'))return [[],[]];
+  if(sql.includes('SELECT master_id,fabric_id FROM sample_cards'))return [[],[]];
   if(sql.includes('COUNT(*) AS total')&&sql.includes('FROM sample_cards'))return [[{total:0}],[]];
   if(sql.includes('c.card_no')&&sql.includes('FROM sample_cards'))return [[],[]];
   throw Error('Unexpected read in HTTP fixture');
@@ -40,8 +41,8 @@ test('manual UI adapters use real private HTTP authentication and session-scoped
   const authenticated=createV2SelectionFetch(transport,()=>token),selection=createSampleSelectionClient(authenticated);
   const cards=await searchManualCards(authenticated,{sessionId:'51',query:'0012',offset:0});
   assert.equal(cards.total,0);assert.deepEqual(cards.items,[]);
-  const page=await selection.load('51',20,0);assert.equal(page.session.status,'closed');assert.equal(page.session.customerReference,'演示客户');
-  await assert.rejects(selection.addManual('51','44'),(e:unknown)=>e instanceof SelectionHttpError&&e.status===409);
+  const page=await selection.load('51',20,0);assert.equal('status' in page.session,false);assert.equal(page.session.customerReference,'演示客户');
+  await assert.rejects(selection.addManual('51','44'),(e:unknown)=>e instanceof SelectionHttpError&&e.status===404);
   granted=false;await assert.rejects(selection.load('51',20,0),(e:unknown)=>e instanceof SelectionHttpError&&e.status===404);
   granted=true;sessionLive=false;
   await assert.rejects(selection.load('51',20,0),(e:unknown)=>e instanceof SelectionHttpError&&e.status===401);

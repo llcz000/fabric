@@ -9,6 +9,7 @@ import { uploadImageAsset } from '../../lib/imageAssets';
 import { createLatestRequestGuard, loadCatalogTags, resolveImageUrls } from './catalogModel';
 import { initialPatternFilters, reducePatternFilters, fetchPatternPage, fetchMasterColorways, createNextColorway, saveColorwayProperties, saveMasterTopicTags,  deleteUnreferencedColorway, type PatternMasterItem, type PatternVersionItem, type PatternPage, type PatternFilters } from './patternModel';
 import {PatternPagination} from './PatternPagination';
+import {RelatedProductsDialog} from './RelatedProductsDialog';
 import {PatternMasterRows} from './PatternMasterRows';
 import {PatternTopicQuickEdit} from './PatternTopicQuickEdit';
 import {PatternOriginalViewer} from './PatternOriginalViewer';
@@ -43,6 +44,7 @@ export function PatternLibraryV2({apiFetch,canManage=false,onCreateMaster,onEdit
  const [thumbs,setThumbs]=useState<Map<string,string>>(new Map());
  const [selected,setSelected]=useState<PatternMasterItem|null>(null);
  const [quickTopicMaster,setQuickTopicMaster]=useState<PatternMasterItem|null>(null);
+ const [linkedMaster,setLinkedMaster]=useState<PatternMasterItem|null>(null);
  const [editingItems,setEditingItems]=useState<PatternVersionItem[]>([]);
  const [editorThumbs,setEditorThumbs]=useState<Map<string,string>>(new Map());
  const [next,setNext]=useState(1),[editorLoading,setEditorLoading]=useState(false);
@@ -237,10 +239,12 @@ export function PatternLibraryV2({apiFetch,canManage=false,onCreateMaster,onEdit
    <button type="button" onClick={()=>setRetry(n=>n+1)} className="ml-2 underline"><ActionIcon name="refresh"/>重试</button></p>:null}
   {!loading&&!error&&page?<><PatternMasterRows items={page.items} thumbnailUrls={thumbs} onShare={onShareMaster}
    onPreview={setPreview} onEdit={openEdit} onDelete={canManage?deleteMaster:undefined}
-   onQuickTopicEdit={canManage?setQuickTopicMaster:undefined}
+   onQuickTopicEdit={canManage?setQuickTopicMaster:undefined} onViewProducts={setLinkedMaster}
    sort={filters.sort} onSort={()=>dispatch({type:'sort',value:filters.sort==='numberAsc'?'numberDesc':'numberAsc'})}
    onCreateProduct={canManage?onCreateProduct:undefined} canManage={canManage}/>
    <PatternPagination page={page} onPage={offset=>dispatch({type:'page',offset})}/></>:null}
+  {linkedMaster?<RelatedProductsDialog key={linkedMaster.id} apiFetch={apiFetch}
+   source={{kind:'pattern',id:linkedMaster.id,label:linkedMaster.masterNo}} onClose={()=>setLinkedMaster(null)}/>:null}
   {quickTopicMaster&&canManage?<PatternTopicQuickEdit key={quickTopicMaster.id} master={quickTopicMaster}
    topics={topics} apiFetch={apiFetch} onCancel={()=>setQuickTopicMaster(null)} onSaved={saveQuickMasterTopics}/>:null}
   {selected?<>{editorLoading?<div role="status" className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 text-white">正在加载配色…</div>:

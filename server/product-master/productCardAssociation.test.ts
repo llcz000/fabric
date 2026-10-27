@@ -11,7 +11,7 @@ function fixture(t:{after(fn:()=>void):void}){
  sql.exec(`
  CREATE TABLE pattern_masters(id TEXT,master_no TEXT,is_active INTEGER);
  CREATE TABLE pattern_colorways(id TEXT,master_id TEXT,colorway_no INTEGER,pattern_image_asset_id TEXT,is_active INTEGER);
- CREATE TABLE v2_fabrics(id TEXT,fabric_no TEXT,fabric_name TEXT,composition TEXT,weight_value TEXT,weight_unit TEXT,width_value TEXT,is_active INTEGER);
+ CREATE TABLE v2_fabrics(id TEXT,fabric_no TEXT,fabric_name TEXT,composition TEXT,weight_value TEXT,weight_unit TEXT,width_value TEXT,is_active INTEGER,remark TEXT);
  CREATE TABLE v2_products(id TEXT,pattern_colorway_id TEXT,fabric_id TEXT,product_no TEXT,remark TEXT,is_active INTEGER,is_available_for_sampling INTEGER,row_version TEXT);
  CREATE TABLE sample_cards(id TEXT,master_id TEXT,fabric_id TEXT,card_no TEXT,is_active INTEGER,deleted_at TEXT,reprint_revision TEXT,printed_revision TEXT);
  CREATE TABLE pattern_master_tag_links(master_id TEXT,tag_id TEXT);
@@ -19,8 +19,8 @@ function fixture(t:{after(fn:()=>void):void}){
  CREATE TABLE v2_product_image_assets(product_id TEXT,role TEXT,deleted_at TEXT);
  INSERT INTO pattern_masters VALUES ('7','G01',1),('9','G02',1);
  INSERT INTO pattern_colorways VALUES ('11','7',1,NULL,1),('12','7',2,NULL,1),('13','9',1,NULL,1);
- INSERT INTO v2_fabrics VALUES ('8','F01','Silk',NULL,'19.99','mm','145.01',1),('10','F02','Cotton',NULL,NULL,NULL,NULL,1);
- INSERT INTO v2_products VALUES ('1','11','8','G01-1-F01','',1,1,'1'),('2','12','8','G01-2-F01','',1,0,'1'),('3','13','8','G02-1-F01','',1,1,'1'),('4','11','10','G01-1-F02','',0,1,'1');
+ INSERT INTO v2_fabrics VALUES ('8','F01','Silk',NULL,'19.99','mm','145.01',1,'面料备注'),('10','F02','Cotton',NULL,NULL,NULL,NULL,1,NULL);
+ INSERT INTO v2_products VALUES ('1','11','8','G01-1-F01','产品备注',1,1,'1'),('2','12','8','G01-2-F01','',1,0,'1'),('3','13','8','G02-1-F01','',1,1,'1'),('4','11','10','G01-1-F02','',0,1,'1');
  INSERT INTO sample_cards VALUES ('17','7','8','G01-F01',0,NULL,'2','1'),('18','9','8','G02-F01',1,'2026-10-19','0','0'),('19','7','10','G01-F02',1,NULL,'0','0'),('20','9','10','G02-F02',1,NULL,'0','0');
  `);
  const db={async query(query:string,params:unknown[]=[]):Promise<[unknown,unknown]>{return [sql.prepare(query).all(...params as (string|number|null)[]),[]];}};
@@ -30,6 +30,8 @@ test('same master/fabric shares current card across colorways without leaking QR
  const {db}=fixture(t),result=await searchProductCatalog(db,parseProductSearchQuery({status:'all'}));
  for(const id of ['1','2'])assert.deepEqual(result.items.find(p=>p.id===id)?.sampleCard,{id:'17',cardNo:'G01-F01',isActive:false,needsReprint:true});
  assert.equal(result.items.find(p=>p.id==='2')?.isAvailableForSampling,false);
+ assert.equal(result.items.find(p=>p.id==='1')?.fabricRemark,'面料备注');assert.equal(result.items.find(p=>p.id==='1')?.remark,'产品备注');
+ assert.equal(result.items.find(p=>p.id==='4')?.fabricRemark,null);
  assert.doesNotMatch(JSON.stringify(result),/qrPayload|tokenHash|qr_payload/);
 });
 test('deleted cards and wrong master/fabric never create a current association',async t=>{

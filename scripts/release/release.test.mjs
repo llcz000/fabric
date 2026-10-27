@@ -52,3 +52,9 @@ test('UI browser release gate runs from the single repository root, not a retire
 });
 
 test('business simplification requires its registered migration before building a new delete writer',async()=>{const {requireBusinessSimplificationMigration}=await import('./core.mjs');assert.throws(()=>requireBusinessSimplificationMigration(['server/audit/deletionAudit.ts'],[]),/requires/);assert.doesNotThrow(()=>requireBusinessSimplificationMigration(['server/audit/deletionAudit.ts'],['business-simplification']));assert.deepEqual(parseArgs(['prepare','--migrations','business-simplification']).migrations,['business-simplification']);});
+test('automatic product cards require their registered supplement before release',async()=>{
+ const {requireProductCardsMigration}=await import('./core.mjs');
+ assert.deepEqual(parseArgs(['prepare','--migrations','product-auto-cards']).migrations,['product-auto-cards']);
+ assert.throws(()=>requireProductCardsMigration(['server/product-master/productsV2.ts'],[]),/requires/);
+ assert.doesNotThrow(()=>requireProductCardsMigration(['server/product-master/productsV2.ts'],['product-auto-cards']));
+});

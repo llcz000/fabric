@@ -7,6 +7,7 @@ import {createColorwayIdentityRouter} from './colorwayIdentityRoutes';
 
 const token='a'.repeat(64);
 class Database {
+ deletionEvents:string[]=[];
  next=1;nextId=100;items:Record<string,unknown>[]=[];grant=true;active=true;session=true;fail=false;revokeAfterHttp=false;role='sales';referenced=false;commits=0;
  async query(sql:string,params:unknown[]=[]):Promise<[unknown,unknown]>{
   if(this.fail)throw Error('secret database credentials');
@@ -16,6 +17,7 @@ class Database {
   }
   if(sql.includes('FROM v2_access_users'))return [this.active?[{id:'2',role:this.role,is_active:1,can_manage_products:this.revokeAfterHttp?0:this.grant?1:0}]:[],[]];
   if(sql.includes('FROM v2_access_sessions'))return [this.session?[{id:'9'}]:[],[]];
+  if(sql.startsWith('INSERT INTO business_delete_events')){this.deletionEvents.push(String(params[1]));return [{affectedRows:1},[]];}
   if(sql.includes('FROM pattern_masters'))return [params[0]==='1'?[{id:'1',master_no:'1234',next_colorway_no:String(this.next)}]:[],[]];
   if(sql.startsWith('UPDATE pattern_masters')){this.next++;return [{affectedRows:1},[]];}
   if(sql.startsWith('INSERT INTO pattern_colorways')){
@@ -27,8 +29,8 @@ class Database {
   if(sql.startsWith('DELETE FROM pattern_colorways')){const old=this.items.length;this.items=this.items.filter(r=>r.id!==params[0]);return [{affectedRows:old-this.items.length},[]];}
   throw Error('Unexpected SQL '+sql);
  }
- async getConnection(){const snapshot={next:this.next,items:structuredClone(this.items)};
-  return {query:this.query.bind(this),beginTransaction:async()=>{},commit:async()=>{this.commits++;},rollback:async()=>{this.next=snapshot.next;this.items=snapshot.items;},release(){}};
+ async getConnection(){const snapshot={next:this.next,items:structuredClone(this.items),deletionEvents:[...this.deletionEvents]};
+  return {query:this.query.bind(this),beginTransaction:async()=>{},commit:async()=>{this.commits++;},rollback:async()=>{this.next=snapshot.next;this.items=snapshot.items;this.deletionEvents=snapshot.deletionEvents;},release(){}};
  }
 }
 async function withServer(db:Database,action:(base:string)=>Promise<void>){
@@ -45,9 +47,13 @@ test('HTTP AC-71 persisted identities and immutable update, deletion gaps and re
  const db=new Database();await withServer(db,async base=>{
   for(let n=1;n<=6;n++){const r=await send(base,collection,'POST',{});assert.equal(r.status,201);const body=await r.json() as {colorwayNo:number;patternNo:string};assert.equal(body.colorwayNo,n);assert.equal(body.patternNo,'1234-'+n);}
   assert.equal((await send(base,'/pattern-colorways/100','PATCH',{colorwayNo:99})).status,400);
-  const patch=await send(base,'/pattern-colorways/100','PATCH',{remark:'revised',isActive:false});assert.equal(patch.status,200);
-  const revised=await patch.json() as {colorwayNo:number;remark:string;isActive:boolean};assert.equal(revised.colorwayNo,1);assert.equal(revised.remark,'revised');assert.equal(revised.isActive,false);
+  const before=structuredClone(db.items),commits=db.commits;
+  assert.equal((await send(base,'/pattern-colorways/100','PATCH',{remark:'must not save',isActive:false})).status,400);
+  assert.deepEqual(db.items,before);assert.equal(db.commits,commits);
+  const patch=await send(base,'/pattern-colorways/100','PATCH',{remark:'revised'});assert.equal(patch.status,200);
+  const revised=await patch.json() as {colorwayNo:number;remark:string;isActive:boolean};assert.equal(revised.colorwayNo,1);assert.equal(revised.remark,'revised');assert.equal(revised.isActive,true);
   assert.equal((await send(base,'/pattern-colorways/101','DELETE')).status,200);
+  assert.deepEqual(db.deletionEvents,['101']);
   const next=await send(base,collection,'POST',{});assert.equal((await next.json() as {colorwayNo:number}).colorwayNo,7);
   const read=await send(base,collection);assert.equal(read.status,200);assert.equal(read.headers.get('cache-control'),'no-store');
   const list=await read.json() as {items:{colorwayNo:number}[];nextColorwayNo:number};assert.equal(list.nextColorwayNo,8);assert.deepEqual(list.items.map(i=>i.colorwayNo),[1,3,4,5,6,7]);assert.equal(db.next,8);

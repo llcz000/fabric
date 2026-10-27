@@ -163,7 +163,8 @@ class Release:
         plans=subprocess.run(['node',str(self.stage/'operator.cjs'),'plans',database,self.p['serverUuid'],b['sqlSha256'],','.join(m['migrations'])],text=True,capture_output=True,timeout=30)
         must(plans.returncode==0 and json.loads(plans.stdout)==m['migrationPlans'],'Registered migration plan drift')
         r=subprocess.run(['node',str(self.stage/'operator.cjs'),mode,database,self.p['serverUuid'],b['sqlSha256'],','.join(m['migrations'])],text=True,capture_output=True,timeout=180)
-        (self.stage/('migration-'+mode+'.log')).write_text(r.stdout+r.stderr);must(r.returncode==0,'Registered migration/rehearsal failed; inspect server migration log');return json.loads(r.stdout.strip().splitlines()[-1])
+        suffix='-product-cards-after-restart' if m.get('productCardsAfterRestart') is True else ''
+        (self.stage/('migration-'+mode+suffix+'.log')).write_text(r.stdout+r.stderr);must(r.returncode==0,'Registered migration/rehearsal failed; inspect server migration log');return json.loads(r.stdout.strip().splitlines()[-1])
     def rehearse(self):
         m=self.load();b=self.verified_backup();db='fabric_release_check_'+self.archive_sha[:16];must(self.sql("SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME='"+db+"'")=='','Rehearsal database exists')
         self.sql('CREATE DATABASE `'+db+'` CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci')
@@ -223,7 +224,11 @@ class Release:
                 if dest.exists():must(sha(dest)==m['files'][n]['sha256'],'Immutable resource collision')
                 else:self.atomic(self.stage/n,dest)
             self.baseline();self.atomic(self.stage/'dist/server.cjs',self.prod/'dist/server.cjs');changed=True;self.restart()
-            self.obj(self.local,'/api/v2/pattern-catalog?limit=1&offset=0',self.login());self.atomic(self.stage/'dist/index.html',self.prod/'dist/index.html')
+            self.obj(self.local,'/api/v2/pattern-catalog?limit=1&offset=0',self.login())
+            # The old backend could create a new group during the first migration.
+            if 'product-auto-cards' in m['migrations']:
+                migration['productCardsAfterRestart']=self.operator('migrate',self.p['database'],b,{**m,'migrations':['product-auto-cards'],'migrationPlans':{'product-auto-cards':m['migrationPlans']['product-auto-cards']},'productCardsAfterRestart':True})
+            self.atomic(self.stage/'dist/index.html',self.prod/'dist/index.html')
             verified=self.verify();return {'state':'released','migration':migration,'verification':verified,'utc':datetime.datetime.now(datetime.timezone.utc).isoformat()}
         except Exception:
             if changed:

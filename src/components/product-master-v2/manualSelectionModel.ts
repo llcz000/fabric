@@ -1,12 +1,13 @@
 import type {SelectionCard,SelectionCardPage} from '../../../server/customer-samples/sessionCardSearch';
 import {SelectionHttpError,selectionAccessRevoked,type SelectionApi} from './sampleSelectionClient';
 export type {SelectionCard,SelectionCardPage};
-export interface ManualFilters{sessionId:string;query:string;offset:number}
+export interface ManualFilters{sessionId:string;query:string;offset:number;selected?:boolean}
 const validId=(x:unknown):x is string=>typeof x==='string'&&/^[1-9]\d{0,19}$/.test(x)&&BigInt(x)<=18446744073709551615n;
 /** Search only private session-scoped cards. No product-catalog fallback. */
 export async function searchManualCards(apiFetch:typeof fetch,filters:ManualFilters,signal?:AbortSignal):Promise<SelectionCardPage>{
  if(!validId(filters.sessionId)||!Number.isSafeInteger(filters.offset)||filters.offset<0)throw Error('Invalid card search');
  const query=new URLSearchParams({query:filters.query.trim(),limit:'20',offset:String(filters.offset)});
+ if(filters.selected)query.set('selected','true');
  const response=await apiFetch('/api/v2/customer-samples/sessions/'+filters.sessionId+'/cards?'+query,{signal,cache:'no-store',headers:{Accept:'application/json'}});
  if(!response.ok)throw new SelectionHttpError(response.status);
  const raw=await response.json() as SelectionCardPage;
@@ -19,12 +20,12 @@ export async function searchManualCards(apiFetch:typeof fetch,filters:ManualFilt
  }
  return raw;
 }
-export function createManualSelectionAction(options:{sessionId:string;isOpen:()=>boolean;addManual:SelectionApi['addManual'];reload:()=>Promise<void>}):
+export function createManualSelectionAction(options:{sessionId:string;addManual:SelectionApi['addManual'];reload:()=>Promise<void>}):
  (card:SelectionCard,productIds?:string[])=>ReturnType<SelectionApi['addManual']>{
  let pending=false;
  return async(card,productIds)=>{
   if(pending)throw Error('正在处理中，请稍候');
-  if(!options.isOpen())throw Error('选样单已结束，只能查看');
+  
   if(!validId(card.id)||!card.products.length||productIds!==undefined&&(!productIds.length||new Set(productIds).size!==productIds.length||productIds.some(id=>!card.products.some(p=>p.id===id))))throw Error('请选择该色卡中的有效配色');
   pending=true;
   try{

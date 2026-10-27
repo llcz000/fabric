@@ -2,9 +2,8 @@ import {CardShareDialog} from '../customer-share/CardShareDialog';
 import { ActionIcon } from './ActionIcon';
 import { useEffect, useRef, useState } from 'react';
 import { SampleCardPatternsDialog } from './SampleCardPatternsDialog';
-import { resolveImageUrls } from './catalogModel';
 import {useConfirm} from '../ui/ConfirmDialog';
-import { SampleCardDraftController, makeSampleCardDraftController, fetchSampleCardPage, createSampleCard, exportSampleCards, retireSampleCard, confirmSampleCardReprinted, toggleCardSelection, setPageSelection, type SampleCard, type SampleCardPage } from './sampleCardModel';
+import { fetchSampleCardPage, exportSampleCards, retireSampleCard, confirmSampleCardReprinted, toggleCardSelection, setPageSelection, type SampleCard, type SampleCardPage } from './sampleCardModel';
 import {SampleCardQr,type SampleCardQrRenderer} from './SampleCardQr';
 import {SampleCardCreateDialog} from './SampleCardCreateDialog';
 import {SampleCardTable} from './SampleCardTable';
@@ -20,7 +19,6 @@ const border='rounded-lg border border-[#c3c6d7] bg-white';
 export interface SampleCardLibraryV2Props{
  shareEnabled?:boolean;
  apiFetch:typeof fetch;QrRenderer?:SampleCardQrRenderer;
- resolvePatternImages?(assetIds:string[],signal?:AbortSignal):Promise<Map<string,string>>;
  onDownload?(blob:Blob,filename:string):void;
 }
 
@@ -29,7 +27,7 @@ function download(blob:Blob,filename:string){
 }
 
 /** Standalone page. Assembly must supply the existing authenticated fetch; server still authorizes every call. */
-export function SampleCardLibraryV2({apiFetch,QrRenderer=SampleCardQr,resolvePatternImages,onDownload=download,shareEnabled=false}:SampleCardLibraryV2Props){
+export function SampleCardLibraryV2({apiFetch,QrRenderer=SampleCardQr,onDownload=download,shareEnabled=false}:SampleCardLibraryV2Props){
  const confirm=useConfirm();
  const [sharingCard,setSharingCard]=useState<SampleCard|null>(null);
  const [viewingPatterns,setViewingPatterns]=useState<SampleCard|null>(null);
@@ -37,8 +35,7 @@ export function SampleCardLibraryV2({apiFetch,QrRenderer=SampleCardQr,resolvePat
  const [needsReprint,setNeedsReprint]=useState(false),[acting,setActing]=useState(false);
  const [page,setPage]=useState<SampleCardPage>({items:[],total:0,limit:50,offset:0});
  const [selectedIds,setSelectedIds]=useState<string[]>([]),[busy,setBusy]=useState(false),[exporting,setExporting]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
- const [controller,setController]=useState<SampleCardDraftController|null>(null),[draftSnapshot,setDraftSnapshot]=useState(controller?.state);
- const [imageUrls,setImageUrls]=useState<Map<string,string>>(new Map()),request=useRef(0);
+ const request=useRef(0);
  const searchRef=useRef<HTMLInputElement|null>(null);
  const clearSearch=()=>{setQuery('');setOffset(0);searchRef.current?.focus();};
  useEffect(()=>{
@@ -50,30 +47,6 @@ export function SampleCardLibraryV2({apiFetch,QrRenderer=SampleCardQr,resolvePat
   }).catch(e=>{if(epoch===request.current&&!abort.signal.aborted){setError(e instanceof Error?e.message:'加载失败');setBusy(false);}});
   return ()=>{abort.abort();request.current++;};
  },[apiFetch,query,offset,needsReprint,refresh]);
- useEffect(()=>{
-  if(!controller){setDraftSnapshot(undefined);return;}
-  setDraftSnapshot(controller.state);return controller.subscribe(()=>setDraftSnapshot(controller.state));
- },[controller]);
- useEffect(()=>{
-  const abort=new AbortController();let active=true;setImageUrls(new Map());
-  const ids=[...new Set((draftSnapshot?.versions??[]).map(v=>v.patternImageAssetId).filter((x):x is string=>Boolean(x)))];
-  if(!ids.length)return ()=>{active=false;abort.abort();};
-  void (async()=>{
-   const urls=new Map<string,string>();
-   for(let i=0;i<ids.length;i+=100){
-    const chunk=ids.slice(i,i+100),result=await (resolvePatternImages?resolvePatternImages(chunk,abort.signal):resolveImageUrls(apiFetch,chunk,'thumbnail',abort.signal));
-    result.forEach((url,id)=>urls.set(id,url));
-   }
-   if(active)setImageUrls(urls);
-  })().catch(()=>{if(active)setImageUrls(new Map());});
-  return ()=>{active=false;abort.abort();};
- },[apiFetch,resolvePatternImages,draftSnapshot?.versions]);
- const close=()=>{controller?.dispose();setController(null);setImageUrls(new Map());};
- const create=async()=>{
-  if(!controller)return;
-  const result=await createSampleCard(apiFetch,controller.state.master,controller.state.fabric);
-  setNotice(result.created?'已生成色卡 '+result.card.cardNo:'已复用现有色卡 '+result.card.cardNo);close();setOffset(0);setQuery('');setNeedsReprint(false);setRefresh(x=>x+1);
- };
  const markPrinted=async(card:SampleCard)=>{
   if(acting||!card.needsReprint)return;
   setActing(true);setError('');
@@ -111,7 +84,6 @@ export function SampleCardLibraryV2({apiFetch,QrRenderer=SampleCardQr,resolvePat
     {selectedIds.length>0?<span role="status" className="v2-card-selection">已选 {selectedIds.length} 张</span>:null}
     <button type="button" disabled={!selectedIds.length||exporting} className="v2-card-secondary" onClick={()=>void exportSelected()}><ActionIcon name="download"/>{exporting?'导出中…':'导出 Excel'}</button>
     {selectedIds.length?<button type="button" disabled={exporting} className="v2-card-secondary" onClick={()=>setSelectedIds([])}><ActionIcon name="reset"/>清空选择</button>:null}
-    <button type="button" className="v2-card-primary" onClick={()=>{setNotice('');setController(makeSampleCardDraftController(apiFetch));}}><ActionIcon name="add"/>新增色卡</button>
    </div>
   </header>
   {error?<p role="alert" className="text-xs text-rose-700">{error}</p>:null}
@@ -122,7 +94,6 @@ export function SampleCardLibraryV2({apiFetch,QrRenderer=SampleCardQr,resolvePat
    onShare={shareEnabled?setSharingCard:undefined} onViewPatterns={setViewingPatterns} onConfirmReprinted={card=>void markPrinted(card)} onRetire={card=>void retire(card)} onPage={setOffset}/>
   {sharingCard&&<CardShareDialog key={sharingCard.id} card={sharingCard} apiFetch={apiFetch} onClose={()=>setSharingCard(null)}/>}
   {viewingPatterns&&<SampleCardPatternsDialog key={viewingPatterns.id} card={viewingPatterns} apiFetch={apiFetch} onClose={()=>setViewingPatterns(null)}/>}
-  {controller?<SampleCardCreateDialog key="create" controller={controller} imageUrls={imageUrls} QrRenderer={QrRenderer} onClose={close} onCreate={create}/>:null}
  </main>;
 }
 export {SampleCardQr,SampleCardCreateDialog,SampleCardTable};

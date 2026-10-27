@@ -18,6 +18,7 @@ class IntegratedDb{
   if(sql.includes('JOIN v2_access_users'))return [this.active&&args[0]===hashSessionToken(bearer)?[{user_id:'6',session_id:'1',username:'user',display_name:'用户',role:this.role,can_manage_products:0,can_manage_own_orders:0}]:[],[]];
   if(sql.includes('FROM v2_access_users'))return [this.active?[{id:'6',role:this.role,is_active:1,can_manage_products:0,can_manage_own_orders:0}]:[],[]];
   if(sql.includes('FROM v2_access_sessions'))return [this.active?[{id:'1'}]:[],[]];
+  if(sql.startsWith('SELECT p.id FROM v2_products p JOIN pattern_colorways c'))return [Array.from({length:this.productVersions},(_,i)=>({id:String(i+81)})),[]];
   if(sql==='SELECT id,is_active FROM pattern_masters WHERE id=? FOR SHARE')return [[{id:'41',is_active:1}],[]];
   if(sql==='SELECT id,is_active FROM v2_fabrics WHERE id=? FOR SHARE')return [[{id:'23',is_active:1}],[]];
   if(sql.startsWith('SELECT id,master_no'))return [[{id:'41',master_no:'0012',is_active:1}],[]];

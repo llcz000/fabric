@@ -5,11 +5,11 @@ import { type PatternMasterItem, type PatternVersionItem } from './patternModel'
 
 
 
-export function PatternMasterRows({items,thumbnailUrls,onPreview,onEdit,onDelete,onShare,onCreateProduct,onQuickTopicEdit,canManage=false,sort='newest',onSort}:{
+export function PatternMasterRows({items,thumbnailUrls,onPreview,onEdit,onDelete,onShare,onCreateProduct,onQuickTopicEdit,onViewProducts,canManage=false,sort='newest',onSort}:{
  items:PatternMasterItem[];thumbnailUrls:Map<string,string>;
  onPreview(version:PatternVersionItem):void;onEdit(master:PatternMasterItem):void;onDelete?(master:PatternMasterItem):void;canManage?:boolean;
  onShare?(master:PatternMasterItem):void;onCreateProduct?(version:PatternMasterItem):void;
- onQuickTopicEdit?(master:PatternMasterItem):void;
+ onQuickTopicEdit?(master:PatternMasterItem):void;onViewProducts?(master:PatternMasterItem):void;
  sort?:'newest'|'numberAsc'|'numberDesc';onSort?():void;
 }){
  return <div role="table" aria-label="花型母版列表" className={box+' overflow-x-auto'}>
@@ -17,7 +17,7 @@ export function PatternMasterRows({items,thumbnailUrls,onPreview,onEdit,onDelete
    <span role="columnheader" aria-sort={sort==='newest'?'none':sort==='numberAsc'?'ascending':'descending'} className="w-32 shrink-0">
     {onSort?<button type="button" aria-label={'按花型号排序 '+(sort==='numberAsc'?'降序':'升序')} onClick={onSort}
      className="inline-flex items-center gap-1 text-[#0053da] hover:underline">花型号 {sort==='numberAsc'?<ArrowUp size={12}/>:sort==='numberDesc'?<ArrowDown size={12}/>:<ArrowUpDown size={12}/>}</button>:'花型号'}
-   </span><span role="columnheader" className="w-32 shrink-0">题材标签</span><span role="columnheader" className="min-w-0 flex-1">配色版本</span><span role="columnheader" className="w-28 shrink-0 text-center">操作</span>
+   </span><span role="columnheader" className="w-32 shrink-0">题材标签</span><span role="columnheader" className="min-w-0 flex-1">配色版本</span><span role="columnheader" className="w-24 shrink-0 text-center">关联产品</span><span role="columnheader" className="w-28 shrink-0 text-center">操作</span>
   </div>
   {items.map(master=><div key={master.id} role="row"
    className="v2-library-row flex min-w-[640px] items-center gap-3 border-b border-[#e2e1ee] px-3 py-3 last:border-0 hover:bg-[#fcfdff]">
@@ -48,6 +48,12 @@ export function PatternMasterRows({items,thumbnailUrls,onPreview,onEdit,onDelete
       
      </div>;
     }):<span className="text-xs text-[#737686]">尚无配色版本</span>}
+   </div>
+   <div role="cell" className="w-24 shrink-0 text-center text-xs">
+    {master.productCount===undefined?<span title="尚未读取关联产品统计">—</span>:onViewProducts?
+     <button type="button" aria-label={'查看 '+master.masterNo+' 关联产品 '+master.productCount+' 个'}
+      onClick={()=>onViewProducts(master)} className="rounded px-2 py-1 text-[#0053da] hover:underline focus-visible:outline-2 focus-visible:outline-[#346ef6]">{master.productCount}</button>:
+     <span>{master.productCount}</span>}
    </div>
    <div role="cell" className="w-28 shrink-0 text-center">
     <button type="button" aria-label={'编辑花型及配色 '+master.masterNo} onClick={()=>onEdit(master)}

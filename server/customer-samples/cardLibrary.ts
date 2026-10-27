@@ -103,12 +103,23 @@ export async function createSampleCard(
   await tx.beginTransaction();began=true;
   const fresh=await currentActor(tx,actor);
   if(await authorize(fresh,'create')!==true)throw new SampleCardError('Card management forbidden',403);
+  const result=await ensureProductSampleCard(tx,masterId,fabricId);
+  await tx.commit();began=false;return result;
+ }catch(error){if(began)await tx.rollback();throw error;}finally{tx.release();}
+}
+/** Caller holds the authenticated transaction and locks masters, fabrics, then products. */
+export async function productCardMembers(tx:{query(sql:string,params?:unknown[]):Promise<[unknown,unknown]>},masterId:string,fabricId:string):Promise<Record<string,unknown>[]>{
+ const [found]=await tx.query('SELECT p.id FROM v2_products p JOIN pattern_colorways c ON c.id=p.pattern_colorway_id WHERE c.master_id=? AND p.fabric_id=? FOR UPDATE',[masterId,fabricId]);
+ return rows(found);
+}
+export async function ensureProductSampleCard(tx:{query(sql:string,params?:unknown[]):Promise<[unknown,unknown]>},masterId:string,fabricId:string):Promise<{card:SampleCard;created:boolean}>{
   const [masterRows]=await tx.query('SELECT id,master_no,is_active FROM pattern_masters WHERE id=? FOR UPDATE',[masterId]);
   const master=rows(masterRows)[0];
   if(!master||Number(master.is_active)!==1)throw new SampleCardError('Master unavailable',409);
   const [fabricRows]=await tx.query('SELECT id,fabric_no,is_active FROM v2_fabrics WHERE id=? FOR UPDATE',[fabricId]);
   const fabric=rows(fabricRows)[0];
   if(!fabric||Number(fabric.is_active)!==1)throw new SampleCardError('Fabric unavailable',409);
+  if(!(await productCardMembers(tx,masterId,fabricId)).length)throw new SampleCardError('Create a product before its sample card',409);
   const find=async()=>{const [data]=await tx.query(select+' WHERE c.master_id=? AND c.fabric_id=? AND c.deleted_at IS NULL FOR UPDATE',[masterId,fabricId]);return rows(data);};
   const prior=await find();
   let created=false;
@@ -135,8 +146,7 @@ export async function createSampleCard(
   const saved=await find();
   if(saved.length!==1)throw new SampleCardError('Card identity inconsistent',409);
   const result=card(saved[0]);
-  await tx.commit();began=false;return {card:result,created};
- }catch(error){if(began)await tx.rollback();throw error;}finally{tx.release();}
+ return {card:result,created};
 }
 /** B2-5 / AC-96: retire a printed card without deleting any historical FK rows.
  * Only this service may revoke a physical QR. Lock order: account/session,
@@ -166,11 +176,18 @@ export async function retireSampleCard(
   if(!current||current.deleted_at!=null)throw new SampleCardError('Card already retired',404);
   if(dbId(current.master_id)!==masterId||dbId(current.fabric_id)!==fabricId)
    throw new SampleCardError('Card identity changed',409);
+  const members=await productCardMembers(tx,masterId,fabricId);
+  if(members.length)throw new SampleCardError('Card has '+members.length+' products; delete associated products first',409);
+  await retireProductSampleCard(tx,fresh,identity,String(current.card_no));
+  await tx.commit();began=false;return {id:identity,retired:true};
+ }catch(error){if(began)await tx.rollback();throw error;}finally{tx.release();}
+}
+async function retireProductSampleCard(tx:{query(sql:string,params?:unknown[]):Promise<[unknown,unknown]>},actor:AppPrincipal,identity:string,cardNo:string):Promise<void>{
   const [tokenRaw]=await tx.query('SELECT token_hash,revoked_at FROM sample_card_tokens WHERE card_id=? FOR UPDATE',[identity]);
   const token=rows(tokenRaw)[0];
   if(!token||typeof token.token_hash!=='string'||token.revoked_at!=null)
    throw new SampleCardError('Card QR unavailable',409);
-  await recordDeletion(tx,fresh,{type:'card',id:identity,label:String(current.card_no)});
+  await recordDeletion(tx,actor,{type:'card',id:identity,label:cardNo});
   // Once revoked, token hash is retained by a unique index forever.
   const [revokeRaw]=await tx.query('UPDATE sample_card_tokens SET revoked_at=UTC_TIMESTAMP() WHERE card_id=? AND revoked_at IS NULL',[identity]);
   if(Number((revokeRaw as {affectedRows?:unknown}).affectedRows)!==1)
@@ -178,8 +195,11 @@ export async function retireSampleCard(
   const [retireRaw]=await tx.query('UPDATE sample_cards SET deleted_at=UTC_TIMESTAMP(),is_active=0 WHERE id=? AND deleted_at IS NULL',[identity]);
   if(Number((retireRaw as {affectedRows?:unknown}).affectedRows)!==1)
    throw new SampleCardError('Card retire conflict',409);
-  await tx.commit();began=false;return {id:identity,retired:true};
- }catch(error){if(began)await tx.rollback();throw error;}finally{tx.release();}
+}
+export async function retireEmptyProductSampleCard(tx:{query(sql:string,params?:unknown[]):Promise<[unknown,unknown]>},actor:AppPrincipal,masterId:string,fabricId:string):Promise<void>{
+ if((await productCardMembers(tx,masterId,fabricId)).length)return;
+ const [found]=await tx.query('SELECT c.id,c.card_no FROM sample_cards c WHERE c.master_id=? AND c.fabric_id=? AND c.deleted_at IS NULL FOR UPDATE',[masterId,fabricId]);
+ for(const item of rows(found))await retireProductSampleCard(tx,actor,dbId(item.id),String(item.card_no));
 }
 /** B2-5 AC-99: an operator confirms printing the exact revision visible
  * when the paper card was prepared. Later fabric changes cannot be acked by

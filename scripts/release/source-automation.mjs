@@ -7,11 +7,11 @@ import {createHash} from 'node:crypto';
 const sha=data=>createHash('sha256').update(data).digest('hex');
 const read=file=>JSON.parse(fs.readFileSync(file,'utf8'));
 const relativeSafe=name=>typeof name==='string'&&/^(?:src|server|scripts|tests|tools)\/(?:[A-Za-z0-9_./-]+)$/.test(name)&&!name.split('/').some(x=>x==='..'||x==='.'||!x);
-const toolingEntries=['package-lock.json','playwright.ui.config.ts',...['pilot','share-demo','wechat-review','wechat-route','internal-chrome','internal-cards','internal-fabrics','internal-patterns'].map(x=>'ui-ux-'+x+'.html')];
+const toolingEntries=['tsconfig.json','package-lock.json','playwright.ui.config.ts',...['pilot','share-demo','wechat-review','wechat-route','internal-chrome','internal-cards','internal-fabrics','internal-patterns'].map(x=>'ui-ux-'+x+'.html')];
 // Explicit user-reviewed entry files may change with UI workflow work, never arbitrary pinned configuration.
 const reviewedPathAllowed=name=>relativeSafe(name)||name==='AGENTS.md'||name==='package.json'||toolingEntries.includes(name);
 function atomicJson(file,value){const next=file+'.next';fs.writeFileSync(next,JSON.stringify(value,null,2)+'\n','utf8');fs.renameSync(next,file);}
-export function reviewedSourceDiff({root,head}){
+export function reviewedSourceDiff({root,head,requirementsReview}){
  const pointer=read(path.join(root,'docs/project/fabric-v2-active-workspace.json'));
  const rel=pointer.sourceManifest;
  if(typeof rel!=='string'||path.isAbsolute(rel)||rel.includes('..'))throw Error('Unsafe source manifest pointer');
@@ -21,7 +21,8 @@ export function reviewedSourceDiff({root,head}){
  if(fs.realpathSync(root)!==fs.realpathSync(manifest.workspace)||manifest.baseHead!==head)
   throw Error('Unverified workspace or git baseline drift');
  const req=path.resolve(root,manifest.requirements.path);
- if(!req.startsWith(root+path.sep)||sha(fs.readFileSync(req))!==manifest.requirements.sha256)
+ if(!req.startsWith(root+path.sep)||sha(fs.readFileSync(req))!==manifest.requirements.sha256&&
+  !(requirementsReview?.path===manifest.requirements.path&&requirementsReview.sha256===sha(fs.readFileSync(req))))
   throw Error('Requirements changed; review and update requirements separately');
  const previous=new Map();
  for(const entry of manifest.files){
@@ -67,6 +68,24 @@ export function acceptReviewedSource(ctx,reviewed){
  atomicJson(state.file,manifest);
  return state.changed;
 }
+/** Requirement approval is separate from code approval and names every exact new digest. */
+export function acceptReviewedRequirements(ctx,reviewed){
+ const pointer=read(path.join(ctx.root,'docs/project/fabric-v2-active-workspace.json'));
+ if(typeof pointer.sourceManifest!=='string'||!pointer.sourceManifest.startsWith('artifacts/')||pointer.sourceManifest.includes('..'))throw Error('Unsafe source manifest');
+ const manifest=read(path.join(ctx.root,pointer.sourceManifest));
+ const allowed=[manifest.requirements.path,'docs/product-master/product-master-v2-requirements.md'];
+ if(!Array.isArray(reviewed)||!reviewed.length||new Set(reviewed.map(r=>r.path)).size!==reviewed.length||
+  reviewed.some(r=>!allowed.includes(r.path)||!r.path.startsWith('docs/')||r.path.includes('..')||!(/^[a-f0-9]{64}$/).test(r.sha256)))throw Error('Exact requirement paths and hashes required');
+ for(const r of reviewed)if(sha(fs.readFileSync(path.join(ctx.root,r.path)))!==r.sha256)throw Error('Reviewed requirement hash mismatch');
+ const state=reviewedSourceDiff({...ctx,requirementsReview:reviewed.find(r=>r.path===manifest.requirements.path)});
+ const changed=[...new Set([...state.changed.filter(p=>allowed.includes(p)),
+  ...(sha(fs.readFileSync(path.join(ctx.root,manifest.requirements.path)))!==manifest.requirements.sha256?[manifest.requirements.path]:[])])].sort();
+ if(JSON.stringify(changed)!==JSON.stringify(reviewed.map(r=>r.path).sort()))throw Error('Unreviewed requirement changes');
+ const accepted=new Map(reviewed.map(r=>[r.path,r.sha256]));
+ const next={...state.manifest,requirements:{...state.manifest.requirements,sha256:accepted.get(manifest.requirements.path)??manifest.requirements.sha256},
+  files:state.manifest.files.map(f=>accepted.has(f.path)?{...f,sha256:accepted.get(f.path)}:f)};
+ atomicJson(state.file,next);return changed;
+}
 /** Only an explicitly selected, narrow Fabric table UI change may use focused browser QA. */
 export function targetedFabricUiAllowed(changed){
  const ok=new Set(['src/components/product-master-v2/FabricLibraryV2.tsx','src/components/product-master-v2/FabricLibraryV2.test.ts']);
@@ -94,6 +113,11 @@ async function main(){
  const ctx={root,head};
  if(command==='inspect'){const state=reviewedSourceDiff(ctx);console.log(JSON.stringify({changed:state.changed,files:state.actual.size,mutation:false}));return;}
  if(command==='accept'){const changed=acceptReviewedSource(ctx,args);console.log(JSON.stringify({accepted:changed,files:reviewedSourceDiff(ctx).actual.size}));return;}
+ if(command==='accept-requirements'){
+  if(!args.length||args.length%2)throw Error('Use accept-requirements <exact-path> <reviewed-sha256> ...');
+  const reviewed=[];for(let i=0;i<args.length;i+=2)reviewed.push({path:args[i],sha256:args[i+1]});
+  console.log(JSON.stringify({acceptedRequirements:acceptReviewedRequirements(ctx,reviewed),codeAccepted:false}));return;
+ }
  if(command==='sync-pointer'){
   if(args.length!==1||!/^[a-z0-9][a-z0-9_-]{0,63}$/.test(args[0]))throw Error('Invalid release ID');
   const id=args[0],dir=path.join(root,'artifacts/releases',id),run=read(path.join(dir,'run.json')),receipt=read(path.join(dir,'release-result.json'));

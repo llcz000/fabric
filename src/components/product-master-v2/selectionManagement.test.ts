@@ -11,6 +11,6 @@ test('member profile modal edits login and display name without resetting passwo
 test('selection row offers view/edit/delete and view opens no write controls',()=>{
  const html=renderToStaticMarkup(React.createElement(SampleSessionActions,{busy:false,onView(){},onEdit(){},onDelete(){}}));
  for(const action of ['查看','编辑','删除'])assert(html.includes('aria-label="'+action+'"')&&html.includes('title="'));
- const view=renderToStaticMarkup(React.createElement(Session,{session:{id:'7',customerReference:'客户',status:'open'},apiFetch:fetch,onBack(){},onStatusChanged(){},readOnly:true}));
+ const view=renderToStaticMarkup(React.createElement(Session,{session:{id:'7',customerReference:'客户'},apiFetch:fetch,onBack(){},onStatusChanged(){},readOnly:true}));
  assert(!view.includes('结束选样单'));assert(!view.includes('扫码加入'));assert(!view.includes('修改客户'));
 });

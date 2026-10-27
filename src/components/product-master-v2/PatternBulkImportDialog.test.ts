@@ -26,44 +26,44 @@ async function withDialog(run:(ui:{renderer:ReactTestRenderer;registry:LeaveRegi
  }finally{if(mounted)await act(async()=>renderer.unmount());if(priorDocument)Object.defineProperty(globalThis,'document',priorDocument);else Reflect.deleteProperty(globalThis,'document');if(prior)Object.defineProperty(globalThis,'IS_REACT_ACT_ENVIRONMENT',prior);else Reflect.deleteProperty(globalThis,'IS_REACT_ACT_ENVIRONMENT');}
 }
 
-test('failed lower number pauses that master, continues another master and lets the failed batch be reselected',async()=>{
+test('failed explicit number does not block other numbers; retry requires reselecting files',async()=>{
  const uploaded:string[]=[],saved:string[]=[];let fail=true;
  await withDialog(async ui=>{
   await ui.select(['G0008-2.jpg','H0001-1.jpg','G0008-1.jpg']);
   await act(async()=>{await ui.start();});
-  assert.deepEqual(uploaded,['G0008-1.jpg','H0001-1.jpg']);
-  assert.deepEqual(saved,['H0001-1']);assert.equal(ui.imported(),1);
-  assert.match(JSON.stringify(ui.renderer.toJSON()),/暂停/);
+  assert.deepEqual(uploaded,['G0008-1.jpg','G0008-2.jpg','H0001-1.jpg']);
+  assert.deepEqual(saved,['G0008-2','H0001-1']);assert.equal(ui.imported(),2);
+  assert.match(JSON.stringify(ui.renderer.toJSON()),/upload interrupted/);
   fail=false;await ui.select(['G0008-2.jpg','G0008-1.jpg']);
   await act(async()=>{await ui.start();});
-  assert.deepEqual(saved,['H0001-1','G0008-1','G0008-2']);assert.equal(ui.imported(),3);
+  assert.deepEqual(saved,['G0008-2','H0001-1','G0008-1','G0008-2']);assert.equal(ui.imported(),4);
  },{upload:async f=>{uploaded.push(f.name);if(fail&&f.name==='G0008-1.jpg')throw Error('upload interrupted');return imageId;},api:async(_url,init)=>{const body=JSON.parse(String(init?.body));saved.push(body.masterNo+'-'+body.colorwayNo);return Response.json({},{status:201});}});
 });
 
-test('uncertain POST is never retried or followed by a higher number of the same master',async()=>{
+test('uncertain POST is never retried and each other explicit number is attempted once',async()=>{
  const writes:string[]=[];
  await withDialog(async ui=>{
   await ui.select(['G0008-1.jpg','G0008-2.jpg','H0001-1.jpg']);
   await act(async()=>{await ui.start();});
-  assert.deepEqual(writes,['G0008-1','H0001-1']);assert.equal(ui.imported(),1);
+  assert.deepEqual(writes,['G0008-1','G0008-2','H0001-1']);assert.equal(ui.imported(),1);
  },{api:async(_url,init)=>{const body=JSON.parse(String(init?.body));writes.push(body.masterNo+'-'+body.colorwayNo);if(body.masterNo==='G0008')throw Error('response lost after possible commit');return Response.json({},{status:201});}});
 });
 
-test('a lower filename rejected before upload also pauses its higher numbers, leaving other masters importable',async()=>{
+test('invalid file never uploads or posts while other explicit numbers remain importable',async()=>{
  const uploaded:string[]=[],writes:string[]=[];
  await withDialog(async ui=>{
   await act(async()=>ui.renderer.root.findAllByType('input')[0].props.onChange({target:{files:[{...file('G0008-1.jpg'),size:0},file('G0008-2.jpg'),file('H0001-1.jpg')],value:'selected'}}));
   await act(async()=>{await ui.start();});
-  assert.deepEqual(uploaded,['H0001-1.jpg']);assert.deepEqual(writes,['H0001-1']);assert.equal(ui.imported(),1);
-  assert.match(JSON.stringify(ui.renderer.toJSON()),/暂停/);
+  assert.deepEqual(uploaded,['G0008-2.jpg','H0001-1.jpg']);assert.deepEqual(writes,['G0008-2','H0001-1']);assert.equal(ui.imported(),2);
+  assert.match(JSON.stringify(ui.renderer.toJSON()),/非空文件/);
  },{upload:async f=>{uploaded.push(f.name);return imageId;},api:async(_url,init)=>{const body=JSON.parse(String(init?.body));writes.push(body.masterNo+'-'+body.colorwayNo);return Response.json({},{status:201});}});
 });
 
-test('all duplicate images are rejected and higher numbers of their master pause',async()=>{
+test('all conflicting images are excluded while other explicit numbers import once',async()=>{
  const writes:string[]=[];
  await withDialog(async ui=>{
   await ui.select(['G0008-1.jpg','G0008-1.jpg','G0008-2.jpg','H0001-1.jpg']);await act(async()=>{await ui.start();});
-  assert.deepEqual(writes,['H0001-1']);assert.equal(ui.imported(),1);
+  assert.deepEqual(writes,['G0008-2','H0001-1']);assert.equal(ui.imported(),2);assert.match(JSON.stringify(ui.renderer.toJSON()),/冲突文件全部排除/);
  },{api:async(_url,init)=>{const body=JSON.parse(String(init?.body));writes.push(body.masterNo+'-'+body.colorwayNo);return Response.json({},{status:201});}});
 });
 

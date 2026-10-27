@@ -118,8 +118,12 @@ test('B2-3 five business columns and QR operation use current row, page-all is e
 });
 test('B2-3 independent management page omits cancelled label/import/configuration flows',()=>{
  const html=renderToStaticMarkup(React.createElement(SampleCardLibraryV2,{apiFetch:fetch}));
- assert.match(html,/实体色卡/);assert.match(html,/新增色卡/);assert.match(html,/导出 Excel/);
+ assert.match(html,/实体色卡/);assert.doesNotMatch(html,/新增色卡/);assert.match(html,/导出 Excel/);
  for(const s of ['下载标签','标签预览','PNG','SVG标签','导入色卡','标签尺寸'])assert(!html.includes(s));
+});
+test('product-linked card deletion shows the server-verified product count',async()=>{
+ const api=(async()=>Response.json({error:'Card has products',productCount:3},{status:409})) as typeof fetch;
+ await assert.rejects(retireSampleCard(api,'1'),/关联 3 个产品/);
 });
 test('B2-3 actual rendered QR SVG decodes exactly to real XLSX QRcode text for three distinct cards',async()=>{
  const cards=[card,{...card,id:'8',masterNo:'0005',fabricNo:'F009',cardNo:'0005-F009',qrPayload:'CaseSensitive_0000000000000-different_payload'}, {...card,id:'9',fabricNo:'00022',cardNo:'0012-00022',composition:null,weightValue:null,weightUnit:null,widthValue:null,qrPayload:'012345678901234567890123456789'}];

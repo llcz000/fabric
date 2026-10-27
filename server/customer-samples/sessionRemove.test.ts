@@ -113,10 +113,10 @@ test('B3 missing grant hides session status and item; missing/cross-session item
  }
  const db=new RemovalDb();await assert.rejects(removeSampleSessionItem(db,actor,'11','82'),status(404));
 });
-test('B3 closed session rejects removal without changing item or audit',async()=>{
- const db=new RemovalDb();db.session!.status='closed';const before=JSON.stringify(db.item);
- await assert.rejects(removeSampleSessionItem(db,actor,'11','81'),status(409));
- assert.equal(JSON.stringify(db.item),before);assert.equal(db.events.length,0);assert.equal(db.rollbacks,1);
+test('legacy closed session permits removal while preserving the item audit and source identity',async()=>{
+ const db=new RemovalDb();db.session!.status='closed';
+ const result=await removeSampleSessionItem(db,actor,'11','81');
+ assert.deepEqual(result,{sessionId:'11',itemId:'81',productId:'8',removed:true});assert.equal(db.events.length,1);assert.equal(db.rollbacks,0);
 });
 test('B3 missing item returns 404 in an authorized closed session too',async()=>{
  const db=new RemovalDb();db.session!.status='closed';db.item=null;

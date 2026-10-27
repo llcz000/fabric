@@ -20,7 +20,7 @@ export interface ProductImageCounts{
 export interface CatalogProduct{
  id:string;productNo:string;patternColorwayId:string;fabricId:string;
  masterId:string;masterNo:string;colorwayNo:number;
- fabricNo:string;fabricName:string;composition:string|null;
+ fabricNo:string;fabricName:string;composition:string|null;fabricRemark:string|null;
  weightValue:number|null;weightUnit:'gsm'|'mm'|null;widthCm:number|null;
  remark:string;isActive:boolean;isAvailableForSampling:boolean;masterActive:boolean;colorwayActive:boolean;
  fabricActive:boolean;isSelectable:boolean;rowVersion:string;
@@ -148,7 +148,7 @@ const JOINS=' FROM v2_products p JOIN pattern_colorways c ON c.id=p.pattern_colo
  ' LEFT JOIN sample_cards sc ON sc.master_id=m.id AND sc.fabric_id=p.fabric_id AND sc.deleted_at IS NULL';
 const FIELDS='p.id,p.pattern_colorway_id,p.fabric_id,p.product_no,p.remark,p.is_active,p.is_available_for_sampling,p.row_version,'+
  'c.master_id,c.colorway_no,c.pattern_image_asset_id,m.master_no,'+
- 'f.fabric_no,f.fabric_name,f.composition,f.weight_value,f.weight_unit,f.width_value,'+
+ 'f.fabric_no,f.fabric_name,f.composition,f.weight_value,f.weight_unit,f.width_value,f.remark AS fabric_remark,'+
  'm.is_active AS master_active,c.is_active AS colorway_active,f.is_active AS fabric_active,'+
  'sc.id AS sample_card_id,sc.card_no AS sample_card_no,sc.is_active AS sample_card_active,'+
  'sc.reprint_revision AS sample_card_reprint_revision,sc.printed_revision AS sample_card_printed_revision';
@@ -238,6 +238,7 @@ export async function searchProductCatalog(db:Query,filter:ProductSearchFilters)
    fabricId:positiveId(row.fabric_id),masterId:positiveId(row.master_id),masterNo:String(row.master_no),
    colorwayNo,fabricNo:String(row.fabric_no),fabricName:String(row.fabric_name),
    composition:row.composition==null?null:String(row.composition),
+   fabricRemark:row.fabric_remark==null?null:String(row.fabric_remark),
    weightValue:row.weight_value==null?null:Number(row.weight_value),
    weightUnit,widthCm:row.width_value==null?null:Number(row.width_value),
    remark:row.remark==null?'':String(row.remark),isActive,isAvailableForSampling,masterActive,colorwayActive,fabricActive,

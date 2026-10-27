@@ -16,7 +16,7 @@ export interface PatternVersionItem{
  patternImageAssetId:string|null;remark:string;isActive:boolean;colorTags:CatalogTag[];
 }
 export interface PatternMasterItem{
- id:string;masterNo:string;isActive:boolean;nextColorwayNo:number;
+ id:string;masterNo:string;isActive:boolean;nextColorwayNo:number;productCount?:number;
  topicTags:CatalogTag[];colorTags?:CatalogTag[];versions:PatternVersionItem[];
 }
 export interface PatternPage{items:PatternMasterItem[];total:number;totalColorways?:number;limit:number;offset:number}
@@ -75,6 +75,7 @@ export function parsePatternPage(input:unknown):PatternPage{
   page.items.length>Number(page.limit))throw Error('无效的花型分页资料');
  for(const item of page.items){
   const m=obj(item);
+  if(m.productCount!==undefined&&(!Number.isSafeInteger(m.productCount)||Number(m.productCount)<0))throw Error('无效的关联产品统计');
   if(!goodId(m.id)||typeof m.masterNo!=='string'||!/^[A-Z0-9]{1,64}$/.test(m.masterNo)||
    typeof m.isActive!=='boolean'||!Number.isSafeInteger(m.nextColorwayNo)||
    Number(m.nextColorwayNo)<1||!tags(m.topicTags)||(m.colorTags!==undefined&&!tags(m.colorTags))||!Array.isArray(m.versions))
