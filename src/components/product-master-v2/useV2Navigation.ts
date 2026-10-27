@@ -55,7 +55,7 @@ export function useV2Navigation(actor:V2AppPrincipal|null,identityResetVersion:n
  },[Boolean(actor),applyRoute,confirm]);
  const navigate=(next:V2View,params:Record<string,string>={})=>{
   const hash=v2Route(next,params);if(window.location.hash===hash)return;
-  window.history.pushState({...window.history.state,[V2_ROUTE_INDEX]:++routeIndex.current},'',hash);applyRoute(hash);setNotice('');
+  window.history.pushState({...window.history.state,[V2_ROUTE_INDEX]:++routeIndex.current},'',hash);applyRoute(hash);setNotice('');window.dispatchEvent(new Event('fabric-route'));
  };
  const requestLeave=(action:()=>void)=>{
   const state=readLeaveState(protectedEditors);

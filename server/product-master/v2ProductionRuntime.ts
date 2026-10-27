@@ -69,7 +69,7 @@ export async function startV2ProductionServer(){
   const extras=Router(),authenticate=requireV2Principal(db);
   const sharing=await createPatternShareRuntime(db,db,target,assets.service,process.env);
  routes.get('/pattern-sharing',authenticate,(_req,res)=>{res.set('Cache-Control','no-store').json({enabled:Boolean(sharing),productsEnabled:sharing?.productsEnabled===true,cardsEnabled:sharing?.cardsEnabled===true});});
- if(sharing){routes.use(sharing.privateRouter);extras.use('/api/public/patterns',sharing.publicRouter);if(sharing.productPublicRouter)extras.use('/api/public/products',sharing.productPublicRouter);if(sharing.cardPublicRouter)extras.use('/api/public/cards',sharing.cardPublicRouter);}
+ if(sharing){routes.use(sharing.privateRouter);extras.use('/api/public/patterns',sharing.publicRouter);if(sharing.productPublicRouter)extras.use('/api/public/products',sharing.productPublicRouter);if(sharing.cardPublicRouter)extras.use('/api/public/cards',sharing.cardPublicRouter);if(sharing.cardScanPublicRouter)extras.use('/api/public/card-scans',sharing.cardScanPublicRouter);}
   extras.use('/api/image-assets',authenticate,createImageAssetRouter(assets,(_req,res)=>'v2:'+(res.locals.principal as AppPrincipal).userId));
   const loadCompany=async()=>{
    const [data]=await db.query('SELECT * FROM company_config WHERE id=1 LIMIT 1');

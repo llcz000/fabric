@@ -64,3 +64,22 @@ test('UI candidate pointer must match verified production baseline and stay insi
   assert.throws(()=>reviewContext({pointer:{currentRelease:{id:'A'},sourceManifest:'../outside.json'},baseline:{releaseId:'A'},workspace}),/unsafe/);
  }finally{fs.rmSync(workspace,{recursive:true,force:true});}
 });
+
+test('frozen screenshot evidence survives reruns but rejects changed or corrupted snapshots',async()=>{
+ const {freezeScreenshots}=await import('./ui-quality-gate.mjs');
+ const workspace=fs.mkdtempSync(path.join(os.tmpdir(),'fabric-frozen-shots-'));
+ try{
+  fs.mkdirSync(path.join(workspace,'artifacts'));const file='artifacts/desktop.png';
+  fs.writeFileSync(path.join(workspace,file),'reviewed image');
+  const records=[{path:file,sha256:sha('reviewed image')}],identity=sha('candidate');
+  const frozen=freezeScreenshots(workspace,identity,records);
+  fs.writeFileSync(path.join(workspace,file),'later browser rerun');
+  assert.equal(fs.readFileSync(path.join(workspace,frozen[0].path),'utf8'),'reviewed image');
+  assert.throws(()=>freezeScreenshots(workspace,identity,records),/changed/);
+  fs.writeFileSync(path.join(workspace,file),'reviewed image');
+  assert.deepEqual(freezeScreenshots(workspace,identity,records),frozen);
+  fs.appendFileSync(path.join(workspace,frozen[0].path),'corrupt');
+  assert.throws(()=>freezeScreenshots(workspace,identity,records),/snapshot/);
+  assert.throws(()=>freezeScreenshots(workspace,'../escape',records),/identity/);
+ }finally{fs.rmSync(workspace,{recursive:true,force:true});}
+});

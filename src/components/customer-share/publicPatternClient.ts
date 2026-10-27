@@ -45,7 +45,7 @@ export function parseCardShareLink(raw:unknown,expectedOrigin?:string){
  if(url.protocol!=='https:'||url.href!==raw||url.username||url.password||url.search||url.hash||!/^\/c\/[A-Za-z0-9_-]{43}$/.test(url.pathname)||expectedOrigin!==undefined&&url.origin!==expectedOrigin)throw bad();
  return {url:raw,path:url.pathname};
 }
-export function publicCardImagePath(token:string,previewRef:string){
- if(!/^[A-Za-z0-9_-]{43}$/.test(token)||!ref(previewRef))throw bad();
- return '/api/public/cards/'+token+'/images/'+previewRef.slice(8);
+export function publicCardImagePath(token:string,previewRef:string,scanOnly=false){
+ if(!(scanOnly?/^[A-Za-z0-9_-]{22,128}$/:/^[A-Za-z0-9_-]{43}$/).test(token)||!ref(previewRef))throw bad();
+ return '/api/public/'+(scanOnly?'card-scans':'cards')+'/'+token+'/images/'+previewRef.slice(8);
 }

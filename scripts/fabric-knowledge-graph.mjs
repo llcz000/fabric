@@ -1,9 +1,10 @@
 // Fabric knowledge topology: metadata and links, never a second copy of business requirements.
-// CLI: audit | map [--json|--mermaid] | impact ID_OR_PATH [--json] | changed [--json]
+// CLI: audit | map [--json|--mermaid] | impact ID_OR_PATH [--json] | changed [--base REF|--from-manifest artifacts/FILE.json] [--json]
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import {createHash} from 'node:crypto';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const REGISTRY_PATH = 'scripts/fabric-knowledge-registry.json';
@@ -14,6 +15,7 @@ const unix = (p) => p.replace(/\\/g, '/');
 const isTest = (p) => /\.(?:test|spec)\.[cm]?[jt]sx?$/.test(p);
 const idSort = (a, b) => a.localeCompare(b, 'en', { numeric: true });
 const uniq = (xs) => [...new Set(xs)].sort(idSort);
+const sourceBinding = (p) => /^(server|src|scripts|tests|tools)\//.test(p) && !p.includes('\\') && !p.split('/').some(x=>!x||x==='.'||x==='..');
 const entryRe = /(^|[^A-Z0-9])([A-Z][A-Z0-9]*-\d{2,3})(?![A-Z0-9])/g;
 function walk(dir, root) {
   if (!fs.existsSync(dir)) return [];
@@ -53,6 +55,27 @@ function getChanged(root, base) {
     if (r.status === 0) r.stdout.split('\0').filter(Boolean).forEach(f => result.add(unix(f)));
   }
   return [...result].sort(idSort);
+}
+function manifestChanges(graph, relative) {
+  const {root}=graph;
+  const safe=p=>typeof p==='string'&&!path.isAbsolute(p)&&!p.includes('\\')&&!p.split('/').some(x=>!x||x==='.'||x==='..');
+  if(!safe(relative)||!relative.startsWith('artifacts/'))throw Error('Unsafe manifest path');
+  const manifest=JSON.parse(safeRead(root,relative));
+  if(fs.realpathSync(manifest.workspace)!==fs.realpathSync(root)||!Array.isArray(manifest.files)||manifest.requirements?.path!==graph.registry.canonicalRequirementFile)throw Error('Unsafe manifest identity');
+  const expected=new Map();
+  for(const entry of manifest.files){
+    if(!safe(entry.path)||entry.path.startsWith('.')||expected.has(entry.path)||!/^[a-f0-9]{64}$/.test(entry.sha256))throw Error('Unsafe manifest entry');
+    expected.set(entry.path,entry.sha256);
+  }
+  if(!/^[a-f0-9]{64}$/.test(manifest.requirements.sha256))throw Error('Unsafe manifest requirement digest');
+  expected.set(manifest.requirements.path,manifest.requirements.sha256);
+  const actual=uniq([...expected.keys(),...['src','server','scripts','tests','tools'].flatMap(dir=>walk(path.join(root,dir),root))]).filter(p=>p!=='scripts/generate_mockup.py');
+  return actual.filter(file=>{
+    const target=path.join(root,file);
+    if(!fs.existsSync(target))return true;
+    if(fs.lstatSync(target).isSymbolicLink())throw Error('Unsafe manifest source link');
+    return createHash('sha256').update(fs.readFileSync(target)).digest('hex')!==expected.get(file);
+  });
 }
 function changedRequirements(root, authority, canonicalIds, base) {
   const matched = new Set();
@@ -152,15 +175,28 @@ export function buildKnowledge(root = ROOT, override = undefined) {
     }
     for (const doc of domain.docs || []) if (!listed.has(doc)) fail('Domain refers to undocumented resource: ' + domain.id + ':' + doc);
     const sourcePaths = [];
-    for (const entry of domain.source || []) {
-      if (!/^(server|src|scripts)\//.test(entry) || entry.includes('..')) { fail('Unsafe source binding: ' + entry); continue; }
+    for (const entry of [...(domain.source || []),...(domain.exclusiveSource || [])]) {
+      if (!sourceBinding(entry)) { fail('Unsafe source binding: ' + entry); continue; }
       const absolute = path.join(root, entry);
       if (!fs.existsSync(absolute)) { fail('Missing source binding: ' + domain.id + ':' + entry); continue; }
-      sourcePaths.push(...walk(absolute, root).filter(x => /\.[cm]?[jt]sx?$/.test(x)));
+      sourcePaths.push(...walk(absolute, root).filter(x => /\.[cm]?[jt]sx?$|\.html$/.test(x)));
     }
     domainSources.set(domain.id, uniq(sourcePaths));
     if (!domain.planned && !sourcePaths.length) fail('Active domain has no code binding: ' + domain.id);
     if (!domain.planned && !sourcePaths.some(isTest)) warnings.push('No automatically discoverable unit test in ' + domain.id + ' (trace candidate only)');
+  }
+  const exclusiveOwners=new Map();
+  for(const domain of domainDefs)for(const file of domainSources.get(domain.id)||[]){
+    if(!(domain.exclusiveSource||[]).some(spec=>isInScope(spec,file)))continue;
+    if(exclusiveOwners.has(file)&&exclusiveOwners.get(file)!==domain.id)fail('Conflicting exclusive source: '+file);
+    exclusiveOwners.set(file,domain.id);
+  }
+  for(const domain of domainDefs)domainSources.set(domain.id,(domainSources.get(domain.id)||[]).filter(file=>!exclusiveOwners.has(file)||exclusiveOwners.get(file)===domain.id||(domain.source||[]).includes(file)));
+  const testAcceptance=new Map();
+  for(const file of uniq([...domainSources.values()].flat()).filter(isTest)){
+    const ids=uniq([...safeRead(root,file).matchAll(/^\s*\/\/\s*(AC-\d{2,3}(?:\s*,\s*AC-\d{2,3})*)\s*$/gm)].flatMap(m=>m[1].split(',').map(x=>x.trim())));
+    for(const id of ids)if(!acLinks.has(id))fail('Unknown acceptance annotation: '+file+':'+id);
+    if(ids.length)testAcceptance.set(file,ids);
   }
   for (const id of reqIds) if (!perRequirement.has(id)) fail('Canonical requirement has no domain: ' + id);
   for (const file of actual) {
@@ -208,6 +244,7 @@ export function buildKnowledge(root = ROOT, override = undefined) {
       edge('domain:'+domain.id,kind+':'+file,kind==='test'?'test-candidate':'implementation-candidate','domain-inferred');
     }
   }
+  for(const [file,ids]of testAcceptance)for(const id of ids)edge('ac:'+id,'test:'+file,'has-test-scenario','explicit');
   for (const file of actual) {
     const contents = safeRead(root,file);
     for (const target of linksFrom(contents,file,root)) {
@@ -230,13 +267,17 @@ export function buildKnowledge(root = ROOT, override = undefined) {
   const covered=new Set([...acLinks.values()].flat());
   const uncovered=reqIds.filter(id=>!covered.has(id));
   if (uncovered.length) fail('Canonical requirement lacks direct AC: '+uncovered.join(', '));
-  return { root, registry:reg, canonical, acceptance, acLinks, uncovered, documents:docDefs, reqIds, domainSources, perRequirement, nodes:[...nodes.values()], edges, errors, warnings };
+  return { root, registry:reg, canonical, acceptance, acLinks, testAcceptance, uncovered, documents:docDefs, reqIds, domainSources, perRequirement, nodes:[...nodes.values()], edges, errors, warnings };
 }
-function affected(graph, reqIds, paths) {
+function affected(graph, reqIds, paths, exactAcceptanceIds=[]) {
   const domains = new Set();
-  reqIds.forEach(id => (graph.perRequirement.get(id)||[]).forEach(d=>domains.add(d)));
+  if(!paths.length)reqIds.forEach(id => (graph.perRequirement.get(id)||[]).forEach(d=>domains.add(d)));
   for (const file of paths) for (const domain of graph.registry.domains) {
-    if (domain.source.some(spec=>isInScope(spec,file)) || domain.docs.includes(file)) domains.add(domain.id);
+    if ((graph.domainSources.get(domain.id)||[]).includes(file) || domain.docs.includes(file)) domains.add(domain.id);
+  }
+  if(paths.length&&!reqIds.length){
+    const annotated=uniq(paths.flatMap(file=>graph.testAcceptance.get(file)||[]));
+    reqIds=annotated.length?uniq(annotated.flatMap(ac=>graph.acLinks.get(ac)||[])):graph.reqIds.filter(id=>graph.registry.domains.some(d=>domains.has(d.id)&&d.req.some(rule=>assigned(rule,id))));
   }
   const docPaths = new Set(paths.filter(p=>p.startsWith('docs/') && fs.existsSync(path.join(graph.root,p))));
   const codePaths = new Set(), testPaths = new Set();
@@ -249,35 +290,38 @@ function affected(graph, reqIds, paths) {
     if (edge.relation==='links-to' && paths.includes(edge.to.replace(/^(doc|file):/,''))) docPaths.add(edge.from.slice(4));
   }
   const acceptanceIds=uniq([...graph.acLinks.entries()].filter(([ac,ids])=>ids.some(id=>reqIds.includes(id))).map(([ac])=>ac));
-  return { requirementIds:uniq(reqIds), acceptanceIds, domainIds:uniq([...domains]), documents:uniq([...docPaths]), sources:uniq([...codePaths]), tests:uniq([...testPaths]), note:'AC links are explicit; source/test associations are domain-level impact candidates, not verified code coverage.' };
+  const requested=exactAcceptanceIds.length?exactAcceptanceIds:acceptanceIds;
+  const directTests=uniq([...graph.testAcceptance].filter(([file,ids])=>ids.some(id=>requested.includes(id))).map(([file])=>file));
+  return { requirementIds:uniq(reqIds), acceptanceIds, directTests, domainIds:uniq([...domains]), documents:uniq([...docPaths]), sources:uniq([...codePaths]), tests:uniq([...testPaths]), note:'AC links and annotated test scenarios are explicit; domain-level associations remain candidates, not verified execution or code coverage.' };
 }
 export function impact(graph, selector) {
   if (graph.canonical.has(selector)) return affected(graph,[selector],[]);
-  if (graph.acLinks.has(selector)) return affected(graph,graph.acLinks.get(selector),[]);
+  if (graph.acLinks.has(selector)) return affected(graph,graph.acLinks.get(selector),[],[selector]);
   const file=unix(selector).replace(/^\.\//,'');
   if (file===graph.registry.canonicalRequirementFile) return affected(graph,graph.reqIds,[file]);
   if (file===graph.registry.acceptanceFile) return affected(graph,uniq([...graph.acLinks.values()].flat()),[file]);
-  if (!file.startsWith('docs/') && !file.startsWith('src/') && !file.startsWith('server/') && !file.startsWith('scripts/')) {
+  if ((!file.startsWith('docs/') && !sourceBinding(file))||file.split('/').some(x=>!x||x==='.'||x==='..')) {
     throw Error('Expected canonical requirement ID or project-relative file path: '+selector);
   }
   if (!fs.existsSync(path.join(graph.root,file))) throw Error('Not found: '+file);
   return affected(graph,[],[file]);
 }
-export function changedImpact(graph, base) {
-  const paths=getChanged(graph.root,base);
+export function changedImpact(graph, base, manifest) {
+  if(base&&manifest)throw Error('Use one comparison baseline');
+  const paths=manifest?manifestChanges(graph,manifest):getChanged(graph.root,base);
   let ids=[],broad=false;
   if (paths.includes(graph.registry.canonicalRequirementFile)) {
-    const result=changedRequirements(graph.root,graph.registry.canonicalRequirementFile,graph.canonical,base);
+    const result=manifest?{ids:graph.reqIds,broad:true}:changedRequirements(graph.root,graph.registry.canonicalRequirementFile,graph.canonical,base);
     ids=result.ids; broad=result.broad;
   }
   if (paths.includes(graph.registry.acceptanceFile)) {
-    const result=changedAcceptanceIds(graph.root,graph.registry.acceptanceFile,graph.acLinks,base);
+    const result=manifest?{ids:graph.reqIds,broad:true}:changedAcceptanceIds(graph.root,graph.registry.acceptanceFile,graph.acLinks,base);
     ids=uniq([...ids,...result.ids]);
     broad=broad||result.broad;
   }
   // If a file under a domain is modified, review its domain. No implicit "all code is up to date" claim.
   const report=affected(graph, ids, paths);
-  return { ...report, changedPaths:paths, broadRequirementChange:broad };
+  return { ...report, changedPaths:paths, broadRequirementChange:broad,...(manifest?{comparisonManifest:manifest}:{}),unmappedPaths:paths.filter(file=>!report.documents.includes(file)&&!report.sources.includes(file)&&!report.tests.includes(file)) };
 }
 const cut = (arr, size=20) => arr.slice(0,size).join(', ') + (arr.length>size?' … (+'+(arr.length-size)+')':'');
 function printImpact(report, asJson=false) {
@@ -288,7 +332,10 @@ function printImpact(report, asJson=false) {
   console.log('文档:',cut(report.documents,14));
   console.log('代码候选:',report.sources.length, cut(report.sources,12));
   console.log('测试候选:',report.tests.length, cut(report.tests,12));
+  console.log('直接标注AC的测试场景:',report.directTests.length,cut(report.directTests,12));
   if (report.changedPaths) console.log('变更文件:',cut(report.changedPaths,14));
+  if(report.comparisonManifest)console.log('源码/测试比较基准:',report.comparisonManifest,'（不替代文档审查）');
+  if(report.unmappedPaths?.length)console.log('待人工判定的未映射路径:',cut(report.unmappedPaths,14));
   if (report.broadRequirementChange) console.log('注意：存在无法精确归入需求编号的变更，采用全部需求作为保守影响范围');
   console.log(report.note);
 }
@@ -336,9 +383,11 @@ function main() {
     const index=argv.indexOf('--base');
     const base=index>=0 ? argv[index+1] : undefined;
     if (index>=0 && (!base || base.startsWith('--'))) throw Error('Missing --base Git ref');
-    return printImpact(changedImpact(graph,base),argv.includes('--json'));
+    const mi=argv.indexOf('--from-manifest'),manifest=mi>=0?argv[mi+1]:undefined;
+    if(mi>=0&&(!manifest||manifest.startsWith('--')))throw Error('Missing --from-manifest path');
+    return printImpact(changedImpact(graph,base,manifest),argv.includes('--json'));
   }
-  throw Error('Usage: audit | map [--json|--mermaid] | impact ID_OR_PATH [--json] | changed [--json]');
+  throw Error('Usage: audit | map [--json|--mermaid] | impact ID_OR_PATH [--json] | changed [--base REF|--from-manifest artifacts/FILE.json] [--json]');
 }
 if (process.argv[1] && path.resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
   try { main(); } catch(e) { console.error('FAIL',e.message);process.exitCode=1; }

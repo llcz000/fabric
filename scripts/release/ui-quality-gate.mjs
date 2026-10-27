@@ -48,6 +48,21 @@ function screenshotFile(file){
  assert(magic==='89504e470d0a1a0a','screenshot is not a PNG');
  return {path:path.relative(root,resolved).replaceAll('\\','/'),sha256:digest(resolved)};
 }
+export function freezeScreenshots(workspace,identity,records){
+ assert(/^[a-f0-9]{64}$/.test(identity),'invalid screenshot identity');
+ const folder='artifacts/ui-quality-gate/snapshots/'+identity;
+ return records.map((record,index)=>{
+  const source=path.resolve(workspace,record.path);
+  assert(inside(path.join(workspace,'artifacts'),source),'screenshot source outside artifacts');
+  const bytes=fs.readFileSync(source);
+  assert(createHash('sha256').update(bytes).digest('hex')===record.sha256,'screenshot changed before freezing');
+  const relative=folder+'/'+index+'-'+record.sha256+'.png',target=path.join(workspace,relative);
+  fs.mkdirSync(path.dirname(target),{recursive:true});
+  if(fs.existsSync(target))assert(!fs.lstatSync(target).isSymbolicLink()&&digest(target)===record.sha256,'immutable screenshot snapshot changed');
+  else fs.writeFileSync(target,bytes,{flag:'wx'});
+  return {path:relative,sha256:record.sha256};
+ });
+}
 export function createReview(ctx,{page,reviewer,screenshots}){
  assert(ctx.ui.length>0,'not a UI candidate; do not create UI proof');
  assert(typeof page==='string'&&page.trim().length>=2&&page.length<=100,'reviewed page missing');
@@ -104,10 +119,11 @@ async function main(){
  for(let i=0;i<args.length;i++)if(args[i]==='--screenshot')shots.push(args[i+1]);
  const allowed=new Set(['--page','--reviewer','--screenshot']);
  for(let i=0;i<args.length;i+=2)assert(allowed.has(args[i])&&args[i+1]&&!args[i+1].startsWith('--'),'invalid review arguments');
- const proof=createReview(ctx,{page:option('--page'),reviewer:option('--reviewer'),screenshots:shots});
  const file=evidencePath(ctx);
- fs.mkdirSync(path.dirname(file),{recursive:true});
  assert(!fs.existsSync(file),'immutable UI review evidence already exists');
+ const proof=createReview(ctx,{page:option('--page'),reviewer:option('--reviewer'),screenshots:shots});
+ proof.screenshots=freezeScreenshots(root,ctx.sourceSha256,proof.screenshots);
+ fs.mkdirSync(path.dirname(file),{recursive:true});
  fs.writeFileSync(file,JSON.stringify(proof,null,2)+'\n');
  console.log(JSON.stringify({evidence:file,summary:validateReview(ctx,proof)},null,2));
 }

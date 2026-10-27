@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - master
+      - codex/fabric-single-root-20261024
       - codex/fabric-v2-integration-review-20261017
   pull_request:
     branches:
@@ -68,9 +69,6 @@ jobs:
           fi
           node scripts/report-fabric-v2-dependency-audit.mjs "$RUNNER_TEMP/fabric-v2-production-audit.json"
 
-      - name: Offline unit and service HTTP tests
-        run: npm run test:unit
-
       - name: TypeScript backend shard
         run: node --max-old-space-size=1200 node_modules/typescript/bin/tsc -p scripts/tsconfig-ci-backend.json --noEmit
 
@@ -82,6 +80,9 @@ jobs:
 
       - name: TypeScript V2 fulfillment and public-share boundary
         run: node --max-old-space-size=1200 node_modules/typescript/bin/tsc -p scripts/tsconfig-b3-fulfillment.json --noEmit
+
+      - name: Offline unit and service HTTP tests
+        run: npm run test:unit
 
       # The full download/pixel QA runs locally in an isolated Windows Edge
       # profile with only synthetic review fixtures. Linux CI syntax-checks it

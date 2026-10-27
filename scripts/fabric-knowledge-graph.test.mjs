@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {buildKnowledge,impact} from './fabric-knowledge-graph.mjs';
+import {createHash} from 'node:crypto';
+import {buildKnowledge,impact,changedImpact} from './fabric-knowledge-graph.mjs';
 
 function fixture(run) {
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'fabric-knowledge-'));
@@ -138,4 +139,65 @@ test('source path impact returns candidate domain without claiming test executio
     assert(report.note.includes('candidates'));
     assert.throws(()=>impact(graph,'../../credentials'),/Expected canonical/);
   });
+});
+
+test('exclusive feature bindings override broad folders and include browser tests and preview fixtures',()=>{
+ fixture(({root,put,reg})=>{
+  const component='src/shared/Selection.tsx',browser='tests/ui/selection.spec.ts',preview='tools/ui-preview/selection.tsx';
+  put(component,'export const selection = true;');put(browser,'// AC-01\n');put(preview,'export const preview = true;');
+  reg.domains[0].exclusiveSource=[component,browser,preview];
+  reg.domains.push({id:'broad',name:'Shared folder',req:['REQ-*'],source:['src/shared'],docs:[reg.acceptanceFile]});
+  const graph=buildKnowledge(root,reg);assert.deepEqual(graph.errors,[]);
+  assert.deepEqual(impact(graph,component).domainIds,['core']);
+  assert(impact(graph,'AC-01').tests.includes(browser));
+  assert(impact(graph,'AC-01').sources.includes(preview));
+  assert.deepEqual(impact(graph,browser).domainIds,['core']);
+  assert.deepEqual(impact(graph,preview).domainIds,['core']);
+  assert.deepEqual(impact(graph,component).requirementIds,['REQ-01']);
+  assert.deepEqual(impact(graph,'AC-01').directTests,[browser]);
+  reg.domains.push({id:'shared',name:'Explicit shared UI',req:['REQ-*'],source:[component],docs:[reg.acceptanceFile]});
+  assert.deepEqual(impact(buildKnowledge(root,reg),component).domainIds,['core','shared']);
+  assert.throws(()=>impact(graph,'docs/../../outside'),/Expected canonical/);
+ });
+});
+
+test('browser and preview binding paths cannot escape the project or conflict on ownership',()=>{
+ fixture(({root,put,reg})=>{
+  reg.domains[0].exclusiveSource=['tests/../outside.ts'];
+  assert(buildKnowledge(root,reg).errors.some(e=>e.includes('Unsafe source binding')));
+  put('tests/ui/a.spec.ts','// AC-99\n');reg.domains[0].exclusiveSource=['tests/ui/a.spec.ts'];
+  assert(buildKnowledge(root,reg).errors.some(e=>e.includes('Unknown acceptance annotation')));
+  put('tests/ui/a.spec.ts','// AC-01\n');
+  reg.domains.push({id:'other',name:'Other',req:['REQ-*'],source:['server/catalog'],exclusiveSource:['tests/ui/a.spec.ts'],docs:[reg.acceptanceFile]});
+  assert(buildKnowledge(root,reg).errors.some(e=>e.includes('Conflicting exclusive source')));
+ });
+});
+
+test('current sample homepage routes to cards and its annotated Edge cases remain discoverable',()=>{
+ const graph=buildKnowledge();assert.deepEqual(graph.errors,[]);
+ const component='src/components/product-master-v2/SampleSessionDirectory.tsx',browser='tests/ui/sample-directory.spec.ts';
+ assert.deepEqual(impact(graph,component).domainIds,['cards']);
+ assert(impact(graph,'V2-09').sources.includes(component));
+ assert(impact(graph,'AC-164').directTests.includes(browser));
+ assert(impact(graph,'AC-164').tests.includes(browser));
+ assert(impact(graph,browser).domainIds.includes('cards'));
+ assert(impact(graph,'tools/ui-preview/scanSelectionReview.tsx').domainIds.includes('cards'));
+});
+
+test('manifest comparison isolates new task changes without relying on the dirty Git baseline',()=>{
+ fixture(({root,put,business})=>{
+  const hash=p=>createHash('sha256').update(fs.readFileSync(path.join(root,p))).digest('hex');
+  const paths=['server/catalog/index.ts','server/catalog/index.test.ts','scripts/fabric-knowledge-registry.json'];
+  const manifest={workspace:root,requirements:{path:business,sha256:hash(business)},files:paths.map(p=>({path:p,sha256:hash(p)}))};
+  put('artifacts/task-start.json',JSON.stringify(manifest));
+  assert.deepEqual(changedImpact(buildKnowledge(root),undefined,'artifacts/task-start.json').changedPaths,[]);
+  put('server/catalog/index.ts','export const id = "changed";');
+  const delta=changedImpact(buildKnowledge(root),undefined,'artifacts/task-start.json');
+  assert.deepEqual(delta.changedPaths,['server/catalog/index.ts']);assert.equal(delta.broadRequirementChange,false);
+  put('tests/ui/new.spec.ts','// AC-01');
+  assert(changedImpact(buildKnowledge(root),undefined,'artifacts/task-start.json').changedPaths.includes('tests/ui/new.spec.ts'));
+  manifest.files[0].path='../outside';put('artifacts/task-start.json',JSON.stringify(manifest));
+  assert.throws(()=>changedImpact(buildKnowledge(root),undefined,'artifacts/task-start.json'),/Unsafe manifest/);
+  assert.throws(()=>changedImpact(buildKnowledge(root),'HEAD','artifacts/task-start.json'),/one comparison/);
+ });
 });

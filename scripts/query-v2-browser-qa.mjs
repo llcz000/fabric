@@ -1,3 +1,4 @@
+import {cleanupQaBrowser} from './browserQaCleanup.mjs';
 /** Isolated static React review with memory-only data; never starts server.ts. */
 import {spawn} from 'node:child_process';
 import {createServer} from 'node:http';
@@ -7,7 +8,7 @@ import path from 'node:path';
 const root=process.cwd(),port=52985,debug=52986,base='http://127.0.0.1:'+port;
 const dir=path.join(root,'artifacts/product-master-ui/qa/query-v2'),site=path.join(dir,'site');
 await mkdir(dir,{recursive:true});
-const checks=[],screens=[];let ws,edge,serial=0;const pending=new Map();
+const checks=[],screens=[];let ws,edge,profile,serial=0;const pending=new Map();
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function until(fn,label){const start=Date.now();while(Date.now()-start<15000){if(await fn())return;await sleep(100);}throw Error('Timeout: '+label);}
 function send(method,params={}){return new Promise((resolve,reject)=>{
@@ -32,7 +33,7 @@ await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(p
 if(process.argv.includes('--serve-only')||process.argv.includes('--serve-built')){
  console.log('Isolated preview: '+base+'/tools/ui-review/entries/product-master-v2-review.html?view=documents');
 }else try{
- const profile=await mkdtemp(path.join(root,'tmp/query-ui-edge-'));
+ profile=await mkdtemp(path.join(root,'tmp/query-ui-edge-'));
  edge=spawn('C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',[
   '--headless=new','--disable-gpu','--disable-background-networking','--disable-sync','--disable-extensions','--no-first-run',
   '--no-default-browser-check','--remote-debugging-port='+debug,'--remote-allow-origins=*','--user-data-dir='+profile,'about:blank'
@@ -79,4 +80,4 @@ if(process.argv.includes('--serve-only')||process.argv.includes('--serve-built')
  await check(`window.__reviewErrors.length===0`,'no browser runtime errors');
  await writeFile(path.join(dir,'report.json'),JSON.stringify({url:base+'/tools/ui-review/entries/product-master-v2-review.html?view=documents',checks,screens,realMySQL:false,formalApp:false,userUIAccepted:false},null,2));
  console.log(JSON.stringify({checks:checks.length,screens,report:path.join(dir,'report.json')}));
-}finally{ws?.close();edge?.kill();await new Promise(resolve=>server.close(resolve));}
+}finally{ws?.close();try{await cleanupQaBrowser({root,profile,browser:edge});}finally{await new Promise(resolve=>server.close(resolve));}}

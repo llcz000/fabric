@@ -1,3 +1,4 @@
+import {cleanupQaBrowser} from './browserQaCleanup.mjs';
 /** Existing V2 editor/print UI, memory-only review data. No formal App, DB or writes. */
 import {spawn} from 'node:child_process';
 import {createServer} from 'node:http';
@@ -65,4 +66,4 @@ try{
  }
  await check(`window.__errors.length===0`,'no browser runtime errors');
  await writeFile(path.join(dir,'result.json'),JSON.stringify({checks,screens,passed:checks.length},null,2));console.log(JSON.stringify({passed:checks.length,screenshots:screens.length,dir}));
-}finally{ws?.close();edge.kill();server.closeAllConnections();await new Promise(r=>server.close(r));}
+}finally{ws?.close();try{await cleanupQaBrowser({root,profile,browser:edge});}finally{server.closeAllConnections();await new Promise(r=>server.close(r));}}

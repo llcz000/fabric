@@ -24,6 +24,32 @@ test('public card JSON/images require current publication and scope before and a
   state.deleted=true;assert.equal((await fetch(url)).status,404);state.deleted=false;
  }finally{await new Promise<void>(r=>server.close(()=>r()));}
 });
+test('physical card QR exposes only current public card projection without creating a separate share link',async()=>{
+ const physical='Physical_card_token_0123456789abcde';
+ let revoked=false,mutateOnRead=false,queries=0;
+ const db={query:async():Promise<[unknown,unknown]>=>{queries++;throw Error('Should use the verified physical-code resolver');}};
+ const resolve=async(value:string)=>value===physical&&!revoked?{cardId:'18',masterId:'4',fabricId:'5',cardNo:card.cardNo,available:true}:null;
+ const app=express();app.use('/api/public/card-scans',createPublicCardRouter({db,resolve,
+  load:async share=>{assert.equal(share.fabricId,'5');return {card,previews:new Map([[ref,'asset']])};},
+  readDisplay:async()=>{if(mutateOnRead)revoked=true;return {body:Buffer.from('derived'),byteSize:7,mime:'image/webp',etag:'x'};}
+ }));
+ const server=app.listen(0,'127.0.0.1');await new Promise<void>(r=>server.once('listening',r));
+ const a=server.address();assert(a&&typeof a!=='string');const url='http://127.0.0.1:'+a.port+'/api/public/card-scans/'+physical;
+ try{
+  const response=await fetch(url);assert.equal(response.status,200);
+  const body=await response.json();assert.equal(body.card.cardNo,'G001-F005');
+  for(const secret of ['qrPayload','masterId','fabricId','token_hash','customer','price'])assert(!JSON.stringify(body).includes(secret));
+  assert.equal(response.headers.get('cache-control'),'no-store');
+  assert.equal((await fetch(url+'/images/'+ref.slice(8))).status,200);
+  assert.equal(queries,0);
+  assert.equal((await fetch(url+'?other=1')).status,404);
+  assert.equal((await fetch(url+'/images/'+'y'.repeat(43))).status,404);
+  assert.equal((await fetch(url.replace(physical,'unknown_bad_token_0123456789abcdef'))).status,404);
+  mutateOnRead=true;assert.equal((await fetch(url+'/images/'+ref.slice(8))).status,404);
+  assert.equal((await fetch(url)).status,404);
+ }finally{await new Promise<void>(r=>server.close(()=>r()));}
+});
+
 test('card revocation occurring while image bytes are read suppresses the returned content',async()=>{
  let removed=false;
  const db={query:async():Promise<[unknown,unknown]>=>[removed?[]:[{token_hash:hashPatternLinkToken(token),link_status:'active',revoked_at:null,card_id:'18',master_id:'4',fabric_id:'5',card_no:'G001-F005',deleted_at:null,card_active:1,master_active:1,fabric_active:1}],[]]};

@@ -16,6 +16,7 @@ import {verifyCardLinkRuntimeSchema} from './cardLinkSchemaContract';
 import {createCardShareIssueRouter} from './cardSharing';
 import {loadCardShareCatalog} from './cardShareCatalog';
 import {createPublicCardRouter} from './cardPublicRoutes';
+import {resolveSampleCardToken} from '../customer-samples/cardLibrary';
 /** Caller supplies ONLY the already pinned database and private asset service. */
 export async function createPatternShareRuntime(database:AccessDatabase,pool:Pool,target:V2ProductionTarget,service:ImageAssetService,env:NodeJS.ProcessEnv){
  const config=resolvePatternShareRuntimeConfig(env);if(!config)return null;
@@ -39,6 +40,12 @@ export async function createPatternShareRuntime(database:AccessDatabase,pool:Poo
  let cardsEnabled=false;
  try{await verifyCardLinkRuntimeSchema(pool,target);cardsEnabled=true;}catch{/* only new card sharing is unavailable until its additive table is verified */}
  if(cardsEnabled)privateRouter.use(createCardShareIssueRouter({authDb:database,pool,secret,publicBase:config.publicOrigin}));
- const cardPublicRouter=cardsEnabled?createPublicCardRouter({db:database,load:share=>loadCardShareCatalog(database,share,secret),readDisplay:id=>service.readContent(id,'display','public-card-display')}):null;
- return {publicRouter,privateRouter,productPublicRouter,productsEnabled,cardPublicRouter,cardsEnabled};
+ const cardPublicDeps={db:database,load:(share:import('./cardSharing').CardShare)=>loadCardShareCatalog(database,share,secret),readDisplay:(id:string)=>service.readContent(id,'display','public-card-display')};
+ const cardPublicRouter=cardsEnabled?createPublicCardRouter(cardPublicDeps):null;
+ // Physical QR possession permits only the whitelisted public card projection, not any internal operation.
+ const cardScanPublicRouter=cardsEnabled?createPublicCardRouter({...cardPublicDeps,resolve:async token=>{
+  try{const c=await resolveSampleCardToken(database,token);return {cardId:c.id,masterId:c.masterId,fabricId:c.fabricId,cardNo:c.cardNo,available:c.isActive};}
+  catch{return null;}
+ }}):null;
+ return {publicRouter,privateRouter,productPublicRouter,productsEnabled,cardPublicRouter,cardScanPublicRouter,cardsEnabled};
 }

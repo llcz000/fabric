@@ -296,6 +296,48 @@
       "docs": [
         "docs/ui-design/wechat-card-share.md",
         "docs/project/数据与API.md"
+      ],
+      "exclusiveSource": [
+        "src/components/product-master-v2/FocusedSampleSelection.tsx",
+        "src/components/product-master-v2/ManualSelectionPane.test.ts",
+        "src/components/product-master-v2/ManualSelectionPane.tsx",
+        "src/components/product-master-v2/SampleBusinessWorkspaceV2.test.ts",
+        "src/components/product-master-v2/SampleBusinessWorkspaceV2.tsx",
+        "src/components/product-master-v2/SampleCardCreateDialog.tsx",
+        "src/components/product-master-v2/SampleCardLibraryV2.test.ts",
+        "src/components/product-master-v2/SampleCardLibraryV2.tsx",
+        "src/components/product-master-v2/SampleCardPatternsDialog.tsx",
+        "src/components/product-master-v2/SampleCardQr.tsx",
+        "src/components/product-master-v2/SampleCardScanLanding.tsx",
+        "src/components/product-master-v2/SampleCardTable.tsx",
+        "src/components/product-master-v2/SampleOperationsPanel.test.ts",
+        "src/components/product-master-v2/SampleOperationsPanel.tsx",
+        "src/components/product-master-v2/SampleScanCustomerStep.tsx",
+        "src/components/product-master-v2/SampleSelectionPanel.test.ts",
+        "src/components/product-master-v2/SampleSelectionPanel.tsx",
+        "src/components/product-master-v2/SampleSelectionWorkspaceV2.tsx",
+        "src/components/product-master-v2/SampleSessionDirectory.tsx",
+        "src/components/product-master-v2/ScannedSampleEntry.tsx",
+        "src/components/product-master-v2/manualSelectionModel.test.ts",
+        "src/components/product-master-v2/manualSelectionModel.ts",
+        "src/components/product-master-v2/manualSelectionPrivateHttp.test.ts",
+        "src/components/product-master-v2/sampleCardModel.ts",
+        "src/components/product-master-v2/sampleOperationsModel.test.ts",
+        "src/components/product-master-v2/sampleOperationsModel.ts",
+        "src/components/product-master-v2/sampleSelectionClient.test.ts",
+        "src/components/product-master-v2/sampleSelectionClient.ts",
+        "src/components/product-master-v2/sampleSessionExport.test.ts",
+        "src/components/product-master-v2/sampleSessionExport.ts",
+        "src/components/product-master-v2/scanSelectionModel.test.ts",
+        "src/components/product-master-v2/scanSelectionModel.ts",
+        "tests/ui/automatic-product-cards.spec.ts",
+        "tests/ui/internal-card-search.spec.ts",
+        "tests/ui/sample-card-ux.spec.ts",
+        "tests/ui/sample-directory.spec.ts",
+        "tests/ui/scan-selection.spec.ts",
+        "tests/ui/wechat-card-real.spec.ts",
+        "tools/ui-preview/entries/ui-ux-scan-selection.html",
+        "tools/ui-preview/scanSelectionReview.tsx"
       ]
     },
     {
@@ -364,11 +406,15 @@
         "UI-*",
         "PRD-05",
         "PRD-06",
-        "PRD-07"
+        "PRD-07",
+        "PRD-08"
       ],
       "source": [
         "src/components/ui",
-        "src/App.tsx"
+        "src/App.tsx",
+        "src/components/product-master-v2/v2Experience.css",
+        "src/components/product-master-v2/ProductCatalogV2.tsx",
+        "src/components/product-master-v2/SampleCardTable.tsx"
       ],
       "docs": [
         "docs/ui-design/README.md",

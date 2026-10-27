@@ -5,6 +5,7 @@ import type {PublicCard,PublicCardColorway} from '../../../server/customer-share
 export interface PublicCardGalleryProps{
  card:PublicCard|null;
  renderPreview?:(previewRef:string,description:string,priority?:boolean)=>React.ReactNode;
+ preserveHash?:boolean;
 }
 const photos=[
  {key:'displayImages',title:'面料大图',hint:'面料整体'},
@@ -48,7 +49,7 @@ function Colorway({color,index,renderPreview}:{
   </div>
  </article>;
 }
-export function PublicCardGallery({card,renderPreview}:PublicCardGalleryProps){
+export function PublicCardGallery({card,renderPreview,preserveHash=false}:PublicCardGalleryProps){
  if(!card?.colorways.length)return <main aria-label="色卡花型产品公开展示" className="mx-auto max-w-xl px-5 py-16 text-center text-[#2f3933]">
   <h1 className="text-xl font-semibold">暂不可用</h1><p className="mt-3 text-base text-[#68756b]">此色卡当前没有可展示的产品，请稍后重试。</p>
  </main>;
@@ -72,7 +73,7 @@ export function PublicCardGallery({card,renderPreview}:PublicCardGalleryProps){
     </dl>
    </header>
    <nav aria-label="跳转到花型配色" className="-mx-3 flex snap-x snap-mandatory gap-2 overflow-x-auto px-3 pb-2 [scrollbar-width:none]">
-    {card.colorways.map(c=><a key={c.colorwayNo} href={'#colorway-'+c.colorwayNo} style={{minHeight:44}}
+    {card.colorways.map(c=>preserveHash?<button type="button" key={c.colorwayNo} onClick={()=>document.getElementById('colorway-'+c.colorwayNo)?.scrollIntoView({behavior:'smooth',block:'start'})} className="inline-flex min-h-11 shrink-0 snap-start items-center rounded-full border border-[#d9dfd8] bg-white px-5 text-sm font-medium text-[#344a3b] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#477d62]">配色 {c.colorwayNo}</button>:<a key={c.colorwayNo} href={'#colorway-'+c.colorwayNo} style={{minHeight:44}}
      className="inline-flex min-h-11 shrink-0 snap-start items-center rounded-full border border-[#d9dfd8] bg-white px-5 text-sm font-medium text-[#344a3b] no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#477d62]">
       配色 {c.colorwayNo}
      </a>)}

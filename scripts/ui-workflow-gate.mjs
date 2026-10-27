@@ -2,13 +2,14 @@
  * Fabric UI workflow gate: one canonical rule set in the shared project root,
  * explicitly checked/synced into its declared active worktree.
  *
- * Never deploys, accesses production, or writes outside --sync targets.
+ * Never deploys or accesses production. Only sync/template/seal write their declared local outputs.
  * By default, every command is read-only.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
+import {freezeScreenshots} from './release/ui-quality-gate.mjs';
 
 const canonical=path.resolve(fileURLToPath(new URL('../',import.meta.url)));
 const pointerFile=path.join(canonical,'docs/project/fabric-v2-active-workspace.json');
@@ -153,6 +154,28 @@ function candidateUiChanges(active,pointer){
   .filter(rel=>rel.startsWith('src/')&&/\.(?:tsx?|jsx?|css|scss)$/i.test(rel)&&!/\.(?:test|spec)\.[jt]sx?$/.test(rel)&&!rel.includes('/__tests__/'))
   .sort();
 }
+/** Inspect live UI against the candidate before comparing it with a published baseline. */
+export function inspectUiScope({active,pointer}={}){
+ active??=activeWorkspace().active;pointer??=activeWorkspace().pointer;
+ const identity=manifestIdentity(active,pointer),manifest=json(path.resolve(active,pointer.sourceManifest));
+ const isUi=rel=>rel.startsWith('src/')&&/\.(?:tsx?|jsx?|css|scss)$/i.test(rel)&&!/\.(?:test|spec)\.[jt]sx?$/.test(rel)&&!rel.includes('/__tests__/');
+ const recorded=new Map(manifest.files.filter(f=>isUi(f.path)).map(f=>[f.path,f.sha256])),live=new Map();
+ function walk(dir){for(const item of fs.readdirSync(path.join(active,dir),{withFileTypes:true})){
+  const rel=dir+'/'+item.name,file=path.join(active,rel);
+  if(item.isSymbolicLink())fail('UI source symlink forbidden: '+rel);
+  if(item.isDirectory())walk(rel);else if(item.isFile()&&isUi(rel))live.set(rel,sha(file));
+ }}
+ walk('src');
+ const staleUiFiles=[...new Set([...recorded.keys(),...live.keys()])].filter(rel=>recorded.get(rel)!==live.get(rel)).sort();
+ const expectedUiFiles=candidateUiChanges(active,pointer),reportPath='artifacts/ui-workflow/'+identity+'.json';
+ const report=exists(path.join(active,reportPath))?json(path.join(active,reportPath)):null;
+ const reviewFiles=Array.isArray(report?.changedUiFiles)?report.changedUiFiles:[];
+ return {status:staleUiFiles.length?'source-refresh-required':expectedUiFiles.length?'review-required':'no-ui-changes',baselineReleaseId:pointer.currentRelease.id,candidateManifestSha256:identity,
+  staleUiFiles,expectedUiFiles,reportPath,reportExists:!!report,missingFromReport:expectedUiFiles.filter(rel=>!reviewFiles.includes(rel)),extraInReport:reviewFiles.filter(rel=>!expectedUiFiles.includes(rel))};
+}
+function requireFreshUiScope(scope){
+ if(scope.staleUiFiles.length)fail('candidate UI source manifest is stale: '+scope.staleUiFiles.join(', ')+'; review requirements and run source-automation.mjs inspect/accept before creating UI evidence');
+}
 function screenshot(active,record){
  const rel=record?.path,f=artifact(canonical,active,rel,'.png'),data=fs.readFileSync(f);
  if(data.length<600||data.subarray(0,8).toString('hex')!=='89504e470d0a1a0a')fail('invalid PNG screenshot '+rel);
@@ -165,7 +188,9 @@ export function verify({reportPath,root=canonical,active,pointer}={}){
  active??=activeWorkspace().active;
  pointer??=activeWorkspace().pointer;
  const check=preflight({root,active});
- const identity=manifestIdentity(active,pointer);
+ const scope=inspectUiScope({active,pointer});requireFreshUiScope(scope);
+ if(!scope.expectedUiFiles.length)return {status:'pass',required:false,scope:'no UI changes since verified release',changedUiFiles:0,sourceManifestSha256:scope.candidateManifestSha256,releaseReady:false};
+ const identity=scope.candidateManifestSha256;
  reportPath??='artifacts/ui-workflow/'+identity+'.json';
  const f=artifact(root,active,reportPath,'.json'),report=json(f);
  if(report?.version!==1||typeof report.page!=='string'||!report.page.trim())fail('invalid page review record');
@@ -191,10 +216,21 @@ export function verify({reportPath,root=canonical,active,pointer}={}){
  if(!Array.isArray(report.unverified)||report.unverified.length||report.releaseReady!==false)fail('unverified checks or false release readiness; separate user authorization required');
  return {status:'pass',scope:'local UI workflow',page:report.page,changedUiFiles:report.changedUiFiles.length,screenshots:screens.length,browserChecks:browser.checks.length,engineeringEvidence:report.engineering.evidence.length,userAcceptance:report.userAcceptance,production:report.production,report:reportPath,sourceManifestSha256:identity,uiRulesSha256:check.uiRulesSha256,releaseReady:false};
 }
+export function seal({reportPath,root=canonical,active,pointer}={}){
+ active??=activeWorkspace().active;pointer??=activeWorkspace().pointer;
+ const checked=verify({reportPath,root,active,pointer});
+ if(checked.required===false)return checked;
+ reportPath??=checked.report;
+ const file=artifact(root,active,reportPath,'.json'),report=json(file);
+ report.visual.screenshots=freezeScreenshots(active,checked.sourceManifestSha256,report.visual.screenshots);
+ const next=file+'.next';fs.writeFileSync(next,JSON.stringify(report,null,2)+'\n');fs.renameSync(next,file);
+ return {...verify({reportPath,root,active,pointer}),sealed:true};
+}
 function main(argv){
  const [command,...args]=argv;
- if(!['preflight','verify','source','template'].includes(command))fail('usage: preflight [--sync] | template --page 名称 --file src/... | verify [--report artifacts/...] | source --file src/...');
+ if(!['preflight','verify','seal','inspect','source','template'].includes(command))fail('usage: inspect | preflight [--sync] | template --page 名称 --file src/... | verify/seal [--report artifacts/...] | source --file src/...');
  const {active,pointer}=activeWorkspace();
+ if(command==='inspect'){if(args.length)fail('inspect takes no arguments');preflight({active});return inspectUiScope({active,pointer});}
  if(command==='preflight'){
   if(args.some(x=>x!=='--sync')||args.filter(x=>x==='--sync').length>1)fail('only --sync supported for preflight');
   return preflight({active,sync:args.includes('--sync')});
@@ -210,7 +246,8 @@ function main(argv){
   const files=[],pages=[];
   for(let i=0;i<args.length;i+=2)(args[i]==='--page'?pages:files).push(args[i+1]);
   if(pages.length!==1||!files.length)fail('one page and at least one UI file required');
-  const expected=candidateUiChanges(active,pointer);
+  const scope=inspectUiScope({active,pointer});requireFreshUiScope(scope);
+  const expected=scope.expectedUiFiles;
   if(JSON.stringify([...files].sort())!==JSON.stringify(expected)||!expected.length)fail('template must cover all UI changes from the candidate manifest; expected='+JSON.stringify(expected)+' got='+JSON.stringify(files));
   const id=manifestIdentity(active,pointer);
   const rel='artifacts/ui-workflow/'+id+'.json',dest=path.resolve(active,rel);
@@ -225,8 +262,8 @@ function main(argv){
   fs.writeFileSync(dest,JSON.stringify(review,null,2)+'\n');
   return {status:'template-created-not-verified',report:rel,sourceSha256:review.uiSourceSha256,next:'Fill actual evidence; run npm run ui:verify'};
  }
- if(args.length>2||(args.length===2&&args[0]!=='--report')||args.length===1)fail('verify accepts --report artifacts/... only');
- return verify({active,pointer,reportPath:args[1]});
+ if(args.length>2||(args.length===2&&args[0]!=='--report')||args.length===1)fail(command+' accepts --report artifacts/... only');
+ return (command==='seal'?seal:verify)({active,pointer,reportPath:args[1]});
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  try{console.log(JSON.stringify(main(process.argv.slice(2)),null,2));}
