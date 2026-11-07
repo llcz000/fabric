@@ -37,3 +37,22 @@ test('directory accepts a date-only creation date and legacy absence, rejects in
  assert.equal((await api.directory('')).items[0].createdOn,'2026-10-18');createdOn=undefined;await api.directory('');
  for(const bad of ['2026-02-30','2026-10-18T12:30:00.000Z',123,null]){createdOn=bad;await assert.rejects(api.directory(''));}
 });
+
+
+test('directory validates independent deletion permission without inferring editing rights',async()=>{
+ let canDelete:unknown=true;
+ const api=createSampleOperationsClient(async()=>Response.json({total:1,limit:20,offset:0,items:[{id:'41',customerReference:'历史选样',canManage:false,canDelete}]}));
+ assert.equal((await api.directory('')).items[0].canManage,false);assert.equal((await api.directory('')).items[0].canDelete,true);
+ canDelete=false;assert.equal((await api.directory('')).items[0].canDelete,false);
+ for(const invalid of ['false',1,null]){canDelete=invalid;await assert.rejects(api.directory(''));}
+});
+
+
+test('directory accepts one assigned contact or an unassigned selection',async()=>{
+ let contactName:unknown='Alice';
+ const api=createSampleOperationsClient(async()=>Response.json({total:1,limit:20,offset:0,items:[{id:'41',customerReference:'Customer',contactName}]}));
+ assert.equal((await api.directory('')).items[0].contactName,'Alice');
+ contactName=null;assert.equal((await api.directory('')).items[0].contactName,null);
+ contactName=undefined;await api.directory('');
+ for(const invalid of [{},['Alice'],1,'',' ','Alice\n','A\u200blice','a'.repeat(111)]){contactName=invalid;await assert.rejects(api.directory(''));}
+});

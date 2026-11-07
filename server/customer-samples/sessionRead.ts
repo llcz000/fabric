@@ -1,3 +1,4 @@
+import {currentSampleCardCountSql} from './sessionCardReview';
 import {lockCustomerSessionAccess,sampleSessionScope} from '../customers/sessionBridge';
 import {CustomerError} from '../customers/model';
 import type {AppPrincipal} from '../access/types';
@@ -6,9 +7,9 @@ export class SampleSessionReadError extends Error{
  constructor(readonly status:400|403|404|409){super('Sample selection unavailable');this.name='SampleSessionReadError';}
 }
 export interface SampleSessionPage{
- session:{id:string;customerReference:string;customerId?:string|null;linkVersion?:string;canManage?:boolean};
+ session:{id:string;customerReference:string;contactName?:string|null;createdAt?:string;customerId?:string|null;linkVersion?:string;canManage?:boolean};
  total:number;selectedCardCount:number;limit:number;offset:number;
- items:{id:string;productId:string;current:{productNo:string;patternNo:string;colorwayNo:number;patternImageAssetId?:string|null;fabricNo:string;fabricName:string;composition:string|null;weightValue:string|null;weightUnit:'gsm'|'mm'|null;widthCm:string|null};sources:{cardId:string;cardNo:string;retired:boolean;firstScanEventId:string|null;firstManualEventId?:string}[]}[];
+ items:{id:string;productId:string;current:{productNo:string;patternNo:string;colorwayNo:number;patternImageAssetId?:string|null;currentCardId?:string|null;currentCardNo?:string|null;fabricNo:string;fabricName:string;composition:string|null;weightValue:string|null;weightUnit:'gsm'|'mm'|null;widthCm:string|null};sources:{cardId:string;cardNo:string;retired:boolean;firstScanEventId:string|null;firstManualEventId?:string}[]}[];
 }
 const validId=(value:unknown):value is string=>typeof value==='string'&&/^[1-9]\d{0,19}$/.test(value)&&BigInt(value)<=18446744073709551615n;
 type Row=Record<string,unknown>;
@@ -48,6 +49,7 @@ function liveDetails(row:Row):SampleSessionPage['items'][number]['current']{
   patternImageAssetId=rawAssetId;
  }
  return {
+  ...(Object.hasOwn(row,'current_card_id')?{currentCardId:row.current_card_id==null?null:dbId(row.current_card_id),currentCardNo:row.current_card_no==null?null:String(row.current_card_no)}:{}),
   productNo:required(row.product_no),patternNo:required(row.master_no),colorwayNo,patternImageAssetId,
   fabricNo:required(row.fabric_no),fabricName:required(row.fabric_name),
   composition:row.composition as string|null,weightValue,weightUnit,
@@ -82,22 +84,22 @@ export async function readSampleSession(
   
   if(!customer){const [grantRaw]=await tx.query('SELECT can_manage FROM customer_sample_session_access WHERE session_id=? AND user_id=? AND can_manage=1 FOR SHARE',[sessionId,actor.userId]);
   const grant=rows(grantRaw);if(grant.length!==1||Number(grant[0].can_manage)!==1)throw new SampleSessionReadError(404);}
-  const [summaryRaw]=await tx.query('SELECT s.customer_reference, '+
+  const [summaryRaw]=await tx.query('SELECT s.customer_reference,'+(tx.customerProfilesEnabled?'s.contact_name,':'')+'UNIX_TIMESTAMP(s.created_at)*1000 AS created_at_ms, '+
    '(SELECT COUNT(*) FROM customer_sample_items i WHERE i.session_id=s.id AND i.removed_at IS NULL) AS total, '+
-   '(SELECT COUNT(*) FROM customer_sample_selected_cards c WHERE c.session_id=s.id AND EXISTS ('+
-   'SELECT 1 FROM customer_sample_items selected WHERE selected.session_id=s.id AND selected.removed_at IS NULL AND ('+
-   'EXISTS (SELECT 1 FROM customer_sample_item_sources src WHERE src.session_id=s.id AND src.product_id=selected.product_id AND src.card_id=c.card_id) OR '+
-   'EXISTS (SELECT 1 FROM customer_sample_manual_events e WHERE e.session_id=s.id AND e.product_id=selected.product_id AND e.card_id=c.card_id)))) AS selected_card_count '+
+   currentSampleCardCountSql('s.id')+' AS selected_card_count '+
    'FROM customer_sample_sessions s WHERE s.id=?',[sessionId]);
   const summary=rows(summaryRaw)[0];
   if(!summary||typeof summary.customer_reference!=='string'||summary.customer_reference.length>160)throw new SampleSessionReadError(409);
+  let createdAt:string|undefined;
+  if(summary.created_at_ms!==undefined){const timestamp=Number(summary.created_at_ms);if(!Number.isSafeInteger(timestamp)||timestamp<=0||!Number.isFinite(new Date(timestamp).getTime()))throw new SampleSessionReadError(409);createdAt=new Date(timestamp).toISOString();}
   const total=count(summary.total),selectedCardCount=count(summary.selected_card_count);
   const [itemRaw]=await tx.query('SELECT i.id,i.product_id,p.product_no,m.master_no,c.colorway_no,c.pattern_image_asset_id, '+
-   'f.fabric_no,f.fabric_name,f.composition,f.weight_value,f.weight_unit,f.width_value '+
+   'f.fabric_no,f.fabric_name,f.composition,f.weight_value,f.weight_unit,f.width_value,active_card.id AS current_card_id,active_card.card_no AS current_card_no '+
    'FROM customer_sample_items i LEFT JOIN v2_products p ON p.id=i.product_id '+
    'LEFT JOIN pattern_colorways c ON c.id=p.pattern_colorway_id '+
    'LEFT JOIN pattern_masters m ON m.id=c.master_id '+
    'LEFT JOIN v2_fabrics f ON f.id=p.fabric_id '+
+   'LEFT JOIN sample_cards active_card ON active_card.master_id=m.id AND active_card.fabric_id=f.id AND active_card.deleted_at IS NULL AND active_card.is_active=1 '+
    'WHERE i.session_id=? AND i.removed_at IS NULL ORDER BY i.id ASC LIMIT ? OFFSET ?',[sessionId,limit,offset]);
   const selected=rows(itemRaw);
   if(selected.length!==Math.min(limit,Math.max(0,total-offset)))throw new SampleSessionReadError(409);
@@ -133,6 +135,6 @@ export async function readSampleSession(
   let linkage:{}|{customerId:string|null;linkVersion:string;canManage:boolean}={};
   if(tx.customerProfilesEnabled){const [raw]=await tx.query('SELECT customer_id,row_version FROM customer_session_links WHERE session_id=? FOR SHARE',[sessionId]);const l=rows(raw)[0];linkage={customerId:l?.customer_id==null?null:String(l.customer_id),linkVersion:String(l?.row_version??0),canManage:customer?customer.canEdit:true};}
   await tx.commit();began=false;
-  return {session:{id:sessionId,customerReference:summary.customer_reference,...linkage},total,selectedCardCount,limit,offset,items};
+  return {session:{id:sessionId,customerReference:customer?.currentCustomerName??summary.customer_reference,contactName:customer&&typeof summary.contact_name==='string'?summary.contact_name:null,...(createdAt===undefined?{}:{createdAt}),...linkage},total,selectedCardCount,limit,offset,items};
  }catch(error){if(began)await tx.rollback();if(error instanceof CustomerError)throw new SampleSessionReadError(error.status===503?409:error.status);throw error;}finally{tx.release();}
 }

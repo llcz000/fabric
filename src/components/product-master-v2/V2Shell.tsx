@@ -1,10 +1,10 @@
 import {ActionIcon} from './ActionIcon';
 import React,{useEffect,useRef,useState} from 'react';
-import {Menu,X,LayoutDashboard,FileText,Plus,SwatchBook,Layers,Package,ScanLine,Users,Settings,Archive,LogOut,type LucideIcon} from 'lucide-react';
+import {Menu,X,LayoutDashboard,FileText,Plus,SwatchBook,Layers,Package,ScanLine,Users,Settings,Archive,LogOut,Images,type LucideIcon} from 'lucide-react';
 import type {V2View} from './v2Navigation';
 import type {V2AppPrincipal} from './v2AppModel';
 import './v2Experience.css';
-const groups:{label:string;items:[V2View,string,LucideIcon][]}[]=[{label:'工作台',items:[['stats','经营大盘',LayoutDashboard]]},{label:'业务',items:[['documents','单据列表',FileText],['create','新增单据',Plus],['samples','客户选样',Users],['customers','客户档案',Users],['inventory','库存',Archive]]},{label:'产品资料',items:[['pattern','花型库',SwatchBook],['fabric','面料库',Layers],['products','产品库',Package],['cards','色卡库',ScanLine]]},{label:'系统',items:[['settings','开单设置',Settings],['members','成员管理',Users]]}];
+const groups:{label:string;items:[V2View,string,LucideIcon][]}[]=[{label:'工作台',items:[['stats','经营大盘',LayoutDashboard]]},{label:'业务',items:[['documents','单据列表',FileText],['create','新增单据',Plus],['samples','客户选样',Users],['customers','客户档案',Users],['inventory','库存',Archive]]},{label:'产品资料',items:[['pattern','花型库',SwatchBook],['fabric','面料库',Layers],['products','产品库',Package],['models','模特图库',Images],['cards','色卡库',ScanLine]]},{label:'系统',items:[['settings','开单设置',Settings],['members','成员管理',Users]]}];
 export function V2Shell({actor,view,onNavigate,onLogout,children,blocked=false}:{actor:V2AppPrincipal;view:V2View;onNavigate(view:V2View):void;onLogout():void;children:React.ReactNode;blocked?:boolean}){
  const [open,setOpen]=useState(false),toggle=useRef<HTMLButtonElement>(null),panel=useRef<HTMLElement>(null);
  useEffect(()=>{

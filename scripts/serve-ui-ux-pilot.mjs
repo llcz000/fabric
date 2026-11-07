@@ -12,15 +12,15 @@ const site=path.join(root,'artifacts','ui-ux-pilot',isTest?'site-test':'site');
 const origin='http://127.0.0.1:'+port;
 await build({configFile:path.join(root,'vite.config.ts'),base:'/',
  build:{outDir:site,emptyOutDir:true,copyPublicDir:false,
- rollupOptions:{input:{scanSelection:path.join(root,'tools/ui-preview/entries/ui-ux-scan-selection.html'),dualQr:path.join(root,'tools/ui-preview/entries/ui-ux-dual-qr.html'),internal:path.join(root,'tools/ui-preview/entries/ui-ux-pilot.html'),customer:path.join(root,'tools/ui-preview/entries/ui-ux-share-demo.html'),wechat:path.join(root,'tools/ui-preview/entries/ui-ux-wechat-review.html'),route:path.join(root,'tools/ui-preview/entries/ui-ux-wechat-route.html'),internalChrome:path.join(root,'tools/ui-preview/entries/ui-ux-internal-chrome.html'),internalCards:path.join(root,'tools/ui-preview/entries/ui-ux-internal-cards.html'),internalFabrics:path.join(root,'tools/ui-preview/entries/ui-ux-internal-fabrics.html'),internalPatterns:path.join(root,'tools/ui-preview/entries/ui-ux-internal-patterns.html')}}}});
+ rollupOptions:{input:{scanSelection:path.join(root,'tools/ui-preview/entries/ui-ux-scan-selection.html'),dualQr:path.join(root,'tools/ui-preview/entries/ui-ux-dual-qr.html'),internal:path.join(root,'tools/ui-preview/entries/ui-ux-pilot.html'),customer:path.join(root,'tools/ui-preview/entries/ui-ux-share-demo.html'),wechat:path.join(root,'tools/ui-preview/entries/ui-ux-wechat-review.html'),route:path.join(root,'tools/ui-preview/entries/ui-ux-wechat-route.html'),internalChrome:path.join(root,'tools/ui-preview/entries/ui-ux-internal-chrome.html'),internalCards:path.join(root,'tools/ui-preview/entries/ui-ux-internal-cards.html'),internalFabrics:path.join(root,'tools/ui-preview/entries/ui-ux-internal-fabrics.html'),internalPatterns:path.join(root,'tools/ui-preview/entries/ui-ux-internal-patterns.html'),modelGallery:path.join(root,'tools/ui-preview/entries/ui-ux-model-gallery.html')}}}});
 const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png'};
 const server=createServer(async(req,res)=>{
  try {
   const fixtureUrl=new URL(req.url??'/',origin);
   if(fixtureUrl.pathname==='/__fixtures__/sample-cards.xlsx'){
    const ids=(fixtureUrl.searchParams.get('ids')??'').split(',');if(ids.some(id=>!['12','13'].includes(id))){res.writeHead(409).end();return;}
-   const workbook=new ExcelJS.Workbook(),sheet=workbook.addWorksheet('Sample Cards');sheet.addRow(['色卡编号','品名','成分','克重','门幅','二维码']);
-   for(const id of ids)sheet.addRow([id==='12'?'G0886-F018':'G0626-F018','轻薄印花雪纺','聚酯纤维 100%','80 gsm','145 cm',id==='12'?'SCAN_FIXTURE_FIRST_CARD_TOKEN_12345':'SCAN_FIXTURE_SECOND_CARD_TOKEN_12345']);
+   const workbook=new ExcelJS.Workbook(),sheet=workbook.addWorksheet('客户选样汇总');sheet.addRow(['色卡编号','品名','成分','克重','门幅','二维码','选样单号','客户','联系人','选样日期']);
+   for(const id of ids)sheet.addRow([id==='12'?'G0886-F018':'G0626-F018','轻薄印花雪纺','聚酯纤维 100%','80 gsm','145 cm',id==='12'?'SCAN_FIXTURE_FIRST_CARD_TOKEN_12345':'SCAN_FIXTURE_SECOND_CARD_TOKEN_12345',id==='12'?'11':'12',id==='12'?'林女士':'王女士','','2026-10-25']);
    res.writeHead(200,{'Content-Type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','Cache-Control':'no-store'});res.end(Buffer.from(await workbook.xlsx.writeBuffer()));return;
   }
   const pathname=decodeURIComponent(new URL(req.url??'/',origin).pathname).replace(/^\/+/, '');

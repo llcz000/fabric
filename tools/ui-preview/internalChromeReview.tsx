@@ -1,3 +1,5 @@
+import {CustomerWorkspaceReview} from './customerWorkspaceReview';
+import {DocumentBrowserReview} from './documentBrowserReview';
 import React,{useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import '../../src/index.css';
@@ -32,4 +34,4 @@ function App(){
   </table>
  </main>;
 }
-createRoot(document.getElementById('root')!).render(<React.StrictMode><App/></React.StrictMode>);
+createRoot(document.getElementById('root')!).render(<React.StrictMode>{location.search.includes('documents')?<DocumentBrowserReview/>:location.search.includes('customers')?<CustomerWorkspaceReview/>:<App/>}</React.StrictMode>);

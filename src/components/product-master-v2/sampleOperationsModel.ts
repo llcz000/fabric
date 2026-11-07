@@ -18,7 +18,7 @@ const iso=(v:unknown):v is string=>typeof v==='string'&&Number.isFinite(Date.par
 const bad=()=>new Error('选样资料格式无效，请重新读取');
 const requiredId=(v:string)=>{if(!id(v))throw bad();return v;};
 function summary(value:unknown):SampleSessionSummary{
- if(!row(value)||!id(value.id)||!string(value.customerReference,160)||!value.customerReference.trim()||(value.createdOn!==undefined&&!date(value.createdOn))||(value.createdAt!==undefined&&!iso(value.createdAt))||(value.selectedCardCount!==undefined&&!count(value.selectedCardCount))||(value.selectedProductCount!==undefined&&!count(value.selectedProductCount)))throw bad();return value as unknown as SampleSessionSummary;
+ if(!row(value)||!id(value.id)||(value.contactName!=null&&(!string(value.contactName,110)||!value.contactName.trim()||/[\p{Cc}\p{Cf}]/u.test(value.contactName)))||!string(value.customerReference,160)||!value.customerReference.trim()||(value.canManage!==undefined&&typeof value.canManage!=='boolean')||(value.canDelete!==undefined&&typeof value.canDelete!=='boolean')||(value.createdOn!==undefined&&!date(value.createdOn))||(value.createdAt!==undefined&&!iso(value.createdAt))||(value.selectedCardCount!==undefined&&!count(value.selectedCardCount))||(value.selectedProductCount!==undefined&&!count(value.selectedProductCount)))throw bad();return value as unknown as SampleSessionSummary;
 }
 function page(value:unknown,offset:number){
  if(!row(value)||!count(value.total)||value.offset!==offset||value.limit!==20||!Array.isArray(value.items)||value.items.length!==Math.min(20,Math.max(0,value.total-offset)))throw bad();

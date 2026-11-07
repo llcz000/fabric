@@ -1,4 +1,5 @@
 import type {AppPrincipal} from '../access/types';import type {SamplePool,SampleTx} from '../customer-samples/scanRepository';
+import {hydrateContactIds} from './contactIdentity';
 import {CustomerError,rows,id,validCustomerId,type CustomerDTO,parseCustomerProfile} from './model';
 export type CustomerPool=SamplePool&{customerProfilesEnabled?:boolean};
 export async function identity(tx:SampleTx,actor:AppPrincipal){
@@ -15,5 +16,5 @@ export async function lockCustomer(tx:SampleTx,actor:AppPrincipal,customerId:str
  const owner=String(c.owner_user_id)===actor.userId,admin=actor.role==='admin',permission=access.find(g=>g.userId===actor.userId)?.permission;
  const stored=typeof c.profile_json==='string'?JSON.parse(c.profile_json):c.profile_json;const {deletedAt=null,...profile}=stored;const deleted=deletedAt!==null;
  const canEdit=admin||owner||permission==='edit';if(!(admin||owner||permission)||write&&!canEdit)throw new CustomerError(404);if((!allowArchived&&(c.archived_at!==null||deleted))||(write&&deleted))throw new CustomerError(409);
- return {row:c,dto:{id:id(c.id),profile:parseCustomerProfile(profile),ownerUserId:id(c.owner_user_id),rowVersion:String(c.row_version),archived:c.archived_at!==null,deleted,canDelete:admin&&!deleted,canEdit:canEdit&&!deleted,canManageAccess:admin||owner,canTransferOwner:admin,access:admin||owner?access:[]} as CustomerDTO};
+ return {row:c,hasWriteAccess:canEdit,dto:{id:id(c.id),profile:hydrateContactIds(parseCustomerProfile(profile),customerId),ownerUserId:id(c.owner_user_id),rowVersion:String(c.row_version),archived:c.archived_at!==null,deleted,canDelete:admin&&!deleted,canEdit:canEdit&&!deleted,canManageAccess:admin||owner,canTransferOwner:admin,access:admin||owner?access:[]} as CustomerDTO};
 }

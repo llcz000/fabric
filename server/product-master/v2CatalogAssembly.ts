@@ -17,6 +17,7 @@ import {createColorwayIdentityRouter} from './colorwayIdentityRoutes';
 import {createSharedTagsRouter} from './sharedTagsRoutes';
 import {createFabricRouter} from './fabricsRoutes';
 import {createV2ProductsRouter} from './productsV2Routes';
+import {createModelGalleryRouter} from './modelGallery';
 import {createV2ProductSafetyRouter} from './productSafetyRoutes';
 import {createV2SelectorRouter} from './selectorRoutes';
 import {createV2DocumentRouter,type V2DocumentOutputDependencies} from '../order-v2/documentRoutes';
@@ -146,6 +147,7 @@ export function createV2BusinessRoutes(checkedDatabase:AccessDatabase,checkedPoo
  routes.use(createSharedTagsRouter(checkedDatabase,checkedPool));
  routes.use(createFabricRouter(checkedDatabase,checkedPool));
  routes.use(createV2ProductsRouter(checkedDatabase,checkedPool));
+ routes.use(createModelGalleryRouter(checkedDatabase,checkedPool));
  // Explicitly expose safe deactivation without changing the existing DELETE behavior.
  routes.use('/products',createV2ProductSafetyRouter(checkedDatabase,checkedPool));
  // Use the same auth query adapter and transaction pool as the catalog;

@@ -12,7 +12,7 @@ import {buildSampleCardsWorkbook} from './cardExcel';
 export function canManageSampleCards(actor:AppPrincipal):boolean{
  return actor.role==='admin'||actor.role==='sales';
 }
-export interface SampleCardListInput{query?:string;limit?:number;offset?:number;needsReprint?:boolean}
+export interface SampleCardListInput{query?:string;limit?:number;offset?:number;needsReprint?:boolean;includeColorways?:boolean;sort?:'newest'|'numberAsc'|'numberDesc'}
 export interface SampleCardLibraryDependencies{
  resolve?(token:string):Promise<SampleCard>;
  list(input:SampleCardListInput):Promise<{items:SampleCard[];total:number;limit:number;offset:number}>;
@@ -44,7 +44,7 @@ function selection(v:unknown):string[]|null{
  return v.cardIds;
 }
 function listInput(q:Record<string,unknown>):SampleCardListInput|null{
- if(Object.keys(q).some(k=>!['query','limit','offset','needsReprint'].includes(k)))return null;
+ if(Object.keys(q).some(k=>!['query','limit','offset','needsReprint','includeColorways','sort'].includes(k)))return null;
  if(q.query!==undefined&&(typeof q.query!=='string'||[...q.query].length>100||/[\p{Cc}\p{Cf}]/u.test(q.query)))return null;
  const number=(v:unknown,defaultValue:number):number|null=>{
   if(v===undefined)return defaultValue;
@@ -53,8 +53,10 @@ function listInput(q:Record<string,unknown>):SampleCardListInput|null{
  };
  const limit=number(q.limit,50),offset=number(q.offset,0);
  if(limit===null||limit<1||limit>100||offset===null||offset<0||offset>1000000)return null;
+ if(q.sort!==undefined&&q.sort!=='newest'&&q.sort!=='numberAsc'&&q.sort!=='numberDesc')return null;
  if(q.needsReprint!==undefined&&q.needsReprint!=='true'&&q.needsReprint!=='false')return null;
- return {query:q.query as string|undefined,limit,offset,needsReprint:q.needsReprint==='true'};
+ if(q.includeColorways!==undefined&&q.includeColorways!=='true'&&q.includeColorways!=='false')return null;
+ return {...(q.sort===undefined?{}:{sort:q.sort as SampleCardListInput['sort']}),query:q.query as string|undefined,limit,offset,needsReprint:q.needsReprint==='true',...(q.includeColorways==='true'?{includeColorways:true}:{})};
 }
 export function createSampleCardLibraryRouter(authDb:AccessDatabase,deps:SampleCardLibraryDependencies,scanOrigin=process.env.FABRIC_V2_PUBLIC_ORIGIN):Router{
  const withScanUrl=(card:SampleCard):SampleCard=>scanOrigin?{...card,scanUrl:formatSampleCardScanUrl(scanOrigin,card.qrPayload)}:card;

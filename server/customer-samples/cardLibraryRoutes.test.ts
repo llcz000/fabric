@@ -3,7 +3,7 @@ import test from 'node:test';
 import express from 'express';
 import ExcelJS from 'exceljs';
 import {hashSessionToken} from '../access/password';
-import {createSampleCardLibraryRouter} from './cardLibraryRoutes';
+import {createSampleCardLibraryRouter,type SampleCardListInput} from './cardLibraryRoutes';
 import {SampleCardError} from './cardLibrary';
 
 const bearer='a'.repeat(64);
@@ -15,11 +15,11 @@ class AuthDb{
   throw Error('Unexpected auth SQL');
  }
 }
-async function exercise(run:(url:string,db:AuthDb,state:{calls:string[];failure:Error|null;mismatch:boolean})=>Promise<void>){
- const db=new AuthDb(),state={calls:[] as string[],failure:null as Error|null,mismatch:false};
+async function exercise(run:(url:string,db:AuthDb,state:{calls:string[];listInputs:SampleCardListInput[];failure:Error|null;mismatch:boolean})=>Promise<void>){
+ const db=new AuthDb(),state={calls:[] as string[],listInputs:[] as SampleCardListInput[],failure:null as Error|null,mismatch:false};
  const app=express();
  app.use('/api/v2/sample-cards',createSampleCardLibraryRouter(db,{
-  list:async input=>{state.calls.push('list');if(state.failure)throw state.failure;return {items:[card()],total:1,limit:input.limit??50,offset:input.offset??0};},
+  list:async input=>{state.calls.push('list');state.listInputs.push(input);if(state.failure)throw state.failure;return {items:[card()],total:1,limit:input.limit??50,offset:input.offset??0};},
   create:async (input,actor)=>{state.calls.push('create');assert.equal(actor.userId,'1');assert.deepEqual(input,{masterId:'1',fabricId:'2'});if(state.failure)throw state.failure;return {card:card(),created:state.calls.filter(x=>x==='create').length===1};},
   retire:async (identity,actor)=>{state.calls.push('retire');assert.equal(identity,'11');assert.equal(actor.userId,'1');if(state.failure)throw state.failure;return {id:identity,retired:true};},
   confirmReprinted:async (identity,revision,actor)=>{
@@ -156,5 +156,18 @@ test('B2-3 oversized private body is bounded and authentication runs before pars
   assert.equal(response.status,413);
   const anonymous=await fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:'{'});
   assert.equal(anonymous.status,401);assert.equal(state.calls.length,0);
+ });
+});
+
+test('card number sort HTTP validates direction and forwards it with the global page query',async()=>{
+ await exercise(async(url,_db,state)=>{
+  for(const sort of ['numberAsc','numberDesc','newest']){
+   const response=await request(url+'?sort='+sort+'&offset=50&limit=20&query=G8');assert.equal(response.status,200);
+   assert.equal(state.listInputs.at(-1)?.sort,sort);assert.equal(state.listInputs.at(-1)?.offset,50);
+   assert.equal(state.listInputs.at(-1)?.query,'G8');
+  }
+  const count=state.calls.length;
+  for(const query of ['sort=bad','sort=numberAsc&sort=numberDesc','sort[]=numberAsc'])assert.equal((await request(url+'?'+query)).status,400);
+  assert.equal(state.calls.length,count);
  });
 });

@@ -18,7 +18,7 @@ test('sample card read-only list calls current V2 private GET; reuses proven pag
  const page=await loadSandboxCards(api,'M001');
  assert.equal(page.items[0].cardNo,'M001-F001');
  assert.equal(calls.length,1);
- assert.equal(calls[0].path,'/api/v2/sample-cards?query=M001&limit=50&offset=0');
+ assert.equal(calls[0].path,'/api/v2/sample-cards?query=M001&limit=50&offset=0&includeColorways=true');
  assert.equal(calls[0].init?.method,undefined);
  await assert.rejects(()=>loadSandboxCards(api,'\u0000bad'));
  assert.equal(calls.length,1);

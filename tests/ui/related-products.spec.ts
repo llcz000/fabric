@@ -106,3 +106,57 @@ test('unrelated product rows are rejected instead of appearing under the wrong p
  await expect(dialog.getByRole('table')).toHaveCount(0);
 });
 
+
+for(const entry of [
+ {kind:'pattern',url:pattern,trigger:'查看 G0076 关联产品 21 个',count:20},
+ {kind:'fabric',url:fabric,trigger:'查看 F018 关联产品 5 个',count:5}
+])test(entry.kind+' related products show matching thumbnails directly at desktop and mobile sizes',async({page})=>{
+ await page.route('https://fabric-related-fixture.invalid/**',route=>route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="80" height="120"><rect width="80" height="120" fill="#f1e2df"/><path d="M5 120Q60 60 20 0M70 120Q10 60 65 0" fill="none" stroke="#54765b" stroke-width="4"/><circle cx="30" cy="40" r="12" fill="#bb647e"/><circle cx="50" cy="85" r="14" fill="#bb647e"/></svg>'}));
+ for(const width of [1440,360]){
+  await page.setViewportSize({width,height:900});
+  await page.goto(entry.url+'?linkedImages=1');
+  await page.getByRole('button',{name:entry.trigger,exact:true}).click();
+  const dialog=page.getByRole('dialog'),rows=dialog.locator('tbody tr');
+  await expect(rows).toHaveCount(entry.count);
+  const first=rows.first(),image=first.getByRole('img',{name:'花型 G0076-1',exact:true});
+  await expect(image).toBeVisible();
+  await expect.poll(()=>image.evaluate((el:HTMLImageElement)=>el.complete&&el.naturalWidth>0)).toBe(true);
+  await expect(image).toHaveCSS('object-fit','contain');
+  await expect(rows.nth(4)).toContainText('暂无图片');
+  const box=await image.boundingBox();expect(box!.width).toBe(40);expect(box!.height).toBe(40);
+  if(entry.kind==='fabric')await expect(rows.nth(1).getByRole('img',{name:'花型 G0075-1',exact:true})).toHaveAttribute('src',/000000000075.svg$/);
+  if(width===1440)expect((await first.boundingBox())!.height).toBeLessThanOrEqual(56);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+  const bounds=await first.boundingBox();expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(width);
+  await page.screenshot({path:'artifacts/related-product-thumbnails/'+entry.kind+'-'+width+'.png'});
+  if(entry.kind==='pattern'){
+   await dialog.getByRole('button',{name:'下一页'}).click();
+   await expect(rows).toHaveCount(1);await expect(rows.first().getByRole('img',{name:'花型 G0076-1',exact:true})).toBeVisible();
+   await expect(dialog).toContainText('G0076-1-F021');
+  }
+  await page.keyboard.press('Escape');await expect(page.getByRole('button',{name:entry.trigger,exact:true})).toBeFocused();
+ }
+});
+
+test('thumbnail signing failure keeps product information and supports retry without losing the page',async({page})=>{
+ await page.route('https://fabric-related-fixture.invalid/**',route=>route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="80" height="80" fill="#b77c8a"/></svg>'}));
+ await page.goto(fabric+'?linkedImages=1&linkedImageError=1');
+ await page.getByRole('button',{name:'查看 F018 关联产品 5 个',exact:true}).click();
+ const dialog=page.getByRole('dialog');
+ await expect(dialog).toContainText('缩略图暂不可用');await expect(dialog).toContainText('G0076-1-F018');
+ await expect(dialog.locator('tbody tr')).toHaveCount(5);
+ await dialog.getByRole('button',{name:'重试缩略图',exact:true}).click();
+ await expect(dialog.getByRole('img',{name:'花型 G0076-1',exact:true})).toBeVisible();
+ await expect(dialog).not.toContainText('缩略图暂不可用');await expect(dialog).toContainText('第 1 / 1 页');
+});
+
+test('broken thumbnail shows a fallback and can retry without opening original images',async({page})=>{
+ let broken=true;
+ await page.route('https://fabric-related-fixture.invalid/**',route=>broken?route.fulfill({status:404,body:''}):route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="80" height="80" fill="#b77c8a"/></svg>'}));
+ await page.goto(fabric+'?linkedImages=1');await page.getByRole('button',{name:'查看 F018 关联产品 5 个',exact:true}).click();
+ const dialog=page.getByRole('dialog');await expect(dialog.locator('tbody tr').first()).toContainText('加载失败');
+ await expect(dialog).toContainText('G0076-1-F018');broken=false;
+ await dialog.getByRole('button',{name:'重试缩略图',exact:true}).click();
+ const image=dialog.getByRole('img',{name:'花型 G0076-1',exact:true});await expect(image).toBeVisible();
+ await expect.poll(()=>image.evaluate((el:HTMLImageElement)=>el.complete&&el.naturalWidth>0)).toBe(true);
+});

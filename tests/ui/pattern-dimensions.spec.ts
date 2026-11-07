@@ -1,0 +1,64 @@
+import {test,expect} from '@playwright/test';
+const entry='/tools/ui-preview/entries/ui-ux-internal-patterns.html?dimensions';
+test('late list response from colorway save cannot overwrite saved master dimensions',async({page})=>{
+ await page.goto(entry+'&delay-list');
+ await expect(page.getByLabel('G0076 花型尺寸',{exact:true})).toHaveText('48 × 32 cm');
+ await page.getByRole('button',{name:'编辑花型及配色 G0076',exact:true}).click();
+ const dialog=page.getByRole('dialog',{name:'编辑花型 G0076',exact:true});
+ await dialog.getByRole('button',{name:'编辑',exact:true}).click();await dialog.getByRole('button',{name:'保存配色',exact:true}).click();
+ await dialog.getByRole('button',{name:'修改尺寸',exact:true}).click();
+ await dialog.getByLabel('花型宽度（cm）',{exact:true}).fill('47.5');
+ await dialog.getByLabel('花型高度（cm）',{exact:true}).fill('31.25');await dialog.getByRole('button',{name:'保存尺寸',exact:true}).click();
+ await page.waitForTimeout(1200);
+ await expect(page.getByLabel('G0076 花型尺寸',{exact:true})).toHaveText('47.5 × 31.25 cm');
+});
+// AC-166, AC-167, AC-168: exercise actual React, shared master fields and formal CSS.
+for(const width of [1440,360])test(`master dimensions create edit clear cancel and error at ${width}px`,async({page})=>{
+ await page.setViewportSize({width,height:900});const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto(entry+'&fail-dimensions');
+ await expect(page.getByLabel('G0076 花型尺寸',{exact:true})).toHaveText('48 × 32 cm');
+ await page.screenshot({path:`artifacts/pattern-dimensions/list-${width}.png`,fullPage:true});
+ await page.getByRole('button',{name:'编辑花型及配色 G0076',exact:true}).click();
+ const dialog=page.getByRole('dialog',{name:'编辑花型 G0076',exact:true});
+ await dialog.getByRole('button',{name:'修改尺寸',exact:true}).click();
+ await dialog.getByLabel('花型宽度（cm）',{exact:true}).fill('47.5');
+ await dialog.getByLabel('花型高度（cm）',{exact:true}).fill('31.25');
+ await expect(dialog.getByLabel('花型宽度（cm）',{exact:true})).toHaveCount(1);
+ await dialog.getByRole('button',{name:'保存尺寸',exact:true}).click();
+ await expect(dialog.getByRole('alert')).toContainText('HTTP 503');
+ await expect(dialog.getByLabel('花型宽度（cm）',{exact:true})).toHaveValue('47.5');
+ await page.screenshot({path:`artifacts/pattern-dimensions/edit-${width}.png`,fullPage:true});
+ await dialog.getByRole('button',{name:'保存尺寸',exact:true}).click();
+ await expect(dialog.getByText('47.5 × 31.25 cm',{exact:true})).toBeVisible();
+ await dialog.getByRole('button',{name:'关闭配色编辑',exact:true}).click();
+ await expect(page.getByLabel('G0076 花型尺寸',{exact:true})).toHaveText('47.5 × 31.25 cm');
+ await page.getByRole('button',{name:'编辑花型及配色 G0076',exact:true}).click();
+ await expect(dialog.getByText('47.5 × 31.25 cm',{exact:true})).toBeVisible();
+ await dialog.getByRole('button',{name:'修改尺寸',exact:true}).click();
+ for(const bad of ['0','-1','abc','']){
+  await dialog.getByLabel('花型宽度（cm）',{exact:true}).fill(bad);
+  await dialog.getByRole('button',{name:'保存尺寸',exact:true}).click();await expect(dialog.getByRole('alert')).toBeVisible();
+ }
+ await dialog.getByLabel('花型高度（cm）',{exact:true}).fill('');
+ await dialog.getByRole('button',{name:'保存尺寸',exact:true}).click();
+ await expect(dialog.getByRole('button',{name:'修改尺寸',exact:true})).toBeVisible();
+ await dialog.getByRole('button',{name:'修改尺寸',exact:true}).click();
+ await dialog.getByLabel('花型宽度（cm）',{exact:true}).fill('99');
+ await page.keyboard.press('Escape');
+ await page.getByRole('button',{name:'放弃修改',exact:true}).click();
+ await expect(page.getByLabel('G0076 花型尺寸',{exact:true})).toHaveText('—');
+ await expect(page.getByRole('button',{name:'编辑花型及配色 G0076',exact:true})).toBeFocused();
+ await page.getByRole('button',{name:'新增花型',exact:true}).click();
+ const create=page.getByRole('dialog',{name:'新增花型',exact:true});
+ await create.getByRole('textbox',{name:'花型编号',exact:true}).fill('G9001');
+ await create.getByLabel('花型宽度（cm）',{exact:true}).fill('48');await create.getByLabel('花型高度（cm）',{exact:true}).fill('32');
+ await create.getByRole('button',{name:'添加配色',exact:true}).click();
+ await create.getByLabel('配色 1 花型图',{exact:true}).setInputFiles({name:'G9001-1.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jCpkAAAAASUVORK5CYII=','base64')});
+ await expect(create.getByLabel('花型宽度（cm）',{exact:true})).toHaveCount(1);
+ await page.screenshot({path:`artifacts/pattern-dimensions/create-${width}.png`,fullPage:true});
+ const fields=await create.getByLabel('花型宽度（cm）',{exact:true}).boundingBox();expect(fields!.x).toBeGreaterThanOrEqual(0);expect(fields!.x+fields!.width).toBeLessThanOrEqual(width);
+ await create.getByRole('button',{name:'保存花型',exact:true}).click();
+ await expect(page.getByLabel('G9001 花型尺寸',{exact:true})).toHaveText('48 × 32 cm');
+ await expect(page.getByLabel('G0075 花型尺寸',{exact:true})).toHaveText('—');
+ expect(errors).toEqual([]);
+});

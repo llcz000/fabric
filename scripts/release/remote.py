@@ -50,6 +50,30 @@ def preserved_columns(before,after,migrations):
             if len(added)!=1 or added[0].split('\t')[2:]!=['datetime','YES','NULL','']:return False
             after='\n'.join(line for line in new if line.split('\t')[:2]!=key)
             if before==after:return True
+    if 'sample-contact' in migrations:
+        old=before.splitlines();new=after.splitlines()
+        key=['customer_sample_sessions','contact_name']
+        added=[line for line in new if line.split('\t')[:2]==key]
+        if not any(line.split('\t')[:2]==key for line in old):
+            if len(added)!=1 or added[0].split('\t')[2:]!=['varchar(110)','YES','NULL','']:return False
+            after='\n'.join(line for line in new if line.split('\t')[:2]!=key)
+            if before==after:return True
+    if 'sample-contact-identity' in migrations:
+        old=before.splitlines();new=after.splitlines()
+        key=['customer_sample_sessions','contact_id']
+        added=[line for line in new if line.split('\t')[:2]==key]
+        if not any(line.split('\t')[:2]==key for line in old):
+            if len(added)!=1 or added[0].split('\t')[2:]!=['char(32)','YES','NULL','']:return False
+            after='\n'.join(line for line in new if line.split('\t')[:2]!=key)
+            if before==after:return True
+    if 'sample-card-review' in migrations:
+        old=before.splitlines();new=after.splitlines()
+        key=['customer_sample_sessions','card_review']
+        added=[line for line in new if line.split('\t')[:2]==key]
+        if not any(line.split('\t')[:2]==key for line in old):
+            if len(added)!=1 or added[0].split('\t')[2:]!=['json','YES','NULL','']:return False
+            after='\n'.join(line for line in new if line.split('\t')[:2]!=key)
+            if before==after:return True
     if 'customer-v12' not in migrations:return False
     a=before.splitlines();b=after.splitlines()
     if len(a)!=len(b):return False

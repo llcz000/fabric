@@ -22,6 +22,24 @@ test('customer updates version conflict, archive restricts new work, contact tas
  c=await f.service.archive(sales,c.id,{expectedRowVersion:c.rowVersion,archived:true});await assert.rejects(f.service.withSampleSession(sales,{requestId:key(3),customerId:c.id}),{status:409});assert.equal((await f.service.get(sales,c.id)).archived,true);
  }finally{f.db.close();}
 });
+test('saving a renamed customer rejects another active customer name without changing the draft target',async()=>{
+ const f=fixture();
+ try{
+  const target=await f.service.create(sales,{requestId:key(60),profile:{displayName:'原客户名称'}});
+  const existing=await f.service.create(outsider,{requestId:key(61),profile:{displayName:'已用客户名称'}});
+  assert.equal((await f.service.list(sales,{query:'已用客户名称'})).total,0);
+  await assert.rejects(
+   f.service.update(sales,target.id,{expectedRowVersion:target.rowVersion,profile:{...target.profile,displayName:' 已用客户名称 ',notes:'编辑草稿'}}),
+   {status:409,code:'customer_name_taken'},
+  );
+  assert.deepEqual(await f.service.get(sales,target.id),target);
+  const saved=await f.service.update(sales,target.id,{expectedRowVersion:target.rowVersion,profile:{...target.profile,notes:'编辑草稿'}});
+  assert.equal(saved.profile.notes,'编辑草稿');
+  await f.service.archive(outsider,existing.id,{expectedRowVersion:existing.rowVersion,archived:true});
+  const renamed=await f.service.update(sales,target.id,{expectedRowVersion:saved.rowVersion,profile:{...saved.profile,displayName:'已用客户名称'}});
+  assert.equal(renamed.profile.displayName,'已用客户名称');
+ }finally{f.db.close();}
+});
 test('existing sample entry points honor customer revoke, administrator/view grants and require client selection on creation',async()=>{
  const f=fixture();try{const a=await f.service.withSampleSession(sales,{requestId:key(1),profile:profile()});f.db.prepare('INSERT INTO customer_sample_session_access(session_id,user_id,can_manage) VALUES(?,?,1)').run(a.session.id,3);
  const tx=await f.pool.getConnection();await tx.beginTransaction();await assert.rejects(lockSelectionAccess(tx,outsider,a.session.id,false),{status:404});await tx.rollback();
@@ -62,9 +80,48 @@ test('repeat selections for one customer stay independent and directory counts o
   f.db.prepare("INSERT INTO customer_sample_items(session_id,product_id,removed_at) VALUES(?,100,NULL),(?,101,'2026-10-26'),(?,102,NULL)").run(first.session.id,first.session.id,first.session.id);
   f.db.prepare('INSERT INTO customer_sample_item_sources(session_id,product_id,card_id) VALUES(?,100,501),(?,101,502)').run(first.session.id,first.session.id);
   f.db.prepare('INSERT INTO customer_sample_manual_events(session_id,product_id,card_id) VALUES(?,100,501),(?,102,503),(?,102,503)').run(first.session.id,first.session.id,first.session.id);
+  f.db.exec("INSERT INTO pattern_colorways VALUES(1,1,1,1),(2,2,1,1),(3,3,1,1);INSERT INTO v2_products VALUES(100,'P100',1,1,1),(101,'P101',1,1,2),(102,'P102',1,1,3);INSERT INTO sample_cards VALUES(501,1,1,NULL,1),(502,2,1,NULL,1),(503,3,1,NULL,1);");
   const result=await listSampleSessions(f.pool,sales,{});
   assert.deepEqual(result.items.map(x=>x.id),[second.session.id,first.session.id]);
   assert.deepEqual(result.items.map(x=>x.selectedCardCount),[0,2]);
   assert.deepEqual(result.items.map(x=>x.createdAt),['2026-10-26T01:00:00.000Z','2026-10-25T01:00:00.000Z']);
+ }finally{f.db.close();}
+});
+
+test('sample orders for two contacts at one company keep separate assignments and support a guarded correction',async()=>{
+ const f=fixture();
+ try{
+  const company=await f.service.create(sales,{requestId:key(951),profile:{...profile(),displayName:'Contact company',contacts:[
+   {name:'Alice',phone:null,wechat:null},{name:'Bob',phone:null,wechat:null},
+  ]}});
+  const create=(n:number,contactIndex?:number)=>f.service.withSampleSession(sales,{requestId:key(n),customerId:company.id,
+   ...(contactIndex===undefined?{}:{contactChoice:{index:contactIndex,customerVersion:company.rowVersion}})});
+  const legacy=await create(952);
+  await assert.rejects(f.service.withSampleSession(sales,{requestId:key(955),customerId:company.id,contactChoice:{index:0,customerVersion:'2'}}),{status:409});
+  const alice=await create(953,0),bob=await create(954,1);
+  assert.equal(legacy.session.contactName,null);
+  assert.equal(alice.session.contactName,'Alice');assert.equal(bob.session.contactName,'Bob');
+  assert.notEqual(alice.session.id,bob.session.id);
+  const options=await f.service.sessionContact(sales,legacy.session.id);
+  assert.deepEqual(options.choices,[{index:0,name:'Alice'},{index:1,name:'Bob'}]);
+  const edit={expectedLinkVersion:options.linkVersion,contactChoice:{index:1,customerVersion:options.customerVersion}};
+  await assert.rejects(f.service.updateSessionContact(outsider,legacy.session.id,edit),{status:404});
+  const saved=await f.service.updateSessionContact(sales,legacy.session.id,edit);
+  assert.equal(saved.contactName,'Bob');
+  assert.equal((await f.service.sessionContact(sales,legacy.session.id)).contactName,'Bob');
+  await assert.rejects(f.service.updateSessionContact(sales,legacy.session.id,edit),{status:409});
+  assert.equal((await f.service.sessionContact(sales,alice.session.id)).contactName,'Alice');
+  const links=f.db.prepare('SELECT DISTINCT customer_id FROM customer_session_links').all();
+  assert.deepEqual(links.map(link=>String(link.customer_id)),[company.id]);
+  assert.deepEqual((await listSampleSessions(f.pool,sales,{query:'Bob'})).items.map(item=>item.id),[bob.session.id,legacy.session.id]);
+  f.db.prepare('UPDATE customer_sample_sessions SET contact_id=NULL WHERE id=?').run(legacy.session.id);
+  const before=await f.service.get(sales,company.id);
+  await f.service.update(sales,company.id,{expectedRowVersion:before.rowVersion,profile:{...before.profile,contacts:[
+   {...before.profile.contacts[1],name:'Robert'},before.profile.contacts[0],
+  ]}});
+  assert.deepEqual((await listSampleSessions(f.pool,sales,{query:'Robert'})).items.map(item=>item.id),[bob.session.id,legacy.session.id]);
+  assert.equal((await listSampleSessions(f.pool,sales,{query:'Bob'})).total,0);
+  assert.equal((await f.service.sessionContact(sales,alice.session.id)).contactName,'Alice');
+
  }finally{f.db.close();}
 });

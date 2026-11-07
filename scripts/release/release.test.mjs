@@ -4,6 +4,14 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {validateProfile,assertWritable,collectBrowserFiles,verifyFiles,runPhases,parseArgs,hash,phasePlan,assertPublishedEvidence,releaseTimingReport,recordRollbackReceipt} from './core.mjs';
+import * as releaseCore from './core.mjs';
+
+test('full UI override works for read-only plan and fresh preparation but cannot alter immutable/reused runs',()=>{
+ for(const command of ['plan','prepare','run'])assert.equal(parseArgs([command,'--full-ui']).fullUi,true);
+ assert.throws(()=>parseArgs(['run','existing','--full-ui']));
+ assert.throws(()=>parseArgs(['prepare','--full-ui','--quick-ui']));
+ assert.throws(()=>parseArgs(['prepare','--full-ui','--from-release','receipt.json']));
+});
 const profile={name:'production',url:'https://124.223.97.60',production:'/opt/fabric-v2-production-20261019-11910f5f',stageRoot:'/opt/fabric-releases',backupRoot:'/var/backups/fabric',process:'fabric-v2-production-20261019',recoveryProcess:'fabric-v2-production-readonly-20261019',starter:'start-v2.cjs',nginx:'/etc/nginx/sites-enabled/fabric',database:'fabric_db',serverUuid:'a937ff09-72b6-11f1-b04e-52540034488b',port:3008,recoveryPort:3009,sshConfig:'D:/fabric/.local/server/_config/ssh.local.json'};
 test('strict writable contract accepts missing/false only',()=>{for(const r of [{mode:'v2'},{mode:'v2',readOnly:false}])assertWritable(r);for(const r of [null,[],{mode:'v1'},{mode:'v2',readOnly:true},{mode:'v2',readOnly:0},{mode:'v2',readOnly:'false'},{mode:'v2',readOnly:null}])assert.throws(()=>assertWritable(r));});
 test('profile rejects unsafe target paths, identifiers, URLs and unexpected fields',()=>{assert.deepEqual(validateProfile(profile),profile);for(const change of [{production:'/opt/../etc'},{production:'/opt'},{stageRoot:'/opt'},{database:'fabric_db; DROP DATABASE x'},{process:'x;id'},{url:'https://user:password@host'},{port:'3008'},{nginx:'/etc/../tmp/x'},{extra:true}])assert.throws(()=>validateProfile({...profile,...change}));});
@@ -41,13 +49,38 @@ test('published artifact reuse must match the verified archive and actual progra
 test('timing report sums non-overlapping recorded stages and counts failures without nested verification twice',()=>{
  const run={id:'fixture',preparedMs:8,phases:{deploy:{status:'failed',durationMs:11,result:{verification:{durationMs:99}}},verify:{status:'passed',durationMs:5}},rolledBack:true};const result=releaseTimingReport(run);assert.equal(result.measuredTotalMs,24);assert.equal(result.failedStageMs,11);assert.equal(result.rolledBack,true);assert.equal(result.phases.deploy.durationMs,11);
 });
+test('release progress can be queried before a frozen run exists and includes the current browser test',()=>fixture(dir=>{
+ assert.equal(parseArgs(['progress']).command,'progress');
+ assert.equal(parseArgs(['progress','fixture']).id,'fixture');
+ assert.deepEqual(phasePlan('progress'),[]);
+ fs.writeFileSync(path.join(dir,'prepare-progress.json'),JSON.stringify({stage:'uiBrowserTests',status:'running',startedAt:'2026-11-06T11:00:00.000Z'}));
+ fs.writeFileSync(path.join(dir,'browser-validation-plan.json'),JSON.stringify({mode:'scoped',reason:'exact-registered-page-scope'}));
+ fs.writeFileSync(path.join(dir,'ui-browser-progress.log'),'Running 9 tests\n\x1b[1A\x1b[2K[4/9] tests/ui/sample-directory.spec.ts › displays customer\n');
+ const result=releaseCore.readReleaseProgress(dir,'fixture',Date.parse('2026-11-06T11:00:42.000Z'));
+ assert.equal(result.id,'fixture');assert.equal(result.stage,'uiBrowserTests');assert.equal(result.status,'running');
+ assert.equal(result.elapsedMs,42000);assert.equal(result.browser.current,4);assert.equal(result.browser.total,9);
+ assert.equal(result.browser.mode,'scoped');assert.equal(result.browser.currentTest,'tests/ui/sample-directory.spec.ts › displays customer');
+}));
+test('release progress advances from a running remote phase to verified completion from local receipts',()=>fixture(dir=>{
+ const runFile=path.join(dir,'run.json');
+ const run={id:'fixture',phases:{backup:{status:'passed'},deploy:{status:'running',startedAt:'2026-11-06T11:00:00.000Z'}}};
+ fs.writeFileSync(runFile,JSON.stringify(run));
+ assert.equal(releaseCore.readReleaseProgress(dir,'fixture').stage,'deploy');
+ assert.equal(releaseCore.readReleaseProgress(dir,'fixture').status,'running');
+ run.phases={verify:{status:'passed'}};fs.writeFileSync(runFile,JSON.stringify(run));
+ fs.writeFileSync(path.join(dir,'release-result.json'),JSON.stringify({state:'released'}));
+ assert.equal(releaseCore.readReleaseProgress(dir,'fixture').status,'released');
+}));
 test('confirmed automatic rollback is retained locally and prevents treating the failed release as resumable',()=>{
  const run={};recordRollbackReceipt(run,{state:'code-rolled-back',databaseRestored:false,newTablesAndBusinessWritesPreserved:true});assert.equal(run.rolledBack,true);assert.equal(run.automaticRollback.databaseRestored,false);const unknown={};recordRollbackReceipt(unknown,{state:'guarded-rollback-failed'});assert.notEqual(unknown.rolledBack,true);assert.equal(unknown.automaticRollback.state,'guarded-rollback-failed');
 });
 
 test('UI browser release gate runs from the single repository root, not a retired parent workspace',()=>{
  const cli=fs.readFileSync(new URL('./cli.mjs',import.meta.url),'utf8');
- assert.match(cli,/npm run test:ui:ux/);
+ assert.match(cli,/executeBrowserValidation\(browserValidation,\{root,dir,/);
+ const runner=fs.readFileSync(new URL('./browser-validation.mjs',import.meta.url),'utf8');
+ assert.match(runner,/node_modules\/@playwright\/test\/cli\.js/);
+ assert.match(runner,/--config=playwright\.ui\.config\.ts/);
  assert.doesNotMatch(cli,/npm --prefix \.\.\/\.\. run test:ui:ux/);
 });
 

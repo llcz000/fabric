@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
-import {reviewedSourceDiff,acceptReviewedSource,acceptReviewedRequirements,syncVerifiedPointer,targetedFabricUiAllowed} from './source-automation.mjs';
+import {reviewedSourceDiff,acceptReviewedSource,acceptReviewedRequirements,syncVerifiedPointer} from './source-automation.mjs';
 const sha=s=>createHash('sha256').update(s).digest('hex');
 function workspace(fn){
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'fabric-source-flow-'));
@@ -110,13 +110,6 @@ test('reviewed source refresh preserves the documented local mockup helper exclu
  assert.deepEqual(reviewedSourceDiff(ctx).changed,['scripts/other_local.py']);
  assert.throws(()=>acceptReviewedSource(ctx,[]),/unreviewed/i);
 }));
-test('quick browser gate only accepts dedicated Fabric list component changes',()=>{
- assert(targetedFabricUiAllowed(['src/components/product-master-v2/FabricLibraryV2.tsx']));
- assert(targetedFabricUiAllowed(['src/components/product-master-v2/FabricLibraryV2.test.ts','src/components/product-master-v2/FabricLibraryV2.tsx']));
- assert(!targetedFabricUiAllowed(['src/components/product-master-v2/FabricImportV2.tsx']));
- assert(!targetedFabricUiAllowed(['src/components/product-master-v2/FabricLibraryV2.tsx','server/auth.ts']));
- assert(!targetedFabricUiAllowed([]));
-});
 
 test('tooling relocation registers exact UI entries and test files without allowing arbitrary configuration',()=>workspace(root=>{
  fs.mkdirSync(path.join(root,'tests/ui'),{recursive:true});

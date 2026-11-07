@@ -172,3 +172,34 @@ test('P4-4 isolated React page: filters two inputs, status, no tag filters, load
  const readOnly=renderToStaticMarkup(React.createElement(ProductCatalogV2,{apiFetch:fetch,canManage:false}));
  assert(!readOnly.includes('新增产品')&&!readOnly.includes('删除产品'));
 });
+
+test('product number sort resets the page and is sent to the server with existing filters',()=>{
+ const sorted=reduceCatalogFilters({...emptyCatalogFilters,offset:100,productNo:'G8'}, {type:'sort',value:'numberDesc'});
+ assert.equal(sorted.offset,0);assert.equal(sorted.sort,'numberDesc');
+ const url=new URL(buildCatalogUrl('/api/v2/products',sorted),'https://test.invalid');
+ assert.equal(url.searchParams.get('sort'),'numberDesc');assert.equal(url.searchParams.get('productNo'),'G8');
+ const html=renderToStaticMarkup(React.createElement(CatalogV2Table,{
+  page:{items:[fake],total:1,limit:50,offset:0},patternUrls:new Map(),onPatternPreview:()=>{},onProductImages:()=>{},onPage:()=>{},numberSort:'numberDesc',onNumberSort:()=>{}
+ }));
+ assert.match(html,/<th[^>]*aria-sort="descending"[^>]*>[\s\S]*?货号/);
+ assert(html.includes('编号全库排序；其他列仅排序当前页'));
+});
+
+test('product sorting preview covers all pages, natural master and colorway order, tied fabrics stay separate',async()=>{
+ const before=Object.getOwnPropertyDescriptor(globalThis,'location');
+ Object.defineProperty(globalThis,'location',{value:new URL('https://test.invalid/?sorting=1'),configurable:true});
+ try{
+  const {relatedProductsPreview}=await import('../../../tools/ui-preview/fixtures/relatedProducts');
+  const all:CatalogProduct[]=[];
+  for(const offset of [0,50,100]){
+   const response=await relatedProductsPreview(new URL('https://test.invalid/api/v2/products?fabricId=1&sort=numberAsc&limit=50&offset='+offset));
+   const page=await response.json();assert.equal(page.total,144);all.push(...page.items);
+  }
+  assert.equal(new Set(all.map(row=>row.id)).size,144);
+  assert.deepEqual(all.slice(0,4).map(row=>row.productNo),['G1-2-F999','G1-2-F001','G1-10-F999','G1-10-F001']);
+  const masterNumbers=all.map(row=>Number(row.masterNo.slice(1)));
+  assert(masterNumbers.indexOf(8)<masterNumbers.indexOf(15)&&masterNumbers.indexOf(15)<masterNumbers.indexOf(100));
+  const desc=await (await relatedProductsPreview(new URL('https://test.invalid/api/v2/products?fabricId=1&sort=numberDesc&limit=50&offset=0'))).json();
+  assert.equal(desc.items[0].productNo,'G100-10-F001');
+ }finally{if(before)Object.defineProperty(globalThis,'location',before);else Reflect.deleteProperty(globalThis,'location');}
+});

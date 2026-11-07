@@ -14,6 +14,7 @@ export interface PatternVersion{
  patternImageAssetId:string|null;remark:string;isActive:boolean;colorTags:PatternTag[];
 }
 export interface PatternMasterPageItem{
+ widthCm?:number|null;heightCm?:number|null;
  id:string;masterNo:string;isActive:boolean;nextColorwayNo:number;productCount:number;
  topicTags:PatternTag[];colorTags:PatternTag[];versions:PatternVersion[];
 }
@@ -140,7 +141,7 @@ export async function searchPatternCatalog(db:Query,input:PatternCatalogQuery):P
  const order=input.sort==='newest'?'m.created_at DESC,m.id DESC':
   'LENGTH('+suffix+') '+direction+','+suffix+' '+direction+',m.master_no '+direction+',m.id '+direction;
  const [masterRaw]=await db.query(
-  'SELECT m.id,m.master_no,m.is_active,m.next_colorway_no,'+
+  'SELECT m.id,m.master_no,m.is_active,m.next_colorway_no,m.width_cm,m.height_cm,'+
   '(SELECT COUNT(*) FROM v2_products p JOIN pattern_colorways pc ON pc.id=p.pattern_colorway_id WHERE pc.master_id=m.id) AS product_count FROM pattern_masters m'+filtered.sql+
   ' ORDER BY '+order+' LIMIT ? OFFSET ?',
   [...filtered.params,input.limit,input.offset]);
@@ -168,6 +169,7 @@ export async function searchPatternCatalog(db:Query,input:PatternCatalogQuery):P
  const items:PatternMasterPageItem[]=data.map(row=>{
   const parent=id(row.id),masterNo=String(row.master_no);
   return {id:parent,masterNo,isActive:Number(row.is_active)===1,
+   widthCm:row.width_cm==null?null:Number(row.width_cm),heightCm:row.height_cm==null?null:Number(row.height_cm),
    nextColorwayNo:integer(row.next_colorway_no,'next sequence'),
    productCount:integer(row.product_count??0,'product count'),
    topicTags:topicTags.get(parent)??[],colorTags:colorTags.get(parent)??[],
@@ -185,19 +187,19 @@ export async function searchPatternCatalog(db:Query,input:PatternCatalogQuery):P
 }
 /** Opened on demand: one master and all versions with their own color tags, no per-version HTTP requests. */
 export async function loadPatternEditor(db:Query,masterId:string):Promise<{
- items:(PatternVersion&{masterNo:string})[];nextColorwayNo:number;
+ items:(PatternVersion&{masterNo:string})[];nextColorwayNo:number;widthCm:number|null;heightCm:number|null;
 }>{
  if(!/^[1-9]\d{0,19}$/.test(masterId)||BigInt(masterId)>MAX)
   throw new PatternCatalogError('Invalid master identity');
  const [parents]=await db.query(
-  'SELECT id,master_no,next_colorway_no FROM pattern_masters WHERE id=? AND deleted_at IS NULL',[masterId]);
+  'SELECT id,master_no,next_colorway_no,width_cm,height_cm FROM pattern_masters WHERE id=? AND deleted_at IS NULL',[masterId]);
  const parent=rows(parents)[0];if(!parent)throw new PatternCatalogError('Pattern master not found',404);
  const masterNo=String(parent.master_no),next=integer(parent.next_colorway_no,'next sequence');
  const [raw]=await db.query(
   'SELECT id,master_id,colorway_no,pattern_image_asset_id,remark,is_active FROM pattern_colorways '+
   'WHERE master_id=? ORDER BY colorway_no,id',[masterId]);
  const versions=rows(raw),colors=versions.length?await batchTags(db,'color',[masterId]):new Map<string,PatternTag[]>();
- return {nextColorwayNo:next,items:versions.map(row=>{
+ return {nextColorwayNo:next,widthCm:parent.width_cm==null?null:Number(parent.width_cm),heightCm:parent.height_cm==null?null:Number(parent.height_cm),items:versions.map(row=>{
   const colorwayNo=integer(row.colorway_no,'colorwayNo'),colorId=id(row.id);
   if(!colorwayNo)throw Error('Invalid colorway identity');
   return {id:colorId,masterId,masterNo,colorwayNo,patternNo:masterNo+'-'+colorwayNo,

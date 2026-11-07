@@ -86,11 +86,6 @@ export function acceptReviewedRequirements(ctx,reviewed){
   files:state.manifest.files.map(f=>accepted.has(f.path)?{...f,sha256:accepted.get(f.path)}:f)};
  atomicJson(state.file,next);return changed;
 }
-/** Only an explicitly selected, narrow Fabric table UI change may use focused browser QA. */
-export function targetedFabricUiAllowed(changed){
- const ok=new Set(['src/components/product-master-v2/FabricLibraryV2.tsx','src/components/product-master-v2/FabricLibraryV2.test.ts']);
- return Array.isArray(changed)&&changed.includes('src/components/product-master-v2/FabricLibraryV2.tsx')&&changed.every(p=>ok.has(p));
-}
 export function syncVerifiedPointer(root,run,receipt){
  if(receipt?.state!=='released'||run?.phases?.verify?.status!=='passed'||run?.id!==path.basename(run.dir))
   throw Error('Unverified release receipt');

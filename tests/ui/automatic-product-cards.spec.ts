@@ -14,9 +14,7 @@ test('automatic cards remove duplicate creation and retain QR, preview, sharing 
   await trigger.click();await dialog.getByRole('button',{name:'确认删除',exact:true}).click();
   await expect(page.getByRole('alert')).toContainText('关联 3 个产品');await expect(page.locator('tbody tr')).toHaveCount(3);
   await page.screenshot({path:`artifacts/ui-ux-pilot/automatic-cards-protected-${width}.png`,fullPage:true});
-  const view=page.getByRole('button',{name:'查看花型 G0886-F018'});await view.click();
-  await expect(page.getByRole('dialog',{name:'色卡关联花型 G0886-F018'})).toBeVisible();
-  await page.keyboard.press('Escape');await expect(view).toBeFocused();
+  await expect(page.getByRole('button',{name:/查看花型/})).toHaveCount(0);await expect(page.locator('tbody tr').first().getByRole('figure')).toHaveCount(6);
  }
  for(const width of [1440,360]){
   await page.setViewportSize({width,height:900});

@@ -14,6 +14,7 @@ for(const entry of entries){
    const expected=width<768?'static':'sticky';
    await expect(cell).toHaveCSS('position',expected);
    await expect(head).toHaveCSS('position',expected);
+   if(entry.name==='cards'&&width===360){await expect(cell).toBeVisible();expect(await scroll.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);continue;}
    const before=await cell.boundingBox(),bounds=await scroll.boundingBox();
    if(width===360){
     expect(before!.x).toBeGreaterThan(bounds!.x+bounds!.width-5);

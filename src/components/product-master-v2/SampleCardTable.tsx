@@ -1,18 +1,20 @@
+import {SamplePatternThumbnail} from './SamplePatternThumbnail';
 import { ActionIcon } from './ActionIcon';
 import React, { useEffect, useRef, useState } from 'react';
 import { type SampleCard, type SampleCardPage } from './sampleCardModel';
 import {SampleCardQr,type SampleCardQrRenderer} from './SampleCardQr';
 import {buildColumnVisibility,readColumnVisibility,toggleColumnVisibility,
  visibleColumns,writeColumnVisibility,type LibraryColumn} from './libraryTableChromeModel';
-import {ColumnSettingsMenu} from './LibraryTableChrome';
+import {ColumnSettingsMenu,SortableHeader} from './LibraryTableChrome';
 import {DialogDismissButton} from '../ui/DialogDismissButton';
 const button='rounded border border-[#c3c6d7] px-3 py-1.5 text-xs disabled:opacity-40';
 
 const border='rounded-lg border border-[#c3c6d7] bg-white';
 
-/** 色卡管理表遵守服务端默认顺序，不提供仅当前页的伪排序；保留已上线的列显示偏好。 */
+/** 编号由服务端全库排序后分页；保留操作者的列显示偏好。 */
 const cardColumns:LibraryColumn<SampleCard>[]=[
- {key:'cardNo',label:'色卡编号'},
+ {key:'cardNo',label:'色卡编号',sortable:true},
+ {key:'colorways',label:'花型配色',locked:true},
  {key:'description',label:'品名'},
  {key:'composition',label:'成分'},
  {key:'weight',label:'克重'},
@@ -21,7 +23,7 @@ const cardColumns:LibraryColumn<SampleCard>[]=[
 ];
 const CARD_COLUMN_KEY='fabric.v2.library.columns.sampleCard';
 const cardColumnWidths:Record<string,string|undefined>={
- cardNo:'160px',description:'166px',composition:undefined,weight:'100px',width:'96px',actions:'206px'
+ cardNo:'160px',colorways:'360px',description:'166px',composition:undefined,weight:'100px',width:'96px',actions:'160px'
 };
 
 function CardQrZoom({card,QrRenderer,onClose}:{card:SampleCard;QrRenderer:SampleCardQrRenderer;onClose():void}){
@@ -29,12 +31,13 @@ function CardQrZoom({card,QrRenderer,onClose}:{card:SampleCard;QrRenderer:Sample
   return <dialog ref={ref} aria-label={'色卡二维码 '+card.cardNo} onCancel={event=>{event.preventDefault();onClose();}} className="m-auto max-w-[94vw] rounded-xl border bg-white p-5 shadow-xl backdrop:bg-black/30"><header className="mb-3 flex items-center justify-between gap-4"><h3 className="font-semibold">{card.cardNo}</h3><DialogDismissButton onClick={onClose} label="关闭二维码"/></header><div className="mx-auto w-[min(76vw,420px)] [&>svg]:h-auto [&>svg]:w-full"><QrRenderer payload={card.scanUrl??card.qrPayload} size={420}/></div><p className="mt-3 text-center text-xs text-slate-500">扫码查看花型或加入选样</p></dialog>;
 }
 
-export function SampleCardTable({page,selectedIds,onToggle,onPageAll,onPage,onConfirmReprinted,onRetire,onViewPatterns,onShare,QrRenderer=SampleCardQr,busy=false}:{
+export function SampleCardTable({page,selectedIds,onToggle,onPageAll,onPage,onConfirmReprinted,onRetire,onShare,thumbnailUrls=new Map(),thumbnailsPending=false,thumbnailsFailed=false,onRetryImages,QrRenderer=SampleCardQr,busy=false,sort='newest',onSort}:{
  page:SampleCardPage;selectedIds:readonly string[];onToggle(id:string,selected:boolean):void;
  onPageAll(selected:boolean):void;onPage(offset:number):void;
  onConfirmReprinted?(card:SampleCard):void;onRetire?(card:SampleCard):void;onViewPatterns?(card:SampleCard):void;
  onShare?(card:SampleCard):void;
- QrRenderer?:SampleCardQrRenderer;busy?:boolean;
+ thumbnailUrls?:Map<string,string>;thumbnailsPending?:boolean;thumbnailsFailed?:boolean;onRetryImages?():void;
+ QrRenderer?:SampleCardQrRenderer;busy?:boolean;sort?:'newest'|'numberAsc'|'numberDesc';onSort?():void;
 }){
  const [qrCard,setQrCard]=useState<SampleCard|null>(null);
  const [visibility,setVisibility]=useState(()=>readColumnVisibility(cardColumns,CARD_COLUMN_KEY));
@@ -52,21 +55,21 @@ export function SampleCardTable({page,selectedIds,onToggle,onPageAll,onPage,onCo
  };
  const renderCell=(c:SampleCard,key:string)=>{
   switch(key){
-   case 'cardNo':return <td className="px-3 py-3"><div className="font-mono font-semibold text-[#0053da]">{c.cardNo}</div>
+   case 'cardNo':return <td data-card-field="cardNo" className="px-3 py-3"><div className="font-mono font-semibold text-[#0053da]">{c.cardNo}</div>
     {c.needsReprint===true?<span className="mt-1 inline-flex rounded bg-amber-100 px-1.5 py-0.5 text-[11px] text-amber-800">需重新打印</span>:null}
     <div className="mt-2 flex flex-wrap items-center gap-2">
      {c.needsReprint===true&&onConfirmReprinted?<button type="button" disabled={busy} className="text-xs text-[#0053da] hover:underline disabled:opacity-50"
       aria-label={'标记已重新打印 '+c.cardNo} onClick={()=>onConfirmReprinted(c)}><ActionIcon name="check"/>标记已重新打印</button>:null}
     </div>
    </td>;
-   case 'description':return <td className="max-w-[166px] truncate px-3 py-3" title={c.description}>{c.description}</td>;
-   case 'composition':return <td className="px-3 py-3">{c.composition||'—'}</td>;
-   case 'weight':return <td className="whitespace-nowrap px-3 py-3">{c.weightValue===null?'—':c.weightValue+' '+c.weightUnit}</td>;
-   case 'width':return <td className="whitespace-nowrap px-3 py-3">{c.widthValue===null?'—':c.widthValue+' cm'}</td>;
-   case 'actions':return <td className="col-actions whitespace-nowrap px-3 py-3">
+   case 'colorways':return <td data-card-field="colorways" className="px-3 py-3"><div className="v2-sample-colorways" aria-label={'色卡配色 '+c.cardNo}>{c.colorways?.map(color=>{const label=c.masterNo+'-'+color.colorwayNo;return <figure key={color.productId} className="v2-sample-tile"><SamplePatternThumbnail label={label} assetId={color.patternImageAssetId} url={color.patternImageAssetId?thumbnailUrls.get(color.patternImageAssetId):undefined} pending={thumbnailsPending} failed={thumbnailsFailed}/><figcaption>{label}</figcaption></figure>;})}</div>{!c.colorways?.length&&<span className="text-xs text-slate-500">暂无关联配色</span>}{thumbnailsFailed&&onRetryImages&&<button type="button" className="mt-2 text-xs text-blue-700 underline" onClick={onRetryImages}>重试图片</button>}</td>;
+   case 'description':return <td data-card-field="description" className="max-w-[166px] truncate px-3 py-3" title={c.description}>{c.description}</td>;
+   case 'composition':return <td data-card-field="composition" className="px-3 py-3">{c.composition||'—'}</td>;
+   case 'weight':return <td data-card-field="weight" className="whitespace-nowrap px-3 py-3">{c.weightValue===null?'—':c.weightValue+' '+c.weightUnit}</td>;
+   case 'width':return <td data-card-field="width" className="whitespace-nowrap px-3 py-3">{c.widthValue===null?'—':c.widthValue+' cm'}</td>;
+   case 'actions':return <td data-card-field="actions" className="col-actions whitespace-nowrap px-3 py-3">
     <div className="flex flex-nowrap items-center justify-end gap-2" style={{gap:8}} aria-label={'色卡操作 '+c.cardNo}>
     <button type="button" aria-label={'放大色卡二维码 '+c.cardNo} onClick={()=>setQrCard(c)} className="v2-icon-button" title="查看二维码"><ActionIcon name="qr"/></button>
-    {onViewPatterns&&<button type="button" disabled={busy} className="v2-icon-button" title="查看花型" aria-label={'查看花型 '+c.cardNo} onClick={()=>onViewPatterns(c)}><ActionIcon name="view"/></button>}
     {onShare&&<button type="button" disabled={busy||!c.isActive} className="v2-icon-button" title="分享花型产品" aria-label={'分享花型产品 '+c.cardNo} onClick={()=>onShare(c)}><ActionIcon name="share"/></button>}
     {onRetire?<button type="button" disabled={busy} className="v2-icon-button v2-icon-danger" title="删除色卡"
      aria-label={'删除色卡 '+c.cardNo} onClick={()=>onRetire(c)}><ActionIcon name="delete"/></button>:null}
@@ -83,7 +86,7 @@ export function SampleCardTable({page,selectedIds,onToggle,onPageAll,onPage,onCo
     onToggle={toggleVisibility} onReset={resetVisibility}/>
   </div>
   <div className="overflow-x-auto" role="region" aria-label="色卡列表，可横向滚动" tabIndex={0}>
-   <table className="v2-library-table w-full min-w-[970px] border-collapse text-left text-xs">
+   <table className="v2-library-table w-full min-w-[1160px] border-collapse text-left text-xs">
     <colgroup>
      <col style={{width:'44px'}}/>
      {shown.map(column=><col key={column.key} style={cardColumnWidths[column.key]?{width:cardColumnWidths[column.key]}:undefined}/>)}
@@ -91,10 +94,10 @@ export function SampleCardTable({page,selectedIds,onToggle,onPageAll,onPage,onCo
     <thead className="border-b border-[#c3c6d7] bg-[#fbfcfd]"><tr>
      <th className="w-10 px-3 py-2.5"><input type="checkbox" aria-label="选择本页色卡" checked={all}
       disabled={busy||!rows.length} onChange={e=>onPageAll(e.target.checked)}/></th>
-     {shown.map(column=><th key={column.key} scope="col" className={'px-3 py-2.5 font-semibold '+(column.key==='actions'?'col-actions whitespace-nowrap':'')}>{column.label}</th>)}
+     {shown.map(column=><SortableHeader key={column.key} column={{...column,sortable:column.key==='cardNo'&&Boolean(onSort)}} sort={sort==='newest'?null:{key:'cardNo',direction:sort==='numberAsc'?'asc':'desc'}} onSort={()=>onSort?.()} className={'px-3 py-2.5 font-semibold '+(column.key==='actions'?'col-actions whitespace-nowrap':'')}/>)}
     </tr></thead>
     <tbody>{rows.map(c=><tr key={c.id} data-qr-payload={c.qrPayload} className="v2-library-row border-b border-[#e2e8f0] last:border-0 hover:bg-[#fbfcfd]">
-     <td className="px-3 py-3"><input type="checkbox" aria-label={'选择色卡 '+c.cardNo} checked={selectedIds.includes(c.id)}
+     <td data-card-field="selection" className="px-3 py-3"><input type="checkbox" aria-label={'选择色卡 '+c.cardNo} checked={selectedIds.includes(c.id)}
       disabled={busy} onChange={e=>onToggle(c.id,e.target.checked)}/></td>
      {shown.map(column=><React.Fragment key={column.key}>{renderCell(c,column.key)}</React.Fragment>)}
     </tr>)}</tbody>

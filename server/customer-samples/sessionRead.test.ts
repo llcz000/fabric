@@ -126,3 +126,9 @@ test('B3 inaccessible and absent sessions share 404 and never reveal private met
 });
 
 test('selected session exposes current pattern asset through its existing authorized join',async()=>{const db=new Db(),result=await readSampleSession(db,actor,'51');assert.equal((result.items[0].current as any).patternImageAssetId,db.imageAsset);assert(db.calls.some(c=>c.sql.includes('c.pattern_image_asset_id')));db.imageAsset=null;assert.equal((await readSampleSession(db,actor,'51')).items[0].current.patternImageAssetId,null);});
+
+test('single-session reads retain the stored creation timestamp for exports opened from customer history',async()=>{
+ const db=new Db(),original=db.query.bind(db);
+ db.query=async(sql:string,params:unknown[]=[])=>{const [raw,meta]=await original(sql,params);if(sql.includes('AS selected_card_count')){assert(sql.includes('UNIX_TIMESTAMP(s.created_at)*1000 AS created_at_ms'));return [(raw as Record<string,unknown>[]).map(row=>({...row,created_at_ms:Date.parse('2026-10-25T23:30:00.000Z')})),meta];}return [raw,meta];};
+ const result=await readSampleSession(db,actor,'51');assert.equal(result.session.createdAt,'2026-10-25T23:30:00.000Z');
+});

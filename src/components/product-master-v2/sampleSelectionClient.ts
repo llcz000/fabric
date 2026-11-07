@@ -37,7 +37,7 @@ function pageOf(raw:unknown,sessionId:string):SampleSessionPage{
  if(!raw||typeof raw!=='object'||Array.isArray(raw))throw Error('Invalid selection response');
  const o=raw as Partial<SampleSessionPage>,session=o.session;
  if(!session||session.id!==sessionId||
-  typeof session.customerReference!=='string'||!Array.isArray(o.items)||
+  typeof session.customerReference!=='string'||(session.contactName!=null&&(typeof session.contactName!=='string'||session.contactName.length>110||!session.contactName.trim()))||!Array.isArray(o.items)||
   !Number.isSafeInteger(o.total)||Number(o.total)<0||
   !Number.isSafeInteger(o.offset)||!Number.isSafeInteger(o.limit)||
   !Number.isSafeInteger(o.selectedCardCount))throw Error('Invalid selection response');

@@ -1,4 +1,4 @@
-import {relatedProductsPreview} from './fixtures/relatedProducts';
+import {relatedProductsPreview,relatedProductImagesPreview} from './fixtures/relatedProducts';
 import {FabricProductsDialog} from '../../src/components/product-master-v2/FabricProductsDialog';
 import {ProductCatalogV2} from '../../src/components/product-master-v2/ProductCatalogV2';
 import {FabricImportV2} from '../../src/components/product-master-v2/FabricImportV2';
@@ -18,6 +18,7 @@ const samples:FabricCatalogItem[]=[
 ];
 const apiFetch=(async(input:RequestInfo|URL,init?:RequestInit)=>{
  const url=new URL(String(input),location.href);
+ if(url.pathname==='/api/image-assets/access-urls')return relatedProductImagesPreview(init);
  if(url.pathname==='/api/v2/products'){
   if(location.search.includes('products=1')&&!url.searchParams.has('fabricId'))url.searchParams.set('fabricId','1');
   return relatedProductsPreview(url,init);

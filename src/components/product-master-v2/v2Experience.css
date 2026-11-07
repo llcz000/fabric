@@ -56,6 +56,26 @@
  .v2-row-action:hover{background:#edf2ff;border-color:#c7d7fe}
  .v2-row-action-danger{color:#b42336;border-color:#f3d3d8}
  .v2-row-action-danger:hover{background:#fff1f2;border-color:#f0b8c0}
+ .v2-business-button,.v2-business-button-primary,.v2-business-button-quiet,.v2-business-button-danger,.v2-business-icon-button,.v2-business-tab{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;padding:8px 12px;border-radius:8px;font-size:14px;font-weight:500;line-height:1.25;white-space:nowrap;cursor:pointer;transition:background-color .15s,border-color .15s,color .15s}
+ .v2-business-button{border:1px solid #c3c6d7;background:#fff;color:#0053da}
+ .v2-business-button:hover:not(:disabled){border-color:#c7d7fe;background:#edf2ff}
+ .v2-business-button-primary{border:1px solid transparent;background:#0053da;color:#fff}
+ .v2-business-button-primary:hover:not(:disabled){background:#0048be}
+ .v2-business-button-quiet{border:1px solid transparent;background:transparent;color:#475569}
+ .v2-business-button-quiet:hover:not(:disabled){background:#edf2ff;color:#0053da}
+ .v2-business-button-danger{border:1px solid #f3d3d8;background:#fff;color:#b42336}
+ .v2-business-button-danger:hover:not(:disabled){border-color:#f0b8c0;background:#fff1f2}
+ .v2-business-icon-button{width:44px;min-width:44px;height:44px;padding:0;border:1px solid #c3c6d7;background:#fff;color:#0053da}
+ .v2-business-icon-button .v2-action-icon{margin:0}
+ .v2-business-button.v2-business-touch,.v2-business-button-primary.v2-business-touch,.v2-business-button-quiet.v2-business-touch,.v2-business-button-danger.v2-business-touch,.v2-business-tab.v2-business-touch{min-height:44px}
+ .v2-business-icon-button.v2-business-button-danger{border-color:#f3d3d8;background:#fff;color:#b42336}
+ .v2-business-icon-button.v2-business-button-danger:hover:not(:disabled){border-color:#f0b8c0;background:#fff1f2}
+ .v2-business-tab{border:1px solid #c3c6d7;background:#fff;color:#475569}
+ .v2-business-tab[aria-selected=true]{border-color:#346ef6;background:#edf2ff;color:#2759d6;font-weight:600}
+ .v2-business-button[aria-pressed=true]{border-color:#346ef6;background:#edf2ff;color:#2759d6;font-weight:600}
+ .v2-business-button:focus-visible,.v2-business-button-primary:focus-visible,.v2-business-button-quiet:focus-visible,.v2-business-button-danger:focus-visible,.v2-business-icon-button:focus-visible,.v2-business-tab:focus-visible{outline:2px solid #346ef6;outline-offset:2px}
+ .v2-business-button:disabled,.v2-business-button-primary:disabled,.v2-business-button-quiet:disabled,.v2-business-button-danger:disabled,.v2-business-icon-button:disabled,.v2-business-tab:disabled{opacity:.42;cursor:not-allowed}
+ @media(max-width:639px){.v2-business-button,.v2-business-button-primary,.v2-business-button-quiet,.v2-business-button-danger,.v2-business-tab{min-height:44px}.v2-business-icon-button{width:44px;min-width:44px;height:44px}}
  .v2-topic-select{position:relative;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
  .v2-topic-trigger{display:inline-flex;align-items:center;gap:8px;min-height:36px;padding:6px 12px;border:1px solid #d4dce6;border-radius:8px;background:#fff;color:#31447b;font-size:13px;cursor:pointer}
  .v2-topic-trigger:hover{border-color:#a9c0f8;background:#f6f8ff}
@@ -199,3 +219,40 @@
   position:static;right:auto;z-index:auto;box-shadow:none;
  }
 }
+
+/* Shared internal colorway recognition, card identity stays on its own row. */
+.v2-sample-colorways{display:flex;flex-wrap:wrap;align-items:flex-start;gap:10px;min-width:0}
+.v2-sample-tile{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;width:94px;min-width:0;margin:0;padding:6px;border:1px solid #dbe3ec;border-radius:8px;background:#fff;color:#334155;font-size:12px;line-height:1.4}
+.v2-sample-tile figcaption,.v2-sample-tile>span:last-child{max-width:100%;overflow-wrap:anywhere;text-align:center}
+.v2-sample-thumb{display:block;width:80px;height:80px;max-width:100%;object-fit:contain;border-radius:5px;background:#f8fafc}
+.v2-sample-thumb-empty{display:flex;align-items:center;justify-content:center;text-align:center;color:#64748b;border:1px dashed #cbd5e1;font-size:11px}
+.v2-sample-tile.is-selected{border-color:#2563eb;box-shadow:inset 0 0 0 1px #2563eb;background:#eff6ff}
+.v2-sample-tile.is-existing{background:#f1f5f9;border-color:#cbd5e1}
+.v2-sample-tile input{position:absolute;top:8px;left:8px;width:16px;height:16px;accent-color:#2563eb}
+.v2-sample-product-no{display:block;overflow-wrap:anywhere;color:#64748b;font-size:11px;text-align:center}
+.v2-selected-card{padding:16px 0;border-top:1px solid #e2e8f0}
+.v2-selected-card:first-child{border-top:0}
+.v2-selected-card-info{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;margin-bottom:12px;font-size:12px;color:#64748b;overflow-wrap:anywhere}
+.v2-selected-card-info strong{color:#1e293b;font-size:14px}
+.v2-selected-cards .v2-sample-tile{width:112px}
+@media(min-width:1024px){.v2-selected-card{display:grid;grid-template-columns:220px minmax(0,1fr);gap:20px}.v2-selected-card-info{display:block}.v2-selected-card-info>*{display:block;margin-bottom:6px}}
+@media(max-width:600px){.v2-sample-colorways{gap:8px}.v2-sample-picker .v2-sample-tile,.v2-selected-cards .v2-sample-tile{width:calc((100% - 16px)/3)}.v2-sample-thumb{width:100%;height:auto;aspect-ratio:1}.v2-sample-thumb-empty{min-height:64px}.v2-selected-card{padding:14px 0}}
+
+@media(max-width:600px){
+ .v2-card-data .v2-library-table{display:block;min-width:0!important;width:100%;table-layout:auto}
+ .v2-card-data .v2-library-table colgroup,.v2-card-data .v2-library-table thead{display:none}
+ .v2-card-data .v2-library-table tbody{display:block;width:100%}
+ .v2-card-data .v2-library-table tr.v2-library-row{position:relative;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 12px;padding:14px 12px}
+ .v2-card-data .v2-library-table tbody td{display:block;min-width:0;width:auto;max-width:none;padding:2px 0;overflow-wrap:anywhere;white-space:normal}
+ .v2-card-data [data-card-field=selection]{position:absolute;left:12px;top:16px}
+ .v2-card-data [data-card-field=cardNo]{grid-column:1/-1;padding-left:28px!important}
+ .v2-card-data [data-card-field=colorways]{grid-column:1/-1;margin:8px 0}
+ .v2-card-data [data-card-field=description],.v2-card-data [data-card-field=composition]{grid-column:1/-1}
+ .v2-card-data [data-card-field=weight]::before{content:'克重 ';color:#64748b}
+ .v2-card-data [data-card-field=width]::before{content:'门幅 ';color:#64748b}
+ .v2-card-data [data-card-field=actions]{grid-column:1/-1;margin-top:8px;background:transparent}
+ .v2-card-data [data-card-field=actions]>div{justify-content:flex-end}
+ .v2-card-data .v2-sample-tile{width:calc((100% - 20px)/3)}
+}
+
+@media(max-width:600px){.v2-sample-card-head .v2-sample-card-spec{order:4;flex-basis:100%;white-space:normal;overflow:visible;text-overflow:clip}}

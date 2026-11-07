@@ -1,4 +1,9 @@
+import {migrateSampleContactIdentity,SAMPLE_CONTACT_IDENTITY_PLAN_SHA256,verifySampleContactIdentitySchema} from '../../server/customer-samples/sessionContactIdentitySchema';
+import {migrateSampleContact,SAMPLE_CONTACT_PLAN_SHA256,verifySampleContactSchema} from '../../server/customer-samples/sessionContactSchema';
+import {migrateSampleCardReview,SAMPLE_CARD_REVIEW_PLAN_SHA256,verifySampleCardReviewSchema} from '../../server/customer-samples/sessionCardReviewSchema';
 import {inventoryProductCards,migrateProductCards,PRODUCT_CARDS_PLAN_SHA256} from '../../server/customer-samples/productCardBackfill';
+import {migrateModelGallery,MODEL_GALLERY_PLAN_SHA256,verifyModelGallerySchema} from '../../server/product-master/modelGallerySchema';
+import {migratePatternDimensions,PATTERN_DIMENSIONS_PLAN_SHA256} from '../../server/product-master/patternDimensionsSchema';
 import {migrateBusinessSimplification,BUSINESS_SIMPLIFICATION_PLAN_SHA256} from '../../server/audit/businessSimplificationSchema';
 import {rehearseBusinessSimplification} from './business-simplification-rehearsal';
 import {migrateFabricNumber,FABRIC_NUMBER_PLAN_SHA256} from '../../server/product-master/fabricNumberSchema';
@@ -18,6 +23,11 @@ import {migrateCustomers,CUSTOMER_PLAN_SHA256} from '../../server/customers/sche
 import {migrateCardShareLinks,CARD_SHARE_PLAN_SHA256} from '../../server/customer-share/cardShareMigration';
 import {rehearseCustomers} from './customer-rehearsal';
 const registry={
+ 'sample-contact-identity':{sha256:SAMPLE_CONTACT_IDENTITY_PLAN_SHA256,apply:(p:any,t:any,b:string)=>migrateSampleContactIdentity(p,t,b)},
+ 'sample-contact':{sha256:SAMPLE_CONTACT_PLAN_SHA256,apply:(p:any,t:any,b:string)=>migrateSampleContact(p,t,b)},
+ 'sample-card-review':{sha256:SAMPLE_CARD_REVIEW_PLAN_SHA256,apply:(p:any,t:any,b:string)=>migrateSampleCardReview(p,t,b)},
+ 'model-gallery':{sha256:MODEL_GALLERY_PLAN_SHA256,apply:(p:any,t:any,b:string)=>migrateModelGallery(p,t,b)},
+ 'pattern-dimensions':{sha256:PATTERN_DIMENSIONS_PLAN_SHA256,apply:(p:any,t:any,b:string)=>migratePatternDimensions(p,t,b)},
  'product-auto-cards':{sha256:PRODUCT_CARDS_PLAN_SHA256,apply:(p:any,t:any,b:string)=>migrateProductCards(p,t,b)},
  'business-simplification':{sha256:BUSINESS_SIMPLIFICATION_PLAN_SHA256,apply:(p:any,t:any,b:string)=>migrateBusinessSimplification(p,t,b)},
  'fabric-number-nonempty':{sha256:FABRIC_NUMBER_PLAN_SHA256,apply:(p:any,t:any,b:string)=>migrateFabricNumber(p,t,b)},
@@ -45,6 +55,17 @@ async function main(){
   if(mode==='rehearse'){
    for(const id of ids)assert((await registry[id as keyof typeof registry].apply(pool,target,backupSha)).alreadyApplied);
    checks.push('registered migration repeat idempotency');
+   if(ids.includes('sample-contact-identity')){await verifySampleContactIdentitySchema(pool);checks.push('sample contact identity column verified');}
+   if(ids.includes('sample-contact')){await verifySampleContactSchema(pool);checks.push('sample contact nullable snapshot verified; repeat migration idempotent');}
+   if(ids.includes('sample-card-review')){await verifySampleCardReviewSchema(pool);checks.push('sample card review nullable JSON verified; migration repeat idempotent');}
+   if(ids.includes('model-gallery')){await verifyModelGallerySchema(pool);checks.push('model gallery columns, unique asset, index contract verified; migration idempotent');}
+   if(ids.includes('pattern-dimensions')){
+    const conn=await pool.getConnection();
+    try{await conn.beginTransaction();const [before]:any=await conn.query('SELECT id,width_cm,height_cm FROM pattern_masters ORDER BY id LIMIT 1 FOR UPDATE');
+     if(before.length){await conn.query('UPDATE pattern_masters SET width_cm=?,height_cm=? WHERE id=?',[47.5,31.25,before[0].id]);const [saved]:any=await conn.query('SELECT width_cm,height_cm FROM pattern_masters WHERE id=?',[before[0].id]);assert.equal(Number(saved[0].width_cm),47.5);assert.equal(Number(saved[0].height_cm),31.25);}
+     await conn.rollback();checks.push('nullable decimal master dimensions accept exact width and height; rehearsal changes rolled back');
+    }finally{conn.release();}
+   }
    if(ids.includes('product-auto-cards')){assert.equal((await inventoryProductCards(pool)).missing,0);checks.push('all current product groups have cards; repeat migration preserves IDs and QR');}
    if(ids.includes('business-simplification'))checks.push(...await rehearseBusinessSimplification(pool));
    if(ids.includes('fabric-number-nonempty'))checks.push(...await rehearseFabricNumbers(pool));

@@ -1,5 +1,6 @@
 /** P4-2 V2 grouped mother-pattern/colorway UI contract; no legacy product migration. */
 import type {CatalogTag} from './catalogModel';
+import {validatePatternDimensions,type PatternDimensions} from '../../lib/patternDimensions';
 export type PatternFilterAction=
  |{type:'number'|'colorwayNo';value:string}
  |{type:'topic'|'color';id:string}
@@ -16,6 +17,7 @@ export interface PatternVersionItem{
  patternImageAssetId:string|null;remark:string;isActive:boolean;colorTags:CatalogTag[];
 }
 export interface PatternMasterItem{
+ widthCm?:number|null;heightCm?:number|null;
  id:string;masterNo:string;isActive:boolean;nextColorwayNo:number;productCount?:number;
  topicTags:CatalogTag[];colorTags?:CatalogTag[];versions:PatternVersionItem[];
 }
@@ -75,6 +77,7 @@ export function parsePatternPage(input:unknown):PatternPage{
   page.items.length>Number(page.limit))throw Error('无效的花型分页资料');
  for(const item of page.items){
   const m=obj(item);
+  if('widthCm' in m||'heightCm' in m)validatePatternDimensions(m.widthCm,m.heightCm);
   if(m.productCount!==undefined&&(!Number.isSafeInteger(m.productCount)||Number(m.productCount)<0))throw Error('无效的关联产品统计');
   if(!goodId(m.id)||typeof m.masterNo!=='string'||!/^[A-Z0-9]{1,64}$/.test(m.masterNo)||
    typeof m.isActive!=='boolean'||!Number.isSafeInteger(m.nextColorwayNo)||
@@ -96,7 +99,7 @@ async function responseJson(res:Response):Promise<unknown>{
 export async function fetchPatternPage(fetcher:typeof fetch,filters:PatternFilters,signal?:AbortSignal):Promise<PatternPage>{
  return parsePatternPage(await responseJson(await fetcher(buildPatternUrl('/api/v2/pattern-catalog',filters),{signal})));
 }
-export interface PatternEditorLoad{items:PatternVersionItem[];nextColorwayNo:number}
+export interface PatternEditorLoad{items:PatternVersionItem[];nextColorwayNo:number;widthCm?:number|null;heightCm?:number|null}
 export async function fetchMasterColorways(apiFetch:typeof fetch,master:PatternMasterItem,signal?:AbortSignal):Promise<PatternEditorLoad>{
  const raw=obj(await responseJson(await apiFetch('/api/v2/pattern-masters/'+master.id+'/colorway-details',{signal})));
  if(!Array.isArray(raw.items)||!Number.isSafeInteger(raw.nextColorwayNo)||Number(raw.nextColorwayNo)<1)
@@ -106,7 +109,17 @@ export async function fetchMasterColorways(apiFetch:typeof fetch,master:PatternM
   if(source.masterNo!==master.masterNo)throw Error('配色所属母版错误');
   return version(source,master.id,master.masterNo);
  });
- return {items,nextColorwayNo:Number(raw.nextColorwayNo)};
+ const dimensions='widthCm' in raw||'heightCm' in raw?validatePatternDimensions(raw.widthCm,raw.heightCm):{};
+ return {items,nextColorwayNo:Number(raw.nextColorwayNo),...dimensions};
+}
+export async function saveMasterDimensions(apiFetch:typeof fetch,masterId:string,dimensions:PatternDimensions):Promise<PatternDimensions>{
+ if(!goodId(masterId))throw Error('无效花型');
+ const value=validatePatternDimensions(dimensions.widthCm,dimensions.heightCm);
+ const result=obj(await responseJson(await apiFetch('/api/v2/pattern-masters/'+masterId,{
+  method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(value)
+ })));
+ if(result.id!==masterId)throw Error('花型尺寸保存响应错误');
+ return validatePatternDimensions(result.widthCm,result.heightCm);
 }
 /** Inline custom colors are prevalidated but persistent normalized uniqueness
  * and archived-link rules are always checked in the same server transaction.

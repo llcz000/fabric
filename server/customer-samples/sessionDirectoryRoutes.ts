@@ -1,4 +1,5 @@
-import {exportSessionCards} from './sessionCardExport';
+import {reviewSessionCards,confirmSessionCards,SampleCardReviewRequired} from './sessionCardReview';
+import {exportBatchSessionCards,exportSessionCards,SampleBatchExportBlocked} from './sessionCardExport';
 import {Router,json,type RequestHandler,type ErrorRequestHandler} from 'express';
 import type {AppPrincipal} from '../access/types';
 import type {SamplePool} from './scanRepository';
@@ -13,6 +14,21 @@ export function createSampleSessionDirectoryRouter(authenticate:RequestHandler,p
  router.delete('/sessions/:sessionId',authenticate,async(req,res)=>{
   if(Object.keys(req.query).length||req.headers['transfer-encoding']!==undefined||req.headers['content-length']!==undefined&&req.headers['content-length']!=='0'){res.status(400).json({error:'Invalid selection request'});return;}
   try{res.json(await deleteSampleSession(pool,res.locals.principal as AppPrincipal,String(req.params.sessionId)));}catch(error){failure(res,error);}
+ });
+ router.get('/sessions/:sessionId/cards/review',authenticate,async(req,res)=>{
+  if(Object.keys(req.query).length){res.status(400).json({error:'Invalid selection query'});return;}
+  try{res.json(await reviewSessionCards(pool,res.locals.principal as AppPrincipal,String(req.params.sessionId)));}catch(error){failure(res,error);}
+ });
+ router.post('/sessions/:sessionId/cards/review',authenticate,json({strict:true,limit:'256kb'}),async(req,res)=>{
+  if(Object.keys(req.query).length||!req.is('application/json')){res.status(400).json({error:'Invalid selection request'});return;}
+  try{res.json(await confirmSessionCards(pool,res.locals.principal as AppPrincipal,String(req.params.sessionId),req.body));}catch(error){failure(res,error);}
+ });
+ router.post('/sessions/cards/batch-export.xlsx',authenticate,json({strict:true,limit:'8kb'}),async(req,res)=>{
+  if(Object.keys(req.query).length||!req.is('application/json')){res.status(400).json({error:'Invalid selection request'});return;}
+  try{const bytes=await exportBatchSessionCards(pool,res.locals.principal as AppPrincipal,req.body,scanOrigin);
+   res.setHeader('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+   res.setHeader('Content-Disposition','attachment; filename="sample-selection-batch.xlsx"');res.send(bytes);
+  }catch(error){failure(res,error);}
  });
  router.get('/sessions/:sessionId/cards/export.xlsx',authenticate,async(req,res)=>{
   if(Object.keys(req.query).length){res.status(400).json({error:'Invalid selection query'});return;}
@@ -39,6 +55,8 @@ export function createSampleSessionDirectoryRouter(authenticate:RequestHandler,p
  router.use(errors);return router;
 }
 function failure(res:import('express').Response,error:unknown){
+ if(error instanceof SampleBatchExportBlocked){res.status(409).json({error:'BATCH_SELECTION_BLOCKED',sessionId:error.sessionId,reason:error.reason});return;}
+ if(error instanceof SampleCardReviewRequired){res.status(409).json({error:'CARD_REVIEW_REQUIRED',review:error.review});return;}
  const status=error instanceof SampleSessionManualError?error.status:503;
  res.status(status).json({error:status===400?'Invalid selection request':status===403?'Forbidden':status===404?'Selection unavailable':status===409?'Selection conflict':'Selection temporarily unavailable'});
 }

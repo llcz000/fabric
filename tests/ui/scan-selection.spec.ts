@@ -3,7 +3,7 @@ import {test,expect,type Page} from '@playwright/test';
 import QRCode from 'qrcode';
 const entry='/tools/ui-preview/entries/ui-ux-scan-selection.html';
 async function ready(page:Page){await page.goto(entry);await page.getByRole('button',{name:/林女士.*选择/}).click();await expect(page.getByRole('region',{name:'扫码选样',exact:true})).toBeVisible();await expect(page.getByRole('status').filter({hasText:'已自动保存'})).toBeVisible();}
-async function enterCode(page:Page,value:string){await page.getByText('其他添加方式',{exact:true}).click();await page.getByRole('textbox',{name:'输入色卡编码'}).fill(value);await page.getByRole('button',{name:'加入',exact:true}).click();await expect(page.getByRole('status').filter({hasText:'已自动保存'})).toBeVisible();}
+async function enterCode(page:Page,value:string){const qr=QRCode.create(value,{errorCorrectionLevel:'M'});await page.evaluate(({size,modules})=>{const side=(size+8)*8,pixels=new Uint8ClampedArray(side*side*4);for(let y=0;y<side;y++)for(let x=0;x<side;x++){const r=Math.floor(y/8)-4,c=Math.floor(x/8)-4,v=r>=0&&r<size&&c>=0&&c<size&&modules[r*size+c]?0:255,i=(y*side+x)*4;pixels[i]=pixels[i+1]=pixels[i+2]=v;pixels[i+3]=255;}Object.defineProperty(navigator,'mediaDevices',{configurable:true,value:{getUserMedia:async()=>({getTracks:()=>[{stop(){}}]})}});Object.defineProperty(HTMLMediaElement.prototype,'srcObject',{configurable:true,set(){}});Object.defineProperty(HTMLVideoElement.prototype,'videoWidth',{configurable:true,get:()=>side});Object.defineProperty(HTMLVideoElement.prototype,'videoHeight',{configurable:true,get:()=>side});HTMLMediaElement.prototype.play=async()=>{};CanvasRenderingContext2D.prototype.drawImage=()=>{};CanvasRenderingContext2D.prototype.getImageData=()=>({data:pixels,width:side,height:side,colorSpace:'srgb'}) as ImageData;},{size:qr.modules.size,modules:Array.from(qr.modules.data)});await page.getByRole('button',{name:'继续扫码',exact:true}).click();await expect(page.getByRole('dialog',{name:'实时扫码色卡'})).toHaveCount(0);await expect(page.getByRole('status').filter({hasText:'已自动保存'})).toBeVisible();}
 test.beforeEach(async({page})=>{
  page.on('pageerror',e=>{throw e;});
  await page.route('https://fabric-scan-fixture.invalid/**',route=>{
@@ -23,7 +23,7 @@ test('partial selection autosaves, rescan preserves it and explicit recheck rest
  await ready(page);const box=page.getByRole('checkbox',{name:'配色 G0886-2',exact:true});await box.click();await expect(box).not.toBeChecked();await expect(page.getByText('已选 5/6')).toBeVisible();
  await enterCode(page,'SCAN_FIXTURE_FIRST_CARD_TOKEN_12345');await expect(box).not.toBeChecked();await expect(page.getByText('已选过，保留原有配色选择')).toBeVisible();
  await box.click();await expect(box).toBeChecked();await expect(page.getByText('已选 6/6')).toBeVisible();
- await page.getByRole('button',{name:'完成选样'}).click();await page.getByRole('button',{name:'选样明细 林女士'}).click();await expect(page.locator('[data-selection-item]')).toHaveCount(6);await expect(page.getByRole('checkbox',{name:'勾选货号 G0886-2-F018'})).toBeVisible();
+ await page.getByRole('button',{name:'完成选样'}).click();await page.getByRole('button',{name:'选样明细 林女士'}).click();await expect(page.locator('[data-selection-item]')).toHaveCount(6);await expect(page.getByRole('checkbox',{name:'勾选配色 G0886-2，色卡 G0886-F018'})).toBeVisible();
 });
 test('save failure keeps the desired selection and retry safely handles a lost successful response',async({page})=>{
  await ready(page);await page.evaluate(()=>{(window as any).scanSelectionFixture.state.loseNextResponse=true;});
@@ -63,11 +63,33 @@ test('a revoked session reported as 404 clears customer and image data after a m
  await expect(page.getByRole('alert')).toContainText('当前选样不可访问');await expect(page.getByRole('heading',{name:'林女士',exact:true})).toHaveCount(0);await expect(page.getByRole('checkbox')).toHaveCount(0);await expect(page.locator('article img')).toHaveCount(0);
 });
 test('the same manual card query can be retried after a temporary search failure',async({page})=>{
- await ready(page);await page.getByText('其他添加方式',{exact:true}).click();await page.getByRole('button',{name:'搜索色卡并选择配色'}).click();
+ await ready(page);await page.getByRole('button',{name:'看图选款',exact:true}).click();
  const dialog=page.getByRole('dialog',{name:'人工补选'});await dialog.getByPlaceholder('色卡编号、花型编号、面料品号或品名').fill('G0626');
  await page.evaluate(()=>{(window as any).scanSelectionFixture.state.failSearch=true;});await dialog.getByRole('button',{name:'搜索色卡'}).click();await expect(dialog.getByRole('alert')).toContainText('色卡检索失败');
  await dialog.getByRole('button',{name:'重试检索'}).click();await expect(dialog.getByRole('button',{name:'加入色卡 G0626-F018'})).toBeVisible();
  await expect(dialog.getByRole('button',{name:'加入色卡 G0626-F018'})).toBeDisabled();
+});
+
+test('manual selection finds a full card number through the only search entry',async({page})=>{
+ for(const width of [1440,360]){
+  await page.setViewportSize({width,height:800});await ready(page);
+  if(width===360){
+   await page.getByRole('button',{name:'完成选样',exact:true}).click();
+   await page.getByRole('button',{name:'选样明细 林女士',exact:true}).click();
+  }
+  const trigger=page.getByRole('button',{name:width===360?'人工补选':'看图选款',exact:true});await trigger.click();
+  const dialog=page.getByRole('dialog',{name:'人工补选',exact:true});
+  await expect(dialog.getByText('输入色卡编码',{exact:true})).toHaveCount(0);
+  const search=dialog.getByRole('textbox',{name:'色卡搜索',exact:true});await expect(search).toBeFocused();
+  const before=await page.evaluate(()=>(window as any).scanSelectionFixture.state.writes.length);
+  await search.fill('G0626-F018');await dialog.getByRole('button',{name:'搜索色卡',exact:true}).click();
+  await expect(dialog.getByRole('article')).toHaveCount(1);
+  await expect(dialog.getByRole('button',{name:'加入色卡 G0626-F018',exact:true})).toBeDisabled();
+  expect(await dialog.evaluate(el=>el.scrollWidth)).toBeLessThanOrEqual(await dialog.evaluate(el=>el.clientWidth));
+  await page.screenshot({path:`artifacts/ui-ux-pilot/manual-card-search-${width}.png`});
+  await page.keyboard.press('Escape');await expect(dialog).toHaveCount(0);await expect(trigger).toBeFocused();
+  expect(await page.evaluate(()=>(window as any).scanSelectionFixture.state.writes.length)).toBe(before);
+ }
 });
 
 test('successful camera recognition adds the next card without another confirmation',async({page})=>{
@@ -99,7 +121,7 @@ test('mobile saved selection details have one scan entry, no customer reassignme
  await page.getByRole('button',{name:'完成选样'}).click();
  await page.getByRole('button',{name:'选样明细 林女士'}).click();
  await expect(page.getByRole('region',{name:'客户选样明细'})).toBeVisible();
- const productNo=page.getByText('G0886-1-F018',{exact:true});await expect(productNo).toBeVisible();
+ const productNo=page.getByText('G0886-1',{exact:true});await expect(productNo).toBeVisible();await expect(page.getByText('G0886-1-F018',{exact:true})).toHaveCount(0);
  const bounds=await productNo.boundingBox();expect(bounds).not.toBeNull();expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(360);
  await expect(page.getByRole('button',{name:'继续扫码',exact:true})).toHaveCount(1);
  await expect(page.getByRole('form',{name:'扫码加入选样'})).toHaveCount(0);
@@ -128,9 +150,8 @@ test('manual add is explicit: closed/reopened modal never restores cancelled col
  await trigger.click();
  const dialog=page.getByRole('dialog',{name:'人工补选'});
  await expect(dialog).toBeVisible();
- await expect(dialog.getByRole('checkbox')).toHaveCount(0);
+ await expect(dialog.getByRole('checkbox')).toHaveCount(9);
  await expect(dialog.getByRole('button',{name:'加入色卡 G0886-F018'})).toBeDisabled();
- await dialog.getByRole('button',{name:'G0886-F018',exact:true}).click();
  const choices=dialog.getByRole('checkbox',{name:/^配色 G0886-/});
  await expect(choices).toHaveCount(6);
  for(const choice of await choices.all())await expect(choice).not.toBeChecked();
@@ -144,7 +165,6 @@ test('manual add is explicit: closed/reopened modal never restores cancelled col
  await expect(dialog).toHaveCount(0);await expect(trigger).toBeFocused();
  expect(await page.evaluate(()=>(window as any).scanSelectionFixture.state.selected.has('101'))).toBe(false);
  await trigger.click();const reopened=page.getByRole('dialog',{name:'人工补选'});
- await reopened.getByRole('button',{name:'G0886-F018',exact:true}).click();
  await reopened.getByRole('checkbox',{name:'配色 G0886-2-F018',exact:true}).check();
  await expect(reopened.getByRole('button',{name:'加入色卡 G0886-F018'})).toBeEnabled();
  await reopened.getByRole('button',{name:'加入色卡 G0886-F018'}).click();
@@ -159,13 +179,12 @@ test('manual add supports explicit select-all and clear without creating any wri
  await page.getByRole('button',{name:'人工补选'}).click();
  const dialog=page.getByRole('dialog',{name:'人工补选'});
  const before=await page.evaluate(()=>(window as any).scanSelectionFixture.state.writes.length);
- const row=dialog.getByRole('article',{name:'可补选色卡 G0886-F018'});
- await row.getByRole('button',{name:'G0886-F018',exact:true}).click();
- await row.getByRole('button',{name:'全选本卡 G0886-F018'}).click();
+ const row=dialog.getByRole('article',{name:'可补选色卡 G0626-F018'});
+ await row.getByRole('button',{name:'全选本卡 G0626-F018'}).click();
  for(const choice of await row.getByRole('checkbox').all())await expect(choice).toBeChecked();
- await expect(row.getByRole('button',{name:'加入色卡 G0886-F018'})).toBeEnabled();
- await row.getByRole('button',{name:'清空本卡 G0886-F018 的选择'}).click();
- await expect(row.getByRole('button',{name:'加入色卡 G0886-F018'})).toBeDisabled();
+ await expect(row.getByRole('button',{name:'加入色卡 G0626-F018'})).toBeEnabled();
+ await row.getByRole('button',{name:'清空本卡 G0626-F018 的选择'}).click();
+ await expect(row.getByRole('button',{name:'加入色卡 G0626-F018'})).toBeDisabled();
  expect(await page.evaluate(()=>(window as any).scanSelectionFixture.state.writes.length)).toBe(before);
  await page.screenshot({path:'artifacts/sample-directory/manual-add-1440.png',fullPage:true});
  await dialog.getByRole('button',{name:'关闭人工补选'}).click();
@@ -178,7 +197,6 @@ test('failed manual add retains selected colorway for retry, successful retry cl
  await page.getByRole('button',{name:'选样明细 林女士'}).click();
  await page.getByRole('button',{name:'人工补选'}).click();
  const dialog=page.getByRole('dialog',{name:'人工补选'});
- await dialog.getByRole('button',{name:'G0626-F018',exact:true}).click();
  const checked=dialog.getByRole('checkbox',{name:'配色 G0626-1-F018'});
  await checked.check();
  await page.evaluate(()=>(window as any).scanSelectionFixture.state.failNext=true);
@@ -188,7 +206,17 @@ test('failed manual add retains selected colorway for retry, successful retry cl
  expect(await page.evaluate(()=>(window as any).scanSelectionFixture.state.selected.has('200'))).toBe(false);
  await dialog.getByRole('button',{name:'加入色卡 G0626-F018'}).click();
  await expect(dialog.getByRole('status')).toContainText('新增 1 款');
- await expect(checked).not.toBeChecked();
+ await expect(checked).not.toBeChecked();await expect(checked).toBeDisabled();
  await expect(dialog.getByRole('button',{name:'加入色卡 G0626-F018'})).toBeDisabled();
  expect(await page.evaluate(()=>(window as any).scanSelectionFixture.state.selected.has('200'))).toBe(true);
+});
+
+test('first scan waits for the chosen contact before creating and adding the card once',async({page})=>{
+ await page.goto(entry+'?multiContacts');await page.getByRole('button',{name:/云间服饰.*选择/}).click();
+ await expect(page.getByRole('heading',{name:'选择联系人'})).toBeVisible();
+ expect(await page.evaluate(()=>(window as any).scanSelectionFixture.state.writes.filter((path:string)=>path.endsWith('/with-sample-session')||path.endsWith('/scan')))).toHaveLength(0);
+ await page.getByRole('button',{name:'王先生',exact:true}).click();
+ await expect(page.getByRole('status').filter({hasText:'已自动保存'})).toBeVisible();
+ await expect(page.getByText('王先生',{exact:true})).toBeVisible();
+ expect(await page.evaluate(()=>(window as any).scanSelectionFixture.state.writes.filter((path:string)=>path.endsWith('/scan')))).toHaveLength(1);
 });

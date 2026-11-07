@@ -19,6 +19,22 @@
 
 正式业务通过 `server/product-master/v2ProductionHttp.ts` 装配，`v2CatalogAssembly.ts` 组合受认证的 V2 业务路由。主数据/单据/色卡/选样的具体方法与DTO取各领域Routes；公开分享由 `patternShareRuntime.ts` 单独装配受限投影。健康检查、匿名拒绝、旧API退役及静态资源合同需同时核对正式HTTP装配，不能按文件名或旧 `server.ts` 行号推断。
 
+## 花型厘米尺寸
+
+PAT-08：`pattern_masters.width_cm/height_cm` 使用可空 `DECIMAL(12,4)`，同母版只存一组。`patternMasters.ts` 的新增/更新复用 `src/lib/patternDimensions.ts` 校验成对正数或成对null；省略两字段保留原值。`pattern-catalog` 在母版DTO返回 `widthCm/heightCm`，`colorway-details` 同时读取母版最新尺寸；现有受认证主数据权限沿用，配色和产品身份不变，公开分享投影不增加字段。前端新增和编辑复用尺寸输入，列表在母版编号下显示一次；尺寸保存立即使旧列表请求失效，再重查，防止旧响应覆盖新值。
+
+增量结构见 `server/product-master/patternDimensionsSchema.ts`，启动仅核验、不自动DDL；迁移ID `20261030-pattern-dimensions` 在发布迁移注册表中对应 `pattern-dimensions`。一次性操作入口 `scripts/import-pattern-dimensions.ts`：prepare按原表的`old/w_cm/h_cm`与人工确认表生成计划并绑定两份源文件SHA；inspect只读核对当前母版；rehearse只允许命名隔离库；apply要求预置库名/UUID、实际备份文件SHA及计划SHA。冲突必须全部人工核准；导入锁定当前未删母版、拒绝缺失/重复及已有不同值，整批事务内提交前回读；相同计划重跑仅核对、不重写。MySQL DDL隐式提交，先备份并同备份隔离恢复演练；业务数据导入回滚与DDL恢复分别处理，禁止用生产业务记录做测试。
+
+## 模特图库图片替换
+
+MODEL-01：有图库编辑权限的用户通过 `PATCH /api/v2/models/:id` 传入新图 `assetId` 和编辑时的 `expectedAssetId`。省略的资料字段保留当前值。事务锁定模特记录并校验旧图，检查新图已就绪且可关联，再在同一事务内更新图片和引用计数。编号、记录 ID 和导入排序不变。旧图只有在引用归零后才进入回收期。旧图已被其他操作替换或新图已关联其他模特时返回 409，无需迁移。
+
+## 换装素材包契约
+
+MODEL-03/04：`ProductTryOnDialog.tsx` 在本次弹窗维护显式目标及编辑草稿，`modelGalleryClient.ts#createTryOnPrompt` 只按调用方提供的 `TryOnTarget` 生成提示词，不从M编号或图库分类推断。部位及草稿不写入图库或产品表，无新增接口、DDL及权限。原图仍由受认证同源 `/api/image-assets/:id/content?variant=original` 读取。
+
+ZIP包含 `01-{花型配色号}-pattern.*`、`02-{花型配色号}-{模特号}-model.*`、`03-prompt.txt`、`04-data.json`。默认提示词引用相同图片文件名主干，扩展名按原图字节识别。JSON增加 `targetGarment`（`dress/top/skirt/pants/set/other`）、`targetDescription`（去除首尾空白的操作者说明）、`prompt`（与文本文件/复制的最终编辑文字一致）；原有产品/模特编号、整图厘米尺寸、比例、参考长度不变。素材只在浏览器打包，不导出访问URL、签名或凭证。生成与真实图片质量验收仍在操作者的ChatGPT流程中完成。
+
 ## 关联产品查询
 
 PRD-08 / AC-161：`pattern-catalog` 的 `productCount` 由服务端按母版全部配色对应的现存产品统计；面料列表沿用 `productCount`。内部弹窗复用受认证的 `GET /api/v2/products`，按 `masterId` 或 `fabricId`、`status=all`、`limit=20` 和 `offset` 查询；编号过滤与总数均在服务端分页前执行。产品DTO补充 `fabricRemark`（当前面料备注），与产品自身 `remark` 分开。此变更只读，不需要数据库迁移，不扩大公开分享投影。
@@ -45,7 +61,13 @@ PRD-08 / AC-161：`pattern-catalog` 的 `productCount` 由服务端按母版全�
 ## 色卡、扫码与选样
 
 - 选样目录按创建时间及ID倒序，返回现有createdOn和新增createdAt（UTC ISO，界面按上海时区显示日期）、selectedCardCount（当前有选配色的来源卡数）和 selectedProductCount（当前未移除的产品款数）；以 created_at、id 倒序分页，默认20单/页，客户搜索在服务端全量授权范围内筛选；新增选样单日均5～10条、年约1800～3650条，不向前端一次返回历史全量，排序与用户授权访问通过索引优化；无数据迁移。同一客户重复新建始终为独立单。
-- GET /api/v2/customer-samples/sessions/:sessionId/cards/export.xlsx：不接收客户端卡ID，当前登录及该选样单读取权限复核后，在同一只读事务由有效选择项的扫码/人工来源求卡集合，去重后调用色卡库同一buildSampleCardsWorkbook。旧已结束且未删除的选样单可读取导出；空集、卡失效/撤码整笔409，不静默漏导；响应no-store且不经JSON暴露二维码；精确六列沿用V2-13。
+- GET /api/v2/products 新增可选sort=numberAsc|numberDesc，缺省保留原默认顺序；按母版数字、配色数字、产品ID排序后LIMIT/OFFSET，不用面料后缀作排序键。GET /api/v2/sample-cards 接受sort=newest|numberAsc|numberDesc，按母版数字及卡ID排序，缺省仍新增时间倒序；花型原numberAsc/numberDesc沿用。排序值严格白名单、重复/未知值拒绝，不影响导出字段或现有编号。
+- DELETE /api/v2/customers/:id 在客户FOR UPDATE及版本检查后重新统计未删除选样；有记录返回409 {code:"customer_has_selections",selectionCount:N,error:先删选样提示}，审计/客户/选样均不写入。创建选样同样取得客户更新锁，与删除串行；GET deletion-info仍提供确认前数量，不替代DELETE实时校验。所有选样已逻辑删除时才可删客户，保留已存三类单据及所有原始历史。
+- 客户profile.region字段和100字符上限保留，仅表单/详情文案改为“详细地址”；旧值读写不转换、不清空，无新增DB列或迁移。
+- 已授权的选样列表与单单读取通过 `customerReference` 返回展示名称，列表在服务端按同一口径筛选后分页。关联的有效档案用当前名称，未关联及已删除/旧归档档案回退到 `customer_sample_sessions.customer_reference`。客户档案业务历史中的选样摘要沿用同一口径，原始快照与受控关联的版本比较字段保留。
+- PATCH /api/v2/customers/:id 在鉴权与行版本校验后，于同一事务内校对变更后的名称。其他有效档案已使用该名称时返回 409 `customer_name_taken`，不返回匹配档案信息，前端保留草稿并显示专用提示。
+- GET /api/v2/customer-samples/sessions 的摘要以 canManage 控制编辑、canDelete 控制独立删除；后者按当前管理员/客户负责人/编辑授权判定，不受客户 deletedAt 或旧 archived_at 限制。摘要 contactName 仅返回有权查看的本单联系人姓名快照，未关联或未指定为 null，客户端兼容旧响应缺字段。DELETE /api/v2/customer-samples/sessions/:sessionId 在有效登录、客户/授权共享锁、链接一致性及选样更新锁内复核同一删除权限，仅写选样删除标记和最小审计；不恢复客户、不删除明细/反馈，审计失败回滚。普通编辑写入口继续拒绝已删/归档客户，仅查看授权不能删除，未关联客户仍复核旧显式选样管理grant。
+- GET /api/v2/customer-samples/sessions/:sessionId/cards/export.xlsx：不接收客户端卡ID，当前登录及该选样单读取权限复核后，在同一只读事务由有效选择项的扫码/人工来源求卡集合，去重后调用选样共用的 buildSelectionCardsWorkbook。旧已结束且未删除的选样单可读取导出；空集、卡失效/撤码整笔409，不静默漏导；响应no-store且不经JSON暴露二维码；单个和批量导出共用 V2-13 十列模板，选样日期从创建时间戳按北京时间生成。
 
 - 内部聚焦扫码流程复用客户原子建档＋选样、`POST /api/v2/sample-cards/scan`、选样详情和移除/人工补选接口。`GET /api/v2/customer-samples/sessions/:sessionId/cards?selected=true` 仅列该已授权会话曾加入的有效卡（含当前全未选卡），不返回二维码；不传该参数保持原搜索语义，只接受字面量 `true`。重扫将已移除行视为已处理身份而不恢复；显式勾选复用人工补选恢复同一行，单项移除复用幂等DELETE。卡退役后仍按原来源保留已选产品。无需新增业务表；历史 closed 状态兼容为可继续增删补选，取消状态切换 API/按钮，鉴权仍复核登录、客户归属及删除标记；新增数据库索引在正式旧库须单独迁移验证，不由运行时自动DDL。
 
@@ -59,3 +81,13 @@ PRD-08 / AC-161：`pattern-catalog` 的 `productCount` 由服务端按母版全�
 - 私有登录/会话授权、公开token许可和图片二次授权各自校验；公开字段白名单不暴露客户、价格、内部二维码或其它未获许可内容。
 
 以上约束承接已替代的P0/P1/P2/P6及B2/B3阶段记录；原日期的计数、测试数字、环境及失败输出只在[恢复包](../maintenance/文档整合与恢复.md)追溯。迁移/恢复、真实权限、COS、微信扫码和实体输出的开放Gate仍只在项目现状维护，归档不构成签收。
+
+- 色卡库内部列表 `GET /api/v2/sample-cards?includeColorways=true` 可在既有鉴权后，为当前分页卡ID一次批量附带 `colorways[{productId,colorwayNo,patternImageAssetId}]`；按卡母版及面料共同匹配，不返回原图URL，不改变二维码/导出字段。缺省不附带，非布尔字面量参数拒绝；无需DDL。选样明细复用原100款分页读取接口取齐并核对单ID、总数及稳定条目，再按实际卡ID每20卡分页；普通选样首页仍严格服务端20单分页。人工补选复用会话私有 cards 查询，扫码复用内部 resolve；私有会话 404 仍清理访问。
+
+- 选样明细授权读取在既有session投影中返回真实 `createdAt`（数据库created_at经UNIX_TIMESTAMP转换），供所有明细入口复用客户与上海日期命名Excel；不以当前日期补造。页内导出仍调用原整单六列接口，不传待移除勾选或分页范围，不新增业务写入/DDL。
+
+- 选样明细内部hash路由为 `#/samples?sessionId=<单ID>`；地址仅携带身份，刷新调用既有私有 `GET /api/v2/customer-samples/sessions/:id?limit=1&offset=0` 重新校验会话后加载明细，不持久化客户内容，不新增API/DDL。缩略图仍用 `/api/image-assets/access-urls` 的 thumbnail 变体；客户端保留HTTP状态用于区分401、单资产403/404/409与瞬时错误，签名接口及存储权限不放宽。
+
+- 选样联系人（V2-09 / AC-163、AC-164）：选择已有客户时，POST customers/with-sample-session 可带 contactChoice（档案内联系人索引和档案版本），服务端锁内绑定当前档案的稳定联系人 ID 并保存姓名备用值；客户档案保存后同步同一联系人名，已移除联系人保留历史名。GET /customer-samples/sessions/:id/contact 为可编辑且已关联客户的选样返回候选姓名、档案版本、关联版本及本单姓名；PATCH 同路径核对关联版本与选择，清除时 choice 为 null，只改本单姓名并递增关联版本。快照保存于 customer_sample_sessions.contact_name；sample-contact 登记迁移只增加可空列，旧单不回填，列表搜索与详情在同一授权范围内读取。
+- POST /api/v2/customer-samples/sessions/cards/batch-export.xlsx 接收 sessionIds（1～50 个去重后的显式单号）。逐单鉴权及核对后返回一张汇总工作表，阻断时不发部分文件；BATCH_SELECTION_BLOCKED 指明有权访问的空单或待核对单。
+- 选样导出核对实现约定（V2-13 / AC-176，已编码、待最终验收）：GET sessions/:id/cards/review 返回当前有效卡集合、逐项差异、快照及可编辑性；POST 同路径只接收当前快照和明确勾选的稳定选样条目ID，事务内重验后记录本单确认，保留历史来源及配色集合。customer_sample_sessions新增可空JSON card_review保存逐项当前卡指纹，采用独立sample-card-review登记迁移和只读启动检查，不在生产自动建列。GET export.xlsx逐次重新校验，未确认差异返回结构化409核对结果，不生成半份文件；最终仍复用原六列Workbook。首页/明细共用一个核对弹窗及下载流程；先完成服务端判定/确认/导出及事务测试，再接两处UI并覆盖取消、失败、只读、窄屏及并发变更。

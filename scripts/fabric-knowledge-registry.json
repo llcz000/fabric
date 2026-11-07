@@ -222,7 +222,8 @@
         "EX-04",
         "EX-05",
         "LITE-01",
-        "LITE-02"
+        "LITE-02",
+        "MODEL-*"
       ],
       "source": [
         "server/product-master",
@@ -337,7 +338,14 @@
         "tests/ui/scan-selection.spec.ts",
         "tests/ui/wechat-card-real.spec.ts",
         "tools/ui-preview/entries/ui-ux-scan-selection.html",
-        "tools/ui-preview/scanSelectionReview.tsx"
+        "tools/ui-preview/scanSelectionReview.tsx",
+        "src/components/product-master-v2/SamplePatternThumbnail.tsx",
+        "src/components/product-master-v2/selectedCardModel.ts",
+        "src/components/product-master-v2/selectedCardModel.test.ts",
+        "tests/ui/card-colorway-flow.spec.ts",
+        "tools/ui-preview/internalCardListReview.tsx",
+        "src/components/product-master-v2/useSampleCardExport.tsx",
+        "tests/ui/sample-card-review.spec.ts"
       ]
     },
     {

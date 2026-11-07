@@ -84,13 +84,20 @@ export function V2DocumentBrowser({apiFetch,role,companyProfile,initialFilters}:
  const [action,setAction]=useState<{id:string;orderNo:string;kind:'copy'|'delete'}|null>(null);
  const [newOrderNo,setNewOrderNo]=useState('');
  const [copyDate,setCopyDate]=useState(new Date().toISOString().slice(0,10));
- const [confirmation,setConfirmation]=useState('');
+ const actionDialog=useRef<HTMLDialogElement|null>(null);
+ const ActionPanel=action?.kind==='delete'?'dialog':'section';
+ useEffect(()=>{
+  if(action?.kind!=='delete')return;
+  const node=actionDialog.current,before=typeof document==='undefined'?null:document.activeElement;
+  node?.showModal();
+  node?.querySelector<HTMLButtonElement>('[data-delete-cancel]')?.focus();
+  return ()=>{node?.close();if(typeof HTMLElement!=='undefined'&&before instanceof HTMLElement&&before.isConnected)before.focus();};
+ },[action]);
  const [actionBusy,setActionBusy]=useState(false);
  const [actionError,setActionError]=useState('');
  const activeAction=useRef<AbortController|null>(null),[exporting,setExporting]=useState(false);
  const act=async()=>{
   if(!action||actionBusy||activeAction.current)return;
-  if(action.kind==='delete'&&confirmation!==action.orderNo){setActionError('请准确输入原单据编号以确认删除');return;}
   if(action.kind==='copy'&&(!newOrderNo.trim()||newOrderNo===action.orderNo)){setActionError('请输入不同于原单号的新编号');return;}
   setActionBusy(true);setActionError('');
   const current=new AbortController();activeAction.current=current;
@@ -145,22 +152,20 @@ export function V2DocumentBrowser({apiFetch,role,companyProfile,initialFilters}:
     <p className="text-xs text-slate-500">多个明细条件由同一行同时满足；定金单不参与结清筛选。</p>
    </div>
   </form>
-  {action&&<section role="dialog" aria-label={action.kind==='copy'?'复制单据':'确认删除单据'} className="rounded-xl border border-sky-300 bg-sky-50 p-4 space-y-3">
-   <h3 className="font-semibold">{action.kind==='copy'?'复制为新单':'删除确认'}：{action.orderNo}</h3>
+  {action&&<ActionPanel ref={(node:HTMLElement|null)=>{actionDialog.current=action.kind==='delete'?node as HTMLDialogElement:null;}} role="dialog" aria-modal={action.kind==='delete'?true:undefined} aria-label={action.kind==='copy'?'复制单据':'确认删除单据'} onCancel={event=>{event.preventDefault();if(!actionBusy){setAction(null);setActionError('');}}} className={'rounded-xl border border-sky-300 bg-sky-50 p-4 space-y-3'+(action.kind==='delete'?' m-auto w-[min(92vw,448px)] backdrop:bg-[#0f172a66]':'')}>
+   <h3 className="break-words font-semibold">{action.kind==='copy'?'复制为新单':'删除确认'}：{action.orderNo}</h3>
    {action.kind==='copy'?<div className="flex flex-wrap gap-3">
     <label className="text-sm">新单据编号<input className={input} value={newOrderNo} maxLength={100} onChange={e=>setNewOrderNo(e.target.value)}/></label>
     <label className="text-sm">开单日期<input type="date" className={input} value={copyDate} onChange={e=>setCopyDate(e.target.value)}/></label>
     <p className="w-full text-xs">保留原单的产品资料和金额快照，生成独立新单。仅支持有效库内产品；未关联、手工或停用产品请新增单据后重新选品。</p>
-   </div>:<label className="block text-sm">请输入完整原单编号确认永久删除
-    <input className={input} value={confirmation} onChange={e=>setConfirmation(e.target.value)}/>
-   </label>}
+   </div>:<p className="text-sm">删除后不可恢复，确认删除这张单据吗？</p>}
    {actionError&&<p role="alert" className="text-sm text-red-700">{actionError}</p>}
-   <div className="flex gap-3"><button type="button" className={button} disabled={actionBusy} onClick={()=>void act()}>{actionBusy?'处理中…':action.kind==='copy'?'确认创建副本':'确认永久删除'}</button>
-    <button className={button} type="button" disabled={actionBusy} onClick={()=>{setAction(null);setActionError('');}}><ActionIcon name="close"/>取消</button></div>
-  </section>}
+   <div className="flex gap-3"><button type="button" className={button} disabled={actionBusy} onClick={()=>void act()}>{actionBusy?'处理中…':action.kind==='copy'?'确认创建副本':'确认删除'}</button>
+    <button className={button} type="button" data-delete-cancel={action.kind==='delete'?'':undefined} disabled={actionBusy} onClick={()=>{setAction(null);setActionError('');}}><ActionIcon name="close"/>取消</button></div>
+  </ActionPanel>}
   <DocumentSearchResults state={state} expanded={expanded} onToggle={id=>setExpanded(v=>v===id?null:id)}
    onEdit={id=>setSelected({id,mode:'edit'})} onPreview={id=>setSelected({id,mode:'preview'})}
-   onCopy={(id,orderNo)=>{setAction({id,orderNo,kind:'copy'});setNewOrderNo('');setActionError('');}} onDelete={(id,orderNo)=>{setAction({id,orderNo,kind:'delete'});setConfirmation('');setActionError('');}}
+   onCopy={(id,orderNo)=>{setAction({id,orderNo,kind:'copy'});setNewOrderNo('');setActionError('');}} onDelete={(id,orderNo)=>{setAction({id,orderNo,kind:'delete'});setActionError('');}}
    renderDetails={id=><MatchingDetails key={id} apiFetch={apiFetch} orderId={id} filters={applied} onDenied={onDenied}/>}/>
   {!action&&actionError&&<p role="alert">{actionError}</p>}
   {state.error&&<button type="button" className={button} onClick={()=>search(applied,offset)}><ActionIcon name="refresh"/>重试查询</button>}

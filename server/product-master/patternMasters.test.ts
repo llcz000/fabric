@@ -8,7 +8,7 @@ import {hashSessionToken} from '../access/password';
 import {createPatternMasterRouter} from './patternMastersRoutes';
 
 const actor:AppPrincipal={userId:'2',sessionId:'9',username:'sales',displayName:'Sales',role:'sales',canManageProducts:true,canManageOwnOrders:false};
-type Master={id:string;master_no:string;is_active:number;next_colorway_no:string;deleted_at?:string};
+type Master={id:string;master_no:string;is_active:number;next_colorway_no:string;deleted_at?:string;width_cm?:number|null;height_cm?:number|null};
 class TestDb {
  items:Master[]=[]; id=1; granted=true; active=true; session=true; referenced=false; versions=false;
  statements:string[]=[]; commits=0; rollbacks=0; deletes=0; failInsert=false;
@@ -21,7 +21,7 @@ class TestDb {
    if(this.failInsert)throw Object.assign(Error('duplicate sensitive SQL'),{code:'ER_DUP_ENTRY'});
    const master_no=String(params[0]);
    if(this.items.some(r=>r.master_no===master_no))throw Object.assign(Error('duplicate sensitive SQL'),{code:'ER_DUP_ENTRY'});
-   const value={id:String(this.id++),master_no,is_active:1,next_colorway_no:'1'};
+   const value:Master={id:String(this.id++),master_no,is_active:1,next_colorway_no:'1',...(sql.includes('width_cm')?{width_cm:params[1] as number|null,height_cm:params[2] as number|null}:{})};
    this.items.push(value);return [{insertId:value.id,affectedRows:1},[]];
   }
   if(sql.startsWith('SELECT')&&sql.includes('FROM pattern_masters')) {
@@ -52,6 +52,7 @@ class TestDb {
    if(!item)return [{affectedRows:0},[]];
    if(sql.includes('master_no='))item.master_no=String(params[0]);
    if(sql.includes('is_active='))item.is_active=Number(params[sql.includes('master_no=')?1:0]);
+   if(sql.includes('width_cm=')){item.width_cm=params[2] as number|null;item.height_cm=params[3] as number|null;}
    return [{affectedRows:1},[]];
   }
   if(sql.startsWith('DELETE FROM pattern_masters')){
@@ -69,6 +70,30 @@ class TestDb {
  }
 }
 const errorStatus=(status:number)=>(error:unknown)=>error instanceof PatternMasterError&&error.status===status;
+
+// AC-166, AC-167, AC-168: centimeters belong to the master, never individual colorways.
+test('master dimensions persist on create, update and clear; other patches preserve them',async()=>{
+ const db=new TestDb();
+ const item=await createPatternMaster(db,actor,{masterNo:'G0003',widthCm:21,heightCm:24.7});
+ assert.equal((item as any).widthCm,21);assert.equal(db.items[0].height_cm,24.7);
+ await updatePatternMaster(db,actor,item.id,{isActive:true});assert.equal(db.items[0].width_cm,21);
+ const changed=await updatePatternMaster(db,actor,item.id,{widthCm:47.5,heightCm:31.25});
+ assert.equal((changed as any).widthCm,47.5);assert.equal(db.items[0].height_cm,31.25);
+ assert.equal((await listPatternMasters(db) as any)[0].heightCm,31.25);
+ await updatePatternMaster(db,actor,item.id,{widthCm:null,heightCm:null});
+ assert.equal(db.items[0].width_cm,null);assert.equal(db.items[0].height_cm,null);
+});
+test('invalid dimension pairs fail before any DB write; omitted dimensions stay empty',async()=>{
+ const db=new TestDb();
+ for(const bad of [{widthCm:10},{heightCm:20},{widthCm:0,heightCm:20},{widthCm:-1,heightCm:20},
+  {widthCm:'10',heightCm:20},{widthCm:NaN,heightCm:20},{widthCm:Infinity,heightCm:20},{widthCm:null,heightCm:20}]){
+  await assert.rejects(createPatternMaster(db,actor,{masterNo:'G1',...bad}),errorStatus(400));
+ }
+ assert.equal(db.statements.length,0);
+ const old=await createPatternMaster(db,actor,{masterNo:'G1'});assert.equal((old as any).widthCm,null);
+ db.active=false;await assert.rejects(updatePatternMaster(db,actor,old.id,{widthCm:10,heightCm:20}),errorStatus(401));
+ assert.equal(db.items[0].width_cm,null);
+});
 test('B2-3 card-only master reference locks identity for active and inactive cards',async()=>{
  for(const active of [1,0]){
   const db=new TestDb(),item=await createPatternMaster(db,actor,{masterNo:'A01'});
@@ -132,7 +157,7 @@ test('B2-3 master HTTP card conflict is 409 and card driver error is safe 503',a
 
 test('P3-1a master identity normalizes and list preserves DB identity without counter consumption',async()=>{
  const db=new TestDb();const created=await createPatternMaster(db,actor,{masterNo:' ab001 '});
- assert.deepEqual(created,{id:'1',masterNo:'AB001',isActive:true,nextColorwayNo:1});
+ assert.deepEqual(created,{id:'1',masterNo:'AB001',isActive:true,nextColorwayNo:1,widthCm:null,heightCm:null});
  assert.equal(db.commits,1);
  const listed=await listPatternMasters(db);
  assert.equal(listed.length,1);assert.equal(listed[0].masterNo,'AB001');

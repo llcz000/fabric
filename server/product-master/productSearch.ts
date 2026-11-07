@@ -11,7 +11,7 @@ export type ProductCardAssociation='all'|'linked'|'unlinked';
 export interface ProductSearchFilters{
  fabricId?:string;masterId?:string;
  productNo:string;fabricName:string;topicTagIds:string[];colorTagIds:string[];
- status:ProductStatus;limit:number;offset:number;cardAssociation?:ProductCardAssociation;
+ status:ProductStatus;limit:number;offset:number;cardAssociation?:ProductCardAssociation;sort?:'numberAsc'|'numberDesc';
 }
 export interface ProductTagLabel{id:string;name:string;isArchived:boolean}
 export interface ProductImageCounts{
@@ -33,7 +33,7 @@ type Query={query(sql:string,params?:unknown[]):Promise<[unknown,unknown]>};
 type Row=Record<string,unknown>;
 const MAX_ID=18446744073709551615n;
 const FILTER_KEYS=new Set(['productNo','fabricName','topicTagIds','colorTagIds',
- 'status','includeInactive','limit','offset','fabricId','masterId','cardAssociation']);
+ 'status','includeInactive','limit','offset','fabricId','masterId','cardAssociation','sort']);
 const inspect=(text:unknown,key:string,max:number):string=>{
  if(text===undefined)return '';
  if(typeof text!=='string'||[...text].length>max||/[\p{Cc}\p{Cf}]/u.test(text))
@@ -81,10 +81,12 @@ export function parseProductSearchQuery(input:unknown):ProductSearchFilters{
  const status=raw.status??(raw.includeInactive==='true'?'all':'active');
  if(status!=='active'&&status!=='inactive'&&status!=='all')
   throw new ProductSearchError('Invalid status filter');
+ if(raw.sort!==undefined&&raw.sort!=='numberAsc'&&raw.sort!=='numberDesc')throw new ProductSearchError('Invalid sorting');
  const cardAssociation=raw.cardAssociation===undefined?'all':raw.cardAssociation;
  if(cardAssociation!=='all'&&cardAssociation!=='linked'&&cardAssociation!=='unlinked')
   throw new ProductSearchError('Invalid card association filter');
  return {
+  ...(raw.sort===undefined?{}:{sort:raw.sort as 'numberAsc'|'numberDesc'}),
   ...(raw.fabricId===undefined?{}:{fabricId:positiveId(raw.fabricId)}),
   ...(raw.masterId===undefined?{}:{masterId:positiveId(raw.masterId)}),
   productNo:inspect(raw.productNo,'productNo',160),
@@ -211,8 +213,13 @@ export async function searchProductCatalog(db:Query,filter:ProductSearchFilters)
  const [totalRaw]=await db.query('SELECT COUNT(*) AS total'+JOINS+sql,params);
  const total=int(rows(totalRaw)[0]?.total,'total');
  if(total===0||filter.offset>=total)return {items:[],total,limit:filter.limit,offset:filter.offset};
+ // Compare the master digits and numeric colorway globally before paging.
+ // The fabric suffix never determines number order; IDs retain every tied row.
+ const suffix="TRIM(LEADING '0' FROM SUBSTRING(m.master_no,2))";
+ const direction=filter.sort==='numberDesc'?'DESC':'ASC';
+ const order=filter.sort?'LENGTH('+suffix+') '+direction+','+suffix+' '+direction+',c.colorway_no '+direction+',p.id '+direction:'p.product_no ASC,p.id ASC';
  const [raw]=await db.query('SELECT '+FIELDS+JOINS+sql+
-  ' ORDER BY p.product_no ASC,p.id ASC LIMIT ? OFFSET ?',
+  ' ORDER BY '+order+' LIMIT ? OFFSET ?',
   [...params,filter.limit,filter.offset]);
  const data=rows(raw),ids=distinct(data.map(row=>row.id));
  if(data.length>filter.limit)throw Error('Unexpected unbounded product result');

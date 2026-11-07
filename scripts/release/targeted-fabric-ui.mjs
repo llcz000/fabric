@@ -31,12 +31,14 @@ async function run(){
     const result=await page.evaluate(()=>{
      const cells=[...document.querySelectorAll('.v2-library-row td')],composition=cells[2],weight=cells[3],remark=cells[5];
      const span=composition.querySelector('span'),c=composition.getBoundingClientRect(),w=weight.getBoundingClientRect();
-     return {columns:cells.length,compositionWidth:Math.round(c.width),weightWidth:Math.round(w.width),
+     const headers=[...document.querySelectorAll('thead th')].map(el=>el.textContent.trim());
+     return {columns:cells.length,headers,compositionWidth:Math.round(c.width),weightWidth:Math.round(w.width),
       remarkWidth:Math.round(remark.getBoundingClientRect().width),noOverlap:c.right<=w.left+2,
       clipped:span.scrollWidth>span.clientWidth,weightText:weight.textContent.trim(),
       bodyOverflow:document.documentElement.scrollWidth>innerWidth+3};
     });
-    if(result.columns!==9||result.compositionWidth!==210||result.weightWidth!==110||
+    if(result.columns!==8||JSON.stringify(result.headers)!==JSON.stringify(['品号','品名','成分','克重','门幅 / cm','备注','关联产品','操作'])||
+       result.compositionWidth!==210||result.weightWidth!==110||
        result.remarkWidth!==112||!result.noOverlap||!result.clipped||
        result.weightText!=='125.5 gsm'||result.bodyOverflow)
      throw Error('Targeted Fabric table UI mismatch '+JSON.stringify({width,...result}));

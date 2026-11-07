@@ -1,5 +1,10 @@
+import {verifySampleContactIdentitySchema} from '../customer-samples/sessionContactIdentitySchema';
+import {verifySampleContactSchema} from '../customer-samples/sessionContactSchema';
+import {verifySampleCardReviewSchema} from '../customer-samples/sessionCardReviewSchema';
 import {verifyPatternNumberReuseSchema} from './patternNumberReuseSchema';
 import {verifyPatternDeletionSchema} from './patternDeletionSchema';
+import {verifyPatternDimensionsSchema} from './patternDimensionsSchema';
+import {verifyModelGallerySchema} from './modelGallerySchema';
 import {verifyFabricDeletionSchema} from './fabricDeletionSchema';
 import {prepareCustomerRuntime} from '../customers/runtime';
 import express,{Router} from 'express';
@@ -38,8 +43,13 @@ export async function createV2ProductionRouter(pool:Pool,target:V2ProductionTarg
  await verifyV2DocumentSupportSchema(db);
  await verifyV2DocumentAuditSchema(db);
  await verifySessionLifecycleSchema(db);
+ await verifySampleCardReviewSchema(db);
+ await verifySampleContactSchema(db);
+ await verifySampleContactIdentitySchema(db);
  await verifyFabricDeletionSchema(db);
  await verifyPatternDeletionSchema(db);
+ await verifyPatternDimensionsSchema(db);
+ await verifyModelGallerySchema(db);
  await verifyPatternNumberReuseSchema(db,true);
  const customers=await prepareCustomerRuntime(baseDb,target);db=customers.pool;
  const routes=createV2BusinessRoutes(db,db,output,{unavailable:customers.unavailable});

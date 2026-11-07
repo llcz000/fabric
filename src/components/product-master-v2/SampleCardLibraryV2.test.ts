@@ -88,7 +88,7 @@ test('AC-98/99 B2-5 printing and retirement actions appear per card without modi
   onToggle:()=>{},onPageAll:()=>{},onPage:()=>{},onConfirmReprinted:()=>{},onRetire:()=>{}}));
  assert.match(html,/需重新打印/);assert.match(html,/标记已重新打印/);assert.match(html,/删除色卡/);
  for(const title of ['色卡编号','品名','成分','克重','门幅','二维码'])assert(html.includes(title));
- assert.equal((html.match(/<th /g)||[]).length,7,'checkbox plus five business headers and final operations column');
+ assert.equal((html.match(/<th /g)||[]).length,8,'checkbox plus colorways, five business headers and final operations column');
  const row=html.match(/<tbody>([\s\S]*?)<\/tbody>/)?.[1]??'';
  const cells=[...row.matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/g)].map(match=>match[1]);
  assert.match(cells.at(-1)??'',/删除色卡/,'delete action belongs to the rightmost cell');
@@ -150,6 +150,14 @@ test('B2-3 no selection or inactive records cannot create card and foreign serve
  await assert.rejects(()=>fetchSampleCardPage(fetch,'',1000001));
 });
 
-test('card list exposes QR in row operations without rendering a QR column or inline codes',()=>{const html=renderToStaticMarkup(React.createElement(SampleCardTable,{page:page([card]),selectedIds:[],onToggle(){},onPageAll(){},onPage(){},QrRenderer:()=>{throw Error('QR must only render after opening the dialog');}}));assert(html.includes('aria-label="放大色卡二维码 '+card.cardNo+'"'));assert(!/<svg\b[^>]*role="img"/.test(html));assert(!/<th[^>]*>二维码<\/th>/.test(html));const cells=html.match(/<td\b[^>]*>[\s\S]*?<\/td>/g)!;assert(cells.at(-1)!.includes('查看二维码'));assert.equal(cells.length,7);});
+test('card list exposes QR in row operations without rendering a QR column or inline codes',()=>{const html=renderToStaticMarkup(React.createElement(SampleCardTable,{page:page([card]),selectedIds:[],onToggle(){},onPageAll(){},onPage(){},QrRenderer:()=>{throw Error('QR must only render after opening the dialog');}}));assert(html.includes('aria-label="放大色卡二维码 '+card.cardNo+'"'));assert(!/<svg\b[^>]*role="img"/.test(html));assert(!/<th[^>]*>二维码<\/th>/.test(html));const cells=html.match(/<td\b[^>]*>[\s\S]*?<\/td>/g)!;assert(cells.at(-1)!.includes('查看二维码'));assert.equal(cells.length,8);});
 
-test('card row offers view patterns in operations',()=>{const html=renderToStaticMarkup(React.createElement(SampleCardTable,{page:page([card]),selectedIds:[],onToggle(){},onPageAll(){},onPage(){},onViewPatterns(){}} as any));assert.match(html,/查看花型/);});
+test('card row displays colorways directly instead of a view operation',()=>{const html=renderToStaticMarkup(React.createElement(SampleCardTable,{page:page([card]),selectedIds:[],onToggle(){},onPageAll(){},onPage(){},onViewPatterns(){}} as any));assert(!html.includes('查看花型'));assert(html.includes('花型配色'));});
+
+test('card number sort travels to the paged API and is shown on the complete card number header',async()=>{
+ let url='';await fetchSampleCardPage((async(u:any)=>{url=String(u);return json(page([card],20,70));}) as typeof fetch,'G8',20,20,undefined,false,'numberDesc');
+ assert.equal(new URL(url,'https://test.invalid').searchParams.get('sort'),'numberDesc');
+ const html=renderToStaticMarkup(React.createElement(SampleCardTable,{page:page([card]),selectedIds:[],onToggle:()=>{},onPageAll:()=>{},onPage:()=>{},sort:'numberDesc',onSort:()=>{}}));
+ assert.match(html,/<th[^>]*aria-sort="descending"[^>]*>[\s\S]*?色卡编号/);
+ assert(html.includes(card.cardNo));
+});

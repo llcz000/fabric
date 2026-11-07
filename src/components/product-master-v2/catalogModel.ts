@@ -3,7 +3,7 @@ export type CatalogStatus='active'|'inactive'|'all';
 export type CardAssociation='all'|'linked'|'unlinked';
 export interface CatalogFilters{
  productNo:string;fabricName:string;topicTagIds:string[];colorTagIds:string[];
- status:CatalogStatus;limit:number;offset:number;cardAssociation?:CardAssociation;
+ status:CatalogStatus;limit:number;offset:number;cardAssociation?:CardAssociation;sort?:'numberAsc'|'numberDesc';
 }
 export interface CatalogTag{id:string;name:string;isArchived:boolean}
 export interface CatalogProduct{
@@ -24,6 +24,7 @@ export type CatalogAction=
  |{type:'topic'|'color';id:string}
  |{type:'status';value:CatalogStatus}
   |{type:'cardAssociation';value:CardAssociation}
+ |{type:'sort';value:CatalogFilters['sort']}
  |{type:'page';offset:number}
  |{type:'reset'};
 export const emptyCatalogFilters:CatalogFilters={
@@ -31,6 +32,7 @@ export const emptyCatalogFilters:CatalogFilters={
 };
 export function reduceCatalogFilters(value:CatalogFilters,action:CatalogAction):CatalogFilters{
  if(action.type==='reset')return {...emptyCatalogFilters,topicTagIds:[],colorTagIds:[]};
+ if(action.type==='sort')return {...value,sort:action.value,offset:0};
  if(action.type==='page')return {...value,offset:action.offset};
  if(action.type==='productNo'||action.type==='fabricName')
   return {...value,[action.type]:action.value,offset:0};
@@ -52,6 +54,7 @@ export function buildCatalogUrl(endpoint:string,value:CatalogFilters):string{
  if(value.topicTagIds.length)params.set('topicTagIds',value.topicTagIds.join(','));
  if(value.colorTagIds.length)params.set('colorTagIds',value.colorTagIds.join(','));
  params.set('status',value.status);
+ if(value.sort)params.set('sort',value.sort);
  if(value.cardAssociation&&value.cardAssociation!=='all')params.set('cardAssociation',value.cardAssociation);
  params.set('limit',String(value.limit));params.set('offset',String(value.offset));
  return endpoint+'?'+params.toString();
@@ -97,7 +100,7 @@ export function parseCatalogPage(raw:unknown):CatalogPage{
  return raw as CatalogPage;
 }
 async function json(response:Response):Promise<unknown>{
- if(!response.ok)throw Error('请求失败（HTTP '+response.status+'）');
+ if(!response.ok)throw Object.assign(Error('请求失败（HTTP '+response.status+'）'),{status:response.status});
  return response.json();
 }
 export async function fetchCatalogPage(apiFetch:typeof fetch,filter:CatalogFilters,signal?:AbortSignal,endpoint='/api/v2/products'){

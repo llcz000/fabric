@@ -5,6 +5,7 @@ import {readV2Route,v2Route} from './v2Navigation';
 import React,{useEffect,useRef,useState,useCallback} from 'react';
 import {Image as ImageIcon,Plus,Search,X,ChevronLeft,ChevronRight,Images,RotateCcw} from 'lucide-react';
 import {ProductImageTabs,type CatalogImageResolver} from './ProductImageTabs';
+import {ProductTryOnDialog} from './ProductTryOnDialog';
 import {SampleCardPatternsDialog} from './SampleCardPatternsDialog';
 import type {CatalogFilters,CatalogPage,CatalogProduct} from './catalogModel';
 import {
@@ -46,21 +47,27 @@ export interface CatalogV2TableProps{
  onRemark?(product:CatalogProduct):void;
  onShare?(product:CatalogProduct):void;
   onCard?(product:CatalogProduct):void;
+  onTryOn?(product:CatalogProduct):void;
  updating?:boolean;
+ numberSort?:CatalogFilters['sort'];onNumberSort?(sort:CatalogFilters['sort']):void;
 }
 export function CatalogV2Table({
-  page,patternUrls,onPatternPreview,onProductImages,onPage,canManage=false,onEdit,onDeleteRequest,onRemark,onShare,onCard,updating=false
+  page,patternUrls,onPatternPreview,onProductImages,onPage,canManage=false,onEdit,onDeleteRequest,onRemark,onShare,onCard,onTryOn,updating=false,numberSort,onNumberSort
 }:CatalogV2TableProps){
  const [sort,setSort]=useState<SortState|null>(null);
  const [visibility,setVisibility]=useState(()=>readColumnVisibility(productColumns,PRODUCT_COLUMN_KEY));
  const shown=visibleColumns(productColumns,visibility);
  const rows=sortRows(page.items,sort,productColumns);
+ const headerSort=sort??(numberSort?{key:'productNo',direction:numberSort==='numberAsc'?'asc' as const:'desc' as const}:null);
  const widthOf=(key:string)=>{
   const index=productColumns.findIndex(c=>c.key===key);
   const width=index>=0?columnWidths[index]:0;
   return width?{width:width+'px'}:undefined;
  };
- const toggleSort=(key:string)=>setSort(current=>nextSortState(current,key));
+ const toggleSort=(key:string)=>{
+  if(key==='productNo'){setSort(null);onNumberSort?.(numberSort===undefined?'numberAsc':numberSort==='numberAsc'?'numberDesc':undefined);}
+  else setSort(current=>nextSortState(current,key));
+ };
  const toggleVisibility=(key:string)=>setVisibility(current=>{
   const next=toggleColumnVisibility(productColumns,current,key);
   writeColumnVisibility(PRODUCT_COLUMN_KEY,next);
@@ -114,6 +121,7 @@ export function CatalogV2Table({
     <button type="button" disabled={updating} className="v2-icon-button" title="查看产品图"
      onClick={()=>onProductImages(product)} aria-label={'查看产品图 '+product.productNo}><Images size={17} aria-hidden="true"/></button>
     {onShare&&<button type="button" disabled={updating} className="v2-icon-button" title="分享花型产品" aria-label={'分享花型产品 '+product.productNo} onClick={()=>onShare(product)}><ActionIcon name="share"/></button>}
+    {canManage&&onTryOn?<button type="button" disabled={updating} className="rounded border border-[#c3c6d7] px-2 py-1 text-[11px] text-[#0053da]" title="选择模特并准备换装素材" onClick={()=>onTryOn(product)}>换装</button>:null}
     {canManage&&onEdit?<button type="button" disabled={updating} onClick={()=>onEdit(product)}
      className="v2-icon-button" aria-label="编辑" title="编辑产品"><ActionIcon name="edit"/></button>:null}
     {canManage&&onDeleteRequest?<button type="button" disabled={updating} onClick={()=>onDeleteRequest(product)}
@@ -124,7 +132,7 @@ export function CatalogV2Table({
  };
  return <div className="flex flex-1 flex-col overflow-hidden rounded-lg border border-[#c3c6d7] bg-white">
   <div className="v2-library-toolbar">
-   <span className="v2-library-toolbar-hint">点击表头可排序，列设置可隐藏不需要的字段</span>
+   <span className="v2-library-toolbar-hint">编号全库排序；其他列仅排序当前页</span>
    <ColumnSettingsMenu columns={productColumns} visibility={visibility}
     onToggle={toggleVisibility} onReset={resetVisibility}/>
   </div>
@@ -132,7 +140,7 @@ export function CatalogV2Table({
    <table className="v2-library-table w-full min-w-[1400px] border-collapse text-left text-xs text-[#191b24]">
     <colgroup>{shown.map(column=><col key={column.key} style={widthOf(column.key)}/>)}</colgroup>
     <thead><tr className="border-b border-[#c3c6d7] bg-[#f3f4fa] text-[#434655]">
-     {shown.map(column=><SortableHeader key={column.key} column={column} sort={sort} onSort={toggleSort}
+     {shown.map(column=><SortableHeader key={column.key} column={column} sort={headerSort} onSort={toggleSort}
       className={'px-3 py-3 font-medium '+(['image','images','status'].includes(column.key)?'text-center ':'')+(column.key==='actions'?'col-actions':'')}/>)}
     </tr></thead>
      <tbody>
@@ -228,16 +236,18 @@ export interface ProductCatalogV2Props{
  onEdit?(product:CatalogProduct):void;
  onDeleteRequest?(product:CatalogProduct):Promise<void>|void;
  onShare?(product:CatalogProduct):void;
+ onTryOn?(product:CatalogProduct):void;
 }
 /** P4 isolated component: deliberately not mounted over legacy ProductLibrary. */
-export function ProductCatalogV2({apiFetch,canManage=false,allowExport=true,onCreate,onEdit,onDeleteRequest,onShare,resolveImages}:ProductCatalogV2Props){
+export function ProductCatalogV2({apiFetch,canManage=false,allowExport=true,onCreate,onEdit,onDeleteRequest,onShare,onTryOn,resolveImages}:ProductCatalogV2Props){
  const imageResolver=useCallback<CatalogImageResolver>((ids,variant,signal)=>resolveImages?resolveImages(ids,variant,signal):resolveImageUrls(apiFetch,ids,variant,signal),[apiFetch,resolveImages]);
  const [filters,setFilters]=useState<CatalogFilters>(()=>{
   const route=readV2Route(typeof window==='undefined'?'':window.location.hash),q=route.params;
   if(route.view!=='products')return {...emptyCatalogFilters};
   const offset=Number(q.get('offset')??0),limit=Number(q.get('limit')??50);
    const association=q.get('cardAssociation');
-   return {...emptyCatalogFilters,productNo:q.get('productNo')??'',fabricName:q.get('fabricName')??'',cardAssociation:association==='linked'||association==='unlinked'?association:'all',status:q.get('status')==='all'?'all':'active',offset:Number.isSafeInteger(offset)&&offset>=0?offset:0,limit:Number.isInteger(limit)&&limit>0&&limit<=100?limit:50};
+   const sort=q.get('sort');
+   return {...emptyCatalogFilters,sort:sort==='numberAsc'||sort==='numberDesc'?sort:undefined,productNo:q.get('productNo')??'',fabricName:q.get('fabricName')??'',cardAssociation:association==='linked'||association==='unlinked'?association:'all',status:q.get('status')==='all'?'all':'active',offset:Number.isSafeInteger(offset)&&offset>=0?offset:0,limit:Number.isInteger(limit)&&limit>0&&limit<=100?limit:50};
  });
  useEffect(()=>{if(typeof window!=='undefined'&&readV2Route(window.location.hash).view==='products'){
   const query=buildCatalogUrl('/api/v2/products',filters).split('?')[1];window.history.replaceState(window.history.state,'',v2Route('products',Object.fromEntries(new URLSearchParams(query))));
@@ -251,6 +261,7 @@ export function ProductCatalogV2({apiFetch,canManage=false,allowExport=true,onCr
  const [remark,setRemark]=useState<CatalogProduct|null>(null);
   const [viewingCard,setViewingCard]=useState<CatalogProduct|null>(null);
  const [pendingDelete,setPendingDelete]=useState<CatalogProduct|null>(null);
+ const [tryOn,setTryOn]=useState<CatalogProduct|null>(null);
  const [deleteBusy,setDeleteBusy]=useState(false),[deleteError,setDeleteError]=useState('');
  const deleting=useRef(false);useV2LeaveProtection(false,deleteBusy);
  const confirmDelete=async()=>{
@@ -346,13 +357,14 @@ export function ProductCatalogV2({apiFetch,canManage=false,allowExport=true,onCr
    {failure?<div role="alert" className="rounded-lg border border-rose-200 bg-white p-4 text-sm text-rose-700">
    {failure}<button type="button" onClick={()=>setRetry(n=>n+1)} className="ml-3 underline"><ActionIcon name="refresh"/>重试</button></div>:null}
    <div className="v2-catalog-viewport" aria-busy={busy} data-updating={busy}>
-   {page?<CatalogV2Table updating={busy||Boolean(failure)} page={page} patternUrls={thumbnailUrls}
+   {page?<CatalogV2Table numberSort={filters.sort} onNumberSort={value=>dispatch({type:'sort',value})} updating={busy||Boolean(failure)} page={page} patternUrls={thumbnailUrls}
    onPatternPreview={item=>setViewer({type:'pattern',item})}
    onProductImages={item=>setViewer({type:'product',item})}
    onPage={offset=>dispatch({type:'page',offset})} onRemark={setRemark}
      onCard={item=>setViewingCard(item)}
-    canManage={canManage} onShare={onShare} onEdit={onEdit} onDeleteRequest={onDeleteRequest?item=>{setDeleteError('');setPendingDelete(item);}:undefined}/>:<div className="v2-catalog-skeleton" aria-hidden="true"/>}
+    canManage={canManage} onShare={onShare} onTryOn={onTryOn??setTryOn} onEdit={onEdit} onDeleteRequest={onDeleteRequest?item=>{setDeleteError('');setPendingDelete(item);}:undefined}/>:<div className="v2-catalog-skeleton" aria-hidden="true"/>}
    </div>
+  {tryOn&&<ProductTryOnDialog product={tryOn} apiFetch={apiFetch} onClose={()=>setTryOn(null)} onSaved={()=>setRetry(n=>n+1)}/>}
   {pendingDelete&&onDeleteRequest?<CatalogDeleteConfirmation product={pendingDelete}
     busy={deleteBusy} error={deleteError} onCancel={()=>{if(!deleting.current)setPendingDelete(null);}}
     onConfirm={()=>void confirmDelete()}/>:null}

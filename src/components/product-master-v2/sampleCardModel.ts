@@ -5,6 +5,7 @@ import type {FabricCatalogItem,FabricCatalogPage} from './fabricModel';
 import {fetchFabricCatalog,emptyFabricFilters} from './fabricModel';
 export interface SampleCard{
  id:string;masterId:string;masterNo:string;fabricId:string;fabricNo:string;
+ colorways?:{productId:string;colorwayNo:number;patternImageAssetId:string|null}[];
  cardNo:string;description:string;composition:string|null;weightValue:number|null;
  weightUnit:'gsm'|'mm'|null;widthValue:number|null;qrPayload:string;scanUrl?:string;isActive:boolean;
  needsReprint?:boolean;reprintRevision?:string;
@@ -25,6 +26,7 @@ function parseCard(raw:unknown):SampleCard{
   c.scanUrl!==undefined&&readSampleCardScanToken(c.scanUrl)!==c.qrPayload||
   c.needsReprint!==undefined&&typeof c.needsReprint!=='boolean'||
   c.reprintRevision!==undefined&&(typeof c.reprintRevision!=='string'||!/^(0|[1-9][0-9]{0,19})$/.test(c.reprintRevision)||BigInt(c.reprintRevision)>18446744073709551615n))throw Error('色卡行资料无效');
+ if(c.colorways!==undefined&&(!Array.isArray(c.colorways)||new Set(c.colorways.map(v=>v.productId)).size!==c.colorways.length||c.colorways.some(v=>!id(v.productId)||!Number.isSafeInteger(v.colorwayNo)||v.colorwayNo<1||!(v.patternImageAssetId===null||typeof v.patternImageAssetId==='string'&&/^[a-f0-9-]{36}$/i.test(v.patternImageAssetId)))))throw Error('色卡配色资料无效');
  return c;
 }
 export function parseSampleCardPage(raw:unknown):SampleCardPage{
@@ -45,16 +47,17 @@ async function checked(response:Response):Promise<Response>{
  if(response.status===409){
   const data=await response.clone().json().catch(()=>null);
   if(data?.error==='Card has products'&&Number.isSafeInteger(data.productCount)&&data.productCount>0)
-   throw Error('当前色卡关联 '+data.productCount+' 个产品，请先处理关联产品；可通过查看花型核对。');
+   throw Error('当前色卡关联 '+data.productCount+' 个产品，请先处理关联产品；可在列表配色图中核对。');
  }
  if(!response.ok)throw Error(response.status===401?'登录已失效，请重新登录。':
   response.status===403?'没有色卡管理权限。':response.status===409?'主数据状态已改变，请重新选择。':'色卡请求失败（HTTP '+response.status+'）');
  return response;
 }
-export async function fetchSampleCardPage(apiFetch:typeof fetch,query='',offset=0,limit=50,signal?:AbortSignal,needsReprint=false):Promise<SampleCardPage>{
+export async function fetchSampleCardPage(apiFetch:typeof fetch,query='',offset=0,limit=50,signal?:AbortSignal,needsReprint=false,sort:'newest'|'numberAsc'|'numberDesc'='newest'):Promise<SampleCardPage>{
  if(typeof query!=='string'||query.trim().length>100||/[\p{Cc}\p{Cf}]/u.test(query)||!Number.isSafeInteger(offset)||offset<0||offset>1000000||!Number.isSafeInteger(limit)||limit<1||limit>100)throw Error('色卡查询条件无效');
- const params=new URLSearchParams({query:query.trim(),limit:String(limit),offset:String(offset)});
+ const params=new URLSearchParams({query:query.trim(),limit:String(limit),offset:String(offset),includeColorways:'true'});
  if(needsReprint)params.set('needsReprint','true');
+ if(sort!=='newest')params.set('sort',sort);
  return parseSampleCardPage(await (await checked(await apiFetch('/api/v2/sample-cards?'+params,{signal}))).json());
 }
 export async function createSampleCard(apiFetch:typeof fetch,master:Pick<PatternMasterItem,'id'|'isActive'>|null,fabric:Pick<FabricCatalogItem,'id'|'isActive'>|null):Promise<{card:SampleCard;created:boolean}>{

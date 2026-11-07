@@ -212,3 +212,18 @@ test('product-owned cards reject empty creation and independent retirement with 
  await assert.rejects(retireSampleCard(db,actor,first.card.id,allow),e=>e instanceof SampleCardError&&e.status===409&&e.message.includes('3 products'));
  assert.equal(db.cards[0].deleted_at,undefined);assert.equal(db.tokens[0].revoked_at,undefined);
 });
+
+test('card number sorting is global before paging and ignores fabric with stable distinct row identity',async()=>{
+ for(const sort of ['numberAsc','numberDesc'] as const){
+  const calls:{sql:string;args:unknown[]}[]=[];
+  await listSampleCards({async query(sql:string,args:unknown[]=[]):Promise<[unknown,unknown]>{
+   calls.push({sql,args});return [sql.includes('COUNT(*)')?[{total:70}]:[],[]];
+  }},{sort,limit:2,offset:50});
+  const order=calls[1].sql.split(' ORDER BY ')[1],direction=sort==='numberAsc'?'ASC':'DESC';
+  assert(order.startsWith("LENGTH(TRIM(LEADING '0' FROM SUBSTRING(m.master_no,2))) "+direction));
+  assert(order.endsWith(',c.id '+direction+' LIMIT ? OFFSET ?'));
+  assert(!/fabric_no|card_no|GROUP BY|DISTINCT/.test(order));
+  assert.deepEqual(calls[1].args.slice(-2),[2,50]);
+ }
+ for(const sort of ['bad',null,['numberAsc']])await assert.rejects(listSampleCards(new Fixture(),{sort} as never),rejected(400));
+});

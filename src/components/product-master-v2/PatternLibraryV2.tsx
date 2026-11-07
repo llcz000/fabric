@@ -1,4 +1,5 @@
 import {patternBox as box,formatPatternTags as asTags} from './patternPresentation';
+import {saveMasterDimensions} from './patternModel';
 import { ActionIcon } from './ActionIcon';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
@@ -112,6 +113,7 @@ export function PatternLibraryV2({apiFetch,canManage=false,onCreateMaster,onEdit
    const result=await fetchMasterColorways(apiFetch,master);
    if(editGuard.current.isCurrent(rev)){
     setEditingItems(result.items);setNext(result.nextColorwayNo);
+    setSelected(previous=>previous?.id===master.id?{...previous,...('widthCm' in result?{widthCm:result.widthCm,heightCm:result.heightCm}:{})}:previous);
     const ids=[...new Set(result.items.map(v=>v.patternImageAssetId).filter((x):x is string=>!!x))];
     const signed=new Map<string,string>();
     for(const batch of chunks(ids,throttle)){
@@ -257,7 +259,13 @@ export function PatternLibraryV2({apiFetch,canManage=false,onCreateMaster,onEdit
     nextColorwayNo={next} topics={topics} apiFetch={apiFetch} canManage={canManage} onTopicCreated={tag=>setTopics(items=>[...items.filter(item=>item.id!==tag.id),tag])}
     thumbnailUrls={editorThumbs} onPreview={setPreview}
     onClose={()=>{editGuard.current.cancel();setSelected(null);onEditorStateChange?.(false);}} onSaveVersion={selectedVersionSave}
-    onAdd={add} onSaveMasterTags={masterTagsSave}
+    onAdd={add} onSaveMasterTags={masterTagsSave} onSaveDimensions={async dimensions=>{
+     const saved=await saveMasterDimensions(apiFetch,selected.id,dimensions);
+     listGuard.current.cancel();
+     setSelected(current=>current?.id===selected.id?{...current,...saved}:current);
+     setPage(current=>current?{...current,items:current.items.map(item=>item.id===selected.id?{...item,...saved}:item)}:current);
+     setRetry(value=>value+1);
+    }}
     onUploadPatternImage={uploadPatternImage}
     onDeleteVersion={deleteVersion}/>}</>:null}
   {importOpen&&canManage?<PatternBulkImportDialog apiFetch={apiFetch} onUpload={uploadPatternImage}

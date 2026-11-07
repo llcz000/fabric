@@ -6,13 +6,14 @@ import type {SamplePool} from './scanRepository';
 /** Internal service DTO. Raw payload is card identity, never permission. */
 export interface SampleCard {
  id:string;masterId:string;masterNo:string;fabricId:string;fabricNo:string;
+ colorways?:{productId:string;colorwayNo:number;patternImageAssetId:string|null}[];
  cardNo:string;description:string;composition:string|null;
  weightValue:number|null;weightUnit:'gsm'|'mm'|null;widthValue:number|null;
   qrPayload:string;scanUrl?:string;isActive:boolean;reprintRevision?:string;needsReprint?:boolean;
 }
 export interface SampleCardDb {query(sql:string,params?:unknown[]):Promise<[unknown,unknown]>}
 export type SampleCardAuthorization=(actor:AppPrincipal,action:'read'|'create'|'export'|'retire'|'reprint')=>boolean|Promise<boolean>;
-export interface SampleCardListQuery {query?:string;limit?:number;offset?:number;needsReprint?:boolean}
+export interface SampleCardListQuery {query?:string;limit?:number;offset?:number;needsReprint?:boolean;includeColorways?:boolean;sort?:'newest'|'numberAsc'|'numberDesc'}
 export class SampleCardError extends Error {
  constructor(message:string,readonly status:400|401|403|404|409=400){super(message);this.name='SampleCardError';}
 }
@@ -250,18 +251,18 @@ export async function confirmSampleCardReprinted(
 }
 function options(input:SampleCardListQuery):Required<SampleCardListQuery>{
  if(!input||typeof input!=='object'||Array.isArray(input)||
-  Object.keys(input).some(k=>!['query','limit','offset','needsReprint'].includes(k)))throw new SampleCardError('Invalid card query');
- const {query='',limit=50,offset=0,needsReprint=false}=input;
+  Object.keys(input).some(k=>!['query','limit','offset','needsReprint','includeColorways','sort'].includes(k)))throw new SampleCardError('Invalid card query');
+ const {query='',limit=50,offset=0,needsReprint=false,includeColorways=false,sort='newest'}=input;
  if(typeof query!=='string'||[...query].length>100||/[\p{Cc}\p{Cf}]/u.test(query)||
   !Number.isSafeInteger(limit)||limit<1||limit>100||
-  !Number.isSafeInteger(offset)||offset<0||offset>1000000||typeof needsReprint!=='boolean')throw new SampleCardError('Invalid card query');
- return {query:query.trim(),limit,offset,needsReprint};
+  !Number.isSafeInteger(offset)||offset<0||offset>1000000||typeof needsReprint!=='boolean'||typeof includeColorways!=='boolean'||!['newest','numberAsc','numberDesc'].includes(sort))throw new SampleCardError('Invalid card query');
+ return {query:query.trim(),limit,offset,needsReprint,includeColorways,sort};
 }
 /** Internal reads: caller MUST authenticate and authorize read before invocation. Never log DTOs. */
 export async function listSampleCards(db:SampleCardDb,input:SampleCardListQuery={}):Promise<{
  items:SampleCard[];total:number;limit:number;offset:number
 }>{
- const {query,limit,offset,needsReprint}=options(input);let filter=' WHERE c.deleted_at IS NULL';const args:unknown[]=[];
+ const {query,limit,offset,needsReprint,includeColorways,sort}=options(input);let filter=' WHERE c.deleted_at IS NULL';const args:unknown[]=[];
  if(needsReprint)filter+=' AND c.reprint_revision>c.printed_revision';
  if(query){
   const pattern='%'+query.replace(/[!%_]/g,x=>'!'+x)+'%';
@@ -271,8 +272,28 @@ export async function listSampleCards(db:SampleCardDb,input:SampleCardListQuery=
  const [countRows]=await db.query('SELECT COUNT(*) AS total'+from+filter,args);
  const total=Number(rows(countRows)[0]?.total);
  if(!Number.isSafeInteger(total)||total<0)throw Error('Invalid sample card count');
- const [items]=await db.query(select+filter+' ORDER BY c.created_at DESC,c.id DESC LIMIT ? OFFSET ?',[...args,limit,offset]);
- return {items:rows(items).map(card),total,limit,offset};
+ // Keep separate fabric rows, ordering only by the master digits and stable card identity.
+ const suffix="TRIM(LEADING '0' FROM SUBSTRING(m.master_no,2))";
+ const direction=sort==='numberDesc'?'DESC':'ASC';
+ const order=sort==='newest'?'c.created_at DESC,c.id DESC':'LENGTH('+suffix+') '+direction+','+suffix+' '+direction+',c.id '+direction;
+ const [items]=await db.query(select+filter+' ORDER BY '+order+' LIMIT ? OFFSET ?',[...args,limit,offset]);
+ const found=rows(items).map(card);
+ if(includeColorways){
+  const byId=new Map(found.map(c=>{c.colorways=[];return [c.id,c] as const;}));
+  if(found.length){
+   const [raw]=await db.query(`SELECT sc.id AS card_id,p.id AS product_id,cw.colorway_no,cw.pattern_image_asset_id
+    FROM sample_cards sc JOIN v2_products p ON p.fabric_id=sc.fabric_id
+    JOIN pattern_colorways cw ON cw.id=p.pattern_colorway_id AND cw.master_id=sc.master_id
+    WHERE sc.id IN (${found.map(()=>'?').join(',')}) AND sc.deleted_at IS NULL
+    ORDER BY sc.id,cw.colorway_no,p.id`,found.map(c=>c.id));
+   for(const row of rows(raw)){
+    const target=byId.get(dbId(row.card_id)),productId=dbId(row.product_id),colorwayNo=Number(row.colorway_no),asset=row.pattern_image_asset_id;
+    if(!target||!Number.isSafeInteger(colorwayNo)||colorwayNo<1||asset!=null&&typeof asset!=='string'||target.colorways!.some(c=>c.productId===productId))throw new SampleCardError('Card colorways inconsistent',409);
+    target.colorways!.push({productId,colorwayNo,patternImageAssetId:asset==null?null:String(asset)});
+   }
+  }
+ }
+ return {items:found,total,limit,offset};
 }
 /** Explicit selection only; no partial export and preserve caller selection order. */
 export async function getSelectedSampleCards(db:SampleCardDb,ids:unknown):Promise<SampleCard[]>{
@@ -284,3 +305,5 @@ export async function getSelectedSampleCards(db:SampleCardDb,ids:unknown):Promis
  if(ids.some(id=>!byId.has(id)))throw new SampleCardError('Selected card unavailable',404);
  return ids.map(id=>byId.get(id)!);
 }
+
+export {card as parseSampleCardRecord};

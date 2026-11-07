@@ -7,6 +7,8 @@ import type { CatalogTag } from './catalogModel';
 import { TopicTagPicker } from './TopicTagPicker';
 import { type PatternMasterItem, type PatternVersionItem } from './patternModel';
 import {TagSelector,InlineColorTagEditor} from './PatternTagControls';
+import {parsePatternDimensionDraft,formatPatternDimensions,type PatternDimensions} from '../../lib/patternDimensions';
+import {PatternDimensionFields} from './PatternDimensionFields';
 export interface PatternColorwayEditorProps{
  master:PatternMasterItem;items:PatternVersionItem[];
  topics:CatalogTag[];apiFetch:typeof fetch;nextColorwayNo:number;canManage?:boolean;onTopicCreated?(tag:CatalogTag):void;
@@ -14,6 +16,7 @@ export interface PatternColorwayEditorProps{
  onClose():void;onSaveVersion(item:PatternVersionItem,value:{remark:string;isActive:boolean;patternImageAssetId?:string|null}):Promise<void>;
  onAdd(value:{remark:string;isActive:boolean;patternImageAssetId?:string|null}):Promise<void>;
  onSaveMasterTags(ids:string[]):Promise<void>;
+ onSaveDimensions?(dimensions:PatternDimensions):Promise<void>;
 
  onUploadPatternImage?(file:File):Promise<string>;
  onDeleteVersion(item:PatternVersionItem):Promise<void>;
@@ -23,7 +26,7 @@ export interface PatternColorwayEditorProps{
 export function PatternColorwayEditor({
  master,items,topics,apiFetch,nextColorwayNo,canManage=false,onClose,onSaveVersion,onAdd,onTopicCreated,
  thumbnailUrls=new Map(),onPreview,
- onSaveMasterTags,onUploadPatternImage,onDeleteVersion,onToggleMaster
+ onSaveMasterTags,onUploadPatternImage,onDeleteVersion,onToggleMaster,onSaveDimensions
 }:PatternColorwayEditorProps){
  const confirm=useConfirm();
  const [editing,setEditing]=useState<string|null>(null);
@@ -33,13 +36,15 @@ export function PatternColorwayEditor({
  useEffect(()=>()=>{stagedUrls.current.forEach(url=>URL.revokeObjectURL(url));},[]);
  const [topicDraft,setTopicDraft]=useState(master.topicTags.map(t=>t.id));
  const [topicEditing,setTopicEditing]=useState(false);
+ const [sizeEditing,setSizeEditing]=useState(false);
+ const [width,setWidth]=useState(String(master.widthCm??'')),[height,setHeight]=useState(String(master.heightCm??''));
  const [adding,setAdding]=useState(false);
  const [newDraft,setNewDraft]=useState({remark:'',isActive:true,patternImageAssetId:null as string|null});
  const [confirmRemove,setConfirmRemove]=useState<PatternVersionItem|null>(null);
  const [working,setWorking]=useState(false),[error,setError]=useState('');
  const workRef=useRef(false);
  const closeButton=useRef<HTMLButtonElement>(null);
- const unsaved=editing!==null||adding||topicEditing;
+ const unsaved=editing!==null||adding||topicEditing||sizeEditing;
  const close=async()=>{
   if(working)return;
   if(unsaved){
@@ -99,6 +104,13 @@ export function PatternColorwayEditor({
       {canManage?<button type="button" onClick={()=>{setTopicDraft(master.topicTags.map(x=>x.id));setTopicEditing(true);}}
        className="text-[#0053da] underline"><ActionIcon name="edit"/>维护</button>:null}</>}
     </div>
+   </div>
+   <div className="flex shrink-0 flex-wrap items-end gap-3 border-b border-[#e2e8f0] px-4 py-3 text-xs">
+    {sizeEditing?<><PatternDimensionFields width={width} height={height} disabled={working} onChange={(w,h)=>{setWidth(w);setHeight(h);}}/>
+     <button type="button" disabled={working} onClick={()=>call(async()=>{await onSaveDimensions!(parsePatternDimensionDraft(width,height));},()=>setSizeEditing(false))} className="rounded bg-[#346ef6] px-3 py-2 text-white">保存尺寸</button>
+     <button type="button" disabled={working} onClick={()=>{setSizeEditing(false);setError('');}} className="rounded px-2 py-2">取消</button></>:
+     <><span>花型尺寸 <strong>{formatPatternDimensions(master)}</strong></span><span className="text-slate-500">全部配色共用</span>
+      {canManage&&onSaveDimensions?<button type="button" disabled={working} onClick={()=>{setWidth(String(master.widthCm??''));setHeight(String(master.heightCm??''));setSizeEditing(true);}} className="rounded px-2 py-1 text-blue-700">修改尺寸</button>:null}</>}
    </div>
    {error?<p role="alert" className="px-4 py-2 text-sm text-rose-700">{error}</p>:null}
    <div className="overflow-auto">

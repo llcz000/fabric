@@ -1,4 +1,5 @@
 import {patternBox as box,formatPatternTags as asTags} from './patternPresentation';
+import {formatPatternDimensions} from '../../lib/patternDimensions';
 import { Image as ImageIcon, Edit3, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Pencil } from 'lucide-react';
 import type { CatalogTag } from './catalogModel';
 import { type PatternMasterItem, type PatternVersionItem } from './patternModel';
@@ -23,6 +24,7 @@ export function PatternMasterRows({items,thumbnailUrls,onPreview,onEdit,onDelete
    className="v2-library-row flex min-w-[640px] items-center gap-3 border-b border-[#e2e1ee] px-3 py-3 last:border-0 hover:bg-[#fcfdff]">
    <div role="cell" className="w-32 shrink-0">
     <strong className="block text-sm text-[#191b24]">{master.masterNo}</strong>
+    <span className="mt-1 block text-xs text-slate-500" aria-label={master.masterNo+' 花型尺寸'}>{formatPatternDimensions(master)}</span>
     
    </div>
    <div role="cell" className="w-32 shrink-0 min-w-0 break-words text-xs text-[#737686]">

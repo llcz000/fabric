@@ -17,25 +17,27 @@ test('real internal card list search supports clear button and Escape without lo
  await expect(search).toBeFocused();
  await expect(page.locator('table tbody tr')).toHaveCount(3);
  await expect(page.getByRole('button',{name:'清空色卡搜索'})).toHaveCount(0);
- await expect(page.locator('table thead button[title*="排序"]')).toHaveCount(0);
+ await expect(page.locator('table thead button[title*="排序"]')).toHaveCount(1);
+ await expect(page.getByRole('columnheader',{name:'色卡编号',exact:true}).getByRole('button')).toBeVisible();
  await expect(page.getByRole('button',{name:'列设置'})).toBeVisible();
  await expect(page.getByRole('button',{name:'分享花型产品 G0886-F018'})).toBeVisible();
 });
-test('real color-card table keeps modest fabric name width, 4 actions separated and no header sorting',async({page})=>{
+test('real color-card table keeps modest fabric name width, 3 actions separated and only card-number header sorting',async({page})=>{
  for(const viewport of [1440,1024,800]){
   await page.setViewportSize({width:viewport,height:900});
   await page.goto('/tools/ui-preview/entries/ui-ux-internal-cards.html',{waitUntil:'domcontentloaded'});
   const row=page.locator('table tbody tr').first();
   await expect(row).toBeVisible();
   await expect(page.getByRole('button',{name:'列设置'})).toBeVisible();
-  await expect(page.locator('table thead button')).toHaveCount(0);
-  const nameCell=row.locator('td').nth(2);
+  await expect(page.locator('table thead button')).toHaveCount(1);
+  await expect(page.getByRole('columnheader',{name:'色卡编号',exact:true}).getByRole('button')).toBeVisible();
+  const nameCell=row.locator('td').nth(3);
   const nameWidth=await nameCell.evaluate(el=>el.getBoundingClientRect().width);
   expect(nameWidth).toBeLessThanOrEqual(185);
   const actions=row.locator('td.col-actions');
-  const names=['放大色卡二维码','查看花型','分享花型产品','删除色卡'];
+  const names=['放大色卡二维码','分享花型产品','删除色卡'];
   const buttons=await actions.locator('button').all();
-  expect(buttons.length).toBe(4);
+  expect(buttons.length).toBe(3);
   const boxes=[];
   for(let i=0;i<buttons.length;i++){
    await expect(buttons[i]).toHaveAttribute('aria-label',new RegExp(names[i]));
@@ -46,7 +48,7 @@ test('real color-card table keeps modest fabric name width, 4 actions separated 
   }
   for(let i=1;i<boxes.length;i++)expect(boxes[i].x-(boxes[i-1].x+boxes[i-1].width)).toBeGreaterThanOrEqual(5);
   const cell=await actions.boundingBox();
-  expect(cell!.width).toBeGreaterThanOrEqual(198);
+  expect(cell!.width).toBeGreaterThanOrEqual(150);
   expect(boxes[0].x).toBeGreaterThanOrEqual(cell!.x);
   expect(boxes.at(-1)!.x+boxes.at(-1)!.width).toBeLessThanOrEqual(cell!.x+cell!.width+1);
   if(viewport===1440){
@@ -90,15 +92,8 @@ test('page and modal visual review: remove redundant copy and use compact access
  await page.screenshot({path:'artifacts/ui-ux-pilot/card-library-design-review-qr.png'});
  await qr.getByRole('button',{name:'关闭二维码'}).click();
  await expect(qrTrigger).toBeFocused();
- const viewTrigger=page.getByRole('button',{name:'查看花型 G0886-F018'});
- await viewTrigger.click();
- const viewer=page.getByRole('dialog',{name:'色卡关联花型 G0886-F018'});
- await expect(viewer.getByRole('button',{name:'关闭花型预览'})).toBeVisible();
- await expect(viewer.getByRole('button',{name:'关闭花型预览'})).not.toContainText('关闭');
- await page.screenshot({path:'artifacts/ui-ux-pilot/card-library-design-review-view.png'});
- await page.keyboard.press('Escape');
- await expect(viewer).toBeHidden();
- await expect(viewTrigger).toBeFocused();
+ await expect(page.getByRole('button',{name:/查看花型/})).toHaveCount(0);
+ await expect(page.getByRole('region',{name:'色卡列表，可横向滚动'}).getByRole('img')).toHaveCount(18);
  const shareTrigger=page.getByRole('button',{name:'分享花型产品 G0886-F018'});
  await shareTrigger.click();
  const share=page.getByRole('dialog',{name:'分享色卡花型产品'});

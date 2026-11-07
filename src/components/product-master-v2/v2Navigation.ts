@@ -1,6 +1,6 @@
 import {readSampleCardScanToken} from '../../lib/sampleCardScanLink';
-export type V2View='stats'|'documents'|'create'|'pattern'|'fabric'|'products'|'cards'|'samples'|'settings'|'members'|'preview'|'inventory'|'customers';
-const views:V2View[]=['stats','documents','create','pattern','fabric','products','cards','samples','settings','members','preview','inventory','customers'];
+export type V2View='stats'|'documents'|'create'|'pattern'|'fabric'|'products'|'models'|'cards'|'samples'|'settings'|'members'|'preview'|'inventory'|'customers';
+const views:V2View[]=['stats','documents','create','pattern','fabric','products','models','cards','samples','settings','members','preview','inventory','customers'];
 export function readV2Route(hash:string){
  const [path,query='']=hash.replace(/^#\/?/,'').split('?'),params=new URLSearchParams(query);
   let view=views.includes(path as V2View)?path as V2View:'stats';

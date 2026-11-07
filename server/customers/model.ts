@@ -1,11 +1,11 @@
 import {z} from 'zod';
-export class CustomerError extends Error{constructor(readonly status:400|403|404|409|503){super('Customer request unavailable');}}
+export class CustomerError extends Error{constructor(readonly status:400|403|404|409|503,readonly code?:'customer_has_selections'|'customer_name_taken',readonly selectionCount?:number){super('Customer request unavailable');}}
 export const validCustomerId=(v:unknown):v is string=>typeof v==='string'&&/^[1-9]\d{0,19}$/.test(v)&&BigInt(v)<=18446744073709551615n;
 export const customerId=z.string().refine(validCustomerId);
 const text=(max:number)=>z.string().trim().max(max).refine(v=>!/[\p{Cc}\p{Cf}]/u.test(v));
 const optionalText=(max:number)=>text(max).transform(v=>v||null).nullable();
 const price=z.string().regex(/^(?:0|[1-9]\d{0,9})(?:\.\d{1,2})?$/).nullable();
-const contact=z.object({name:text(100),phone:optionalText(100),wechat:optionalText(100)}).strict();
+const contact=z.object({id:z.string().regex(/^[a-f0-9]{32}$/).optional(),name:text(100),phone:optionalText(100),wechat:optionalText(100)}).strict();
 const pricePreference=z.object({fabricCategory:text(100).default(''),minPrice:price,maxPrice:price,currency:z.union([z.string().regex(/^[A-Z]{3}$/),z.literal('')]).default(''),unit:z.enum(['metre','yard']).nullable().default(null),taxBasis:z.enum(['included','excluded','unknown']).default('unknown'),remark:optionalText(400).default(null)}).strict().refine(v=>(v.minPrice!==null||v.maxPrice!==null)&&(v.minPrice===null||v.maxPrice===null||cents(v.minPrice)<=cents(v.maxPrice)));
 function cents(v:string){const [a,b='']=v.split('.');return BigInt(a)*100n+BigInt(b.padEnd(2,'0'));}
 export const date=z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(v=>Number.isFinite(Date.parse(v))&&new Date(v).toISOString().slice(0,10)===v);

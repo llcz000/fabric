@@ -248,3 +248,18 @@ test('P3-5 HTTP GET /api/v2/products authenticates, combines filters, returns to
 });
 
 test('card patterns apply exact master AND fabric identity to both count and page',async()=>{const filter=parseProductSearchQuery({masterId:'9',fabricId:'12',status:'all'});const calls:{sql:string;params:unknown[]}[]=[];await searchProductCatalog({async query(sql:string,params:unknown[]=[]):Promise<[unknown,unknown]>{calls.push({sql,params});return [sql.includes('COUNT(*)')?[{total:1}]:[],[]];}},filter);assert(calls.length>=2);assert(calls.every(c=>c.sql.includes('m.id=?')&&c.sql.includes('p.fabric_id=?')&&c.params.includes('9')&&c.params.includes('12')));for(const id of ['0','9 OR 1=1',[],9])assert.throws(()=>parseProductSearchQuery({masterId:id}));});
+
+test('product number sorting is global before paging, compares master then colorway and ignores fabric',async()=>{
+ for(const sort of ['numberAsc','numberDesc'] as const){
+  const calls:{sql:string;params:unknown[]}[]=[];
+  await searchProductCatalog({async query(sql:string,params:unknown[]=[]):Promise<[unknown,unknown]>{
+   calls.push({sql,params});return [sql.includes('COUNT(*)')?[{total:100}]:[],[]];
+  }},parseProductSearchQuery({sort,limit:'2',offset:'50'}));
+  const order=calls[1].sql.split(' ORDER BY ')[1],direction=sort==='numberAsc'?'ASC':'DESC';
+  assert(order.startsWith("LENGTH(TRIM(LEADING '0' FROM SUBSTRING(m.master_no,2))) "+direction));
+  assert(order.includes(',c.colorway_no '+direction+',p.id '+direction+' LIMIT ? OFFSET ?'));
+  assert(!/fabric_no|product_no/.test(order));
+  assert.deepEqual(calls[1].params.slice(-2),[2,50]);
+ }
+ for(const sort of ['invalid','newest',['numberAsc','numberDesc'],null])assert.throws(()=>s({sort}),fail);
+});

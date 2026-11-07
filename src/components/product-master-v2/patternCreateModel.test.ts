@@ -1,6 +1,23 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {createLibraryPattern,savePatternDraft,type PatternCreationProgress} from './patternCreateModel';
+
+test('create dimensions go only to the master, validate before its creation and survive colorway retry',async()=>{
+ const calls:{url:string;body:any}[]=[];let fail=true;
+ const api=(async(url,init)=>{const body=JSON.parse(String(init?.body));calls.push({url:String(url),body});
+  if(url==='/api/v2/pattern-masters')return Response.json({id:'7',masterNo:'G1',...body});
+  if(String(url).endsWith('/tags'))return Response.json({});
+  if(fail)return Response.json({},{status:400});
+  return Response.json({id:'8',masterId:'7',masterNo:'G1',colorwayNo:1,patternNo:'G1-1',patternImageAssetId:null,remark:'',isActive:true});}) as typeof fetch;
+ const progress:PatternCreationProgress={};
+ await assert.rejects(savePatternDraft(api,'G1',[{key:'1',remark:''}],progress,{topicTagIds:[],widthCm:48,heightCm:32} as any));
+ fail=false;await savePatternDraft(api,'G1',[{key:'1',remark:''}],progress,{topicTagIds:[],widthCm:48,heightCm:32} as any);
+ assert.deepEqual(calls[0].body,{masterNo:'G1',widthCm:48,heightCm:32});
+ assert.equal(calls.filter(x=>x.url==='/api/v2/pattern-masters').length,1);
+ assert(calls.filter(x=>x.url.endsWith('/colorways')).every(x=>!('widthCm' in x.body)));
+ const before=calls.length;
+ await assert.rejects(savePatternDraft(api,'G2',[],{},{topicTagIds:[],widthCm:10,heightCm:null} as any));assert.equal(calls.length,before);
+});
 test('pattern creation normalizes the number, sends only its owned fields and returns persisted identity',async()=>{
  let calls=0;const fetcher=(async(url,init)=>{calls++;assert.equal(url,'/api/v2/pattern-masters');assert.deepEqual(JSON.parse(String(init?.body)),{masterNo:'AB123'});return new Response(JSON.stringify({id:'7',masterNo:'AB123'}),{status:201});}) as typeof fetch;
  assert.equal((await createLibraryPattern(fetcher,' ab123 ')).id,'7');assert.equal(calls,1);

@@ -39,6 +39,39 @@ class ReleaseTests(unittest.TestCase):
         self.assertFalse(remote.preserved_columns(before,after.replace('STORED GENERATED',''),['pattern-number-reuse']))
         self.assertFalse(remote.preserved_columns(before,after.replace('bigint unsigned','int'),['pattern-number-reuse']))
 
+    def test_sample_card_review_allows_only_exact_nullable_json_addition(self):
+        before='customer_sample_sessions\tid\tbigint unsigned\tNO\tNULL\tauto_increment'
+        added='customer_sample_sessions\tcard_review\tjson\tYES\tNULL\t'
+        after=before+'\n'+added
+        self.assertTrue(remote.preserved_columns(before,after,['sample-card-review']))
+        self.assertFalse(remote.preserved_columns(before,after,[]))
+        self.assertFalse(remote.preserved_columns(before,after.replace('\tjson\t','\tvarchar(64)\t'),['sample-card-review']))
+        self.assertFalse(remote.preserved_columns(before,after.replace('\tYES\t','\tNO\t'),['sample-card-review']))
+        self.assertFalse(remote.preserved_columns(before,after.replace('bigint unsigned','int'),['sample-card-review']))
+        self.assertFalse(remote.preserved_columns(before,after+'\ncustomer_sample_sessions\tunexpected\tjson\tYES\tNULL\t',['sample-card-review']))
+
+    def test_sample_contact_allows_only_exact_nullable_varchar_addition(self):
+        before='customer_sample_sessions\tid\tbigint unsigned\tNO\tNULL\tauto_increment'
+        added='customer_sample_sessions\tcontact_name\tvarchar(110)\tYES\tNULL\t'
+        after=before+'\n'+added
+        self.assertTrue(remote.preserved_columns(before,after,['sample-contact']))
+        self.assertFalse(remote.preserved_columns(before,after,[]))
+        self.assertFalse(remote.preserved_columns(before,after.replace('\tvarchar(110)\t','\tvarchar(64)\t'),['sample-contact']))
+        self.assertFalse(remote.preserved_columns(before,after.replace('\tYES\t','\tNO\t'),['sample-contact']))
+        self.assertFalse(remote.preserved_columns(before,after.replace('bigint unsigned','int'),['sample-contact']))
+        self.assertFalse(remote.preserved_columns(before,after+'\ncustomer_sample_sessions\tunexpected\tvarchar(110)\tYES\tNULL\t',['sample-contact']))
+
+    def test_sample_contact_identity_allows_only_exact_nullable_varchar_addition(self):
+        before='customer_sample_sessions\tid\tbigint unsigned\tNO\tNULL\tauto_increment'
+        added='customer_sample_sessions\tcontact_id\tchar(32)\tYES\tNULL\t'
+        after=before+'\n'+added
+        self.assertTrue(remote.preserved_columns(before,after,['sample-contact-identity']))
+        self.assertFalse(remote.preserved_columns(before,after,[]))
+        self.assertFalse(remote.preserved_columns(before,after.replace('\tchar(32)\t','\tvarchar(64)\t'),['sample-contact-identity']))
+        self.assertFalse(remote.preserved_columns(before,after.replace('\tYES\t','\tNO\t'),['sample-contact-identity']))
+        self.assertFalse(remote.preserved_columns(before,after.replace('bigint unsigned','int'),['sample-contact-identity']))
+        self.assertFalse(remote.preserved_columns(before,after+'\ncustomer_sample_sessions\tunexpected\tchar(32)\tYES\tNULL\t',['sample-contact-identity']))
+
     def test_pattern_deletion_allows_only_one_nullable_datetime_column(self):
         before='pattern_masters\tid\tbigint unsigned\tNO\tNULL\tauto_increment\nv2_products\tid\tbigint unsigned\tNO\tNULL\tauto_increment'
         added='pattern_masters\tdeleted_at\tdatetime\tYES\tNULL\t'

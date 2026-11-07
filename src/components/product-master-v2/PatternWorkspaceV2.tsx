@@ -6,6 +6,8 @@ import {TopicTagPicker} from './TopicTagPicker';
 import {savePatternDraft,type PatternCreationProgress,type PatternColorDraft} from './patternCreateModel';
 import {loadCatalogTags,type CatalogTag} from './catalogModel';
 import {uploadImageAsset} from '../../lib/imageAssets';
+import {parsePatternDimensionDraft} from '../../lib/patternDimensions';
+import {PatternDimensionFields} from './PatternDimensionFields';
 type Draft=PatternColorDraft&{file?:File};
 function DraftImage({file}:{file?:File}){
  const [url,setUrl]=useState('');useEffect(()=>{if(!file){setUrl('');return;}const value=URL.createObjectURL(file);setUrl(value);return()=>URL.revokeObjectURL(value);},[file]);
@@ -15,6 +17,7 @@ export function CreatePattern({apiFetch,onCancel,onSaved,onUpload}:{apiFetch:typ
  const confirm=useConfirm();
  const dialog=useRef<HTMLDialogElement>(null),progress=useRef<PatternCreationProgress>({}),sequence=useRef(1);
  const [number,setNumber]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ const [width,setWidth]=useState(''),[height,setHeight]=useState('');
  const [drafts,setDrafts]=useState<Draft[]>([{key:'1',remark:''}]);
  const [topics,setTopics]=useState<CatalogTag[]>([]),[topicIds,setTopicIds]=useState<string[]>([]);
  const [tagsLoading,setTagsLoading]=useState(true),[tagsError,setTagsError]=useState(''),[tagRevision,setTagRevision]=useState(0);
@@ -22,7 +25,7 @@ export function CreatePattern({apiFetch,onCancel,onSaved,onUpload}:{apiFetch:typ
 
  useEffect(()=>{dialog.current?.showModal();return()=>dialog.current?.close();},[]);
  const cancel=async()=>{if(busy)return;
-  if(number||drafts.some(d=>d.file||d.remark)||topicIds.length){
+  if(number||width||height||drafts.some(d=>d.file||d.remark)||topicIds.length){
    const ok=await confirm({title:progress.current.master?'关闭新增花型？':'放弃未保存的花型资料？',
     message:progress.current.master?'花型编号及已保存配色已入库，关闭后请在花型库继续编辑。':'当前资料尚未保存，放弃后无法恢复。',
     confirmText:'确认关闭',danger:true});
@@ -31,10 +34,12 @@ export function CreatePattern({apiFetch,onCancel,onSaved,onUpload}:{apiFetch:typ
   onCancel();};
  return <dialog ref={dialog} aria-label="新增花型" className="m-auto w-[min(94vw,760px)] max-h-[90vh] overflow-auto rounded-xl border p-6 shadow-xl backdrop:bg-black/30" onCancel={e=>{if(e.target!==e.currentTarget)return;e.preventDefault();cancel();}}>
   <form className="space-y-4" onSubmit={async e=>{e.preventDefault();if(busy||tagsLoading||tagsError)return;setBusy(true);setError('');try{
+   const dimensions=parsePatternDimensionDraft(width,height);
    for(const draft of drafts){if(draft.file&&!draft.patternImageAssetId){draft.patternImageAssetId=onUpload?await onUpload(draft.file):(await uploadImageAsset(draft.file,'product_image',{apiFetch})).id;}}
-   const value=await savePatternDraft(apiFetch,number,drafts,progress.current,{topicTagIds:topicIds});onSaved(value.masterNo);
+   const value=await savePatternDraft(apiFetch,number,drafts,progress.current,{topicTagIds:topicIds,...dimensions});onSaved(value.masterNo);
   }catch(cause){setError((cause instanceof Error?cause.message:'新增失败')+(progress.current.master?'；已保存花型 '+progress.current.master.masterNo+'，已完成 '+(progress.current.saved?.length??0)+' 个配色。':''));}finally{setBusy(false);}}}>
    <h2 className="text-lg font-semibold">新增花型</h2><label className="block text-sm">花型编号<input autoFocus required name="masterNo" maxLength={64} className="mt-2 w-full rounded border p-2" value={number} disabled={busy||!!progress.current.master} onChange={e=>setNumber(e.target.value)}/></label>
+   <PatternDimensionFields width={width} height={height} disabled={busy||!!progress.current.master} onChange={(w,h)=>{setWidth(w);setHeight(h);}}/>
    <section className="space-y-2"><h3 className="text-sm font-medium">题材标签</h3><TopicTagPicker apiFetch={apiFetch} ariaLabel="新增花型题材标签" options={topics} selected={topicIds} onChange={setTopicIds} onTagCreated={tag=>setTopics(items=>[...items.filter(t=>t.id!==tag.id),tag])} disabled={busy||tagsLoading||!!tagsError||!!progress.current.topicSaved}/></section>
    {tagsLoading&&<p role="status" className="text-xs text-slate-500">正在读取标签…</p>}{tagsError&&<p role="alert" className="text-sm text-rose-700">{tagsError} <button type="button" onClick={()=>setTagRevision(n=>n+1)}><ActionIcon name="refresh"/>重新读取标签</button></p>}
    <div className="flex items-center justify-between"><strong className="text-sm">配色及花型图</strong><button type="button" disabled={busy||!!progress.current.master} className="text-sm text-blue-700" onClick={()=>setDrafts(items=>[...items,{key:String(++sequence.current),remark:''}])}><ActionIcon name="add"/>添加配色</button></div>

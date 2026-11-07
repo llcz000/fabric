@@ -1,8 +1,21 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {createSampleSession,listSampleSessions,readShipmentProgress,updateSampleSession,deleteSampleSession} from './sessionDirectory';
+import {readSampleSession} from './sessionRead';
 import type {AppPrincipal} from '../access/types';
+import {fixture,sales,admin,outsider,key} from '../customers/service.testFixture';
 const actor={userId:'6',sessionId:'9',role:'sales'} as AppPrincipal;
+function detailFixture(){
+ const f=fixture();
+ f.db.exec(`
+  CREATE TABLE pattern_masters(id INTEGER PRIMARY KEY,master_no TEXT);
+  CREATE TABLE v2_fabrics(id INTEGER PRIMARY KEY,fabric_no TEXT,fabric_name TEXT,composition TEXT,weight_value DECIMAL,weight_unit TEXT,width_value DECIMAL);
+  ALTER TABLE pattern_colorways ADD COLUMN pattern_image_asset_id TEXT;
+  ALTER TABLE sample_cards ADD COLUMN card_no TEXT;
+  ALTER TABLE customer_sample_items ADD COLUMN id INTEGER;
+ `);
+ return f;
+}
 class Db{
  deleted=false;name='客户甲';
  status:'open'|'closed'='open';conflict=false;
@@ -89,4 +102,47 @@ test('growing directory stays server-paged, stable-sortable and counts only requ
  assert(query.sql.includes('selected_product_count'));
  assert(query.sql.includes('removed_at IS NULL'));
  assert(query.sql.includes('selected_card_count'));
+});
+
+
+test('customer rename updates existing selection displays and search while preserving stored snapshots',async()=>{
+ const f=detailFixture();try{
+  const first=await f.service.withSampleSession(sales,{requestId:key(950),profile:{displayName:'Original customer',contacts:[{name:' Alice ',phone:'private-phone',wechat:'private-wechat'},{name:'Alice',phone:null,wechat:null},{name:'',phone:'private-only-phone',wechat:null},{name:'Bob',phone:null,wechat:null}],notes:'private-notes'}});
+  const second=await f.service.withSampleSession(sales,{requestId:key(951),customerId:first.customer.id});
+  const directory=await listSampleSessions(f.pool,sales,{});
+  assert.equal(directory.items.length,2);assert.notEqual(directory.items[0].id,directory.items[1].id);
+  for(const item of directory.items){assert.equal(item.contactName,null);assert.equal(item.customerReference,'Original customer');}
+  assert(!JSON.stringify(directory).includes('private-'));
+  await f.service.update(sales,first.customer.id,{expectedRowVersion:first.customer.rowVersion,profile:{...first.customer.profile,displayName:'Renamed customer',contacts:[{name:'Carol',phone:null,wechat:null}]}});
+  assert.equal((await readSampleSession(f.pool,sales,first.session.id)).session.customerReference,'Renamed customer');
+  const refreshed=await listSampleSessions(f.pool,sales,{query:'Renamed customer'});
+  assert.equal(refreshed.total,2);
+  for(const item of refreshed.items){assert.equal(item.contactName,null);assert.equal(item.customerReference,'Renamed customer');}
+  assert.deepEqual(new Set(refreshed.items.map(item=>item.id)),new Set([first.session.id,second.session.id]));
+  assert.equal((await listSampleSessions(f.pool,sales,{query:'Original customer'})).total,0);
+  assert.equal((await listSampleSessions(f.pool,outsider,{query:'Renamed customer'})).total,0);
+  assert.deepEqual((await f.service.activity(sales,first.customer.id,{})).items.map(item=>item.summary),['Renamed customer','Renamed customer']);
+  assert.deepEqual(f.db.prepare('SELECT customer_reference FROM customer_sample_sessions ORDER BY id').all().map(row=>row.customer_reference),['Original customer','Original customer']);
+ }finally{f.db.close();}
+});
+
+test('directory never exposes contacts through legacy grants and preserves authorized deleted customer history and unlinked records',async()=>{
+ const f=detailFixture();try{
+  const saved=await f.service.withSampleSession(sales,{requestId:key(952),profile:{displayName:'Private customer',contacts:[{name:'Private contact',phone:'secret',wechat:null}]}});
+  f.db.prepare('INSERT INTO customer_sample_session_access(session_id,user_id,can_manage) VALUES(?,?,1)').run(saved.session.id,outsider.userId);
+  assert.deepEqual((await listSampleSessions(f.pool,outsider,{})).items,[]);
+  f.db.prepare("INSERT INTO customer_access VALUES(?,?,'view',?)").run(saved.customer.id,outsider.userId,admin.userId);
+  const viewed=(await listSampleSessions(f.pool,outsider,{})).items[0];assert.equal(viewed.contactName,'Private contact');assert.equal(viewed.canManage,false);assert.equal(viewed.canDelete,false);
+  // A historical state predating the active-selection deletion guard.
+  const renamed={...saved.customer.profile,displayName:'Renamed private customer'};
+  f.db.prepare('UPDATE customers SET display_name=?,profile_json=? WHERE id=?').run(renamed.displayName,JSON.stringify({...renamed,deletedAt:'2026-10-27T00:00:00.000Z'}),saved.customer.id);
+  const historical=(await listSampleSessions(f.pool,sales,{})).items[0];assert.equal(historical.contactName,'Private contact');assert.equal(historical.canManage,false);assert.equal(historical.canDelete,true);
+  assert.equal(historical.customerReference,'Private customer');
+  assert.equal((await readSampleSession(f.pool,sales,saved.session.id)).session.customerReference,'Private customer');
+  assert.equal((await listSampleSessions(f.pool,sales,{query:renamed.displayName})).total,0);
+  f.db.prepare('UPDATE customer_session_links SET customer_id=NULL WHERE session_id=?').run(saved.session.id);
+  assert.equal((await listSampleSessions(f.pool,sales,{})).items[0].contactName,null);
+  assert.equal((await readSampleSession(f.pool,sales,saved.session.id)).session.customerReference,'Private customer');
+  const legacy=await listSampleSessions(new Db(),actor,{});assert.equal(legacy.items[0].contactName,null);
+ }finally{f.db.close();}
 });

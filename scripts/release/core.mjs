@@ -2,13 +2,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
 export const hash=b=>createHash('sha256').update(b).digest('hex');
-export const commands=new Set(['help','test','plan','prepare','preflight','rehearse','deploy','verify','rollback','status','report','run','resume','baseline']);
+export const commands=new Set(['help','test','plan','prepare','preflight','rehearse','deploy','verify','rollback','status','progress','report','run','resume','baseline']);
+export const migrationIds=['sample-contact-identity','sample-contact','sample-card-review','product-auto-cards','business-simplification','card-share','light-customers','customer-v12','fabric-deletion','pattern-deletion','pattern-number-reuse','pattern-dimensions','fabric-number-nonempty','model-gallery'];
 export function parseArgs(argv){
  const [first='help',...rest]=argv;const command=['--help','-h'].includes(first)?'help':first;if(!commands.has(command))throw Error('Unknown release command');
  const result={command,id:undefined,migrations:[],rehearse:false};
- for(let i=0;i<rest.length;i++){const v=rest[i];if(v==='--quick-ui'&&['prepare','run'].includes(command))result.quickUi=true;else if(v==='--rehearse')result.rehearse=true;else if(v==='--from-release'&&['prepare','run'].includes(command)){result.fromRelease=rest[++i];if(!result.fromRelease||result.fromRelease.startsWith('-'))throw Error('Published release evidence required');}else if(v==='--evidence'&&command==='baseline'){result.evidence=rest[++i];if(!result.evidence||result.evidence.startsWith('-'))throw Error('Evidence path required');}else if(v==='--migrations'){if(!rest[i+1])throw Error('Missing migration IDs');result.migrations=rest[++i].split(',');if(!result.migrations.length||new Set(result.migrations).size!==result.migrations.length||result.migrations.some(x=>!['product-auto-cards','business-simplification','card-share','light-customers','customer-v12','fabric-deletion','pattern-deletion','pattern-number-reuse','fabric-number-nonempty'].includes(x)))throw Error('Unknown/duplicate migration');}else if(!v.startsWith('-')&&!result.id&&/^[a-z0-9][a-z0-9_-]{0,63}$/.test(v))result.id=v;else throw Error('Unknown/unsafe argument');}
- if(!['help','test','plan','prepare','run','baseline'].includes(command)&&!result.id)throw Error('Release ID required');
- if((!['prepare','run'].includes(command)||command==='run'&&result.id)&&(result.migrations.length||result.rehearse||result.fromRelease||result.quickUi))throw Error('Preparation flags require a new prepare/run');return result;
+ for(let i=0;i<rest.length;i++){const v=rest[i];if(v==='--full-ui'&&['plan','prepare','run'].includes(command))result.fullUi=true;else if(v==='--quick-ui'&&['prepare','run'].includes(command))result.quickUi=true;else if(v==='--rehearse')result.rehearse=true;else if(v==='--from-release'&&['prepare','run'].includes(command)){result.fromRelease=rest[++i];if(!result.fromRelease||result.fromRelease.startsWith('-'))throw Error('Published release evidence required');}else if(v==='--evidence'&&command==='baseline'){result.evidence=rest[++i];if(!result.evidence||result.evidence.startsWith('-'))throw Error('Evidence path required');}else if(v==='--migrations'){if(!rest[i+1])throw Error('Missing migration IDs');result.migrations=rest[++i].split(',');if(!result.migrations.length||new Set(result.migrations).size!==result.migrations.length||result.migrations.some(x=>!migrationIds.includes(x)))throw Error('Unknown/duplicate migration');}else if(!v.startsWith('-')&&!result.id&&/^[a-z0-9][a-z0-9_-]{0,63}$/.test(v))result.id=v;else throw Error('Unknown/unsafe argument');}
+ if(!['help','test','plan','prepare','run','baseline','progress'].includes(command)&&!result.id)throw Error('Release ID required');
+ if((!['prepare','run'].includes(command)||command==='run'&&result.id)&&(result.migrations.length||result.rehearse||result.fromRelease||result.quickUi||result.fullUi&&command!=='plan'))throw Error('Preparation flags require a new prepare/run');if(result.fullUi&&(result.quickUi||result.fromRelease))throw Error('--full-ui cannot combine with --quick-ui or artifact reuse');return result;
 }
 export function validateProfile(p){
  const keys=['name','url','production','stageRoot','backupRoot','process','recoveryProcess','starter','nginx','database','serverUuid','port','recoveryPort','sshConfig'];
@@ -39,7 +40,7 @@ export async function runPhases(state,phases,run,save=()=>{}){
  return state;
 }
 export function phasePlan(command,rehearse=false){
- if(['verify','rollback'].includes(command))return [command];if(['status','report','plan','help','baseline','test','prepare'].includes(command))return [];
+ if(['verify','rollback'].includes(command))return [command];if(['status','progress','report','plan','help','baseline','test','prepare'].includes(command))return [];
  const ordered=['upload','preflight','backup','offsite',...(rehearse||command==='rehearse'?['rehearse']:[]),'deploy','verify'];
  const last=['run','resume','deploy'].includes(command)?'verify':command;if(!ordered.includes(last))throw Error('No phase plan');return ordered.slice(0,ordered.indexOf(last)+1);
 }
@@ -50,7 +51,30 @@ export function assertPublishedEvidence(e,a,b){
 export function releaseTimingReport(run){
  const phases=Object.fromEntries(Object.entries(run.phases??{}).map(([name,s])=>[name,{status:s.status,durationMs:s.durationMs??0,...(s.error?{error:s.error}:{})}]));
  const duration=(s)=>Number.isFinite(s.durationMs)&&s.durationMs>=0?s.durationMs:0;
- return {id:run.id,preparationMs:run.preparedMs??0,preparation:run.preparation??null,phases,measuredTotalMs:(run.preparedMs??0)+Object.values(phases).reduce((n,s)=>n+duration(s),0),failedStageMs:Object.values(phases).filter(s=>s.status==='failed').reduce((n,s)=>n+duration(s),0),rolledBack:run.rolledBack===true,automaticRollback:run.automaticRollback??null,note:'Recorded local stage intervals only; excludes human/debugging gaps and does not add nested remote work again.'};
+ return {id:run.id,preparationMs:run.preparedMs??0,preparation:run.preparation??null,phases,browserValidation:run.manifest?.browserValidation??null,measuredTotalMs:(run.preparedMs??0)+Object.values(phases).reduce((n,s)=>n+duration(s),0),failedStageMs:Object.values(phases).filter(s=>s.status==='failed').reduce((n,s)=>n+duration(s),0),rolledBack:run.rolledBack===true,automaticRollback:run.automaticRollback??null,note:'Recorded local stage intervals only; excludes human/debugging gaps and does not add nested remote work again.'};
+}
+export function readReleaseProgress(dir,id,now=Date.now()){
+ const read=name=>{try{return fs.readFileSync(path.join(dir,name),'utf8');}catch(error){if(error.code!=='ENOENT')throw error;return undefined;}};
+ const json=name=>JSON.parse(read(name)??'null');
+ const prepare=json('prepare-progress.json'),run=json('run.json'),receipt=json('release-result.json');
+ if(run&&run.id!==id)throw Error('Release progress identity mismatch');
+ if(!prepare&&!run)throw Error('Release progress not found: '+id);
+ const phases=Object.entries(run?.phases??{});
+ const [phase,remote]=phases.findLast(([,step])=>['running','failed'].includes(step.status))??phases.at(-1)??[];
+ const step=remote?{...remote,stage:phase}:prepare??{stage:'prepare',status:'passed'};
+ const status=run?.rolledBack?'rolled-back':receipt?.state==='released'&&run?.phases?.verify?.status==='passed'?'released':step.status;
+ const plan=json('browser-validation-plan.json');
+ const browser=plan?{mode:plan.mode,reason:plan.reason}:null;
+ if(step.stage==='uiBrowserTests'&&browser){
+  const log=read('ui-browser-progress.log')??'';
+  const test=[...log.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g,'').matchAll(/^\[(\d+)\/(\d+)\]\s+([^\r\n]+)/gm)].at(-1);
+  if(test)Object.assign(browser,{current:Number(test[1]),total:Number(test[2]),currentTest:test[3]});
+ }
+ const elapsedMs=step.durationMs??(step.startedAt?Math.max(0,now-Date.parse(step.startedAt)):null);
+ const finishedAt=receipt?.utc?Date.parse(receipt.utc):now;
+ const wallElapsedMs=prepare?.releaseStartedAt?Math.max(0,finishedAt-Date.parse(prepare.releaseStartedAt)):null;
+ const targetMs=plan?.mode==='scoped'?300000:null;
+ return {id,stage:step.stage,status,elapsedMs,wallElapsedMs,targetMs,overTarget:targetMs!==null&&wallElapsedMs!==null?wallElapsedMs>targetMs:null,browser,...(step.error?{error:step.error}:{})};
 }
 export function recordRollbackReceipt(run,receipt){
  if(receipt&&typeof receipt==='object')run.automaticRollback=receipt;
@@ -67,6 +91,21 @@ export function validateHttpContract(c){
 export function requireBusinessSimplificationMigration(changed,migrations){
  if(changed.includes('server/audit/deletionAudit.ts')&&!migrations.includes('business-simplification'))throw Error('This candidate requires --migrations business-simplification and isolated restore rehearsal');
 }
+export function requireModelGalleryMigration(changed,migrations){
+ if(changed.some(p=>['server/product-master/modelGallery.ts','server/product-master/modelGallerySchema.ts','server/product-master/v2CatalogAssembly.ts'].includes(p))&&!migrations.includes('model-gallery'))throw Error('This candidate requires --migrations model-gallery and isolated restore rehearsal');
+}
 export function requireProductCardsMigration(changed,migrations){
  if(changed.some(p=>['server/product-master/productsV2.ts','server/customer-samples/productCardBackfill.ts'].includes(p))&&!migrations.includes('product-auto-cards'))throw Error('This candidate requires --migrations product-auto-cards and isolated restore rehearsal');
+}
+
+export function requireSampleCardReviewMigration(changed,migrations){
+ if(changed.some(p=>['server/customer-samples/sessionCardReview.ts','server/customer-samples/sessionCardReviewSchema.ts'].includes(p))&&!migrations.includes('sample-card-review'))throw Error('This candidate requires --migrations sample-card-review and isolated restore rehearsal');
+}
+
+export function requireSampleContactMigration(changed,migrations){
+ if(changed.includes('server/customer-samples/sessionContactSchema.ts')&&!migrations.includes('sample-contact'))throw Error('This candidate requires --migrations sample-contact and isolated restore rehearsal');
+}
+
+export function requireSampleContactIdentityMigration(changed,migrations){
+ if(changed.includes('server/customer-samples/sessionContactIdentitySchema.ts')&&!migrations.includes('sample-contact-identity'))throw Error('This candidate requires --migrations sample-contact-identity and isolated restore rehearsal');
 }

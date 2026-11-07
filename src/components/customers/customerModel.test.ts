@@ -19,3 +19,20 @@ test('same uncertain create payload reuses requestId and changed payload gets an
 test('directory omits empty enum filters instead of sending invalid channel/tier/stage',async()=>{
  let url='';const api=createCustomerClient(async input=>{url=String(input);return Response.json({items:[],total:0,limit:20,offset:0});});await api.list({query:'',channel:'',tier:'',stage:'',waiting:'false'});const q=new URL(url,'http://localhost').searchParams;assert.equal(q.has('channel'),false);assert.equal(q.has('tier'),false);assert.equal(q.has('stage'),false);assert.equal(q.get('waiting'),'false');
 });
+
+test('a duplicate customer name receives a specific actionable save message',async()=>{
+ const api=createCustomerClient(async()=>Response.json({code:'customer_name_taken'},{status:409}));
+ const profile={...emptyCustomerProfile(),displayName:'已用客户名称'};
+ await assert.rejects(api.save({id:'1',rowVersion:'1'} as Parameters<typeof api.save>[0],profile),{
+  status:409,code:'customer_name_taken',message:'该客户名称已存在，请修改后再保存。',
+ });
+});
+
+
+test('remaining selections produce a specific safe deletion message and invalid server details remain generic',async()=>{
+ let body:any={code:'customer_has_selections',selectionCount:2};
+ const api=createCustomerClient(async()=>Response.json(body,{status:409}));
+ await assert.rejects(api.remove({id:'1',rowVersion:'1'} as any),e=>(e as Error).message.includes('还有 2 张选样单')&&(e as Error).message.includes('先删除选样单'));
+ body={code:'customer_has_selections',selectionCount:'2',error:'secret database detail'};
+ await assert.rejects(api.remove({id:'1',rowVersion:'1'} as any),e=>!(e as Error).message.includes('secret')&&!(e as Error).message.includes('先删除选样单'));
+});

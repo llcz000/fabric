@@ -3,6 +3,7 @@ import { useCallback,useEffect,useRef,useState } from 'react';
 import { PatternWorkspaceV2 } from './PatternWorkspaceV2';
 import { FabricWorkspaceV2 } from './FabricImportV2';
 import { ProductCatalogWorkspaceV2 } from './ProductCatalogWorkspaceV2';
+import { ModelGalleryV2 } from './ModelGalleryV2';
 import { SampleCardLibraryV2 } from './SampleCardLibraryV2';
 import { V2DocumentBrowser } from '../document-product-selector/V2DocumentBrowser';
 import V2DocumentWorkspace from '../document-product-selector/V2DocumentWorkspace';
@@ -27,7 +28,7 @@ import { V2ViewBoundary } from './V2ViewBoundary';
 
 const VIEW_LABELS:Record<string,string>={
  stats:'经营大盘',documents:'单据列表',create:'新增单据',preview:'单据预览',
- pattern:'花型库',fabric:'面料库',products:'产品库',cards:'色卡库',
+ pattern:'花型库',fabric:'面料库',products:'产品库',models:'模特图库',cards:'色卡库',
  samples:'客户选样',customers:'客户管理',settings:'开单设置',inventory:'库存',members:'成员管理'
 };
 
@@ -59,8 +60,9 @@ export default function V2App(){
   {view==='pattern'&&<PatternWorkspaceV2 apiFetch={apiFetch} canManage resolvePatternImages={resolveImages} onCreateProduct={master=>requestLeave(()=>navigate('products',{batchMasterId:master.id}))}/>}
   {view==='fabric'&&<FabricWorkspaceV2 apiFetch={apiFetch} canManage/>}
   {view==='products'&&<ProductCatalogWorkspaceV2 key={routeRevision} apiFetch={apiFetch} canManage resolveImages={resolveImages} initialPatternId={readV2Route(window.location.hash).params.get('patternId')??undefined} initialPatternNo={readV2Route(window.location.hash).params.get('createPattern')??undefined} initialBatchMasterId={readV2Route(window.location.hash).params.get('batchMasterId')??undefined} onExitPrefill={()=>navigate('products')} onUploadImage={async file=>(await uploadImageAsset(file,'product_image',{apiFetch})).id} onDeleteProduct={async product=>{const response=await apiFetch('/api/v2/products/'+product.id,{method:'DELETE'});if(!response.ok)throw Error(response.status===409?'产品已被引用，请改为停用':'产品删除失败');}} onPatternLibrary={()=>requestLeave(()=>navigate('pattern'))} onFabricLibrary={()=>requestLeave(()=>navigate('fabric'))}/>}
+   {view==='models'&&<ModelGalleryV2 apiFetch={apiFetch} canManage/>}
    {view==='cards'&&<SampleCardLibraryV2 apiFetch={apiFetch} shareEnabled={shareEnabled}/>}
-   {view==='samples'&&<SampleBusinessWorkspaceV2 apiFetch={apiFetch} resolveImages={resolveImages} initialCardToken={scannedCardToken??undefined} onRegisterLeaveGuard={registerSampleLeaveGuard}/>}
+   {view==='samples'&&<SampleBusinessWorkspaceV2 apiFetch={apiFetch} resolveImages={resolveImages} initialCardToken={scannedCardToken??undefined} sessionId={readV2Route(window.location.hash).params.get('sessionId')??undefined} onSessionRouteChange={sessionId=>navigate('samples',sessionId?{sessionId}:{})} onRegisterLeaveGuard={registerSampleLeaveGuard}/>}
    {view==='customers'&&<CustomerRoute apiFetch={apiFetch} onRegisterLeaveGuard={registerSampleLeaveGuard} onOpenDocument={id=>requestLeave(()=>navigate('preview',{id}))}/>}
   {view==='settings'&&<CompanyProfileEditor profile={company} onSave={saveCompany} apiFetch={apiFetch}/>}
   {view==='inventory'&&<V2InventoryWorkspace apiFetch={apiFetch}/>}
