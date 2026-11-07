@@ -21,9 +21,50 @@ function locations(root){
  return {controller,active,pointer};
 }
 function git(root,args){
- const result=spawnSync('git',['--no-optional-locks',...args],{cwd:root,encoding:'utf8'});
+ const result=spawnSync('git',['--no-optional-locks',...args],{cwd:root,encoding:'utf8',timeout:30000});
  if(result.error||result.status!==0)throw Error(result.error?.message||result.stderr||'Git command failed');
  return result.stdout.trimEnd();
+}
+/** A tracking ref alone is insufficient. Read the server branch before accepting closeout. */
+export function verifyPublishedWorkspace(root=canonical,{expectedCommit}={}){
+ if(git(root,['status','--porcelain=v1','-uall']))throw Error('Uncommitted files remain; commit reviewed changes before closeout or release');
+ const commit=git(root,['rev-parse','HEAD']),branch=git(root,['branch','--show-current']);
+ if(expectedCommit&&commit!==expectedCommit)throw Error('Prepared source commit differs from the current checkout');
+ let remote,ref;
+ try{
+  remote=git(root,['config','--get','branch.'+branch+'.remote']);
+  ref=git(root,['config','--get','branch.'+branch+'.merge']);
+ }catch{throw Error('A configured upstream branch is required');}
+ if(!branch||remote==='.'||!ref.startsWith('refs/heads/'))throw Error('A published upstream branch is required');
+ let actual;
+ try{actual=git(root,['ls-remote','--exit-code',remote,ref]);}
+ catch{throw Error('Cannot verify the remote branch; check authentication and connectivity');}
+ const lines=actual.split('\n'),[remoteCommit,remoteRef]=lines[0].split(/\s+/);
+ if(lines.length!==1||remoteRef!==ref||remoteCommit!==commit)throw Error('Remote branch differs from HEAD; push the reviewed commit before closeout or release');
+ if(git(root,['rev-parse','HEAD'])!==commit||git(root,['status','--porcelain=v1','-uall']))throw Error('Checkout changed during remote verification');
+ return {commit,branch,remote,ref,remoteCommit,pushed:true,verifiedAt:new Date().toISOString()};
+}
+export function finalizeWorkspace(root=canonical){
+ const proof=verifyPublishedWorkspace(root),{active,pointer}=locations(root);
+ gate(active);
+ const releaseId=pointer.currentRelease?.id;
+ if(!releaseId)return proof;
+ if(!/^[a-z0-9][a-z0-9_-]{0,63}$/.test(releaseId))throw Error('Invalid release closeout identity');
+ const file=path.join(active,'artifacts','releases',releaseId,'release-result.json');
+ if(!fs.existsSync(file))return proof;
+ const receipt=JSON.parse(fs.readFileSync(file,'utf8'));
+ if(receipt.gitCloseout==='pending'){
+  const source=receipt.sourceGit?.commit;
+  if(!/^[a-f0-9]{40,64}$/.test(source??'')||receipt.state!=='released')throw Error('Invalid released Git source');
+  git(active,['merge-base','--is-ancestor',source,proof.commit]);
+  const changed=git(active,['diff','--name-only','-z',source,proof.commit]).split('\0').filter(Boolean);
+  const records=new Set(['docs/project/fabric-v2-active-workspace.json','docs/project/项目现状.md']);
+  if(changed.some(name=>!records.has(name)))throw Error('Runtime source changed after release; closeout requires the released source and its status records');
+  const next=file+'.next';
+  fs.writeFileSync(next,JSON.stringify({...receipt,gitCloseout:'verified',gitCloseoutProof:proof},null,2)+'\n');
+  fs.renameSync(next,file);
+ }
+ return {...proof,releaseId,releaseGitCloseout:receipt.gitCloseout==='pending'?'verified':receipt.gitCloseout??'legacy-unbound'};
 }
 function counts(dir){
  let files=0,bytes=0;
@@ -146,10 +187,11 @@ export function commitWorkspace(root=canonical,{message}={}){
 }
 function main(args){
  const [command,...rest]=args;
+ if(command==='verify'&&!rest.length)return finalizeWorkspace();
  if(command==='status'&&!rest.length)return inspectWorkspace();
  if(command==='clean'&&(rest.length===0||(rest.length===1&&rest[0]==='--apply')))return cleanWorkspace(canonical,{apply:rest.includes('--apply')});
  if(command==='commit'&&rest.length===2&&rest[0]==='--message')return commitWorkspace(canonical,{message:rest[1]});
- throw Error('Usage: status | clean [--apply] | commit --message "reviewed change"');
+ throw Error('Usage: status | verify | clean [--apply] | commit --message "reviewed change"');
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  try{console.log(JSON.stringify(main(process.argv.slice(2)),null,2));}catch(error){console.error(error.message);process.exitCode=1;}

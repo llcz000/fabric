@@ -439,7 +439,9 @@
       ],
       "source": [
         "scripts/release",
-        "scripts/fabric-release.mjs"
+        "scripts/fabric-release.mjs",
+        "scripts/fabric-workspace.mjs",
+        "scripts/fabric-workspace-local-helper.test.mjs"
       ],
       "docs": [
         "docs/operations/运行与部署.md",
