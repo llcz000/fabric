@@ -77,6 +77,10 @@ dist-camera/
 !.agents/skills/frontend-design/**
 !.agents/skills/web-design-guidelines/
 !.agents/skills/web-design-guidelines/**
+!.agents/skills/improve-codebase-architecture/
+!.agents/skills/improve-codebase-architecture/**
+!.agents/skills/codebase-design/
+!.agents/skills/codebase-design/**
 
 # Rebuildable Python skill caches
 **/__pycache__/
