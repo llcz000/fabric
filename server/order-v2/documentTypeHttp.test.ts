@@ -90,12 +90,13 @@ test('DOC-05/07 real private HTTP save, reread, patch, print and actual XLSX pre
 
    if(type==='sample'||type==='deposit'){
     const before=structuredClone(db.orders.get(saved.id));
-    const bad=await request('/'+saved.id,'PATCH',{items:[{id:saved.items[0].id,fields:{}}],removeIds:[],...(type==='sample'?{deposit:1}:{settled:true})});
+    const bad=await request('/'+saved.id,'PATCH',{expectedRevision:saved.revision,items:[{id:saved.items[0].id,fields:{}}],removeIds:[],...(type==='sample'?{deposit:1}:{settled:true})});
     assert.equal(bad.status,400);assert.deepEqual(db.orders.get(saved.id),before);
     // Emulate a pre-existing legacy field; a normal unrelated edit omits that field.
     const raw=db.orders.get(saved.id)!;const hidden=type==='sample'?'deposit':'settled',oldValue=type==='sample'?33:1;
     raw[hidden]=oldValue;const originalSnapshot=structuredClone(db.items.get(saved.id)![0].v2_product_snapshot);
-    const edited=await request('/'+saved.id,'PATCH',{items:[{id:saved.items[0].id,fields:{}}],removeIds:[],issuer:'仅修改开单人',...(type==='sample'?{settled:true}:{deposit:50})});
+    const latest=await(await request('/'+saved.id)).json();
+     const edited=await request('/'+saved.id,'PATCH',{expectedRevision:latest.revision,items:[{id:saved.items[0].id,fields:{}}],removeIds:[],issuer:'仅修改开单人',...(type==='sample'?{settled:true}:{deposit:50})});
     assert.equal(edited.status,200);assert.equal(db.orders.get(saved.id)![hidden],oldValue,'omitted historical fields survive normal edits');
     assert.equal(db.items.get(saved.id)![0].v2_product_snapshot,originalSnapshot);
     const normalized=await edited.json();assert.equal(type==='sample'?normalized.deposit:normalized.settled,type==='sample'?0:false);

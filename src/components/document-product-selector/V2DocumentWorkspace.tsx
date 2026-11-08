@@ -67,6 +67,7 @@ export default function V2DocumentWorkspace({apiFetch,role,companyProfile,docume
  const [customerChoice,setCustomerChoice]=useState<CustomerChoiceValue|null>(null);
  const [customerReady,setCustomerReady]=useState<boolean|null>(null);
  const savePending=useRef(false),request=useRef<{payload:string;id:string}|null>(null);
+ const currentCompany=useRef(companyProfile);currentCompany.current=companyProfile;
  useEffect(()=>{const c=new AbortController();setCustomerReady(null);void apiFetch('/api/v2/customers/capability',{signal:c.signal,cache:'no-store'}).then(async r=>{if(!r.ok)throw Error();const v=await r.json();if(!c.signal.aborted)setCustomerReady(v.enabled===true);}).catch(()=>{if(!c.signal.aborted)setCustomerReady(false);});return()=>c.abort();},[apiFetch]);
  useV2LeaveProtection(dirty,saving);
  const canLeave=useV2DiscardGuard(dirty,saving,{title:'放弃尚未保存的单据？',message:'当前单据明细尚未保存，放弃后无法恢复。'});
@@ -74,7 +75,7 @@ export default function V2DocumentWorkspace({apiFetch,role,companyProfile,docume
  useEffect(()=>{
   let active=true;
   setDirty(false);setTermsEdited(Boolean(initialDraft));setSavedId(documentId??null);setPreviewOpen(false);
-  if(!documentId){const initial=initialDraft?structuredClone(initialDraft):emptyDocument(companyProfile);setDraft(initial);setCustomerChoice(initial.v2CustomerId?{customerId:initial.v2CustomerId,name:initial.customerName}:null);setDepositText(initial.deposit?String(initial.deposit):'');setRemoved([]);setLoading(false);setInitialized(true);setAutoNumber(!initial.docNo);return;}
+  if(!documentId){const initial=initialDraft?structuredClone(initialDraft):emptyDocument(currentCompany.current);setDraft(initial);setCustomerChoice(initial.v2CustomerId?{customerId:initial.v2CustomerId,name:initial.customerName}:null);setDepositText(initial.deposit?String(initial.deposit):'');setRemoved([]);setLoading(false);setInitialized(true);setAutoNumber(!initial.docNo);return;}
   const controller=new AbortController();
   setLoading(true);setError('');
   (async()=>{
@@ -83,14 +84,17 @@ export default function V2DocumentWorkspace({apiFetch,role,companyProfile,docume
      signal:controller.signal,headers:{Accept:'application/json'}
     });
     if(!response.ok)throw Error(formatError(response.status));
-    const saved=fromV2DocumentRecord(await response.json(),companyProfile);
+    const saved=fromV2DocumentRecord(await response.json(),currentCompany.current);
     if(active){setDraft(saved);setCustomerChoice(saved.v2CustomerId?{customerId:saved.v2CustomerId,name:saved.customerName}:null);setDepositText(saved.deposit?String(saved.deposit):'');setRemoved([]);}
    }catch(e){
     if(active)setError(e instanceof Error?e.message:'读取单据失败');
    }finally{if(active)setLoading(false);}
   })();
   return ()=>{active=false;controller.abort();};
- },[apiFetch,documentId,initialDraft,companyProfile]);
+ },[apiFetch,documentId,initialDraft]);
+ // Global display fields may refresh; optional image arrivals must never
+ // reinitialize editable terms, rows, customer choice or dirty state.
+ useEffect(()=>{setDraft(before=>({...before,companyName:companyProfile.name,companyAddress:companyProfile.address,companyPhone:companyProfile.phone}));},[companyProfile.name,companyProfile.address,companyProfile.phone]);
  useEffect(()=>{
   if(documentId||savedId||!initialized||!autoNumber||!/^\d{4}-\d{2}-\d{2}$/.test(draft.date))return;
   const abort=new AbortController();setNumberBusy(true);setNumberError('');
@@ -144,6 +148,7 @@ export default function V2DocumentWorkspace({apiFetch,role,companyProfile,docume
    if(draft.items.length===0)throw Error('请先通过产品库选择至少一条明细');
    savePending.current=true;setSaving(true);
    const isEdit=Boolean(savedId);
+   if(isEdit&&!draft.v2Revision)throw Error('请重新打开单据后再保存，当前草稿仍保留');
    const deposit=draft.type===DocType.SAMPLE?0:parseDocumentNumber(depositText,draft.type===DocType.DEPOSIT?'定金比例':'定金金额',draft.type===DocType.DEPOSIT?100:999999999.99);
    documentDraftTotals(draft,depositText);
    const paymentDraft={...draft,deposit};

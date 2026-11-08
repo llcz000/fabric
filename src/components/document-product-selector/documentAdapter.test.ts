@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {DocType,type DocumentData} from '../../types';
 import {toV2CreatePayload,toV2EditPayload,V2DraftMappingError} from './documentAdapter';
-const doc={id:'new',docNo:'XS-20261012-001',date:'2026-10-12',customerName:'客户A',
+const doc={v2Revision:'a'.repeat(64),id:'new',docNo:'XS-20261012-001',date:'2026-10-12',customerName:'客户A',
  type:DocType.SALES,deposit:20,
  items:[{id:'temp-1',itemNo:'G0112',colorNo:'2',productName:'棉麻',
   rollNo:'3.5, 3.5',width:'150',meters:7,price:12.5,amount:81.25,deductionMeters:0.5,
@@ -21,7 +21,7 @@ test('P6 V2 create adapter emits stable product selection, sales rolls/deduction
 test('P6 V2 edit adapter retains stable numeric line ID and only reselects on changed identity',()=>{
  const current={...doc,id:'101',items:[{...doc.items[0],id:'55',v2SelectionChanged:false}]};
  const edit=toV2EditPayload(current,'sales',[]);
- assert.equal(edit.items[0].id,'55');
+ assert.equal(edit.expectedRevision,'a'.repeat(64));assert.equal(edit.items[0].id,'55');
  assert(!('selection' in edit.items[0]),'Unchanged associated product may be disabled');
  const changed=toV2EditPayload({...current,items:[{...current.items[0],v2SelectionChanged:true}]} as unknown as DocumentData,'sales',[]);
  assert.deepEqual(changed.items[0].selection,{productId:'777'});

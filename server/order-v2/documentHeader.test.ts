@@ -11,18 +11,18 @@ test('P6 header create accepts safe optional contact/signature/payment and froze
  for(const [key,value] of Object.entries(h))assert.deepEqual((data as unknown as Record<string,unknown>)[key],value,key);
 });
 test('P6 header editing has explicit partial update, null display reset allowed, but cannot spoof immutable document id/type',()=>{
- const edited=validateV2DocumentEdit({items:[],removeIds:[],...h});
+ const edited=validateV2DocumentEdit({expectedRevision:'a'.repeat(64),items:[],removeIds:[],...h});
  for(const [key,value] of Object.entries(h))assert.deepEqual((edited as unknown as Record<string,unknown>)[key],value,key);
- assert.equal(validateV2DocumentEdit({items:[],removeIds:[],displaySnapshot:null}).displaySnapshot,null);
+ assert.equal(validateV2DocumentEdit({expectedRevision:'a'.repeat(64),items:[],removeIds:[],displaySnapshot:null}).displaySnapshot,null);
  for(const evil of [{items:[],removeIds:[],template_type:'bulk'},
   {items:[],removeIds:[],createdByUserId:'3'}])
-  assert.throws(()=>validateV2DocumentEdit(evil),DocumentWriteError);
+  assert.throws(()=>validateV2DocumentEdit({expectedRevision:'a'.repeat(64),...evil}),DocumentWriteError);
 });
 
 test('DOC-01/03 editable number, date and customer are validated independently of stable document ID/type',()=>{
- const data=validateV2DocumentEdit({items:[],removeIds:[],orderNo:'XS-NEW',date:'2026-10-17',receivingUnit:'新客户'});
+ const data=validateV2DocumentEdit({expectedRevision:'a'.repeat(64),items:[],removeIds:[],orderNo:'XS-NEW',date:'2026-10-17',receivingUnit:'新客户'});
  assert.equal(data.orderNo,'XS-NEW');assert.equal(data.date,'2026-10-17');assert.equal(data.receivingUnit,'新客户');
- for(const fields of [{date:'2026-02-30'},{orderNo:''},{receivingUnit:''}])assert.throws(()=>validateV2DocumentEdit({items:[],removeIds:[],...fields}));
+ for(const fields of [{date:'2026-02-30'},{orderNo:''},{receivingUnit:''}])assert.throws(()=>validateV2DocumentEdit({expectedRevision:'a'.repeat(64),items:[],removeIds:[],...fields}));
 });
 test('P6 header rejects unknown keys, excessive length, invalid types, unsafe presentation snapshot',()=>{
  for(const bad of [

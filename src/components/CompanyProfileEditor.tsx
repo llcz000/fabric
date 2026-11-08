@@ -81,13 +81,18 @@ export default function CompanyProfileEditor({ profile, onSave, apiFetch }: Comp
   }, []);
 
   useEffect(() => {
-    for (const role of COMPANY_IMAGE_ROLES) uploadRevisions.current[role] += 1;
-    releaseObjectUrls();
     setName(profile.name);
     setLogoText(profile.logoText);
     setAddress(profile.address);
     setPhone(profile.phone);
-    setImageState(createCompanyImageState(profile));
+  }, [profile.name, profile.logoText, profile.address, profile.phone]);
+
+  useEffect(() => {
+    const remote=createCompanyImageState(profile);
+    setImageState(current=>Object.fromEntries(COMPANY_IMAGE_ROLES.map(role=>[
+      role,current[role].dirty||current[role].uploading||current[role].error||objectUrls.current[role]
+        ?current[role]:remote[role],
+    ])) as CompanyImageState);
   }, [profile]);
 
   const replaceImageState = (role: CompanyImageRole, next: CompanyImageState[CompanyImageRole]) => {
@@ -132,7 +137,7 @@ export default function CompanyProfileEditor({ profile, onSave, apiFetch }: Comp
   const currentFields=JSON.stringify([name,logoText,address,phone]);
   const baselineFields=JSON.stringify([profile.name,profile.logoText,profile.address,profile.phone]);
   const [savedFields,setSavedFields]=useState<string|null>(null);
-  useEffect(()=>setSavedFields(null),[profile]);
+  useEffect(()=>setSavedFields(null),[profile.name,profile.logoText,profile.address,profile.phone]);
   useV2LeaveProtection(currentFields!==(savedFields??baselineFields)||COMPANY_IMAGE_ROLES.some(role=>imageState[role].dirty),isSaving||COMPANY_IMAGE_ROLES.some(role=>imageState[role].uploading));
   const hasUnreadyImage = COMPANY_IMAGE_ROLES.some((role) => imageState[role].uploading || Boolean(imageState[role].error));
 

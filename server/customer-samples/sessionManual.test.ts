@@ -5,6 +5,12 @@ import type {AppPrincipal} from '../access/types';
 import {addManualSampleItem,SampleSessionManualError} from './sessionManual';
 import {createSampleSessionManualRouter} from './sessionManualRoutes';
 import {CardSelectionFixture} from './sessionCardSelection.testFixture';
+
+test('manual selection refuses omitted productIds before any database access',async()=>{
+ const db=new CardSelectionFixture();
+ await assert.rejects(addManualSampleItem(db,{userId:'6',sessionId:'1',role:'sales'} as AppPrincipal,{sessionId:'11',cardId:'44'}),{status:400});
+ assert.equal(db.calls.length,0);
+});
 const sales:AppPrincipal={userId:'6',sessionId:'1',role:'sales',username:'sales',displayName:'销售',canManageProducts:false,canManageOwnOrders:false};
 test('manual card selection accepts both registered roles with an explicit grant and rechecks stale roles',async()=>{
  for(const role of ['sales','admin'] as const){
@@ -12,7 +18,7 @@ test('manual card selection accepts both registered roles with an explicit grant
   const result=await addManualSampleItem(db,{...sales,role},{sessionId:'11',cardId:'44',productIds:['8']});assert.equal(result.items[0].action,'added');
  }
  const db=new CardSelectionFixture();db.role='admin';
- await assert.rejects(addManualSampleItem(db,sales,{sessionId:'11',cardId:'44'}),(e:unknown)=>e instanceof SampleSessionManualError&&e.status===403);
+ await assert.rejects(addManualSampleItem(db,sales,{sessionId:'11',cardId:'44',productIds:['8']}),(e:unknown)=>e instanceof SampleSessionManualError&&e.status===403);
  assert(!db.calls.some(x=>x.sql.includes('FROM sample_cards')));
 });
 test('B3 card POST rejects legacy product-only selection and spoofed fields, protects internal errors',async()=>{
@@ -26,11 +32,11 @@ test('B3 card POST rejects legacy product-only selection and spoofed fields, pro
  const post=(body:unknown)=>fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
  try{
   actor=undefined;assert.equal((await post({cardId:'44'})).status,401);actor=sales;
-  for(const body of [{productId:'8'},{cardId:'44',userId:'7'},{cardId:44},{cardId:'0'},{cardId:'44',productIds:[]},{cardId:'44',productIds:['8','8']},[],null,{}])assert.equal((await post(body)).status,400);
+  for(const body of [{cardId:'44'},{productId:'8'},{cardId:'44',userId:'7'},{cardId:44},{cardId:'0'},{cardId:'44',productIds:[]},{cardId:'44',productIds:['8','8']},[],null,{}])assert.equal((await post(body)).status,400);
   assert.equal(db.calls.length,0);
   let response=await post({cardId:'44',productIds:['8']});assert.equal(response.status,200);assert.equal(response.headers.get('Cache-Control'),'no-store');
   assert.equal((await response.json()).items[0].action,'added');
   response=await post({cardId:'44',productIds:['99']});assert.equal(response.status,409);
-  db.failure='audit';response=await post({cardId:'44'});assert.equal(response.status,503);assert(!(await response.text()).includes('PRIVATE'));
+  db.failure='audit';response=await post({cardId:'44',productIds:['8']});assert.equal(response.status,503);assert(!(await response.text()).includes('PRIVATE'));
  }finally{server.closeAllConnections();await new Promise<void>(r=>server.close(()=>r()));}
 });

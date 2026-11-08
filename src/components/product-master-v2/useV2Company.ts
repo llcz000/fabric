@@ -29,20 +29,29 @@ export function useV2Company(apiFetch:typeof fetch,token:string){
     const raw=await response.json(),company=mapV2Company(raw);
     const capabilities=await apiFetch('/api/v2/pattern-sharing',{signal:controller.signal});
     const shareEnabled=capabilities.ok&&(await capabilities.json()).cardsEnabled===true;
-    for(const [role,value] of Object.entries(raw.images??{})){
-     if(!companyRole(role)||!value||typeof value!=='object')continue;
+    if(!active())return;
+    setData({token,actor,company,shareEnabled});
+    // Images are optional display resources. Load independently after the
+    // authenticated text workspace is ready; a missing image cannot lock it.
+    await Promise.all(Object.entries(raw.images??{}).map(async([role,value])=>{
+     if(!companyRole(role)||!value||typeof value!=='object')return;
      const image=value as {source:'asset'|'legacy';assetId?:string;displayUrl:string};
-     if(!/^\/api\/company\/images\/(brand_logo|wechat_qr|alipay_qr)\/content$/.test(image.displayUrl))throw Error('公司图片地址无效');
-     const imageResponse=await apiFetch(image.displayUrl,{signal:controller.signal});
-     if(!imageResponse.ok)throw Error('公司图片读取失败');
-     const blob=await imageResponse.blob();
-     if(!active())return;
-     const url=URL.createObjectURL(blob);urls.push(url);
-     company.companyImages![role]={role,source:image.source,assetId:image.assetId,displayUrl:url};
-     if(role==='brand_logo'){company.logoType='image';company.logoUrl=url;}
-     else if(role==='wechat_qr')company.weChatPayUrl=url;else company.aliPayUrl=url;
-    }
-    if(active())setData({token,actor,company,shareEnabled});
+     if(!/^\/api\/company\/images\/(brand_logo|wechat_qr|alipay_qr)\/content$/.test(image.displayUrl))return;
+     try{
+      const imageResponse=await apiFetch(image.displayUrl,{signal:controller.signal});
+      if(!imageResponse.ok)return;
+      const blob=await imageResponse.blob();
+      if(!active())return;
+      const url=URL.createObjectURL(blob);urls.push(url);
+      setData(previous=>{
+       if(!previous||previous.token!==token||!active())return previous;
+       const next={...previous.company,companyImages:{...previous.company.companyImages,[role]:{role,source:image.source,assetId:image.assetId,displayUrl:url}}};
+       if(role==='brand_logo'){next.logoType='image';next.logoUrl=url;}
+       else if(role==='wechat_qr')next.weChatPayUrl=url;else next.aliPayUrl=url;
+       return {...previous,company:next};
+      });
+     }catch{ /* Optional image failure leaves the text/empty fallback in place. */ }
+    }));
    }catch(cause){if(active())setError(cause instanceof Error?cause.message:'资料读取失败');}
   })();
   return()=>{controller.abort();urls.forEach(url=>URL.revokeObjectURL(url));};

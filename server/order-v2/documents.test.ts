@@ -19,11 +19,11 @@ test('P6-2 create schema accepts real types and refuses spoofed totals/owner/pro
   assert.throws(()=>validateV2DocumentCreate(fail as never),DocumentWriteError);
 });
 test('P6-2 edit forbids owner/type/id/total spoofing and omission of removeIds',()=>{
- const edit=validateV2DocumentEdit({items:[{id:'11',fields:{meters:8}}],removeIds:[],deposit:12});
+ const edit=validateV2DocumentEdit({expectedRevision:'a'.repeat(64),items:[{id:'11',fields:{meters:8}}],removeIds:[],deposit:12});
  assert.equal(edit.items[0].id,'11');
  for(const bad of [{items:[],removeIds:[],createdByUserId:'99'},{items:[],removeIds:[],totalAmount:2},
   {items:[]},{items:'hi',removeIds:[]},{items:[],removeIds:[],type:'deposit'}])
-  assert.throws(()=>validateV2DocumentEdit(bad as never),DocumentWriteError);
+  assert.throws(()=>validateV2DocumentEdit({expectedRevision:'a'.repeat(64),...bad} as never),DocumentWriteError);
 });
 
 test('DOC-05/07 new writes reject sample prepayment and deposit settlement fields',()=>{
@@ -47,8 +47,11 @@ test('DOC-05/07 rereads expose type-correct fields without rewriting legacy raw 
 test('DOC-05/07 update uses the locked saved type and rolls back forbidden header changes',async()=>{
  for(const [type,change] of [['sample',{deposit:5}],['deposit',{settled:true}],['deposit',{deposit:101}]] as const){
   const calls:string[]=[];let rolled=0,committed=0;
+  const header={id:'123',created_by_user_id:'2',order_no:'OLD',order_date:'2026-11-08',receiving_unit:'Client',template_type:type};
   const pool={async getConnection(){return {async beginTransaction(){},async commit(){committed++;},async rollback(){rolled++;},release(){},
    async query(sql:string):Promise<[unknown,unknown]>{calls.push(sql);
+    if(sql.includes('FROM orders o'))return [[header],[]];
+    if(sql.startsWith('SELECT i.id'))return [[],[]];
     if(sql.includes('FROM v2_access_users'))return [[{id:'2',role:'sales',is_active:1,can_manage_own_orders:1}],[]];
     if(sql.includes('FROM v2_access_sessions'))return [[{id:'9'}],[]];
     if(sql.startsWith('SELECT id,created_by_user_id FROM orders'))return [[{id:'123',created_by_user_id:'2'}],[]];
@@ -56,7 +59,8 @@ test('DOC-05/07 update uses the locked saved type and rolls back forbidden heade
     if(sql.startsWith('SELECT template_type FROM orders'))return [[{template_type:type}],[]];
     throw Error('Unexpected SQL '+sql);
    }};}};
-  await assert.rejects(updateV2Document(pool,sales,'123',{items:[],removeIds:[],...change}),DocumentWriteError);
+  const saved=await readV2Document(await pool.getConnection(),sales,'123');
+  await assert.rejects(updateV2Document(pool,sales,'123',{expectedRevision:saved.revision,items:[],removeIds:[],...change}),DocumentWriteError);
   assert.equal(rolled,1);assert.equal(committed,0);assert(!calls.some(sql=>sql.startsWith('UPDATE')));
  }
 });

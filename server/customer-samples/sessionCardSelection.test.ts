@@ -6,9 +6,9 @@ import {getSampleSchemaStatements} from './schema';
 
 const actor:AppPrincipal={userId:'6',sessionId:'1',role:'sales',username:'sales',displayName:'销售',canManageProducts:false,canManageOwnOrders:false};
 import {CardSelectionFixture} from './sessionCardSelection.testFixture';
-const input={sessionId:'11',cardId:'44'};
+const input={sessionId:'11',cardId:'44',productIds:['8','9']};
 const status=(code:number)=>(e:unknown)=>e instanceof SampleSessionManualError&&e.status===code;
-test('card-only manual selection atomically adds the whole card and records card provenance without scan events',async()=>{
+test('card-only manual selection atomically adds explicitly selected card products and records card provenance without scan events',async()=>{
  const db=new CardSelectionFixture();const result=await addManualSampleItem(db,actor,input);
  assert.deepEqual(result.items.map(x=>[x.productId,x.action]),[['8','added'],['9','added']]);
  assert.equal(result.cardId,'44');assert.equal(db.events.length,2);assert(db.events.every(args=>args.includes('44')));
@@ -33,7 +33,7 @@ test('card scope rejects uncarded/cross-card products and stale unavailable sele
  }
  const db=new CardSelectionFixture();db.products[1].sampling_available=0;
  await assert.rejects(addManualSampleItem(db,actor,{...input,productIds:['8','9']}),status(409));
- const result=await addManualSampleItem(db,actor,input);assert.deepEqual(result.items.map(x=>x.productId),['8']);
+ const result=await addManualSampleItem(db,actor,{...input,productIds:['8']});assert.deepEqual(result.items.map(x=>x.productId),['8']);
 });
 test('retired/absent cards, disabled parents, revoked token/login/grant fail closed but legacy closed sessions remain usable',async()=>{
  for(const field of ['card','parentActive','token','login','grant'] as const){

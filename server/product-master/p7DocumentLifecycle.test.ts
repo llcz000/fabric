@@ -180,7 +180,7 @@ test('P7-5 editing an existing linked line only changes business amounts, never 
   db.composition='之后新增标签/成分';
   db.identityName='变更后的母版';
   const modified=await call(base,'/documents/'+orderId,'PATCH',{
-   items:[{id,fields:{meters:5,unitPrice:10}}],removeIds:[]
+   expectedRevision:saved.body.revision,items:[{id,fields:{meters:5,unitPrice:10}}],removeIds:[]
   });
   assert.equal(modified.status,200,JSON.stringify(modified.body));
   assert.equal((modified.body.items as Row[])[0].id,id);
@@ -203,7 +203,7 @@ test('P7-5 independent owner checks: admin saved order is invisible to unrelated
   assert.equal(owner.status,201);
   const id=String(owner.body.id);
   assert.equal((await call(base,'/documents/'+id,'GET',undefined,SALES)).status,404);
-  assert.equal((await call(base,'/documents/'+id,'PATCH',{items:[],removeIds:[]},SALES)).status,404);
+  assert.equal((await call(base,'/documents/'+id,'PATCH',{expectedRevision:owner.body.revision,items:[],removeIds:[]},SALES)).status,404);
   assert.equal((await call(base,'/documents/'+id,'GET',undefined,ADMIN)).status,200);
  });
  assert.equal(db.orders.length,1);

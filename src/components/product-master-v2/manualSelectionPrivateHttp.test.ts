@@ -42,7 +42,7 @@ test('manual UI adapters use real private HTTP authentication and session-scoped
   const cards=await searchManualCards(authenticated,{sessionId:'51',query:'0012',offset:0});
   assert.equal(cards.total,0);assert.deepEqual(cards.items,[]);
   const page=await selection.load('51',20,0);assert.equal('status' in page.session,false);assert.equal(page.session.customerReference,'演示客户');
-  await assert.rejects(selection.addManual('51','44'),(e:unknown)=>e instanceof SelectionHttpError&&e.status===404);
+  await assert.rejects(selection.addManual('51','44',['81']),(e:unknown)=>e instanceof SelectionHttpError&&e.status===404);
   granted=false;await assert.rejects(selection.load('51',20,0),(e:unknown)=>e instanceof SelectionHttpError&&e.status===404);
   granted=true;sessionLive=false;
   await assert.rejects(selection.load('51',20,0),(e:unknown)=>e instanceof SelectionHttpError&&e.status===401);

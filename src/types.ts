@@ -76,6 +76,7 @@ export interface CompanyImageValue {
 }
 
 export interface DocumentData {
+  v2Revision?: string;
   v2CustomerId?: string|null;
   v2CustomerLinkVersion?: string;
   id: string;

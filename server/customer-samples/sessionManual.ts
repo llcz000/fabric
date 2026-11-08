@@ -45,7 +45,7 @@ export async function lockSelectionAccess(tx:SampleTx,actor:AppPrincipal,session
  const grants=selectionRows(access);if(grants.length!==1||Number(grants[0].can_manage)!==1)throw new SampleSessionManualError(404);}
  return customer?customer.canEdit:true;
 }
-/** Only card-based selections. Omitted productIds means whole current card;
+/** Only card-based selections. An explicit product subset is mandatory;
  * an explicit subset must still be wholly eligible, or the entire request rolls back.
  * Manual provenance never invents a physical scan event. Legacy no-card audits remain intact.
  */
@@ -53,8 +53,8 @@ export async function addManualSampleItem(pool:SamplePool,actor:AppPrincipal,inp
  if(!actor||(actor.role!=='sales'&&actor.role!=='admin')||!validSelectionId(actor.userId)||!validSelectionId(actor.sessionId))throw new SampleSessionManualError(403);
  if(!input||!validSelectionId(input.sessionId)||!validSelectionId(input.cardId)||
   Object.keys(input).some(k=>!['sessionId','cardId','productIds'].includes(k))||
-  (input.productIds!==undefined&&(!Array.isArray(input.productIds)||input.productIds.length<1||input.productIds.length>10000||
-   !input.productIds.every(validSelectionId)||new Set(input.productIds).size!==input.productIds.length)))throw new SampleSessionManualError(400);
+  (!Array.isArray(input.productIds)||input.productIds.length<1||input.productIds.length>10000||
+   !input.productIds.every(validSelectionId)||new Set(input.productIds).size!==input.productIds.length))throw new SampleSessionManualError(400);
  const tx=await pool.getConnection();let began=false;
  try{
   await tx.beginTransaction();began=true;
@@ -81,7 +81,7 @@ export async function addManualSampleItem(pool:SamplePool,actor:AppPrincipal,inp
   if(eligible.some(x=>selectionDbId(x.fabric_id)!==fabricId||selectionDbId(x.master_id)!==masterId))throw new SampleSessionManualError(409);
   const eligibleIds=eligible.map(x=>selectionDbId(x.id));
   if(new Set(eligibleIds).size!==eligibleIds.length)throw new SampleSessionManualError(409);
-  const selected=input.productIds??eligibleIds;
+  const selected=input.productIds;
   if(!selected.length||selected.some(id=>!eligibleIds.includes(id)))throw new SampleSessionManualError(409);
   const ids=eligibleIds.filter(id=>selected.includes(id));
   const items:ManualSelectionResult['items']=[];

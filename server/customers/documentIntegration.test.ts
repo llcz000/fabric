@@ -15,7 +15,7 @@ test('three actual document saves and quick profiles share a transaction; retry,
 });
 test('manual old-order association keeps header/product snapshots and rejects stale association or foreign owner',async()=>{
  const f=billingFixture();try{const c=await f.service.create(sales,{requestId:key(220),profile:{displayName:'新档案'}});const saved=await createV2Document({...f.pool,customerProfilesEnabled:false},admin,{orderNo:'OLD',date:'2026-10-20',receivingUnit:'历史名称',type:'sample',deposit:0,items:[{manual:{productNo:'M1',productName:'原产品'},fields:{meters:1,unitPrice:100}}]});
- const body={items:saved.items.map(i=>({id:i.id,fields:{}})),removeIds:[],customer:{customerId:c.id,expectedCustomerId:null,expectedLinkVersion:'0'}};
+ const body={expectedRevision:saved.revision,items:saved.items.map(i=>({id:i.id,fields:{}})),removeIds:[],customer:{customerId:c.id,expectedCustomerId:null,expectedLinkVersion:'0'}};
  await assert.rejects(updateV2Document(f.pool,sales,saved.id,body),{status:404});assert.equal(f.db.prepare('SELECT COUNT(*) n FROM customer_order_links').get()!.n,0);
  const linked=await updateV2Document(f.pool,admin,saved.id,body);assert.equal(linked.receivingUnit,'新档案');assert.equal(linked.receivingUnitSnapshot,'历史名称');assert.deepEqual(linked.items[0].snapshot,saved.items[0].snapshot);assert.equal(linked.customerLink?.customerId,c.id);await assert.rejects(updateV2Document(f.pool,admin,saved.id,body),{status:409});
  }finally{f.db.close();}
@@ -31,7 +31,7 @@ test('copy carries only an active customer and snapshot; customer locks precede 
 });
 
 test('quick creation while editing an old document is atomic and idempotent on uncertain retry',async()=>{
- const f=billingFixture();try{const original=await createV2Document({...f.pool,customerProfilesEnabled:false},admin,{orderNo:'EDIT-OLD',date:'2026-10-21',receivingUnit:'原名称',type:'sample',deposit:0,items:[{manual:{productNo:'M1',productName:'面料'},fields:{meters:1,unitPrice:10}}]});const body={items:original.items.map(i=>({id:i.id,fields:{}})),removeIds:[],customer:{profile:{displayName:'快捷新客户'},requestId:key(260),expectedCustomerId:null,expectedLinkVersion:'0'}};const a=await updateV2Document(f.pool,admin,original.id,body);const b=await updateV2Document(f.pool,admin,original.id,body);assert.equal(a.customerLink?.customerId,b.customerLink?.customerId);assert.equal(f.db.prepare('SELECT COUNT(*) n FROM customers').get()!.n,1);assert.equal(b.receivingUnit,'快捷新客户');assert.equal(b.receivingUnitSnapshot,'原名称');}finally{f.db.close();}
+ const f=billingFixture();try{const original=await createV2Document({...f.pool,customerProfilesEnabled:false},admin,{orderNo:'EDIT-OLD',date:'2026-10-21',receivingUnit:'原名称',type:'sample',deposit:0,items:[{manual:{productNo:'M1',productName:'面料'},fields:{meters:1,unitPrice:10}}]});const body={expectedRevision:original.revision,items:original.items.map(i=>({id:i.id,fields:{}})),removeIds:[],customer:{profile:{displayName:'快捷新客户'},requestId:key(260),expectedCustomerId:null,expectedLinkVersion:'0'}};const a=await updateV2Document(f.pool,admin,original.id,body);const b=await updateV2Document(f.pool,admin,original.id,body);assert.equal(a.customerLink?.customerId,b.customerLink?.customerId);assert.equal(f.db.prepare('SELECT COUNT(*) n FROM customers').get()!.n,1);assert.equal(b.receivingUnit,'快捷新客户');assert.equal(b.receivingUnitSnapshot,'原名称');}finally{f.db.close();}
 });
 
 test('incomplete installed customer schema cannot fall back to new unlinked document or copy writes',async()=>{

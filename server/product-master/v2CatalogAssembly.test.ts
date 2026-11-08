@@ -232,7 +232,7 @@ test('AC-84 unified HTTP requires a card, reads latest data, records manual card
   let json=await page.json();assert.equal(json.total,1);assert.equal(json.selectedCardCount,1);
   assert.deepEqual(json.items[0].sources,[{cardId:'12',cardNo:'0012-F018',retired:false,firstScanEventId:null,firstManualEventId:'1'}],'manual card source must not forge a scan event');
   assert.equal(json.items[0].current.fabricName,'更新后丝绸','manual selection reads live attributes');
-  const repeat=await request(base,url,'POST',{cardId:'12'});assert.equal(repeat.status,200);
+  const repeat=await request(base,url,'POST',{cardId:'12',productIds:['81']});assert.equal(repeat.status,200);
   assert.equal((await repeat.json()).items[0].action,'already_selected');assert.equal(db.items.length,1);
   const removed=await request(base,'/customer-samples/sessions/51/items/61','DELETE');assert.equal(removed.status,200);
   const restore=await request(base,url,'POST',{cardId:'12',productIds:['81']});assert.equal(restore.status,200);
@@ -240,8 +240,8 @@ test('AC-84 unified HTTP requires a card, reads latest data, records manual card
   assert.equal(db.items.length,1);assert.equal(db.manualEvents.length,3);
   assert.deepEqual(db.manualEvents.map(x=>x.action),['added','already_selected','restored']);
   assert.equal(db.removalEvents,1);assert.equal(db.event,0);
-  db.granted=false;assert.equal((await request(base,url,'POST',{cardId:'12'})).status,404);
-  db.drift=true;assert.equal((await request(base,url,'POST',{cardId:'12'})).status,503);
+  db.granted=false;assert.equal((await request(base,url,'POST',{cardId:'12',productIds:['81']})).status,404);
+  db.drift=true;assert.equal((await request(base,url,'POST',{cardId:'12',productIds:['81']})).status,503);
  });
 });
 test('AC-84 manually preselected product is deduplicated on later card scan; physical source is appended without changing item',async()=>{

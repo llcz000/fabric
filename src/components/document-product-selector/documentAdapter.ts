@@ -23,7 +23,7 @@ export function fromV2DocumentRecord(record:unknown,profile:CompanyProfile):Docu
   return common;
  });
  const deposit=type===DocType.SAMPLE?0:order.deposit??0,total=order.totalAmount??0;
- return {v2CustomerId:order.customerLink?.customerId??null,v2CustomerLinkVersion:order.customerLink?.linkVersion??'0',id:order.id,docNo:order.orderNo,type,date:order.date,customerName:order.receivingUnit,
+ return {v2Revision:order.revision,v2CustomerId:order.customerLink?.customerId??null,v2CustomerLinkVersion:order.customerLink?.linkVersion??'0',id:order.id,docNo:order.orderNo,type,date:order.date,customerName:order.receivingUnit,
   items,styleNo:order.styleNo??'',issuer:order.issuer??'',receiver:order.receiver??'',
   receiverAddress:order.receiverAddress??'',bottomPhone:order.receiverPhone??'',settled:type===DocType.DEPOSIT?false:order.settled??false,
   companyName:profile.name,companyAddress:profile.address,
@@ -110,6 +110,7 @@ export function toV2EditPayload(document:DocumentData,role:Role,removeIds:string
   throw new V2DraftMappingError('Invalid removal IDs');
  const header=displayHeader(document),{settled,...withoutSettlement}=header;
  return {
+  expectedRevision:document.v2Revision??'',
   ...(document.type===DocType.SAMPLE?{}:{deposit:document.deposit??0}),
   ...(document.type===DocType.DEPOSIT?withoutSettlement:header),
   orderNo:document.docNo,date:document.date,receivingUnit:document.customerName,

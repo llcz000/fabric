@@ -1,4 +1,5 @@
 import {idempotent} from '../customers/service';
+import {createHash} from 'node:crypto';
 import {orderCustomerNameSql} from './customerName';
 import {CustomerError,parse} from '../customers/model';
 import {orderCustomerSchema,prepareOrderCustomer,writeOrderCustomer,readOrderCustomer,type OrderCustomerLink} from '../customers/orderLink';
@@ -22,7 +23,7 @@ export interface CreateDocument{
  deposit:number;items:Update['items'];
 }
 export type CompleteCreateDocument=CreateDocument&HeaderCreate&{customer?:unknown};
-export type EditDocument=HeaderEdit&{customer?:unknown;items:Update['items'];removeIds:string[];deposit?:number;orderNo?:string;date?:string;receivingUnit?:string};
+export type EditDocument=HeaderEdit&{expectedRevision:string;customer?:unknown;items:Update['items'];removeIds:string[];deposit?:number;orderNo?:string;date?:string;receivingUnit?:string};
 export interface DocumentLine{
  id:string;productId:string|null;source:'catalog'|'manual'|null;snapshot:Row|null;
  productNo:string;productName:string;colorNo:string;composition:string;
@@ -30,6 +31,7 @@ export interface DocumentLine{
  amount:number;remark:string;pieceMeters:number[]|null;deductionMeters:number;
 }
 export interface DocumentRecord{
+ revision?:string;
  customerLink?:OrderCustomerLink;id:string;ownerId:string|null;orderNo:string;date:string;receivingUnit:string;
  receivingUnitSnapshot?:string;
  type:'sample'|'deposit'|'bulk';deposit:number;
@@ -95,7 +97,8 @@ export function validateV2DocumentCreate(value:unknown):CompleteCreateDocument{
   type:v.type==='sales'?'bulk':v.type as CreateDocument['type'],deposit:v.deposit,items,...header,...(v.customer!==undefined?{customer:parse(orderCustomerSchema,v.customer)}:{})};
 }
 export function validateV2DocumentEdit(value:unknown):EditDocument {
- const v=dict(value);keys(v,['items','removeIds','deposit','orderNo','date','receivingUnit','customer',...Object.keys(HEADER_COLUMNS)]);
+ const v=dict(value);keys(v,['expectedRevision','items','removeIds','deposit','orderNo','date','receivingUnit','customer',...Object.keys(HEADER_COLUMNS)]);
+ if(typeof v.expectedRevision!=='string'||!/^[a-f0-9]{64}$/.test(v.expectedRevision))throw new DocumentWriteError('Document revision required; reopen the document');
  const items=validatedLines(v.items,true);
  if(!Array.isArray(v.removeIds)||v.removeIds.length>200||v.removeIds.some(id=>!positiveInt(id)))
   throw new DocumentWriteError('Explicit removed line ids required');
@@ -105,7 +108,7 @@ export function validateV2DocumentEdit(value:unknown):EditDocument {
  const editable:Partial<Pick<EditDocument,'orderNo'|'date'|'receivingUnit'>>={};
  for(const key of ['orderNo','receivingUnit'] as const){if(key in v){if(typeof v[key]!=='string'||!v[key].trim()||v[key].length>(key==='receivingUnit'?160:100))throw new DocumentWriteError('Invalid order header');editable[key]=v[key].trim();}}
  if('date' in v){if(!date(v.date))throw new DocumentWriteError('Invalid order date');editable.date=v.date;}
- return {items,removeIds:v.removeIds as string[],...(v.deposit!==undefined?{deposit:v.deposit as number}: {}),...header,...editable,...(v.customer!==undefined?{customer:parse(orderCustomerSchema,v.customer)}:{})};
+ return {expectedRevision:v.expectedRevision,items,removeIds:v.removeIds as string[],...(v.deposit!==undefined?{deposit:v.deposit as number}: {}),...header,...editable,...(v.customer!==undefined?{customer:parse(orderCustomerSchema,v.customer)}:{})};
 }
 function array(value:unknown):Row[]{if(!Array.isArray(value))throw Error('Database rows unavailable');return value as Row[];}
 export async function freshWriter(db:TxConn,actor:AppPrincipal):Promise<AppPrincipal>{
@@ -176,6 +179,17 @@ export async function updateV2Document(pool:Pool,actor:AppPrincipal,orderId:stri
   if(customer?.profile!==undefined&&!customer.requestId)throw new CustomerError(400);
   const update=async()=>{
   const binding=input.customer!==undefined?await prepareOrderCustomer(db,current,input.customer,orderId):undefined;
+  // Keep the existing customer -> order lock order. Read the saved content
+  // only after the row lock, before touching any header, lines or audit.
+  const [owners]=await db.query('SELECT id,created_by_user_id FROM orders WHERE id=? FOR UPDATE',[orderId]);
+  const order=array(owners)[0];
+  if(!order||!canManageOrder(current,{createdByUserId:order.created_by_user_id==null?null:String(order.created_by_user_id)}))throw new DocumentWriteError('Order not found',404);
+  // Earlier customer/idempotency reads may have established a REPEATABLE
+  // READ snapshot. Every row used for the revision must be a current read.
+  const currentRead:ReadDB={customerProfilesEnabled:db.customerProfilesEnabled,
+   query:(sql,args)=>db.query(sql+' FOR UPDATE',args)};
+  const before=await readV2Document(currentRead,current,orderId);
+  if(before.revision!==input.expectedRevision)throw new DocumentWriteError('Document changed since it was opened; reopen before saving',409);
   await reconcileOrderLinesInTransaction(db,current,orderId,{items:input.items,removeIds:input.removeIds},
    async(locked,id,touched,owner)=>{
     if(input.deposit!==undefined||input.settled===true){
@@ -233,8 +247,14 @@ export async function readV2Document(db:ReadDB,actor:AppPrincipal,orderId:string
  const [iRaw]=await db.query(
   'SELECT i.id,i.order_id,i.product_no,i.product_name,i.color_no,i.composition,i.weight,i.width,i.meters,i.unit_price,i.amount,i.remark,i.piece_meters,i.deduction_meters,i.v2_product_id,i.v2_source_kind,i.v2_product_snapshot FROM order_items i WHERE i.order_id=? ORDER BY i.id',
   [orderId]);
+ const customerLink=db.customerProfilesEnabled?await readOrderCustomer(db,orderId):undefined;
+ // The token represents saved business content, not live customer/company
+ // labels. This needs no production schema migration and protects old rows.
+ const revision=createHash('sha256').update(JSON.stringify([
+  Object.entries(o).filter(([key])=>key!=='current_customer_name'),array(iRaw),customerLink??null
+ ])).digest('hex');
  return {
-  ...(db.customerProfilesEnabled?{customerLink:await readOrderCustomer(db,orderId)}:{}),id:String(o.id),ownerId:o.created_by_user_id==null?null:String(o.created_by_user_id),
+  revision,...(customerLink?{customerLink}:{}),id:String(o.id),ownerId:o.created_by_user_id==null?null:String(o.created_by_user_id),
   orderNo:String(o.order_no),date:o.order_date instanceof Date?o.order_date.toISOString().slice(0,10):String(o.order_date).slice(0,10),
   receivingUnit:String(o.current_customer_name??o.receiving_unit),...(db.customerProfilesEnabled?{receivingUnitSnapshot:String(o.receiving_unit)}:{}),type:o.template_type,deposit:o.template_type==='sample'?0:asNumber(o.deposit),
   styleNo:String(o.style_no??''),issuer:String(o.sign_person??''),receiver:String(o.receiver??''),

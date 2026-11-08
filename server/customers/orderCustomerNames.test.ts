@@ -9,6 +9,42 @@ import {createV2DocumentRouter} from '../order-v2/documentRoutes';
 import express from 'express';
 import ExcelJS from 'exceljs';
 
+test('revision check uses current reads even when an earlier customer lookup established an old transaction snapshot',async()=>{
+ const f=documentsFixture();
+ try{
+  const original=await f.create('sample',39),tx=await f.pool.getConnection();
+  let oldHeader!:[unknown,unknown],oldItems!:[unknown,unknown];
+  await readV2Document({...tx,query:async(sql:string,args:unknown[]=[])=>{const result=await tx.query(sql,args);if(sql.startsWith('SELECT o.id,'))oldHeader=result;if(sql.startsWith('SELECT i.id,'))oldItems=result;return result;}},admin,original.id);
+  // Model an already-established REPEATABLE READ snapshot: plain reads see
+  // old rows, while locking reads see the last committed business changes.
+  f.db.prepare('UPDATE orders SET order_no=? WHERE id=?').run('NEWER-COMMIT',original.id);
+  const stale={...f.pool,getConnection:async()=>{const connection=await f.pool.getConnection();return {...connection,query:async(sql:string,args:unknown[]=[])=>{
+   if(!sql.includes('FOR UPDATE')){
+    if(sql.startsWith('SELECT o.id,'))return oldHeader;
+    if(sql.startsWith('SELECT i.id,'))return oldItems;
+   }
+   return connection.query(sql,args);
+  }};}};
+  await assert.rejects(updateV2Document(stale,admin,original.id,{expectedRevision:original.revision,orderNo:'STALE-OVERWRITE',items:original.items.map(i=>({id:i.id,fields:{remark:'stale'}})),removeIds:[],customer:{customerId:original.customerLink!.customerId,expectedCustomerId:original.customerLink!.customerId,expectedLinkVersion:'1'}}),{status:409});
+  assert.equal(f.db.prepare('SELECT order_no FROM orders WHERE id=?').get(original.id)!.order_no,'NEWER-COMMIT');
+ }finally{f.db.close();}
+});
+
+test('saved document revision rejects stale edits with retained line IDs without partial writes for all types',async()=>{
+ const f=documentsFixture();
+ try{for(const [n,type] of (['sample','bulk','deposit'] as const).entries()){
+  const original=await f.create(type,30+n),revision=(original as any).revision;
+  assert.match(revision??'',/^[a-f0-9]{64}$/);
+  const input={expectedRevision:revision,items:original.items.map(i=>({id:i.id,fields:{remark:'first save'}})),removeIds:[],orderNo:'UPDATED-'+n};
+  const saved=await updateV2Document(f.pool,admin,original.id,input);
+  assert.notEqual((saved as any).revision,revision);
+  const before=await readV2Document(await f.pool.getConnection(),admin,original.id);
+  await assert.rejects(updateV2Document(f.pool,admin,original.id,{...input,orderNo:'STALE',items:original.items.map(i=>({id:i.id,fields:{remark:'stale'}}))}),{status:409});
+  assert.deepEqual(await readV2Document(await f.pool.getConnection(),admin,original.id),before);
+  await assert.rejects(updateV2Document(f.pool,admin,original.id,{items:input.items,removeIds:[]}),{status:400});
+ }}finally{f.db.close();}
+});
+
 function documentsFixture(){
  const f=fixture();
  f.db.function('JSON_LENGTH',(value:any)=>value==null?null:JSON.parse(String(value)).length);
@@ -39,7 +75,7 @@ test('linked document detail, preview and Excel use renamed customer while store
   assert(JSON.stringify(buildV2DocumentPrintModel(detail,company)).includes('新客户'+n));
   const workbook=buildV2DocumentWorkbook(detail,company);
   assert(JSON.stringify(workbook.worksheets[0].getSheetValues()).includes('新客户'+n));
-  await updateV2Document(f.pool,admin,original.id,{items:original.items.map(item=>({id:item.id,fields:{remark:'仅改备注'}})),removeIds:[],receivingUnit:'伪造或陈旧名称',customer:{customerId,expectedCustomerId:customerId,expectedLinkVersion:'1'}});
+  await updateV2Document(f.pool,admin,original.id,{expectedRevision:original.revision,items:original.items.map(item=>({id:item.id,fields:{remark:'仅改备注'}})),removeIds:[],receivingUnit:'伪造或陈旧名称',customer:{customerId,expectedCustomerId:customerId,expectedLinkVersion:'1'}});
   assert.equal(f.db.prepare('SELECT receiving_unit FROM orders WHERE id=?').get(original.id)!.receiving_unit,'旧客户'+n);
   await assert.rejects(readV2Document(await f.pool.getConnection(),sales,original.id),{status:404});
  }}finally{f.db.close();}
@@ -101,6 +137,13 @@ test('actual document HTTP uses the renamed customer in suggestions, list, detai
   assert.equal((await(await get('/'+original.id+'/print-model')).json()).customerName,'HTTP更名后的客户');
   const excel=await get('/'+original.id+'/export.xlsx');assert.equal(excel.status,200);
   const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(Buffer.from(await excel.arrayBuffer()) as never);
+  const headers={authorization:'Bearer '+'a'.repeat(64),'Content-Type':'application/json'};
+  const body={expectedRevision:original.revision,items:original.items.map(i=>({id:i.id,fields:{remark:'HTTP fresh'}})),removeIds:[]};
+  const patch=()=>fetch(base+'/'+original.id,{method:'PATCH',headers,body:JSON.stringify(body)});
+  assert.equal((await patch()).status,200);
+  assert.equal((await patch()).status,409);
+  const after=await(await get('/'+original.id)).json();assert.equal(after.items[0].remark,'HTTP fresh');
+  assert.notEqual(after.revision,original.revision);
   assert(JSON.stringify(workbook.worksheets[0].getSheetValues()).includes('HTTP更名后的客户'));
  }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));f.db.close();}
 });

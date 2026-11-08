@@ -26,7 +26,7 @@ function cleanRel(value){
    path.isAbsolute(value)||value.includes('\\')||value.includes(':')||
    !/^[a-zA-Z0-9_./\-]+$/.test(value)||
    value.split('/').some(v=>!v||v==='.'||v==='..')||path.posix.normalize(value)!==value)return null;
- if(value==='AGENTS.md')return value;
+ if(value==='AGENTS.md'||value==='docs/retrospectives/README.md')return value;
  if(!ROOTS.some(p=>value.startsWith(p)))return null;
  if(/(?:^|\/)(?:\.env|\.git|\.local|node_modules|tmp)(?:\/|$)/i.test(value)||
   /(?:secret|credential|id_rsa|id_ed25519|\.pem|\.key)$/i.test(value))return null;

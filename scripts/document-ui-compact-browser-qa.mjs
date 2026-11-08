@@ -4,7 +4,7 @@ import path from 'node:path';
 import {createServer} from 'vite';
 import {chromium} from 'playwright';
 
-const out=path.resolve('artifacts/customer-order-name');
+const out=path.resolve('artifacts/architecture-fixes/browser');
 await fs.mkdir(out,{recursive:true});
 const checks=[],screens=[],errors=[];
 let server,browser;
@@ -133,8 +133,41 @@ try{
   await page.evaluate(()=>{window.documentEditQa.fail=true;});await page.getByRole('button',{name:'保存修改',exact:true}).click();
   await page.getByRole('alert').filter({hasText:'草稿已保留'}).waitFor();assert.equal(await page.getByRole('button',{name:'柯桥云庭设计',exact:true}).count(),1);
   await page.evaluate(()=>{window.documentEditQa.fail=false;});await page.getByRole('button',{name:'保存修改',exact:true}).click();await page.locator('[data-review-status]').filter({hasText:'模拟单据已保存'}).waitFor();
-  const saved=await page.evaluate(()=>window.documentEditQa);assert.equal(saved.lastBody.customer.customerId,'22');assert.equal(saved.lastBody.receivingUnit,'柯桥云庭设计');assert.equal(saved.snapshot,'建单时客户名称');
+  const saved=await page.evaluate(()=>window.documentEditQa);assert.equal(saved.lastBody.expectedRevision,'a'.repeat(64));assert.equal(saved.lastBody.customer.customerId,'22');assert.equal(saved.lastBody.receivingUnit,'柯桥云庭设计');assert.equal(saved.snapshot,'建单时客户名称');
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));pass(width+'px改选客户取消不生效、确认同步、保存失败保留草稿、重试名称一致');
+ }
+ for(const width of [1440,360])for(const mode of ['create','settings']){
+  const work=await browser.newPage({viewport:{width,height:960}});
+  const allowedImageErrors=[];work.on('pageerror',e=>errors.push(e.message));work.on('console',m=>{if(m.type()==='error'){if(m.location().url.includes('/api/company/images/'))allowedImageErrors.push(m.text());else errors.push(m.text());}});
+  let release;const pending=new Promise(r=>{release=r;});
+  await work.addInitScript(()=>localStorage.setItem('fabric-v2-saved-login',JSON.stringify({token:'a'.repeat(64),expiresAt:Date.now()+3600000})));
+  await work.route('**/api/**',async route=>{
+   const path=new URL(route.request().url()).pathname;
+   let value={items:[],total:0};
+   if(path==='/api/runtime')value={mode:'v2'};
+   else if(path==='/api/v2/access/me')value={id:'1',username:'qa',displayName:'本机验收',role:'admin'};
+   else if(path==='/api/company')value={company_name:'模拟公司',brand_name:'模拟品牌',address:'模拟地址',phone:'000',default_terms:'初始条款',images:{brand_logo:{source:'asset',displayUrl:'/api/company/images/brand_logo/content'},wechat_qr:{source:'asset',displayUrl:'/api/company/images/wechat_qr/content'}}};
+   else if(path.endsWith('/brand_logo/content'))return route.fulfill({status:503,body:'unavailable'});
+   else if(path.endsWith('/wechat_qr/content')){await pending;return route.fulfill({contentType:'image/png',body:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aPWsAAAAASUVORK5CYII=','base64')});}
+   else if(path.endsWith('/capability'))value={enabled:true};
+   else if(path.endsWith('/reserve-number'))value={orderNo:'QA-001'};
+   else if(path.endsWith('/pattern-sharing'))value={cardsEnabled:true};
+   return route.fulfill({contentType:'application/json',body:JSON.stringify(value)});
+  });
+  await work.goto('http://127.0.0.1:52996/#/'+mode,{waitUntil:'domcontentloaded'});
+  const field=mode==='create'?work.locator('[name="terms"]'):work.locator('#company-name-input');
+  if(mode==='create')await work.getByText('单据签署与联系信息',{exact:true}).click();
+  await field.fill('保留未保存草稿');
+  const response=work.waitForResponse(r=>r.url().endsWith('/wechat_qr/content')&&r.status()===200);
+  release();await response;
+  if(mode==='settings')await work.getByAltText('微信收款码预览').waitFor();
+  else await work.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+  assert.equal(await field.inputValue(),'保留未保存草稿');
+  assert.equal(await work.getByText('正在读取账号与公司资料…',{exact:true}).count(),0);
+  assert(await work.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  const name='13-company-image-'+mode+'-'+width+'.png';await work.screenshot({path:path.join(out,name),fullPage:true});screens.push(name);
+  pass(width+'px '+mode+' 正式工作台图片503/等待不阻断，延迟图片不覆盖编辑草稿');
+  await work.close();
  }
  assert.deepEqual(errors,[]);
  await fs.writeFile(path.join(out,'qa-result.json'),JSON.stringify({checks,screens,errors,productionChanged:false},null,2));

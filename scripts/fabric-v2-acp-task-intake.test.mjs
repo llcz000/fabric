@@ -6,6 +6,13 @@ import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {evaluateAcpTask,auditAcpProfiles,formatAcpTaskBrief} from './fabric-v2-acp-task-intake.mjs';
 const root=process.cwd();
+
+test('D can read the exact retrospective index without broadening document paths or edit ownership',()=>{
+ const spec={format:'fabric-v2-acp-task-v1',agent:'D',ac:'AC-68',task:'Verify order snapshot regression in isolation',remainingGate:'Read-only focused source and test review',edit:['server/order-v2/documents.test.ts'],read:['docs/retrospectives/README.md']};
+ assert.equal(evaluateAcpTask(spec,root).ok,true);
+ for(const file of ['docs/retrospectives/private.md','docs/retrospectives/../README.md','docs/operations/README.md'])assert.equal(evaluateAcpTask({...spec,read:[file]},root).ok,false);
+ assert.equal(evaluateAcpTask({...spec,edit:['docs/retrospectives/README.md']},root).ok,false);
+});
 const valid=()=>({format:'fabric-v2-acp-task-v1',agent:'E',ac:'AC-84',
  task:'完成已批准人工补选UI之后的独立只读检验',remainingGate:'本地HTTP范围验收，不改变已接受UI',
  edit:['server/customer-samples/sessionManual.test.ts'],read:['server/customer-samples/sessionManual.ts','docs/ui-design/component-rules.md']});
