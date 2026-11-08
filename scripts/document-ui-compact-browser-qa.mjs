@@ -4,7 +4,7 @@ import path from 'node:path';
 import {createServer} from 'vite';
 import {chromium} from 'playwright';
 
-const out=path.resolve('artifacts/document-ui-compact-review-20261022');
+const out=path.resolve('artifacts/customer-order-name');
 await fs.mkdir(out,{recursive:true});
 const checks=[],screens=[],errors=[];
 let server,browser;
@@ -117,6 +117,25 @@ try{
  assert.equal(await page.getByLabel('收货地址').count(),1);
  await shot('10-contact-detail-mobile');
  pass('联系签署信息默认收起，需要时展开录入');
+ for(const width of [1440,360]){
+  await page.setViewportSize({width,height:960});await page.goto(url+'?edit&renamed',{waitUntil:'networkidle'});
+  const current=page.getByRole('button',{name:'华锦纺织贸易（已更名）',exact:true});await current.waitFor();
+  assert.equal(await page.getByLabel('单据显示客户名称',{exact:true}).count(),0);
+  assert.equal(await page.locator('input[name="customerName"]').count(),0);
+  await shot('11-editor-renamed-'+width);pass(width+'px编辑单据只有一个客户入口，显示当前档案名');
+  await current.click();const picker=page.getByRole('dialog',{name:'选择客户/收货单位'});await picker.waitFor();
+  await picker.getByRole('textbox',{name:'搜索客户名称、联系人或品牌'}).fill('柯桥');
+  await picker.getByRole('button',{name:'选择',exact:true}).click();await page.keyboard.press('Escape');
+  assert.equal(await picker.count(),0);assert(await current.evaluate(node=>node===document.activeElement));assert.equal(await page.getByRole('button',{name:'柯桥云庭设计',exact:true}).count(),0);
+  await current.click();await picker.getByRole('textbox',{name:'搜索客户名称、联系人或品牌'}).fill('柯桥');await picker.getByRole('button',{name:'选择',exact:true}).click();
+  await shot('12-editor-customer-picker-'+width);await picker.getByRole('button',{name:'确认使用',exact:true}).click();
+  await page.getByRole('button',{name:'柯桥云庭设计',exact:true}).waitFor();
+  await page.evaluate(()=>{window.documentEditQa.fail=true;});await page.getByRole('button',{name:'保存修改',exact:true}).click();
+  await page.getByRole('alert').filter({hasText:'草稿已保留'}).waitFor();assert.equal(await page.getByRole('button',{name:'柯桥云庭设计',exact:true}).count(),1);
+  await page.evaluate(()=>{window.documentEditQa.fail=false;});await page.getByRole('button',{name:'保存修改',exact:true}).click();await page.locator('[data-review-status]').filter({hasText:'模拟单据已保存'}).waitFor();
+  const saved=await page.evaluate(()=>window.documentEditQa);assert.equal(saved.lastBody.customer.customerId,'22');assert.equal(saved.lastBody.receivingUnit,'柯桥云庭设计');assert.equal(saved.snapshot,'建单时客户名称');
+  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));pass(width+'px改选客户取消不生效、确认同步、保存失败保留草稿、重试名称一致');
+ }
  assert.deepEqual(errors,[]);
  await fs.writeFile(path.join(out,'qa-result.json'),JSON.stringify({checks,screens,errors,productionChanged:false},null,2));
  console.log('RESULT '+JSON.stringify({passed:checks.length,screens,errors}));

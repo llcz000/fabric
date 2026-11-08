@@ -10,8 +10,29 @@ import {renderToStaticMarkup} from 'react-dom/server';
 import V2DocumentWorkspace,{DocumentTotalsSummary} from './V2DocumentWorkspace';
 import {DocType} from '../../types';
 import type {CompanyProfile} from '../../types';
+import {CompactCustomerChoice} from '../customers/CompactCustomerChoice';
 const profile={name:'公司A',address:'地址A',phone:'0575',defaultTerms:'标准备注',
  depositTerms:'定金备注'} as CompanyProfile;
+
+// AC-107, AC-118
+test('editing a document has one customer choice and saving a changed choice uses that same name',async()=>{
+ let renderer!:ReactTestRenderer,submitted:any;
+ const original={id:'27',ownerId:'1',orderNo:'YB-27',date:'2026-11-08',type:'sample',receivingUnit:'当前客户',customerLink:{customerId:'3',linkVersion:'1'},deposit:0,totalAmount:10,totalMeters:1,totalPieces:1,deductionMeters:0,items:[{id:'7',productId:null,source:null,snapshot:null,productNo:'OLD',productName:'历史面料',colorNo:'1',composition:'棉',weight:100,widthCm:150,meters:1,unitPrice:10,amount:10,remark:'',pieceMeters:null,deductionMeters:0}]};
+ const api=(async(url,init)=>{
+  if(String(url).endsWith('/customers/capability'))return Response.json({enabled:true});
+  if(init?.method==='PATCH'){submitted=JSON.parse(String(init.body));return Response.json({...original,receivingUnit:'选中的客户',customerLink:{customerId:'4',linkVersion:'2'}});}
+  return Response.json(original);
+ }) as typeof fetch;
+ try{
+  await act(async()=>{renderer=create(React.createElement(V2DocumentWorkspace,{apiFetch:api,role:'admin',companyProfile:profile,documentId:'27',onSaved(){},onCancel(){}}));});
+  assert.equal(renderer.root.findAllByProps({name:'customerName'}).length,0,'redundant customer-name textbox must not exist');
+  assert.equal(renderer.root.findAllByType(CompactCustomerChoice).length,1);
+  await act(async()=>renderer.root.findByType(CompactCustomerChoice).props.onChange({customerId:'4',name:'选中的客户'}));
+  const save=renderer.root.findAllByType('button').find(node=>node.children.some(child=>child==='保存修改'))!;
+  assert(save,'edit save action exists');await act(async()=>save.props.onClick());
+  assert.equal(submitted.customer.customerId,'4');assert.equal(submitted.receivingUnit,'选中的客户');
+ }finally{if(renderer)await act(async()=>renderer.unmount());}
+});
 test('P6 V2 workspace exposes actual create header and safe V2-only product entry',()=>{
  const html=renderToStaticMarkup(React.createElement(V2DocumentWorkspace,{
   apiFetch:fetch,role:'sales',companyProfile:profile,onSaved:()=>{},onCancel:()=>{}

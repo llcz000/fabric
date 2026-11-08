@@ -1,6 +1,31 @@
 // AC-146 / AC-105
 import {test,expect} from '@playwright/test';
 const entry='/tools/ui-preview/entries/ui-ux-internal-chrome.html?customers';
+
+// AC-146
+test('each associated document type prevents a delete confirmation on desktop and mobile',async({page})=>{
+ for(const width of [1440,360])for(const type of ['sample','bulk','deposit']){
+  await page.setViewportSize({width,height:900});await page.goto(entry);
+  await page.evaluate(type=>{const qa=(window as any).customerQa;qa.selections=0;qa.documents[type]=1;},type);
+  await page.getByRole('button',{name:'删除客户',exact:true}).click();
+  await expect(page.getByRole('alert')).toContainText('还有 1 张单据');
+  await expect(page.getByRole('alertdialog')).toHaveCount(0);
+  expect(await page.evaluate(()=>(window as any).customerQa.deletes)).toBe(0);
+  await page.screenshot({path:`artifacts/customer-order-name/delete-${type}-${width}.png`});
+ }
+});
+
+test('a document created after preview blocks the delete request; clearing all documents restores confirmation',async({page})=>{
+ await page.goto(entry);await page.evaluate(()=>{const qa=(window as any).customerQa;qa.selections=0;qa.documents.deposit=1;qa.previewDocuments={sample:0,bulk:0,deposit:0};});
+ await page.getByRole('button',{name:'删除客户',exact:true}).click();await expect(page.getByRole('alertdialog')).toBeVisible();
+ await page.getByRole('button',{name:'确认删除',exact:true}).click();await expect(page.getByRole('alert')).toContainText('先删除关联单据');
+ expect(await page.evaluate(()=>(window as any).customerQa.deleted)).toBe(false);
+ await page.evaluate(()=>{const qa=(window as any).customerQa;qa.documents.deposit=0;qa.previewDocuments=null;});
+ const remove=page.getByRole('button',{name:'删除客户',exact:true});await remove.click();await expect(page.getByRole('alertdialog')).toBeVisible();
+ await page.keyboard.press('Escape');await expect(remove).toBeFocused();
+ await remove.click();await page.getByRole('button',{name:'确认删除',exact:true}).click();
+ expect(await page.evaluate(()=>(window as any).customerQa.deleted)).toBe(true);
+});
 test.beforeEach(async({page})=>{page.on('pageerror',e=>{throw e;});});
 test('customer rename rejects a duplicate and keeps the draft available to correct',async({page})=>{
  for(const width of [1440,360]){

@@ -1,4 +1,5 @@
 import {idempotent} from '../customers/service';
+import {orderCustomerNameSql} from './customerName';
 import {CustomerError,parse} from '../customers/model';
 import {orderCustomerSchema,prepareOrderCustomer,writeOrderCustomer,readOrderCustomer,type OrderCustomerLink} from '../customers/orderLink';
 import type {AppPrincipal} from '../access/types';
@@ -30,6 +31,7 @@ export interface DocumentLine{
 }
 export interface DocumentRecord{
  customerLink?:OrderCustomerLink;id:string;ownerId:string|null;orderNo:string;date:string;receivingUnit:string;
+ receivingUnitSnapshot?:string;
  type:'sample'|'deposit'|'bulk';deposit:number;
  styleNo:string;issuer:string;receiver:string;receiverPhone:string;receiverAddress:string;
  settled:boolean;displaySnapshot:DisplaySnapshot|null;
@@ -192,7 +194,9 @@ export async function updateV2Document(pool:Pool,actor:AppPrincipal,orderId:stri
       [...updates.map(x=>headerSqlValue(x.key,input[x.key] as HeaderCreate[keyof HeaderCreate])),id]);
     }
     const businessHeader={orderNo:'order_no',date:'order_date',receivingUnit:'receiving_unit'} as const;
-    const changed=(Object.keys(businessHeader) as (keyof typeof businessHeader)[]).filter(key=>key in input);
+    // Linked customer names are a read projection. Editing must not rewrite
+    // the creation-time fallback with a current or stale client-side label.
+    const changed=(Object.keys(businessHeader) as (keyof typeof businessHeader)[]).filter(key=>key in input&&!(key==='receivingUnit'&&pool.customerProfilesEnabled));
     if(changed.length)await locked.query('UPDATE orders SET '+changed.map(key=>businessHeader[key]+'=?').join(',')+' WHERE id=?',[...changed.map(key=>input[key]),id]);
     if(binding)await writeOrderCustomer(locked,current,id,binding);
     await recordAdminDocumentAction(locked,current,id,owner,'edit');
@@ -219,7 +223,7 @@ export async function readV2Document(db:ReadDB,actor:AppPrincipal,orderId:string
  if(!positiveInt(orderId))throw new DocumentWriteError('Order not found',404);
  if(!actor)throw new DocumentWriteError('Authentication required',401);
  const [oRaw]=await db.query(
-  'SELECT o.id,o.order_no,o.order_date,o.receiving_unit,o.template_type,o.deposit,o.total_meters,o.total_pieces,o.total_amount,o.deduction_meters,o.created_by_user_id,o.style_no,o.sign_person,o.receiver,o.receiver_phone,o.receiver_address,o.settled,o.v2_display_snapshot FROM orders o WHERE o.id=? LIMIT 1',
+  'SELECT o.id,o.order_no,o.order_date,o.receiving_unit'+(db.customerProfilesEnabled?','+orderCustomerNameSql(true)+' AS current_customer_name':'')+',o.template_type,o.deposit,o.total_meters,o.total_pieces,o.total_amount,o.deduction_meters,o.created_by_user_id,o.style_no,o.sign_person,o.receiver,o.receiver_phone,o.receiver_address,o.settled,o.v2_display_snapshot FROM orders o WHERE o.id=? LIMIT 1',
   [orderId]);
  const o=array(oRaw)[0];
  if(!o||!canReadOrder(actor,{createdByUserId:o.created_by_user_id==null?null:String(o.created_by_user_id)}))
@@ -232,7 +236,7 @@ export async function readV2Document(db:ReadDB,actor:AppPrincipal,orderId:string
  return {
   ...(db.customerProfilesEnabled?{customerLink:await readOrderCustomer(db,orderId)}:{}),id:String(o.id),ownerId:o.created_by_user_id==null?null:String(o.created_by_user_id),
   orderNo:String(o.order_no),date:o.order_date instanceof Date?o.order_date.toISOString().slice(0,10):String(o.order_date).slice(0,10),
-  receivingUnit:String(o.receiving_unit),type:o.template_type,deposit:o.template_type==='sample'?0:asNumber(o.deposit),
+  receivingUnit:String(o.current_customer_name??o.receiving_unit),...(db.customerProfilesEnabled?{receivingUnitSnapshot:String(o.receiving_unit)}:{}),type:o.template_type,deposit:o.template_type==='sample'?0:asNumber(o.deposit),
   styleNo:String(o.style_no??''),issuer:String(o.sign_person??''),receiver:String(o.receiver??''),
   receiverPhone:String(o.receiver_phone??''),receiverAddress:String(o.receiver_address??''),
   settled:o.template_type!=='deposit'&&Number(o.settled)===1,displaySnapshot:snapshot(o.v2_display_snapshot) as unknown as DisplaySnapshot|null,

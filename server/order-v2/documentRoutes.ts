@@ -1,4 +1,5 @@
 import {CustomerError} from '../customers/model';
+import {orderCustomerNameSql} from './customerName';
 import {Router,json} from 'express';
 import type {AppPrincipal} from '../access/types';
 import {requireV2Principal,requireV2Action,type AccessDatabase} from '../access/middleware';
@@ -46,7 +47,8 @@ export function createV2DocumentRouter(db:Database,output:V2DocumentOutputDepend
   try{
    if(Object.keys(req.query).some(k=>k!=='q')||req.query.q!==undefined&&(typeof req.query.q!=='string'||req.query.q.length>100))throw new DocumentWriteError('Invalid customer query');
    const scope=scopeOrdersQuery(res.locals.principal as AppPrincipal),value=String(req.query.q??'').replace(/[\\%_]/g,c=>'\\'+c);
-   const [data]=await db.query("SELECT DISTINCT o.receiving_unit FROM orders o WHERE "+scope.predicate+" AND o.receiving_unit LIKE ? ESCAPE '\\\\' ORDER BY o.receiving_unit LIMIT 20",[...scope.parameters,'%'+value+'%']);
+   const name=orderCustomerNameSql(db.customerProfilesEnabled);
+   const [data]=await db.query('SELECT DISTINCT '+name+' AS receiving_unit FROM orders o WHERE '+scope.predicate+' AND '+name+" LIKE ? ESCAPE '\\\\' ORDER BY receiving_unit LIMIT 20",[...scope.parameters,'%'+value+'%']);
    if(!Array.isArray(data))throw Error('Customer query unavailable');res.json({items:data.map(r=>String(r.receiving_unit))});
   }catch(error){sendError(res,error);}
  });

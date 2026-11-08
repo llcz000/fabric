@@ -1,5 +1,5 @@
 import {z} from 'zod';
-export class CustomerError extends Error{constructor(readonly status:400|403|404|409|503,readonly code?:'customer_has_selections'|'customer_name_taken',readonly selectionCount?:number){super('Customer request unavailable');}}
+export class CustomerError extends Error{constructor(readonly status:400|403|404|409|503,readonly code?:'customer_has_selections'|'customer_has_documents'|'customer_name_taken',readonly selectionCount?:number,readonly documentCount?:number){super('Customer request unavailable');}}
 export const validCustomerId=(v:unknown):v is string=>typeof v==='string'&&/^[1-9]\d{0,19}$/.test(v)&&BigInt(v)<=18446744073709551615n;
 export const customerId=z.string().refine(validCustomerId);
 const text=(max:number)=>z.string().trim().max(max).refine(v=>!/[\p{Cc}\p{Cf}]/u.test(v));

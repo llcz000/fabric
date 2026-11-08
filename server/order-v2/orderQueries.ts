@@ -1,7 +1,8 @@
 import type {AppPrincipal} from '../access/types';
 import {scopeOrdersQuery} from '../access/sessions';
+import {orderCustomerNameSql} from './customerName';
 
-type Database={query(sql:string,params?:unknown[]):Promise<[unknown,unknown]>};
+type Database={customerProfilesEnabled?:boolean;query(sql:string,params?:unknown[]):Promise<[unknown,unknown]>};
 type Row=Record<string,unknown>;
 export class OrderSearchError extends Error {
  constructor(message:string,readonly status=400){super(message);}
@@ -65,11 +66,11 @@ function array(value:unknown):Row[]{
  if(!Array.isArray(value))throw Error('Order search row set unavailable');
  return value as Row[];
 }
-function where(actor:AppPrincipal|null|undefined,filters:Partial<ScopedOrderFilters>,itemAlias?:'i'){
+function where(actor:AppPrincipal|null|undefined,filters:Partial<ScopedOrderFilters>,itemAlias?:'i',customerProfilesEnabled=false){
  const scoped=scopeOrdersQuery(actor);
  const parts=[scoped.predicate],args:unknown[]=[...scoped.parameters];
  if(filters.orderNo){parts.push("o.order_no LIKE ? ESCAPE '\\\\'");args.push(escapeLike(filters.orderNo));}
- if(filters.customer){parts.push("o.receiving_unit LIKE ? ESCAPE '\\\\'");args.push(escapeLike(filters.customer));}
+ if(filters.customer){parts.push(orderCustomerNameSql(customerProfilesEnabled)+" LIKE ? ESCAPE '\\\\'");args.push(escapeLike(filters.customer));}
  if(filters.type){parts.push('o.template_type=?');args.push(filters.type);}
  if(filters.from){parts.push('o.order_date>=?');args.push(filters.from);}
  if(filters.to){parts.push('o.order_date<=?');args.push(filters.to);}
@@ -89,13 +90,13 @@ function where(actor:AppPrincipal|null|undefined,filters:Partial<ScopedOrderFilt
  return {sql:'WHERE '+parts.join(' AND '),args};
 }
 export async function listScopedOrders(db:Database,actor:AppPrincipal|null|undefined,filters:ScopedOrderFilters){
- const query=where(actor,filters);
+ const query=where(actor,filters,undefined,db.customerProfilesEnabled);
  const [c]=await db.query('SELECT COUNT(*) AS total FROM orders o '+query.sql,query.args);
  const total=Number(array(c)[0]?.total);
  if(!Number.isSafeInteger(total)||total<0)throw Error('Invalid order count');
  if(total===0)return {total,limit:filters.limit,offset:filters.offset,items:[]};
  const [raw]=await db.query(
-  'SELECT o.id,o.order_no,o.order_date,o.receiving_unit,o.template_type,o.deposit,o.total_meters,o.total_pieces,o.total_amount,o.deduction_meters,o.created_by_user_id,o.settled FROM orders o '+
+  'SELECT o.id,o.order_no,o.order_date,'+(db.customerProfilesEnabled?orderCustomerNameSql(true)+' AS receiving_unit':'o.receiving_unit')+',o.template_type,o.deposit,o.total_meters,o.total_pieces,o.total_amount,o.deduction_meters,o.created_by_user_id,o.settled FROM orders o '+
   query.sql+' ORDER BY o.order_date DESC,o.id DESC LIMIT ? OFFSET ?',
   [...query.args,filters.limit,filters.offset]
  );
@@ -114,10 +115,10 @@ export async function listMatchingOrderItems(
  db:Database,actor:AppPrincipal|null|undefined,orderId:string,filters:ScopedOrderFilters
 ){
  if(!/^[1-9][0-9]{0,19}$/.test(orderId))throw new OrderSearchError('Invalid order id');
- const header=where(actor,filters);
+ const header=where(actor,filters,undefined,db.customerProfilesEnabled);
  const [visible]=await db.query('SELECT o.id FROM orders o '+header.sql+' AND o.id=? LIMIT 1',[...header.args,orderId]);
  if(array(visible).length!==1)throw new OrderSearchError('Order not found',404);
- const query=where(actor,filters,'i');
+ const query=where(actor,filters,'i',db.customerProfilesEnabled);
  const sql='FROM orders o JOIN order_items i ON i.order_id=o.id '+query.sql+' AND o.id=?';
  const args=[...query.args,orderId];
  const [count]=await db.query('SELECT COUNT(*) AS total '+sql,args);
@@ -139,7 +140,7 @@ export async function listMatchingOrderItems(
 export async function summarizeMatchingOrderItems(
  db:Database,actor:AppPrincipal|null|undefined,filters:ScopedOrderFilters
 ){
- const query=where(actor,filters,'i');
+ const query=where(actor,filters,'i',db.customerProfilesEnabled);
  const [raw]=await db.query(
   'SELECT COUNT(*) AS matching_line_count,'+
   'COALESCE(SUM(i.meters),0) AS meters_total,'+
@@ -200,7 +201,7 @@ export async function statsScopedOrders(
  filters:Pick<ScopedOrderFilters,'from'|'to'>={},
  compare:Pick<ScopedOrderFilters,'from'|'to'>|null=null
 ){
- const query=where(actor,filters);
+ const query=where(actor,filters,undefined,db.customerProfilesEnabled);
  const totals=await aggregateScopedTotals(db,query);
  // Rank saved line names, including historical/manual entries. Catalog edits
  // must not change an already-saved document's product identity or grouping.
@@ -211,7 +212,7 @@ export async function statsScopedOrders(
   'FROM orders o JOIN order_items i ON i.order_id=o.id '+query.sql+
   ' GROUP BY '+productName+' ORDER BY meters_total DESC,product_name ASC LIMIT 5',query.args);
  const [recent]=await db.query(
-  'SELECT o.id,o.order_no,o.order_date,o.receiving_unit,o.template_type,o.total_meters,o.total_amount '+
+  'SELECT o.id,o.order_no,o.order_date,'+(db.customerProfilesEnabled?orderCustomerNameSql(true)+' AS receiving_unit':'o.receiving_unit')+',o.template_type,o.total_meters,o.total_amount '+
   'FROM orders o '+query.sql+' ORDER BY o.order_date DESC,o.id DESC LIMIT 4',query.args);
  const number=(v:unknown)=>{const n=Number(v??0);if(!Number.isFinite(n)||n<0)throw Error('Invalid statistics');return n;};
  const compareTotals=compare?await aggregateScopedTotals(db,where(actor,compare)):null;

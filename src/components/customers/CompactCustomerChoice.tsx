@@ -6,11 +6,12 @@ import {CustomerChoice,type CustomerChoiceValue} from './CustomerChoice';
  * Document-only compact customer entry. The shared customer search and quick
  * draft form live inside a dialog; cancelling never mutates the saved draft.
  */
-export function CompactCustomerChoice({apiFetch,value,onChange,disabled=false}:{
+export function CompactCustomerChoice({apiFetch,value,onChange,disabled=false,fallbackName=''}:{
  apiFetch:typeof fetch;
  value:CustomerChoiceValue|null;
  onChange(value:CustomerChoiceValue|null):void;
  disabled?:boolean;
+ fallbackName?:string;
 }){
  const [open,setOpen]=useState(false);
  const [pending,setPending]=useState<CustomerChoiceValue|null>(null);
@@ -31,7 +32,7 @@ export function CompactCustomerChoice({apiFetch,value,onChange,disabled=false}:{
   if('profile' in pending&&!pending.profile.displayName.trim()){setValidation('请填写客户名称');return;}
   onChange(pending);close();
  };
- const display=value?('customerId' in value?value.name:value.profile.displayName.trim()):'';
+ const display=value?('customerId' in value?value.name:value.profile.displayName.trim()):fallbackName;
  return <>
   <div className="min-w-0 space-y-1.5" role="group" aria-label="客户/收货单位">
    <span className="block text-xs font-semibold text-slate-700">客户/收货单位 <span className="text-rose-600">*</span></span>

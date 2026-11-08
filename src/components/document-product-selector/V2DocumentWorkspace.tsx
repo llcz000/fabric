@@ -194,17 +194,14 @@ export default function V2DocumentWorkspace({apiFetch,role,companyProfile,docume
       <option value={DocType.DEPOSIT}>定金单</option>
      </select></label>}
     <div className="min-w-0">
-     {customerReady===true?<CompactCustomerChoice apiFetch={apiFetch} value={customerChoice} disabled={!canEdit}
-      onChange={value=>{setCustomerChoice(value);setDirty(true);setError('');if(!savedId)setDraft(before=>({...before,customerName:value?('customerId' in value?value.name:value.profile.displayName):''}));}}/>:
+     {customerReady===true?<CompactCustomerChoice apiFetch={apiFetch} value={customerChoice} fallbackName={savedId?draft.customerName:undefined} disabled={!canEdit}
+      onChange={value=>{setCustomerChoice(value);setDirty(true);setError('');setDraft(before=>({...before,customerName:value?('customerId' in value?value.name:value.profile.displayName):''}));}}/>:
       <div className="space-y-1.5"><span className="block text-xs font-semibold">客户/收货单位</span><p role="status" className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500">{customerReady===null?'正在准备客户档案…':'客户档案不可用'}</p></div>}
     </div>
     {headerFields.map(([key,label])=><label key={key} className="text-xs font-semibold text-slate-700">
      {label}<input name={key} aria-label={label} className={input} type={key==='date'?'date':'text'}
       maxLength={100} disabled={!canEdit}
       value={String(draft[key]??'')} onChange={e=>{if(key==='docNo'){setAutoNumber(false);setNumberError('');}change(key,e.target.value);}}/></label>)}
-    {savedId&&<label className="text-xs font-semibold text-slate-700">单据显示客户名称
-     <input name="customerName" aria-label="单据显示客户名称" className={input} maxLength={160} disabled={!canEdit}
-      value={draft.customerName} onChange={e=>change('customerName',e.target.value)}/></label>}
 
     {draft.type!==DocType.SAMPLE&&<label className="text-xs font-semibold">{draft.type===DocType.DEPOSIT?'定金比例（%）':'定金金额（元）'}
      <input className={input} name="deposit" type="text" inputMode="decimal" maxLength={14}
@@ -212,7 +209,7 @@ export default function V2DocumentWorkspace({apiFetch,role,companyProfile,docume
     {draft.type!==DocType.DEPOSIT&&<label className="flex items-center gap-2 text-sm">
      <input type="checkbox" checked={Boolean(draft.settled)} disabled={!canEdit}
       onChange={e=>change('settled',e.target.checked)}/>已结清</label>}
-   </div>{savedId&&<p className="mt-2 text-xs text-slate-500">变更关联客户不自动修改已保存的单据显示名称，请按需要核对。</p>}{customerReady===false&&!savedId&&<p role="alert" className="mt-2 text-sm text-rose-700">客户档案暂不可用，无法创建单据。</p>}</section>
+   </div>{customerReady===false&&!savedId&&<p role="alert" className="mt-2 text-sm text-rose-700">客户档案暂不可用，无法创建单据。</p>}</section>
    <div className="flex flex-wrap items-center justify-between gap-3">
     <h3 className="shrink-0 font-semibold">产品明细（{draft.items.length}）</h3>
     <div className="flex w-full flex-wrap justify-end gap-2 sm:w-auto"><button type="button" className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-600" disabled={!canEdit||!draft.items.length} onClick={()=>void clearItems()}><ActionIcon name="delete"/>清空明细</button><button type="button" disabled={!canEdit} onClick={addItem}
