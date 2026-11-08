@@ -1,5 +1,6 @@
 import {reviewSessionCards,confirmSessionCards,SampleCardReviewRequired} from './sessionCardReview';
 import {exportBatchSessionCards,exportSessionCards,SampleBatchExportBlocked} from './sessionCardExport';
+import {readPreparationSummary} from './sessionPreparation';
 import {Router,json,type RequestHandler,type ErrorRequestHandler} from 'express';
 import type {AppPrincipal} from '../access/types';
 import type {SamplePool} from './scanRepository';
@@ -7,6 +8,10 @@ import {createSampleSession,listSampleSessions,readShipmentProgress,updateSample
 import {SampleSessionManualError} from './sessionManual';
 export function createSampleSessionDirectoryRouter(authenticate:RequestHandler,pool:SamplePool,scanOrigin=process.env.FABRIC_V2_PUBLIC_ORIGIN):Router{
  const router=Router();router.use((_req,res,next)=>{res.setHeader('Cache-Control','no-store');next();});
+ router.post('/sessions/preparation',authenticate,json({strict:true,limit:'8kb'}),async(req,res)=>{
+  if(Object.keys(req.query).length||!req.is('application/json')){res.status(400).json({error:'Invalid selection request'});return;}
+  try{res.json(await readPreparationSummary(pool,res.locals.principal as AppPrincipal,req.body));}catch(error){failure(res,error);}
+ });
  router.patch('/sessions/:sessionId',authenticate,json({strict:true,limit:'8kb'}),async(req,res)=>{
   if(Object.keys(req.query).length||!req.is('application/json')){res.status(400).json({error:'Invalid selection request'});return;}
   try{res.json(await updateSampleSession(pool,res.locals.principal as AppPrincipal,String(req.params.sessionId),req.body));}catch(error){failure(res,error);}

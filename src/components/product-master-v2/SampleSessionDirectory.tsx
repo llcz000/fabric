@@ -1,4 +1,5 @@
 import {useSampleCardExport} from './useSampleCardExport';
+import {SamplePreparationSummary} from './SamplePreparationSummary';
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 
 import {useConfirm} from '../ui/ConfirmDialog';
@@ -25,6 +26,7 @@ export function SampleSessionDirectory({apiFetch,onRegisterLeaveGuard,resolveIma
  const [data,setData]=useState<SampleSessionDirectory|null>(null),[draft,setDraft]=useState(''),[query,setQuery]=useState(''),[searching,setSearching]=useState(false);
  const [offset,setOffset]=useState(0),[revision,setRevision]=useState(0),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(recentlyCompletedId?'已保存':'');
  const [batchMode,setBatchMode]=useState(false),[batch,setBatch]=useState(new Map<string,SampleSessionSummary>()),[batchProblem,setBatchProblem]=useState<SampleBatchBlocked|null>(null);
+ const [summaryIds,setSummaryIds]=useState<string[]|null>(null),summaryButton=useRef<HTMLButtonElement>(null);
  const [recentId,setRecentId]=useState(recentlyCompletedId);
  const [openMenu,setOpenMenu]=useState<string|null>(null),menu=useRef<HTMLDivElement>(null);
  const pending=useRef(false),scope=useRef<AbortController|null>(null),start=useRef<HTMLButtonElement>(null),searchButton=useRef<HTMLButtonElement>(null),searchInput=useRef<HTMLInputElement>(null),batchToggle=useRef<HTMLButtonElement>(null);
@@ -43,7 +45,7 @@ export function SampleSessionDirectory({apiFetch,onRegisterLeaveGuard,resolveIma
  useEffect(()=>{const c=new AbortController();scope.current=c;if(active||creating)return()=>c.abort();setLoading(true);setError('');
   void api.directory(query,offset,c.signal).then(v=>{if(!c.signal.aborted)setData(v);}).catch(e=>{if(!c.signal.aborted){setData(null);if(selectionAccessRevoked(e))resetBatch();setError(selectionAccessRevoked(e)?'访问权限已失效，请重新登录':'选样单读取失败，请重试');}}).finally(()=>{if(!c.signal.aborted)setLoading(false);});return()=>c.abort();
  },[api,query,offset,revision,active,creating]);
- function resetBatch(){setBatchMode(false);setBatch(new Map());setBatchProblem(null);}
+ function resetBatch(){setSummaryIds(null);setBatchMode(false);setBatch(new Map());setBatchProblem(null);}
  function cancel(){setCreating(false);setLegacyName('');requestAnimationFrame(()=>start.current?.focus());}
  function selected(value:SampleSessionSummary){setCreating(false);setLegacyName('');setActiveMode('scan');setActive(value);setNotice('');}
  function finish(){setSearching(false);setRecentId(active?.id);setActive(null);setDraft('');setQuery('');setOffset(0);setNotice(activeMode==='scan'?'已保存':'');setRevision(n=>n+1);}
@@ -85,6 +87,10 @@ export function SampleSessionDirectory({apiFetch,onRegisterLeaveGuard,resolveIma
   catch(error){if(!signal?.aborted){if(selectionAccessRevoked(error)){resetBatch();setData(null);setError('有选样单已不可访问，请重新选择');}else setError('读取色卡核对失败，请重试');}}
   finally{pending.current=false;setBusy(false);}
  }
+ function closeSummary(){setSummaryIds(null);requestAnimationFrame(()=>summaryButton.current?.focus());}
+ if(summaryIds)return <SamplePreparationSummary apiFetch={apiFetch} sessionIds={summaryIds} resolveImages={resolveImages} onClose={closeSummary}
+  onBlocked={problem=>{setBatchProblem(problem);closeSummary();}}
+  onAccessLost={()=>{setSummaryIds(null);resetBatch();setData(null);setError('有选样单已不可访问，请重新选择');setRevision(n=>n+1);}}/>;
  const blockedItem=batchProblem?batch.get(batchProblem.sessionId):undefined;
  if(active)return <Session key={active.id} session={active} mode={activeMode} resolveImages={resolveImages} apiFetch={apiFetch} readOnly={active.canManage===false} onStatusChanged={setActive} onBack={finish} onRegisterLeaveGuard={onRegisterLeaveGuard}/>;
  if(creating&&enabled)return <SampleScanCustomerStep apiFetch={apiFetch} onSelected={selected} onCancel={cancel} onRegisterLeaveGuard={onRegisterLeaveGuard}/>;
@@ -100,6 +106,7 @@ export function SampleSessionDirectory({apiFetch,onRegisterLeaveGuard,resolveIma
   {!searching&&query&&<button className="v2-business-button-quiet v2-business-touch" onClick={()=>{setDraft('');setQuery('');}}>清除“{query}”筛选</button>}
   {batchMode&&<div className="flex min-w-0 flex-wrap items-center gap-x-2 rounded-lg bg-blue-50 px-2 text-sm text-slate-700">
    <span className="mr-auto whitespace-nowrap">已选 {batch.size} 单{batch.size===sampleBatchLimit?'（已达上限）':''}</span>
+   <button ref={summaryButton} type="button" className={touch+' min-h-11 whitespace-nowrap !px-2'} disabled={busy||!batch.size} onClick={()=>{setBatchProblem(null);setError('');setSummaryIds([...batch.keys()]);}}>查看汇总</button>
    <button type="button" className={primaryButton+' min-h-11 whitespace-nowrap !px-2'} disabled={busy||!batch.size} onClick={()=>void exportBatch()}>批量导出 Excel</button>
    <button type="button" className={touch+' !px-2'} disabled={busy} onClick={()=>{resetBatch();batchToggle.current?.focus();}}>取消多选</button>
   </div>}

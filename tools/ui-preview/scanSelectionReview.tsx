@@ -59,6 +59,17 @@ const fakeFetch:typeof fetch=async(input,init)=>{
  if(init?.method==='DELETE'&&path.includes('/items/')&&group){const id=path.split('/').pop()!;group.selected.delete(id);group.removed.add(id);if(state.loseNextResponse){state.loseNextResponse=false;throw Error('Simulated lost response');}return response({});}
  if(path.endsWith('/cards/review')){if(init?.method==='POST'){if(location.search.includes('reviewReadOnly'))return response({},403);if(location.search.includes('reviewDrift')&&!reviewDrifted){reviewDrifted=true;reviewSnapshot='b'.repeat(64);}if(body.snapshot!==reviewSnapshot)return response({review:cardReview(group?.session.id)},409);for(const id of body.itemIds)reviewedItems.add(id);}return response(cardReview(group?.session.id));}
  if(path.endsWith('/cards')){if(state.failSearch&&url.searchParams.get('query')){state.failSearch=false;return response({},503);}const list=cards.filter(c=>url.searchParams.get('selected')==='true'?group?.known.has(c.id):c.cardNo.includes(url.searchParams.get('query')??''));return response({items:list,total:list.length,limit:20,offset:0});}
+ if(path.endsWith('/sessions/preparation')){
+  const control=state as typeof state&{deferSummary?:boolean;releaseSummary?:()=>void};
+  if(control.deferSummary)await new Promise<void>(resolve=>{control.releaseSummary=resolve;});
+  const selectedGroups=groups.filter(g=>body.sessionIds.includes(g.session.id));
+  const blocked=selectedGroups.find(g=>cardReview(g.session.id).issues.length);
+  if(blocked)return response({error:'BATCH_SELECTION_BLOCKED',sessionId:blocked.session.id,reason:'review'},409);
+  return response({rows:cards.flatMap(c=>c.products.flatMap(p=>{
+   const matching=selectedGroups.filter(g=>g.selected.has(p.id)),seen=new Set<string>(),recipients=matching.filter(g=>{const key=JSON.stringify([g.session.customerId??g.session.id,g.session.contactName]);if(seen.has(key))return false;seen.add(key);return true;}).map(g=>({customerName:g.session.customerReference,contactName:g.session.contactName}));
+   return recipients.length?[{productId:p.id,cardId:c.id,cardNo:c.cardNo,patternNo:p.patternNo,patternImageAssetId:p.patternImageAssetId,quantity:recipients.length,recipients}]:[];
+  }))});
+ }
  if(path.endsWith('/cards/batch-export.xlsx')){
   state.batchRequests.push(body.sessionIds);
   if(body.sessionIds.includes('11')&&cardReview('11').issues.length)return response({error:'BATCH_SELECTION_BLOCKED',sessionId:'11',reason:'review'},409);

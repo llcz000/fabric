@@ -286,6 +286,7 @@
         "V2-13",
         "V2-14",
         "V2-15",
+        "V2-16",
         "SCAN-01",
         "LITE-06"
       ],
@@ -342,6 +343,10 @@
         "src/components/product-master-v2/SamplePatternThumbnail.tsx",
         "src/components/product-master-v2/selectedCardModel.ts",
         "src/components/product-master-v2/selectedCardModel.test.ts",
+        "src/components/product-master-v2/SamplePreparationSummary.tsx",
+        "src/components/product-master-v2/samplePreparationModel.ts",
+        "src/components/product-master-v2/samplePreparationModel.test.ts",
+        "tests/ui/sample-preparation.spec.ts",
         "tests/ui/card-colorway-flow.spec.ts",
         "tools/ui-preview/internalCardListReview.tsx",
         "src/components/product-master-v2/useSampleCardExport.tsx",
