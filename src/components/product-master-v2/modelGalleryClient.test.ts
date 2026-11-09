@@ -15,6 +15,19 @@ test('unknown dimensions never claim physical accuracy',()=>{
  assert.match(value,/未录入/);assert.match(value,/按视觉比例处理/);
 });
 
+// AC-172: preserve original-image input, physical scale and fabric realism in one editing workflow.
+test('default prompt requires both originals in the same edit and limits redraw to local detail',()=>{
+ const value=createTryOnPrompt(product,model,{widthCm:48,heightCm:32},90,{targetGarment:'dress',targetDescription:''});
+ assert.match(value,/02-G0381-2-M00002-model.*编辑底图.*01-G0381-2-pattern.*印花依据/);
+ assert.match(value,/两张原图.*同一次图像编辑/);
+ assert.match(value,/无法同时传入.*停止/);
+ assert.match(value,/同一基准比例/);
+ assert.match(value,/可见印花布面.*目视.*10% 以内/);
+ assert.match(value,/主纹样被替换.*整体比例.*配色跑偏.*退回/);
+ assert.match(value,/透视.*遮挡.*不计入重绘差异/);
+ assert.match(value,/同一编辑器.*最多补修一次/);
+});
+
 // AC-172: the requested garment is independent of the model's catalog category.
 test('skirt target preserves the upper garment and follows folded layered fabric',()=>{
  const value=createTryOnPrompt(product,{...model,modelNo:'M00024',category:'top'},
