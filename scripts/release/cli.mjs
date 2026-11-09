@@ -6,7 +6,8 @@ import {fileURLToPath} from 'node:url';
 import {spawnSync} from 'node:child_process';
 import {randomBytes,pbkdf2Sync,createDecipheriv,createHash} from 'node:crypto';
 import {migrationIds,parseArgs,validateProfile,hash,collectBrowserFiles,verifyFiles,assertWritable,runPhases,phasePlan,assertPublishedEvidence,releaseTimingReport,readReleaseProgress,recordRollbackReceipt,requireBusinessSimplificationMigration,requireProductCardsMigration,requireModelGalleryMigration} from './core.mjs';
-import {inspectReleaseUi,evidencePath,reviewContext} from './ui-quality-gate.mjs';
+import {reviewContext} from './ui-quality-gate.mjs';
+import {seal as sealUiWorkflow,verify as verifyUiWorkflow} from '../ui-workflow-gate.mjs';
 import {syncVerifiedPointer} from './source-automation.mjs';
 import {selectBrowserValidation,executeBrowserValidation,runBrowserWithProgress} from './browser-validation.mjs';
 import {verifyPublishedWorkspace} from '../fabric-workspace.mjs';
@@ -65,15 +66,21 @@ function prepare(){
   const result=run(),durationMs=Date.now()-stageStarted;preparation[name]=(preparation[name]??0)+durationMs;
   progress('passed',{durationMs});return result;
  };
- const baseline=json(baselinePath),reuse=args.fromRelease?publishedSource(args.fromRelease,baseline):null;let before,source,localHttpContract,uiQualityGate={required:false},browserValidation={mode:'reused',reason:'verified-published-artifact-reuse'};
+ const baseline=json(baselinePath),reuse=args.fromRelease?publishedSource(args.fromRelease,baseline):null;let before,source,localHttpContract,uiReport,uiQualityGate={required:false},browserValidation={mode:'reused',reason:'verified-published-artifact-reuse'};
  if(!reuse)timed('uiStandards',()=>processRun(process.execPath,['scripts/ui-workflow-gate.mjs','preflight'],{log:path.join(dir,'ui-standards.log')}));
  if(reuse){if(args.quickUi)throw Error('Quick UI verification is only available for a reviewed new source build');sourcePath=reuse.sourcePath;source=json(sourcePath);before=toolInputs();timed('source',()=>migrationSource(source,['server','src']));localHttpContract=timed('httpContract',()=>checkHttpContract(dir));write(path.join(dir,'source.log.json'),{application:'verified-published-artifact',evidenceSha256:reuse.evidenceSha256,businessWorkingTreeValidated:true,toolInputs:before});}
  else{timed('source',()=>processRun(process.execPath,['scripts/check-fabric-v2-development-source.mjs'],{log:path.join(dir,'source.log')}));source=json(sourcePath);const sourceSha=hash(fs.readFileSync(sourcePath));before=snapshot(source);
-  // Fail closed on changed frontend without a source-bound visual review; always rerun real-browser QA.
-  const reviewed=timed('uiReview',()=>inspectReleaseUi(json('docs/project/fabric-v2-active-workspace.json'),baseline));
-  uiQualityGate=reviewed.summary;
-  if(uiQualityGate.required)timed('uiWorkflow',()=>processRun(process.execPath,['scripts/ui-workflow-gate.mjs','seal'],{log:path.join(dir,'ui-workflow.log')}));
-  const candidate=reviewContext({pointer:json('docs/project/fabric-v2-active-workspace.json'),baseline});
+  const pointer=json('docs/project/fabric-v2-active-workspace.json');
+  const candidate=reviewContext({pointer,baseline});
+  const uiOptions={root,active:root,pointer};
+  const reviewed=timed('uiWorkflow',()=>sealUiWorkflow(uiOptions));
+  if(reviewed.sourceManifestSha256!==sourceSha)throw Error('Candidate source changed during UI review');
+  write(path.join(dir,'ui-workflow.log'),reviewed);
+  if(reviewed.required!==false){
+   uiReport=reviewed;
+   uiQualityGate={required:true,page:reviewed.page,reviewer:reviewed.reviewer,uiFiles:reviewed.changedUiFiles,
+    sourceSha256:sourceSha,baselineReleaseId:candidate.baselineReleaseId,screenshots:reviewed.screenshots,reportSha256:reviewed.reportSha256};
+  }
   requireBusinessSimplificationMigration(candidate.changed,args.migrations);
   requireProductCardsMigration(candidate.changed,args.migrations);
   requireModelGalleryMigration(candidate.changed,args.migrations);
@@ -88,15 +95,23 @@ function prepare(){
   const browserResult=executeBrowserValidation(browserValidation,{root,dir,run:(exe,argv,{label,...options})=>timed(label,()=>options.liveLog?runBrowserWithProgress(exe,argv,{root,...options}):processRun(exe,argv,options))});
   browserValidation={...browserValidation,result:browserResult};
   write(path.join(dir,'browser-validation-result.json'),browserResult);
-  if(uiQualityGate.required)timed('uiEvidenceAfterBrowser',()=>processRun(process.execPath,['scripts/ui-workflow-gate.mjs','verify'],{log:path.join(dir,'ui-evidence-after-browser.log')}));
+  if(uiReport)timed('uiEvidenceAfterBrowser',()=>{
+   const checked=verifyUiWorkflow(uiOptions);
+   if(checked.reportSha256!==uiReport.reportSha256||checked.sourceManifestSha256!==sourceSha)throw Error('UI review changed during browser validation');
+   write(path.join(dir,'ui-evidence-after-browser.log'),checked);
+  });
   localHttpContract=timed('httpContract',()=>checkHttpContract(dir));timed('build',()=>processRun(process.platform==='win32'?(process.env.ComSpec??'cmd.exe'):'npm',process.platform==='win32'?['/d','/s','/c','npm run build']:['run','build'],{log:path.join(dir,'build.log')}));
   for(const script of browserValidation.postBuildScripts)timed('uiFocusedBrowser',()=>processRun(process.execPath,[script],{log:path.join(dir,'ui-focused-browser.log'),timeout:60000}));
   processRun(process.execPath,['scripts/check-fabric-v2-development-source.mjs'],{log:path.join(dir,'source-after-build.log')});if(hash(fs.readFileSync(sourcePath))!==sourceSha||JSON.stringify(snapshot(source))!==JSON.stringify(before))throw Error('Source changed during build');}
  const appRoot=reuse?reuse.pkg:root;
  const pkg=path.join(dir,'package');fs.mkdirSync(pkg);const files={};const browserFiles=collectBrowserFiles(path.join(appRoot,'dist')).map(x=>'dist/'+x);
- const add=(name,source)=>{const dest=path.join(pkg,name),data=fs.readFileSync(source);fs.mkdirSync(path.dirname(dest),{recursive:true});fs.writeFileSync(dest,data);files[name]={sha256:hash(data),size:data.length};};
+ const add=(name,source,expectedSha256)=>{
+  const dest=path.join(pkg,name),data=fs.readFileSync(source),sha256=hash(data);
+  if(expectedSha256&&sha256!==expectedSha256)throw Error('Verified evidence changed before freezing: '+name);
+  fs.mkdirSync(path.dirname(dest),{recursive:true});fs.writeFileSync(dest,data);files[name]={sha256,size:data.length};
+ };
  for(const n of [...browserFiles,'dist/server.cjs'])add(n,path.join(appRoot,n));add('remote.py','scripts/release/remote.py');add('source-manifest.json',sourcePath);add('http-contract.json','scripts/release/http-contract.json');
- if(uiQualityGate.required)add('ui-review.json',evidencePath(reviewContext({pointer:json('docs/project/fabric-v2-active-workspace.json'),baseline})));
+ if(uiReport)add('ui-review.json',path.join(root,uiReport.report),uiReport.reportSha256);
  if(!reuse)for(const name of ['browser-validation-plan.json','browser-validation-result.json'])add(name,path.join(dir,name));
  let migrationPlans={};if(args.migrations.length){timed('migrationBundle',()=>awaitlessBuildMigration(pkg));migrationPlans=JSON.parse(processRun(process.execPath,[path.join(pkg,'operator.cjs'),'plans','-','-','-',args.migrations.join(',')]));add('operator.cjs',path.join(pkg,'operator.cjs'));}
  if(reuse&&JSON.stringify(toolInputs())!==JSON.stringify(before))throw Error('Release tool changed during preparation');

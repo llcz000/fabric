@@ -6,7 +6,7 @@ import path from 'node:path';
 import {randomBytes,createHash} from 'node:crypto';
 import {deflateSync} from 'node:zlib';
 import {fileURLToPath} from 'node:url';
-import {activeWorkspace,preflight,uiSourceHash,verify,seal} from './ui-workflow-gate.mjs';
+import {activeWorkspace,inspectUiScope,preflight,uiSourceHash,verify,seal} from './ui-workflow-gate.mjs';
 
 const root=path.resolve(fileURLToPath(new URL('../',import.meta.url)));
 const {active}=activeWorkspace();
@@ -42,7 +42,7 @@ test('scoped UI evidence cannot pass with stale code, manifest, visual FAIL or b
  const folder=fs.mkdtempSync(path.join(active,'artifacts','ui-workflow-test-'));
  const releaseId='ui-fixture-'+randomBytes(6).toString('hex');
  const releaseDir=path.join(active,'artifacts','releases',releaseId);
-  let sealedFolder;
+  let sealedFolder,singleReport,sealedSingleReport;
  try{
   const candidate=path.join(folder,'source-manifest.json');
   const paths=['src/components/document-product-selector/V2DocumentWorkspace.tsx'];
@@ -113,5 +113,43 @@ test('scoped UI evidence cannot pass with stale code, manifest, visual FAIL or b
   record.userAcceptance='pending';write();
   fs.writeFileSync(candidate,JSON.stringify({files:[{path:paths[0],sha256:'tampered'}]}));
   assert.throws(()=>verify({root,active,pointer,reportPath:rel(reportPath)}),/different source manifest|candidate UI source manifest is stale/);
- }finally{fs.rmSync(folder,{recursive:true,force:true});fs.rmSync(releaseDir,{recursive:true,force:true});if(sealedFolder)fs.rmSync(sealedFolder,{recursive:true,force:true});}
+
+  const beforeCommit={...candidateManifest,baseHead:'old',workspacePreservation:{kind:'local-git-preservation'}};
+  fs.writeFileSync(candidate,JSON.stringify(beforeCommit));
+  const scope=inspectUiScope({active,pointer});
+  assert.match(scope.reviewIdentity,/^[a-f0-9]{64}$/);
+  singleReport=path.join(active,scope.reportPath);
+  fs.mkdirSync(path.dirname(singleReport),{recursive:true});
+  fs.writeFileSync(singleReport,JSON.stringify({...record,candidateManifestSha256:sha(candidate),reviewIdentity:scope.reviewIdentity}),{flag:'wx'});
+  const afterCommit={...beforeCommit,baseHead:'new',workspacePreservation:{...beforeCommit.workspacePreservation,previousBaseHead:'old',commit:'new'}};
+  fs.writeFileSync(candidate,JSON.stringify(afterCommit,null,2));
+  assert.notEqual(sha(candidate),scope.candidateManifestSha256);
+  const checked=seal({root,active,pointer});
+  assert.equal(checked.report,scope.reportPath);
+  assert.equal(checked.sourceManifestSha256,sha(candidate));
+  assert.equal(checked.reportSha256,sha(singleReport));
+  const sealedRecord=JSON.parse(fs.readFileSync(singleReport,'utf8'));
+  const frozenShot=path.join(active,sealedRecord.visual.screenshots[0].path);
+  sealedSingleReport=path.dirname(frozenShot);
+  const differentRules=inspectUiScope({active,pointer,uiRulesSha256:'0'.repeat(64)});
+  assert.notEqual(differentRules.reportPath,scope.reportPath);
+  assert.equal(differentRules.reportExists,false);
+  assert.equal(verify({root,active,pointer}).reportSha256,checked.reportSha256);
+  fs.writeFileSync(singleReport,JSON.stringify({...sealedRecord,uiRulesSha256:'0'.repeat(64)}));
+  assert.throws(()=>verify({root,active,pointer}),/UI rules changed/);
+  fs.writeFileSync(singleReport,JSON.stringify(sealedRecord));
+  fs.writeFileSync(candidate,JSON.stringify({...afterCommit,requirements:{sha256:'changed'}}));
+  assert.throws(()=>verify({root,active,pointer,reportPath:scope.reportPath}),/different source manifest/);
+  fs.writeFileSync(candidate,JSON.stringify(afterCommit));
+  fs.writeFileSync(path.join(releaseDir,'package','source-manifest.json'),JSON.stringify({...oldManifest,baseHead:'another baseline'}));
+  assert.throws(()=>verify({root,active,pointer,reportPath:scope.reportPath}),/different source manifest/);
+  fs.writeFileSync(path.join(releaseDir,'package','source-manifest.json'),JSON.stringify(oldManifest));
+  fs.appendFileSync(frozenShot,'tampered');
+  assert.throws(()=>verify({root,active,pointer}),/screenshot changed since review/);
+ }finally{
+  fs.rmSync(folder,{recursive:true,force:true});fs.rmSync(releaseDir,{recursive:true,force:true});
+  if(sealedFolder)fs.rmSync(sealedFolder,{recursive:true,force:true});
+  if(singleReport)fs.rmSync(singleReport,{force:true});
+  if(sealedSingleReport)fs.rmSync(sealedSingleReport,{recursive:true,force:true});
+ }
 });

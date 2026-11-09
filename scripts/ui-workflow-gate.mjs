@@ -134,19 +134,22 @@ export function uiSourceHash(active,paths){
  if(!Array.isArray(paths)||!paths.length||paths.length>250||new Set(paths).size!==paths.length)fail('invalid UI source list');
  return checksum([...paths].sort().map(rel=>{const file=codeFile(active,rel);return rel+':'+(exists(file)?sha(file):'[deleted]');}).join('\n'));
 }
-function manifestIdentity(active,pointer){
+function candidateManifestPath(active,pointer){
  const rel=pointer.sourceManifest;
  if(typeof rel!=='string'||!rel.startsWith('artifacts/')||rel.includes('..')||path.isAbsolute(rel))fail('invalid active source manifest pointer');
  const file=path.resolve(active,rel);
  if(!within(path.join(active,'artifacts'),file)||!exists(file))fail('candidate source manifest missing');
- return sha(file);
+ return file;
 }
-function candidateUiChanges(active,pointer){
+function publishedManifest(active,pointer){
  const releaseId=pointer.currentRelease?.id;
  if(typeof releaseId!=='string'||!/^[A-Za-z0-9_-]+$/.test(releaseId))fail('verified release id missing');
  const old=path.join(active,'artifacts','releases',releaseId,'package','source-manifest.json');
  if(!exists(old))fail('verified previous UI source manifest missing');
- const candidate=json(path.resolve(active,pointer.sourceManifest)),previous=json(old);
+ const bytes=fs.readFileSync(old);
+ return {releaseId,sha256:checksum(bytes),manifest:JSON.parse(bytes.toString('utf8'))};
+}
+function candidateUiChanges(candidate,previous){
  if(!Array.isArray(candidate.files)||!Array.isArray(previous.files))fail('invalid source manifests');
  const before=new Map(previous.files.map(x=>[x.path,x.sha256])),after=new Map(candidate.files.map(x=>[x.path,x.sha256]));
  return [...new Set([...before.keys(),...after.keys()])]
@@ -154,10 +157,21 @@ function candidateUiChanges(active,pointer){
   .filter(rel=>rel.startsWith('src/')&&/\.(?:tsx?|jsx?|css|scss)$/i.test(rel)&&!/\.(?:test|spec)\.[jt]sx?$/.test(rel)&&!rel.includes('/__tests__/'))
   .sort();
 }
+function evidenceIdentity(manifest,baseline,uiRulesSha256){
+ if(manifest.workspacePreservation?.kind==='local-git-preservation'){
+  // workspace:commit updates these fields without changing any reviewed input.
+  const {baseHead,workspacePreservation,...content}=manifest;
+  const {previousBaseHead,commit,...preservation}=workspacePreservation;
+  manifest={...content,workspacePreservation:preservation};
+ }
+ return checksum(JSON.stringify([baseline.releaseId,baseline.sha256,uiRulesSha256,manifest]));
+}
 /** Inspect live UI against the candidate before comparing it with a published baseline. */
-export function inspectUiScope({active,pointer}={}){
+export function inspectUiScope({active,pointer,uiRulesSha256}={}){
  active??=activeWorkspace().active;pointer??=activeWorkspace().pointer;
- const identity=manifestIdentity(active,pointer),manifest=json(path.resolve(active,pointer.sourceManifest));
+ uiRulesSha256??=preflight({active}).uiRulesSha256;
+ const bytes=fs.readFileSync(candidateManifestPath(active,pointer));
+ const identity=checksum(bytes),manifest=JSON.parse(bytes.toString('utf8')),baseline=publishedManifest(active,pointer);
  const isUi=rel=>rel.startsWith('src/')&&/\.(?:tsx?|jsx?|css|scss)$/i.test(rel)&&!/\.(?:test|spec)\.[jt]sx?$/.test(rel)&&!rel.includes('/__tests__/');
  const recorded=new Map(manifest.files.filter(f=>isUi(f.path)).map(f=>[f.path,f.sha256])),live=new Map();
  function walk(dir){for(const item of fs.readdirSync(path.join(active,dir),{withFileTypes:true})){
@@ -167,10 +181,15 @@ export function inspectUiScope({active,pointer}={}){
  }}
  walk('src');
  const staleUiFiles=[...new Set([...recorded.keys(),...live.keys()])].filter(rel=>recorded.get(rel)!==live.get(rel)).sort();
- const expectedUiFiles=candidateUiChanges(active,pointer),reportPath='artifacts/ui-workflow/'+identity+'.json';
- const report=exists(path.join(active,reportPath))?json(path.join(active,reportPath)):null;
+ const expectedUiFiles=candidateUiChanges(manifest,baseline.manifest),reviewIdentity=evidenceIdentity(manifest,baseline,uiRulesSha256);
+ const newReportPath='artifacts/ui-workflow/'+reviewIdentity+'.json',legacyReportPath='artifacts/ui-workflow/'+identity+'.json';
+ let reportPath=newReportPath,report=exists(path.join(active,newReportPath))?json(path.join(active,newReportPath)):null;
+ if(!report&&exists(path.join(active,legacyReportPath))){
+  const legacy=json(path.join(active,legacyReportPath));
+  if(legacy?.uiRulesSha256===uiRulesSha256){reportPath=legacyReportPath;report=legacy;}
+ }
  const reviewFiles=Array.isArray(report?.changedUiFiles)?report.changedUiFiles:[];
- return {status:staleUiFiles.length?'source-refresh-required':expectedUiFiles.length?'review-required':'no-ui-changes',baselineReleaseId:pointer.currentRelease.id,candidateManifestSha256:identity,
+ return {status:staleUiFiles.length?'source-refresh-required':expectedUiFiles.length?'review-required':'no-ui-changes',baselineReleaseId:baseline.releaseId,candidateManifestSha256:identity,reviewIdentity,
   staleUiFiles,expectedUiFiles,reportPath,reportExists:!!report,missingFromReport:expectedUiFiles.filter(rel=>!reviewFiles.includes(rel)),extraInReport:reviewFiles.filter(rel=>!expectedUiFiles.includes(rel))};
 }
 function requireFreshUiScope(scope){
@@ -188,16 +207,18 @@ export function verify({reportPath,root=canonical,active,pointer}={}){
  active??=activeWorkspace().active;
  pointer??=activeWorkspace().pointer;
  const check=preflight({root,active});
- const scope=inspectUiScope({active,pointer});requireFreshUiScope(scope);
+ const scope=inspectUiScope({active,pointer,uiRulesSha256:check.uiRulesSha256});requireFreshUiScope(scope);
  if(!scope.expectedUiFiles.length)return {status:'pass',required:false,scope:'no UI changes since verified release',changedUiFiles:0,sourceManifestSha256:scope.candidateManifestSha256,releaseReady:false};
  const identity=scope.candidateManifestSha256;
- reportPath??='artifacts/ui-workflow/'+identity+'.json';
- const f=artifact(root,active,reportPath,'.json'),report=json(f);
+ reportPath??=scope.reportPath;
+ const f=artifact(root,active,reportPath,'.json'),bytes=fs.readFileSync(f),report=JSON.parse(bytes.toString('utf8'));
  if(report?.version!==1||typeof report.page!=='string'||!report.page.trim())fail('invalid page review record');
  if(typeof report.reviewer!=='string'||report.reviewer.trim().length<2)fail('named actual reviewer required');
- if(report.candidateManifestSha256!==identity)fail('review is for a different source manifest');
+ const matchesManifest=report.reviewIdentity===undefined?report.candidateManifestSha256===identity:
+  report.reviewIdentity===scope.reviewIdentity&&/^[a-f0-9]{64}$/.test(report.candidateManifestSha256);
+ if(!matchesManifest)fail('review is for a different source manifest or release baseline');
  if(report.uiRulesSha256!==check.uiRulesSha256)fail('UI rules changed since review');
- const completeUiPaths=candidateUiChanges(active,pointer);
+ const completeUiPaths=scope.expectedUiFiles;
  if(JSON.stringify([...report.changedUiFiles??[]].sort())!==JSON.stringify(completeUiPaths)||!completeUiPaths.length)fail('review UI scope does not match full candidate-versus-release manifest');
  if(report.uiSourceSha256!==uiSourceHash(active,report.changedUiFiles))fail('UI code changed since review');
  if(report.visual?.status!=='pass'||!Array.isArray(report.visual.screenshots)||report.visual.screenshots.length<2)fail('visual review or desktop/dialog screenshot missing');
@@ -214,15 +235,17 @@ export function verify({reportPath,root=canonical,active,pointer}={}){
  if(!['pending','not-attested-by-tool'].includes(report.userAcceptance))fail('tool cannot attest user acceptance; record pending');
  if(report.production!=='not-deployed')fail('tool cannot attest deployment; production must be not-deployed');
  if(!Array.isArray(report.unverified)||report.unverified.length||report.releaseReady!==false)fail('unverified checks or false release readiness; separate user authorization required');
- return {status:'pass',scope:'local UI workflow',page:report.page,changedUiFiles:report.changedUiFiles.length,screenshots:screens.length,browserChecks:browser.checks.length,engineeringEvidence:report.engineering.evidence.length,userAcceptance:report.userAcceptance,production:report.production,report:reportPath,sourceManifestSha256:identity,uiRulesSha256:check.uiRulesSha256,releaseReady:false};
+ return {status:'pass',scope:'local UI workflow',page:report.page,reviewer:report.reviewer,changedUiFiles:report.changedUiFiles.length,screenshots:screens.length,browserChecks:browser.checks.length,engineeringEvidence:report.engineering.evidence.length,userAcceptance:report.userAcceptance,production:report.production,report:reportPath,reportSha256:checksum(bytes),sourceManifestSha256:identity,reviewIdentity:report.reviewIdentity,uiRulesSha256:check.uiRulesSha256,releaseReady:false};
 }
 export function seal({reportPath,root=canonical,active,pointer}={}){
  active??=activeWorkspace().active;pointer??=activeWorkspace().pointer;
  const checked=verify({reportPath,root,active,pointer});
  if(checked.required===false)return checked;
  reportPath??=checked.report;
- const file=artifact(root,active,reportPath,'.json'),report=json(file);
- report.visual.screenshots=freezeScreenshots(active,checked.sourceManifestSha256,report.visual.screenshots);
+ const file=artifact(root,active,reportPath,'.json'),bytes=fs.readFileSync(file);
+ if(checksum(bytes)!==checked.reportSha256)fail('review report changed before sealing');
+ const report=JSON.parse(bytes.toString('utf8'));
+ report.visual.screenshots=freezeScreenshots(active,checked.reviewIdentity??checked.sourceManifestSha256,report.visual.screenshots);
  const next=file+'.next';fs.writeFileSync(next,JSON.stringify(report,null,2)+'\n');fs.renameSync(next,file);
  return {...verify({reportPath,root,active,pointer}),sealed:true};
 }
@@ -230,7 +253,7 @@ function main(argv){
  const [command,...args]=argv;
  if(!['preflight','verify','seal','inspect','source','template'].includes(command))fail('usage: inspect | preflight [--sync] | template --page 名称 --file src/... | verify/seal [--report artifacts/...] | source --file src/...');
  const {active,pointer}=activeWorkspace();
- if(command==='inspect'){if(args.length)fail('inspect takes no arguments');preflight({active});return inspectUiScope({active,pointer});}
+ if(command==='inspect'){if(args.length)fail('inspect takes no arguments');return inspectUiScope({active,pointer});}
  if(command==='preflight'){
   if(args.some(x=>x!=='--sync')||args.filter(x=>x==='--sync').length>1)fail('only --sync supported for preflight');
   return preflight({active,sync:args.includes('--sync')});
@@ -238,23 +261,22 @@ function main(argv){
  if(command==='source'){
   if(args.length<2||args.length%2!==0||args.some((v,i)=>i%2===0&&v!=='--file'))fail('use source --file src/... [--file src/...]');
   const files=args.filter((_,i)=>i%2===1);
-  return {files,uiSourceSha256:uiSourceHash(active,files),candidateManifestSha256:manifestIdentity(active,pointer)};
+  return {files,uiSourceSha256:uiSourceHash(active,files),candidateManifestSha256:sha(candidateManifestPath(active,pointer))};
  }
  if(command==='template'){
-  preflight({active});
+  const {uiRulesSha256}=preflight({active});
   if(args.length<4||args.length%2!==0||args.some((v,i)=>i%2===0&&!['--page','--file'].includes(v)))fail('use template --page 页面名 --file src/... [--file src/...]');
   const files=[],pages=[];
   for(let i=0;i<args.length;i+=2)(args[i]==='--page'?pages:files).push(args[i+1]);
   if(pages.length!==1||!files.length)fail('one page and at least one UI file required');
-  const scope=inspectUiScope({active,pointer});requireFreshUiScope(scope);
+  const scope=inspectUiScope({active,pointer,uiRulesSha256});requireFreshUiScope(scope);
   const expected=scope.expectedUiFiles;
   if(JSON.stringify([...files].sort())!==JSON.stringify(expected)||!expected.length)fail('template must cover all UI changes from the candidate manifest; expected='+JSON.stringify(expected)+' got='+JSON.stringify(files));
-  const id=manifestIdentity(active,pointer);
-  const rel='artifacts/ui-workflow/'+id+'.json',dest=path.resolve(active,rel);
-  if(fs.existsSync(dest))fail('existing report not overwritten: '+rel);
+  const rel=scope.reportPath,dest=path.resolve(active,rel);
+  if(scope.reportExists)fail('existing report not overwritten: '+rel);
   fs.mkdirSync(path.dirname(dest),{recursive:true});
-  const review={version:1,page:pages[0],reviewer:'',uiRulesSha256:preflight({active}).uiRulesSha256,
-   candidateManifestSha256:id,changedUiFiles:files,uiSourceSha256:uiSourceHash(active,files),
+  const review={version:1,page:pages[0],reviewer:'',uiRulesSha256,
+   candidateManifestSha256:scope.candidateManifestSha256,reviewIdentity:scope.reviewIdentity,changedUiFiles:files,uiSourceSha256:uiSourceHash(active,files),
    visual:{status:'not-verified',desktopViewport:'',narrowViewport:'',screenshots:[]},
    interaction:{status:'not-verified',browserEvidence:'',browserSha256:''},
    engineering:{status:'not-verified',evidence:[]},
