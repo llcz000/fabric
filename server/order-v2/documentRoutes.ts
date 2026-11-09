@@ -122,6 +122,7 @@ export function createV2DocumentRouter(db:Database,output:V2DocumentOutputDepend
   return company;
  };
  const imageRoles=['brand_logo','wechat_qr','alipay_qr'] as const;
+ const printImageRoles=(type:DocumentRecord['type'])=>type==='bulk'?(['brand_logo'] as const):imageRoles;
  const imageBytes=async(company:Record<string,unknown>,role:typeof imageRoles[number])=>{
   if(!output.companyImages?.enabled)return null;
   const raw=await readCompanyImageForExport(company,output.companyImages,role);
@@ -132,23 +133,41 @@ export function createV2DocumentRouter(db:Database,output:V2DocumentOutputDepend
  const readPrintable=async(id:string,actor:AppPrincipal)=>{
   const saved=await readV2Document(db,actor,id);
   const company=await loadCurrentCompany(),model=buildV2DocumentPrintModel(saved,company);
-  const images=output.loadImages?await output.loadImages(company):output.companyImages?.enabled?Object.fromEntries((await Promise.all(imageRoles.map(async role=>{const image=await imageBytes(company,role);return image?[role,image]:null;}))).filter(x=>x!==null)):undefined;
-  if(images){model.companyImages={};for(const role of ['brand_logo','wechat_qr','alipay_qr'] as const){const value=images[role];if(value)model.companyImages[role]='data:'+value.mime+';base64,'+value.body.toString('base64');}}
+  const roles=printImageRoles(saved.type);
+  const images=output.loadImages?await output.loadImages(company):output.companyImages?.enabled?Object.fromEntries((await Promise.all(roles.map(async role=>{const image=await imageBytes(company,role);return image?[role,image]:null;}))).filter(x=>x!==null)):undefined;
+  if(images){model.companyImages={};for(const role of roles){const value=images[role];if(value)model.companyImages[role]='data:'+value.mime+';base64,'+value.body.toString('base64');}}
   return {saved,model};
+ };
+ const readPatternThumbnailIds=async(items:DocumentRecord['items'])=>{
+  const productIds=items.map(item=>item.source==='manual'?null:item.productId);
+  const ids=[...new Set(productIds.filter(id=>id!==null))];
+  const assets=new Map<string,string>();
+  if(ids.length){
+   const [rows]=await db.query(
+    'SELECT p.id,c.pattern_image_asset_id FROM v2_products p JOIN pattern_colorways c ON c.id=p.pattern_colorway_id WHERE p.id IN ('+
+    ids.map(()=>'?').join(',')+')',ids);
+   if(Array.isArray(rows))for(const row of rows)if(typeof row.pattern_image_asset_id==='string')assets.set(String(row.id),row.pattern_image_asset_id);
+  }
+  return productIds.map(id=>id?assets.get(id)??null:null);
  };
  router.post('/documents/:id/copy',requireV2Principal(db),requireV2Action('orders.create_own'),async(req,res)=>{
   try{res.status(201).json(await copyV2Document(db,res.locals.principal as AppPrincipal,String(req.params.id),req.body));}catch(e){sendError(res,e);}
  });
  router.get('/documents/:id/company-image/:role',requireV2Principal(db),async(req,res)=>{
   try{const role=String(req.params.role);if(!imageRoles.includes(role as typeof imageRoles[number])){res.status(404).end();return;}
-   await readV2Document(db,res.locals.principal as AppPrincipal,String(req.params.id));
+   const saved=await readV2Document(db,res.locals.principal as AppPrincipal,String(req.params.id));
+   if(saved.type==='bulk'&&role!=='brand_logo'){res.status(404).end();return;}
    const image=await imageBytes(await loadCurrentCompany(),role as typeof imageRoles[number]);if(!image){res.status(404).end();return;}res.type(image.mime).send(image.body);
   }catch(e){sendError(res,e);}
  });
  router.get('/documents/:id/print-model',requireV2Principal(db),async(req,res)=>{
   try{
-   const {model}=await readPrintable(String(req.params.id),res.locals.principal as AppPrincipal);
-   res.json(model);
+   const {saved,model}=await readPrintable(String(req.params.id),res.locals.principal as AppPrincipal);
+   if(saved.type==='sample'&&req.query.preview==='1'){
+    // The optional preview image lookup must not make the saved document unavailable.
+    const patternThumbnailAssetIds=await readPatternThumbnailIds(saved.items).catch(()=>saved.items.map(()=>null));
+    res.json({...model,patternThumbnailAssetIds});
+   }else res.json(model);
   }catch(e){sendError(res,e);}
  });
  router.get('/documents/:id/export.xlsx',requireV2Principal(db),async(req,res)=>{

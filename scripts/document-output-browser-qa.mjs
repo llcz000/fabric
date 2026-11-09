@@ -6,11 +6,12 @@ import {build} from 'vite';
 import {mkdir,mkdtemp,readFile,writeFile} from 'node:fs/promises';
 import path from 'node:path';
 import sharp from 'sharp';
-const root=process.cwd(),dir=path.join(root,'artifacts/product-master-ui/qa/document-output');
+const root=process.cwd(),dir=path.join(root,'artifacts/document-preview-output');
 const site=path.join(dir,'site'),downloads=await mkdtemp(path.join(root,'tmp/document-output-downloads-'));
 await mkdir(dir,{recursive:true});
 if(!process.argv.includes('--built'))await build({configFile:path.join(root,'vite.config.ts'),base:'./',build:{outDir:site,emptyOutDir:true,copyPublicDir:false,rollupOptions:{input:path.join(root,'tools/ui-review/entries/product-master-v2-review.html')}}});
 let base='',ws,serial=0;const pending=new Map(),checks=[],files=[],completed=new Map();
+const pattern=await sharp({create:{width:64,height:40,channels:3,background:'#fa00da'}}).png().toBuffer();
 const server=createServer(async(req,res)=>{try{
  const file=path.resolve(site,decodeURIComponent(new URL(req.url??'/',base).pathname).replace(/^\//,''));
  if(!file.startsWith(site+path.sep)){res.writeHead(403).end();return;}
@@ -44,21 +45,32 @@ try{
   if(handler){pending.delete(m.id);m.error?handler.reject(Error(m.error.message)):handler.resolve(m.result);}
   if(m.method==='Browser.downloadWillBegin')names.set(m.params.guid,m.params.suggestedFilename);
   if(m.method==='Browser.downloadProgress'&&m.params.state!=='inProgress')completed.set(m.params.guid,{name:names.get(m.params.guid),state:m.params.state});
+  if(m.method==='Fetch.requestPaused')void send('Fetch.fulfillRequest',{requestId:m.params.requestId,responseCode:200,responseHeaders:[{name:'Content-Type',value:'image/png'}],body:pattern.toString('base64')});
  });
  await send('Page.enable');await send('Runtime.enable');
+ await send('Fetch.enable',{patterns:[{urlPattern:'https://fabric-review.invalid/pattern/*'}]});
  await send('Browser.setDownloadBehavior',{behavior:'allow',downloadPath:downloads,eventsEnabled:true});
- await send('Emulation.setDeviceMetricsOverride',{width:1400,height:1100,deviceScaleFactor:1,mobile:false});
+ await send('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false});
  await send('Page.addScriptToEvaluateOnNewDocument',{source:`window.__errors=[];addEventListener('error',e=>window.__errors.push(e.message));addEventListener('unhandledrejection',e=>window.__errors.push(String(e.reason)));`});
  await send('Page.navigate',{url:base+'/tools/ui-review/entries/product-master-v2-review.html?view=documents'});
  await until(()=>js(`Boolean(document.querySelector('select[name="type"]'))`),'query');
  for(const type of ['sample','deposit','bulk']){
   await js(`(()=>{const e=document.querySelector('select[name="type"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(e,${JSON.stringify(type)});e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
-  await click('查询');await sleep(100);await click('编辑单据');
-  await until(()=>js(`Boolean(document.querySelector('section[aria-label="V2单据编辑工作区"] article'))`),'editor');
-  await click('预览已保存版本 / Excel');await until(()=>js(`Boolean(document.querySelector('[data-v2-print-sheet]'))`),'print');
+  await click('查询');
+  await until(()=>js(`Boolean(document.querySelector('button[aria-label="预览 / Excel"]'))`),'matching documents');
+  await js(`document.querySelector('button[aria-label="预览 / Excel"]').click()`);
+  await until(()=>js(`Boolean(document.querySelector('[data-v2-print-sheet]'))`),'print');
   await check(`Math.abs(document.querySelector('[data-v2-print-sheet]').getBoundingClientRect().width-240*96/25.4)<1`,type+' fixed 240mm sheet');
+  if(type==='sample'){
+   await until(()=>js(`document.querySelector('[data-sample-table="preview"] img')?.naturalWidth===64`),'sample colorway image');
+   await check(`(()=>{const t=document.querySelector('[data-sample-table="preview"]'),[a,b]=t.tBodies[0].rows;return t.rows[0].cells[0].textContent==='花型'&&t.rows[0].cells[1].textContent==='货号'&&a.cells[1].textContent==='P001'&&b.cells[0].textContent==='—'&&a.cells[0].offsetWidth===56&&a.cells[1].offsetWidth>a.cells[10].offsetWidth&&a.offsetHeight>=48&&[...t.tFoot.rows].every(r=>[...r.cells].reduce((s,c)=>s+c.colSpan,0)===11)})()`,'sample screen shows aligned 56px colorway column, wider product number and missing image fallback');
+   await send('Emulation.setEmulatedMedia',{media:'print'});
+   await check(`getComputedStyle(document.querySelector('[data-sample-table="preview"]')).display==='none'&&getComputedStyle(document.querySelector('[data-sample-table="output"]')).display==='table'&&document.querySelector('[data-sample-table="output"] th').textContent==='货号'`,'sample browser print shows the separate image-free table');
+   await send('Emulation.setEmulatedMedia',{media:'screen'});
+  }else await check(`!document.querySelector('[data-sample-table]')`,type+' preview has no thumbnail column');
+  await check(`document.querySelector('[data-v2-print-sheet] img[alt="公司Logo"]')&&document.querySelectorAll('[data-v2-print-sheet] figure').length===${type==='bulk'?0:2}`,type+' preview shows its applicable company images');
   const json=JSON.parse((await download('下载打印 JSON')).toString('utf8'));
-  const displayed=await js(`(()=>{const s=document.querySelector('[data-v2-print-sheet]');return {title:s.querySelector('h2').textContent,companyName:s.querySelector('h3').textContent,headers:[...s.querySelectorAll('th')].map(e=>e.textContent),rows:[...s.querySelectorAll('tbody tr')].map(tr=>[...tr.querySelectorAll('td')].map(e=>e.textContent)),text:s.textContent};})()`);
+  const displayed=await js(`(()=>{const s=document.querySelector('[data-v2-print-sheet]'),t=s.querySelector('table:not([data-sample-table="preview"])');return {title:s.querySelector('h2').textContent,companyName:s.querySelector('h3').textContent,headers:[...t.querySelectorAll('th')].map(e=>e.textContent),rows:[...t.querySelectorAll('tbody tr')].map(tr=>[...tr.querySelectorAll('td')].map(e=>e.textContent)),text:s.textContent};})()`);
   assert.equal(json.title,displayed.title);assert.equal(json.companyName,displayed.companyName);
   assert.deepEqual(json.columns.map(c=>c.label),displayed.headers);assert.deepEqual(json.rows,displayed.rows);
   for(const summary of json.summaries){assert(displayed.text.includes(summary.left));if(summary.right)assert(displayed.text.includes(summary.right));}
@@ -66,18 +78,29 @@ try{
    if(value)assert(displayed.text.includes(value),'print metadata present: '+value);
   }
   checks.push(type+' JSON document identity, current company lines, terms and signature match preview');
-  assert(!('ownerId' in json));assert(!('displaySnapshot' in json));checks.push(type+' downloaded JSON matches all displayed rows/summaries and public print projection');
+  assert(!('ownerId' in json));assert(!('displaySnapshot' in json));assert(!('patternThumbnailAssetIds' in json));checks.push(type+' downloaded JSON matches all print rows/summaries');
   const size=await js(`(()=>{const r=document.querySelector('[data-v2-print-sheet]').getBoundingClientRect();return {width:r.width,height:r.height};})()`);
   const png=await download('下载 PNG'),metadata=await sharp(png).metadata();
   assert.equal(metadata.format,'png');assert(Math.abs(metadata.width-size.width*2)<3);assert(Math.abs(metadata.height-size.height*2)<3);
+  if(type==='sample'){
+   const pixels=await sharp(png).removeAlpha().raw().toBuffer();
+   assert(!pixels.some((red,i)=>i%3===0&&red>240&&pixels[i+1]<20&&pixels[i+2]>200),'sample PNG excludes the preview colorway pixels');
+   checks.push('actual sample PNG excludes the preview colorway');
+  }
   const stats=await sharp(png).stats();assert(stats.channels.some(c=>c.stdev>10),'PNG includes ink');checks.push(type+' actual PNG matches paper dimensions at scale 2 and contains visible content');
   await snap(type+'-preview');
-  await send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:false});
+  await send('Emulation.setDeviceMetricsOverride',{width:360,height:844,deviceScaleFactor:1,mobile:false});
+  await check(`document.documentElement.scrollWidth<=innerWidth`,type+' narrow preview keeps horizontal scrolling inside the sheet');
   const narrow=await download('下载 PNG'),narrowMeta=await sharp(narrow).metadata();
   assert.equal(narrowMeta.width,metadata.width);assert.equal(narrowMeta.height,metadata.height);
   assert.deepEqual(await sharp(narrow).raw().toBuffer(),await sharp(png).raw().toBuffer());
   checks.push(type+' narrow viewport exports identical complete paper pixels');await snap(type+'-narrow');
-  await send('Emulation.setDeviceMetricsOverride',{width:1400,height:1100,deviceScaleFactor:1,mobile:false});
+  await send('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false});
+  if(type==='sample'){
+   await js(`document.querySelector('[data-sample-table="preview"] img').dispatchEvent(new Event('error'))`);
+   await until(()=>js(`document.querySelector('[data-sample-table="preview"] tbody td')?.textContent==='—'`),'failed thumbnail falls back');
+   checks.push('sample image failure keeps the row and replaces only the thumbnail');
+  }
   if(type==='deposit'){
    assert(displayed.text.includes('25%  ¥150.00'));assert(!/应收|应付/.test(displayed.text));checks.push('deposit JSON/preview uses rounded monetary deposit without receivable');
    // The review fixture intentionally has no XLSX endpoint: test the real error UI without claiming successful server export.
@@ -85,9 +108,9 @@ try{
    await check(`[...document.querySelectorAll('button')].filter(b=>['下载 PNG','下载打印 JSON','下载打印Excel'].includes(b.textContent.trim())).every(b=>!b.disabled)`,'export failure restores actions');
    await download('下载打印 JSON');await check(`!document.querySelector('[role="alert"]')`,'retrying local JSON clears prior export failure');
   }
-  await click('返回编辑');await click('取消并返回');
+  await click('返回查询');
  }
  await check(`window.__errors.length===0`,'no browser runtime errors');
- const report={passed:checks.length,checks,files,scope:'Current isolated React UI and memory fixture; no production DB, COS, physical printer or formal App.',userUIAccepted:false};
+ const report={passed:checks.length,checks,errors:[],files,scope:'Current React print view and production CSS with memory fixtures; no production DB, COS or physical printer.',userUIAccepted:false};
  await writeFile(path.join(dir,'result.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report));
 }finally{ws?.close();edge.kill();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}

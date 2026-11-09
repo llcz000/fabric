@@ -2,26 +2,55 @@ import React,{useEffect,useRef,useState} from 'react';
 import {ActionIcon} from '../product-master-v2/ActionIcon';
 import html2canvas from 'html2canvas-pro';
 import type {DocumentPrintModel} from '../../lib/documentPrintModel';
+import {resolveImageUrls} from '../product-master-v2/catalogModel';
+import {resolveSelectionThumbnails} from '../product-master-v2/selectedCardModel';
 import {documentResourceUrl} from './documentSearchModel';
 /** JSON of the shared, server-authorized print projection, not a database-backup export. */
 export function serializeV2PrintJson(model:DocumentPrintModel):string{
  return JSON.stringify(model,null,2);
 }
-export function DocumentPrintTable({model}:{model:DocumentPrintModel}){
- const leftSpan=Math.max(1,Math.floor(model.columns.length/2)),rightSpan=model.columns.length-leftSpan;
- return <table className="w-full table-fixed border-collapse text-[10px]" aria-label="单据明细及汇总">
-  <colgroup>{model.columns.map(c=><col key={c.key} style={{width:(c.webFraction/model.columns.reduce((sum,col)=>sum+col.webFraction,0)*100)+'%'}}/>)}</colgroup>
-  <thead><tr>{model.columns.map(c=><th key={c.key} className="border border-slate-500 px-1 py-1">{c.label}</th>)}</tr></thead>
+const thumbnailColumnWidth=56;
+const sheetWidthMm=240;
+const sheetPaddingMm=10;
+const sheetContentWidthPx=(sheetWidthMm-2*sheetPaddingMm)*96/25.4;
+function PatternThumbnail({src}:{src?:string|null}){
+ const [failed,setFailed]=useState(false);
+ return <div className="mx-auto flex h-10 w-11 items-center justify-center">
+  {src&&!failed?<img src={src} alt="花型缩略图" className="h-full w-full object-contain" referrerPolicy="no-referrer" onError={()=>setFailed(true)}/>
+   :<span className="text-slate-500">—</span>}
+ </div>;
+}
+export function DocumentPrintTable({model,previewThumbnailUrls,outputOnly=false}:{
+ model:DocumentPrintModel;previewThumbnailUrls?:readonly (string|null)[];outputOnly?:boolean;
+}){
+ const showThumbnails=model.type==='sample'&&previewThumbnailUrls!==undefined;
+ const columns=model.columns.length+Number(showThumbnails);
+ const leftSpan=Math.max(1,Math.floor(model.columns.length/2))+Number(showThumbnails),rightSpan=columns-leftSpan;
+ const weight=model.columns.reduce((sum,col)=>sum+col.webFraction,0);
+ const mode=showThumbnails?'preview':outputOnly?'output':undefined;
+ return <table data-sample-table={mode} className="w-full table-fixed border-collapse text-[10px]" aria-label="单据明细及汇总">
+  <colgroup>
+   {showThumbnails&&<col style={{width:thumbnailColumnWidth}}/>}
+   {model.columns.map(c=>{
+    const fraction=c.webFraction/weight;
+    return <col key={c.key} style={{width:showThumbnails?fraction*(sheetContentWidthPx-thumbnailColumnWidth):fraction*100+'%'}}/>;
+   })}
+  </colgroup>
+  <thead><tr>
+   {showThumbnails&&<th scope="col" className="border border-slate-500 px-1 py-1">花型</th>}
+   {model.columns.map(c=><th key={c.key} className="border border-slate-500 px-1 py-1">{c.label}</th>)}
+  </tr></thead>
   <tbody>{model.rows.map((row,i)=>{
    const group=model.rowGroups?.find(g=>i>=g.start&&i<g.start+g.rowCount);
-   return <tr key={i}>{row.map((value,j)=>{
+   const thumbnail=previewThumbnailUrls?.[i];
+   return <tr key={i}>{showThumbnails&&<td className="border border-slate-500 px-1 py-1 text-center"><PatternThumbnail key={thumbnail??''} src={thumbnail}/></td>}{row.map((value,j)=>{
     const merge=group&&group.rowCount>1&&!/^roll\d+$/.test(model.columns[j].key);
     if(merge&&i!==group.start)return null;
     return <td key={j} rowSpan={merge?group.rowCount:undefined} className="break-words border border-slate-500 px-1 py-2 text-center">{value}</td>;
    })}</tr>;
   })}</tbody>
   <tfoot className="table-row-group">{model.summaries.map((s,i)=><tr key={i} className="bg-slate-50 font-medium">
-   <td colSpan={s.right&&rightSpan>0?leftSpan:model.columns.length} className="break-words border border-slate-500 px-2 py-2 text-left">{s.left}{rightSpan===0&&s.right?'　'+s.right:''}</td>
+   <td colSpan={s.right&&rightSpan>0?leftSpan:columns} className="break-words border border-slate-500 px-2 py-2 text-left">{s.left}{rightSpan===0&&s.right?'　'+s.right:''}</td>
    {s.right&&rightSpan>0&&<td colSpan={rightSpan} className="break-words border border-slate-500 px-2 py-2 text-left">{s.right}</td>}
   </tr>)}</tfoot>
  </table>;
@@ -47,6 +76,7 @@ export default function V2DocumentPrintView({
  apiFetch,documentId,onBack,backLabel='返回编辑'
 }:V2DocumentPrintViewProps){
  const [model,setModel]=useState<DocumentPrintModel|null>(null);
+ const [previewThumbnailUrls,setPreviewThumbnailUrls]=useState<(string|null)[]>([]);
  const [error,setError]=useState('');
  const [loading,setLoading]=useState(true);
  const [exporting,setExporting]=useState(false);
@@ -69,8 +99,15 @@ export default function V2DocumentPrintView({
   if(!model||exporting||!sheetRef.current)return;
   setError('');setExporting(true);
   try{
-   await Promise.all([...sheetRef.current.querySelectorAll('img')].map(img=>img.decode()));
-   const canvas=await html2canvas(sheetRef.current,{scale:2,backgroundColor:'#ffffff',useCORS:false,allowTaint:false,logging:false});
+   await Promise.all([...sheetRef.current.querySelectorAll('img')].filter(img=>!img.closest('[data-sample-table="preview"]')).map(img=>img.decode()));
+   const canvas=await html2canvas(sheetRef.current,{
+    scale:2,backgroundColor:'#ffffff',useCORS:false,allowTaint:false,logging:false,
+    ignoreElements:element=>element.getAttribute('data-sample-table')==='preview',
+    onclone:(_document,sheet)=>{
+     const table=sheet.querySelector<HTMLTableElement>('[data-sample-table="output"]');
+     if(table)table.style.display='table';
+    },
+   });
    const blob=await new Promise<Blob>((resolve,reject)=>canvas.toBlob(value=>value?resolve(value):reject(Error('PNG图片生成失败')),'image/png'));
    offerDownload(blob,'V2-'+documentId+'.png');
   }catch(e){setError(e instanceof Error?e.message:'PNG导出失败');}
@@ -78,15 +115,24 @@ export default function V2DocumentPrintView({
  };
  useEffect(()=>{
   const controller=new AbortController();
-  setLoading(true);setError('');setModel(null);
+  setLoading(true);setError('');setModel(null);setPreviewThumbnailUrls([]);
   (async()=>{
    try{
-    const response=await apiFetch(documentResourceUrl(documentId)+'/print-model',{
+    const response=await apiFetch(documentResourceUrl(documentId)+'/print-model?preview=1',{
      signal:controller.signal,headers:{Accept:'application/json'}
     });
     if(!response.ok)throw Error(response.status===404?'单据不存在或没有查看权限':'打印数据读取失败');
-    const parsed=assertModel(await response.json());
-    if(!controller.signal.aborted)setModel(parsed);
+    const raw=await response.json();
+    const {patternThumbnailAssetIds,...printModel}=assertModel(raw) as DocumentPrintModel&{patternThumbnailAssetIds?:unknown};
+    if(controller.signal.aborted)return;
+    setModel(printModel);
+    setLoading(false);
+    if(printModel.type==='sample'&&Array.isArray(patternThumbnailAssetIds)&&patternThumbnailAssetIds.length===printModel.rows.length){
+     const ids=patternThumbnailAssetIds.map(id=>typeof id==='string'&&/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(id)?id:null);
+     const {urls}=await resolveSelectionThumbnails(ids.filter(id=>id!==null),
+      (batch,signal)=>resolveImageUrls(apiFetch,batch,'thumbnail',signal),controller.signal).catch(()=>({urls:new Map<string,string>()}));
+     if(!controller.signal.aborted)setPreviewThumbnailUrls(ids.map(id=>id?urls.get(id)??null:null));
+    }
    }catch(e){
     if(!controller.signal.aborted)setError(e instanceof Error?e.message:'打印数据读取失败');
    }finally{if(!controller.signal.aborted)setLoading(false);}
@@ -110,10 +156,19 @@ export default function V2DocumentPrintView({
   finally{setExporting(false);}
  };
  return <section className="space-y-4" aria-label="V2单据打印预览">
-  <style>{`@media print{body *{visibility:hidden!important} [data-v2-print-sheet],[data-v2-print-sheet] *{visibility:visible!important}[data-v2-print-sheet]{position:absolute!important;top:0;left:0;width:240mm!important}}`}</style>
+  <style>{`
+   [data-sample-table="output"]{display:none}
+   @media print{
+    body *{visibility:hidden!important}
+    [data-v2-print-sheet],[data-v2-print-sheet] *{visibility:visible!important}
+    [data-v2-print-sheet]{position:absolute!important;top:0;left:0;width:${sheetWidthMm}mm!important}
+    [data-sample-table="preview"]{display:none}
+    [data-sample-table="output"]{display:table}
+   }
+  `}</style>
   <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
    <button type="button" onClick={onBack} className="rounded-lg border px-4 py-2 text-sm"><ActionIcon name="back"/>{backLabel}</button>
-   <div className="flex gap-2">
+   <div className="flex flex-wrap gap-2">
     <button type="button" disabled={!model||exporting} onClick={()=>window.print()} className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50"><ActionIcon name="print"/>浏览器打印</button>
     <button type="button" disabled={!model||exporting} onClick={()=>void downloadPng()} className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50"><ActionIcon name="download"/>下载 PNG</button>
     <button type="button" disabled={!model||exporting} onClick={downloadJson} className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50"><ActionIcon name="download"/>下载打印 JSON</button>
@@ -125,7 +180,7 @@ export default function V2DocumentPrintView({
   {loading&&<p role="status">正在读取打印资料…</p>}
   {error&&<p role="alert" className="text-sm text-rose-700">{error}</p>}
   {model&&<div className="overflow-x-auto">
-   <div ref={sheetRef} data-v2-print-sheet="true" className="mx-auto w-[240mm] min-h-[140mm] bg-white text-slate-900" style={{padding:'8mm 10mm',boxSizing:'border-box',fontFamily:'SimSun, serif'}}>
+   <div ref={sheetRef} data-v2-print-sheet="true" className="mx-auto min-h-[140mm] bg-white text-slate-900" style={{width:sheetWidthMm+'mm',padding:`8mm ${sheetPaddingMm}mm`,boxSizing:'border-box',fontFamily:'SimSun, serif'}}>
     <header className="flex items-start justify-between gap-4 border-b-2 border-slate-900 pb-1">
      <div>{model.companyImages?.brand_logo?<img src={model.companyImages.brand_logo} alt="公司Logo" className="max-h-12 max-w-[120px] object-contain"/>:<strong className="text-lg">{model.brandName}</strong>}</div>
      <div className="text-right">
@@ -137,12 +192,13 @@ export default function V2DocumentPrintView({
     <div className="mb-1 flex items-end justify-between gap-3 text-xs">
      <div className="min-w-0 break-all"><p>NO：{model.docNo}</p><p>收货单位：{model.customerName}</p></div><span className="shrink-0 whitespace-nowrap">日期：{model.dateText}</span>
     </div>
-    <DocumentPrintTable model={model}/>
+    {model.type==='sample'&&<DocumentPrintTable model={model} previewThumbnailUrls={previewThumbnailUrls}/>}
+    <DocumentPrintTable model={model} outputOnly={model.type==='sample'}/>
     <p className="mt-3 border border-slate-200 p-2 text-xs">备注条款：{model.terms}</p>
     <div className="mt-3 flex justify-between gap-4"><footer className="min-w-0 flex-1 text-xs">{model.signatureLabels?.issuer??'开单人签字'}：{model.signature.issuer}　{model.signatureLabels?.receiver??'收货人签字'}：{model.signature.receiver}　电话：{model.signature.phone}
      {(model.type==='deposit'||model.signature.receiverAddress)&&<p className="mt-1 min-h-5 whitespace-pre-wrap break-words">收货地址：{model.signature.receiverAddress}</p>}
     </footer>
-     <div className="flex gap-3">{(['wechat_qr','alipay_qr'] as const).map(role=>model.companyImages?.[role]?<figure key={role} className="text-center text-[9px]"><img src={model.companyImages[role]} alt={role==='wechat_qr'?'微信收款码':'支付宝收款码'} className="h-16 w-16 object-contain"/><figcaption>{role==='wechat_qr'?'微信收款':'支付宝收款'}</figcaption></figure>:null)}</div>
+     {model.type!=='sales'&&<div className="flex gap-3">{(['wechat_qr','alipay_qr'] as const).map(role=>model.companyImages?.[role]?<figure key={role} className="text-center text-[9px]"><img src={model.companyImages[role]} alt={role==='wechat_qr'?'微信收款码':'支付宝收款码'} className="h-16 w-16 object-contain"/><figcaption>{role==='wechat_qr'?'微信收款':'支付宝收款'}</figcaption></figure>:null)}</div>}
     </div>
    </div>
   </div>}

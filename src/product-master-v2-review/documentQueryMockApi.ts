@@ -2,6 +2,8 @@ import type {CompanyProfile} from '../types';
 import type {DocumentRecord,DocumentLine} from '../../server/order-v2/documents';
 import {buildDocumentPrintModel} from '../lib/documentPrintModel';
 export const documentReviewCompany={name:'Fabric 演示公司',address:'演示地址',phone:'演示电话',defaultTerms:'仅本机评审数据',depositTerms:'定金合同评审数据'} as CompanyProfile;
+const reviewThumbnail='e1111111-1111-4111-8111-111111111111';
+const reviewCompanyImage='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEElEQVQImWNQsbeHIwbiOAAF0wohbjM6VgAAAABJRU5ErkJggg==';
 const line=(id:number,productNo:string,colorNo:string,productName:string,meters:number,type:string):DocumentLine=>({
  id:String(id),productId:null,source:null,snapshot:null,productNo,colorNo,productName,composition:'棉 / 涤',
  weight:120,widthCm:150,meters,unitPrice:20,amount:meters*20,remark:'演示明细',pieceMeters:type==='bulk'?[meters/2,meters/2]:null,deductionMeters:0
@@ -21,6 +23,11 @@ export function createDocumentQueryReviewApi(role:'admin'|'sales'){
   if(init?.signal?.aborted)throw new DOMException('Aborted','AbortError');
   const url=new URL(typeof input==='string'?input:input instanceof URL?input.href:input.url,'http://fabric-review.invalid');
   const method=init?.method??'GET';
+  if(method==='POST'&&url.pathname==='/api/image-assets/access-urls'){
+   const {requests}=JSON.parse(String(init?.body));
+   return response({results:requests.filter((r:{assetId:string;variant:string})=>r.assetId===reviewThumbnail&&r.variant==='thumbnail')
+    .map((r:{assetId:string;variant:string})=>({...r,url:'https://fabric-review.invalid/pattern/'+r.assetId+'.png'}))});
+  }
   if(method!=='GET')return response({error:'查询评审不模拟保存或文件导出'},405);
   if(!url.pathname.startsWith('/api/v2/documents'))return response({error:'Not found'},404);
   if(fail){fail=false;return response({error:'模拟一次查询失败'},503);}
@@ -55,7 +62,8 @@ export function createDocumentQueryReviewApi(role:'admin'|'sales'){
     byType:{sample:group('sample'),bulk:group('bulk'),deposit:group('deposit')},topProducts,recentOrders,compare:null});
   }
 
-  if([...params.keys()].some(key=>!['customer','productNo','colorNo','productName','type','from','to','settled','limit','offset'].includes(key)))return response({error:'Invalid filters'},400);
+  const preview=url.pathname.endsWith('/print-model')&&params.get('preview')==='1';
+  if([...params.keys()].some(key=>!(preview&&key==='preview')&&!['customer','productNo','colorNo','productName','type','from','to','settled','limit','offset'].includes(key)))return response({error:'Invalid filters'},400);
   const limit=Number(params.get('limit')??20),offset=Number(params.get('offset')??0);
   if(!Number.isInteger(limit)||limit<1||limit>50||!Number.isInteger(offset)||offset<0)return response({error:'Invalid page'},400);
   const matchLine=(row:DocumentLine)=>['productNo','colorNo','productName'].every(key=>!params.get(key)||String(row[key as keyof DocumentLine]).includes(params.get(key)!));
@@ -77,7 +85,7 @@ export function createDocumentQueryReviewApi(role:'admin'|'sales'){
    const items=doc.items.filter(matchLine).map(item=>({id:item.id,productNo:item.productNo,colorNo:item.colorNo,productName:item.productName,meters:item.meters,amount:item.amount,pieces:pieces(doc,item)}));
    return response({orderId:doc.id,total:items.length,limit,offset,items:items.slice(offset,offset+limit)});
   }
-  if(path[2]==='print-model')return response(buildDocumentPrintModel({
+  if(path[2]==='print-model')return response({...buildDocumentPrintModel({
    type:doc.type==='bulk'?'sales':doc.type,docNo:doc.orderNo,date:doc.date,customerName:doc.receivingUnit,
    companyName:documentReviewCompany.name,companyAddress:documentReviewCompany.address,companyPhone:documentReviewCompany.phone,
    defaultTerms:documentReviewCompany.defaultTerms,depositTerms:documentReviewCompany.depositTerms??'',terms:documentReviewCompany.defaultTerms,
@@ -85,7 +93,10 @@ export function createDocumentQueryReviewApi(role:'admin'|'sales'){
    receivableAmount:doc.totalAmount,deposit:doc.deposit,deductionMeters:0,salesRollFallback:false,
    items:doc.items.map(item=>({itemNo:item.productNo,colorNo:item.colorNo,productName:item.productName,meters:item.meters,unitPrice:item.unitPrice,
     amount:item.amount,composition:item.composition,weight:'120 gsm',width:'150',rollValues:item.pieceMeters??[],remark:item.remark}))
-  }));
+  }),
+   companyImages:doc.type==='bulk'?{brand_logo:reviewCompanyImage}:{brand_logo:reviewCompanyImage,wechat_qr:reviewCompanyImage,alipay_qr:reviewCompanyImage},
+   ...(doc.type==='sample'&&preview?{patternThumbnailAssetIds:doc.items.map((_,i)=>i===0?reviewThumbnail:null)}:{})
+  });
   return response(structuredClone(doc));
  }) as typeof fetch;
  return {apiFetch,failNext(){fail=true;}};

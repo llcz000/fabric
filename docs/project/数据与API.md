@@ -6,6 +6,8 @@
 
 ## 正式数据与装配
 
+`GET /api/v2/documents/:id/print-model?preview=1` 只为有权读取的样布码单追加 `patternThumbnailAssetIds`，顺序对应同一已读单据的明细行。按已保存的库内产品 ID 读取配色图资产，缺失返回 `null`，前端沿用受控缩略图签名，资产编号仅供屏幕预览。无参数的打印模型和各下载输出不带该字段。销售发货码单仅解析 Logo，单据收款码资源返回 404。
+
 `server.ts` 仅调用 V2ProductionRuntime，目标配置不成立拒绝启动，不降级到 JSON 或旧 App。`v2ProductionTarget.ts` 固定并核验目标身份；不能把本次连接读到的 UUID 反过来当预置预期。正常启动只校验 schema，不擅自迁移或修复。
 
 | 领域 | 当前代码依据 |

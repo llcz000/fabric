@@ -7,7 +7,7 @@ import {createV2DocumentRouter} from './documentRoutes';
 import {hashSessionToken} from '../access/password';
 import type {CompanyImageRuntime} from '../image-assets/companyImages';
 
-test('COMPANY-01 current logo/WeChat/Alipay are read through order-scope V2 auth, in JSON/PNG/Excel',async()=>{
+test('COMPANY-01 / OUTPUT-01 apply the per-type payment images and keep sample thumbnails out of print output',async()=>{
  const token='d'.repeat(64);
  const png=await sharp({create:{width:2,height:2,channels:4,background:'#ffffff'}}).png().toBuffer();
  const company={company_name:'最新公司',brand_name:'最新字标',address:'新地址',phone:'新电话',
@@ -22,6 +22,8 @@ test('COMPANY-01 current logo/WeChat/Alipay are read through order-scope V2 auth
   },async findAssociation(role:keyof typeof roles){return roles[role]??null;},
   async getCompany(){return company;},async readLegacy(){return null;}
  } as unknown as CompanyImageRuntime;
+ let type='bulk',thumbnailReads=0;
+ const assetId='e1111111-1111-4111-8111-111111111111';
  const db={
   async getConnection(){throw Error('GET routes must not write or open transactions');},
   async query(sql:string,args:unknown[]=[]):Promise<[unknown,unknown]>{
@@ -30,12 +32,18 @@ test('COMPANY-01 current logo/WeChat/Alipay are read through order-scope V2 auth
     [{user_id:'1',session_id:'8',username:'admin',display_name:'Admin',role:'admin',can_manage_products:1,can_manage_own_orders:1}]:[]);
    if(sql.includes('FROM company_config'))return reply([company]);
    if(sql.includes('FROM orders o'))return reply([{id:'123',order_no:'XS123',order_date:'2026-10-17',
-    receiving_unit:'客户甲',template_type:'bulk',created_by_user_id:'1',
+    receiving_unit:'客户甲',template_type:type,created_by_user_id:'1',
     total_meters:2,total_pieces:1,total_amount:20,deposit:0,deduction_meters:0,settled:0,
     sign_person:'销售甲',receiver:'客户甲',receiver_phone:'138000',receiver_address:'门店'}]);
    if(sql.includes('FROM order_items'))return reply([{id:'900',order_id:'123',product_no:'F99',
     product_name:'面料',color_no:'1',composition:'棉',weight:100,width:150,meters:2,
-    unit_price:10,amount:20,remark:'',piece_meters:'[2]',deduction_meters:0}]);
+    unit_price:10,amount:20,remark:'',piece_meters:'[2]',deduction_meters:0,v2_product_id:'21',v2_source_kind:'catalog'},
+   {id:'901',order_id:'123',product_no:'F99',product_name:'手工',color_no:'1',meters:1,unit_price:0,amount:0,v2_source_kind:'manual'},
+   {id:'902',order_id:'123',product_no:'F99',product_name:'历史产品',color_no:'1',meters:1,unit_price:0,amount:0,v2_product_id:'21'}]);
+   if(sql.includes('FROM v2_products p')){
+    thumbnailReads++;assert.deepEqual(args,['21']);
+    return reply([{id:'21',pattern_image_asset_id:assetId}]);
+   }
    throw Error('Unexpected query '+sql);
   }
  };
@@ -52,10 +60,12 @@ test('COMPANY-01 current logo/WeChat/Alipay are read through order-scope V2 auth
   const model=await modelResponse.json();
   assert.equal(model.companyName,'最新公司');assert.equal(model.brandName,'最新字标');
   assert.deepEqual(model.signatureLabels,{issuer:'开单人签字',receiver:'收货人签字'});
-  assert.equal(Object.keys(model.companyImages).length,3);
+  assert.deepEqual(Object.keys(model.companyImages),['brand_logo']);
+  assert(!('patternThumbnailAssetIds' in await (await request('/print-model?preview=1')).json()));
   for(const role of Object.keys(roles)){
    const reply=await request('/company-image/'+role);
-   assert.equal(reply.status,200);
+   assert.equal(reply.status,role==='brand_logo'?200:404);
+   if(role!=='brand_logo')continue;
    assert.match(reply.headers.get('content-type')??'',/image\/png/);
    assert((await reply.arrayBuffer()).byteLength>50);
   }
@@ -63,12 +73,30 @@ test('COMPANY-01 current logo/WeChat/Alipay are read through order-scope V2 auth
   const exported=await request('/export.xlsx');
   assert.equal(exported.status,200);
   const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(Buffer.from(await exported.arrayBuffer()));
-  assert.equal(workbook.worksheets[0].getImages().length,3);
+  assert.equal(workbook.worksheets[0].getImages().length,1);
   const values:string[]=[];workbook.worksheets[0].eachRow(row=>row.eachCell(c=>{
    if(typeof c.value==='string')values.push(c.value);
   }));
   assert(values.some(v=>v.includes('开单人签字')));assert(values.some(v=>v.includes('收货人签字')));assert(!values.some(v=>v.includes('制单人签章')));
   assert(!values.some(v=>v.includes('客户签收')));
   assert(values.includes('备注条款：通用最新条款'));
+  assert(!values.includes('微信收款')&&!values.includes('支付宝收款'));
+  assert.equal(thumbnailReads,0);
+  assert.equal((await fetch(base+'/print-model?preview=1')).status,401);
+  type='sample';
+  const preview=await (await request('/print-model?preview=1')).json();
+  assert.deepEqual(preview.patternThumbnailAssetIds,[assetId,null,assetId]);
+  assert.deepEqual(Object.keys(preview.companyImages),Object.keys(roles));
+  assert(!('patternThumbnailAssetIds' in await (await request('/print-model')).json()));
+  const sampleBook=new ExcelJS.Workbook();
+  await sampleBook.xlsx.load(Buffer.from(await (await request('/export.xlsx')).arrayBuffer()));
+  assert.equal(sampleBook.worksheets[0].getCell('A6').value,'货号');
+  assert.equal(sampleBook.worksheets[0].getImages().length,3);
+  assert.equal(thumbnailReads,1);
+  type='deposit';
+  const deposit=await (await request('/print-model?preview=1')).json();
+  assert(!('patternThumbnailAssetIds' in deposit));
+  assert.deepEqual(Object.keys(deposit.companyImages),Object.keys(roles));
+  assert.equal(thumbnailReads,1);
  }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
 });

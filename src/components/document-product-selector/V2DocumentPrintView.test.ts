@@ -38,3 +38,19 @@ test('all three previews keep totals inside the detail table with full-width mer
   assert(!html.includes('flex justify-between'));
  }
 });
+
+test('OUTPUT-01 sample preview places the exact colorway thumbnail before the product number with a missing-image placeholder',()=>{
+ const model={
+  type:'sample',columns:[{key:'itemNo',label:'货号',webFraction:1,excelWidth:11}],
+  rows:[['G0008-1-F1'],['G0008-2-F1']],summaries:[{left:'合计'}]
+ } as DocumentPrintModel;
+ const image='https://signed.example/colorway-1.webp';
+ const preview=renderToStaticMarkup(React.createElement(DocumentPrintTable,{model,previewThumbnailUrls:[image,null]}));
+ assert.match(preview,/<th[^>]*>花型<\/th><th[^>]*>货号<\/th>/);
+ assert.match(preview,/<img[^>]*colorway-1\.webp[^>]*>.*G0008-1-F1/s);
+ assert.match(preview,/—<\/span>.*G0008-2-F1/s);
+ assert.match(preview,/colSpan="2"/);
+ const output=renderToStaticMarkup(React.createElement(DocumentPrintTable,{model}));
+ assert.doesNotMatch(output,/花型|colorway-1\.webp/);
+ assert.match(output,/colSpan="1"/);
+});

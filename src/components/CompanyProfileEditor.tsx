@@ -185,7 +185,7 @@ export default function CompanyProfileEditor({ profile, onSave, apiFetch }: Comp
       <div className="v2-settings-header p-6 border-b border-slate-100 bg-linear-to-r from-sky-50 to-white">
         <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2"><Landmark className="w-5 h-5 text-sky-600" />公司及单据排版信息配置</h3>
         <p className="text-sm text-slate-500 mt-1">设置打印单据顶部及底部的基本展示信息，新建单据时将默认加载此配置。</p>
-        <p className="v2-settings-hint mt-3">这些内容会印在每一张样布码单、销售发货码单与定金单的抬头与落款处。修改后只影响之后新建或重新打印的单据，已打印的单据不会被追溯修改。</p>
+        <p className="v2-settings-hint mt-3">公司资料用于三类单据，收款码用于样布码单与定金单。打开预览或重新打印时使用最新设置。</p>
       </div>
       <form onSubmit={handleSubmit} className="p-6 space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">

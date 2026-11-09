@@ -80,6 +80,11 @@ test('renders persisted bulk orders with the shared sales structure', async () =
       meters: 3, deduction_meters: 1, unit_price: 60, amount: 180,
     }],
     company: { company_name: '公司', address: '地址', phone: '公司电话', default_terms: '条款' },
+    images: {
+      brand_logo: { body: PNG, mime: 'image/png' },
+      wechat_qr: { body: PNG, mime: 'image/png' },
+      alipay_qr: { body: PNG, mime: 'image/png' },
+    },
   });
   const bytes = await workbook.xlsx.writeBuffer();
   const reopened = new ExcelJS.Workbook();
@@ -91,4 +96,6 @@ test('renders persisted bulk orders with the shared sales structure', async () =
     ['货号', '色号', '品名', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '匹数', '米数(米)', '扣损(米)', '单价(元)', '金额(元)']);
   assert.equal(sheet.getCell('D7').value, '1.0');
   assert.equal(sheet.getCell('A12').value, '收货人签字：    电话：');
+  assert.equal(sheet.getImages().length, 1);
+  assert.equal(sheet.pageSetup.printArea, 'A1:R12');
 });

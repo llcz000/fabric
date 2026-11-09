@@ -30,7 +30,9 @@ export function buildDocumentWorkbookFromModel(
  images:DocumentWorkbookInput['images']={}
 ):ExcelJS.Workbook{
   images={...images};
-  for(const role of ['brand_logo','wechat_qr','alipay_qr'] as const){
+  const showPaymentCodes=model.type!=='sales';
+  const imageRoles=showPaymentCodes?(['brand_logo','wechat_qr','alipay_qr'] as const):(['brand_logo'] as const);
+  for(const role of imageRoles){
     const value=model.companyImages?.[role];if(!value||images[role])continue;
     const found=/^data:(image\/(?:png|jpeg));base64,([A-Za-z0-9+/]+={0,2})$/.exec(value);
     if(!found||found[2].length>3*1024*1024)throw Error('Invalid print raster image');
@@ -107,21 +109,25 @@ export function buildDocumentWorkbookFromModel(
 
   const footerRow = termsRow + 1;
   const qrStartColumn = Math.max(3, lastColumn - 3);
-  sheet.mergeCells(footerRow, 1, footerRow, qrStartColumn - 1);
+  const signatureEndColumn = showPaymentCodes ? qrStartColumn - 1 : lastColumn;
+  sheet.mergeCells(footerRow, 1, footerRow, signatureEndColumn);
   styledCell(sheet.getCell(footerRow, 1), `${model.signatureLabels?.issuer??'开单人签字'}：${model.signature.issuer}`, 11, false, 'left');
-  sheet.mergeCells(footerRow + 1, 1, footerRow + 1, qrStartColumn - 1);
+  sheet.mergeCells(footerRow + 1, 1, footerRow + 1, signatureEndColumn);
   styledCell(sheet.getCell(footerRow + 1, 1), `${model.signatureLabels?.receiver??'收货人签字'}：${model.signature.receiver}    电话：${model.signature.phone}`, 11, false, 'left');
-  for (let rowNumber = footerRow; rowNumber <= footerRow + 3; rowNumber++) sheet.getRow(rowNumber).height = 20;
+  const footerEndRow = footerRow + (showPaymentCodes ? 3 : 1);
+  for (let rowNumber = footerRow; rowNumber <= footerEndRow; rowNumber++) sheet.getRow(rowNumber).height = 20;
 
   addCompanyImage(workbook, sheet, images.brand_logo, { col: 0.15, row: 0.2 }, { width: 105, height: 34 });
-  addCompanyImage(workbook, sheet, images.wechat_qr, { col: qrStartColumn - 1, row: footerRow - 1 }, { width: 60, height: 60 });
-  addCompanyImage(workbook, sheet, images.alipay_qr, { col: lastColumn - 2, row: footerRow - 1 }, { width: 60, height: 60 });
-  sheet.mergeCells(footerRow + 3, qrStartColumn, footerRow + 3, qrStartColumn + 1);
-  styledCell(sheet.getCell(footerRow + 3, qrStartColumn), '微信收款', 9, false, 'center');
-  sheet.mergeCells(footerRow + 3, lastColumn - 1, footerRow + 3, lastColumn);
-  styledCell(sheet.getCell(footerRow + 3, lastColumn - 1), '支付宝收款', 9, false, 'center');
+  if(showPaymentCodes){
+    addCompanyImage(workbook, sheet, images.wechat_qr, { col: qrStartColumn - 1, row: footerRow - 1 }, { width: 60, height: 60 });
+    addCompanyImage(workbook, sheet, images.alipay_qr, { col: lastColumn - 2, row: footerRow - 1 }, { width: 60, height: 60 });
+    sheet.mergeCells(footerRow + 3, qrStartColumn, footerRow + 3, qrStartColumn + 1);
+    styledCell(sheet.getCell(footerRow + 3, qrStartColumn), '微信收款', 9, false, 'center');
+    sheet.mergeCells(footerRow + 3, lastColumn - 1, footerRow + 3, lastColumn);
+    styledCell(sheet.getCell(footerRow + 3, lastColumn - 1), '支付宝收款', 9, false, 'center');
+  }
 
-  const printEndRow = footerRow + (model.type==='deposit'?4:3);
+  const printEndRow = footerEndRow + (model.type==='deposit'?1:0);
   if(model.type==='deposit'){
     const address='收货地址：'+model.signature.receiverAddress;
     sheet.mergeCells(printEndRow,1,printEndRow,lastColumn);
