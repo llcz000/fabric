@@ -5,10 +5,10 @@
   "releaseTool": "scripts/fabric-release.mjs",
   "releaseToolGuide": "docs/operations/统一发布工具.md",
   "currentRelease": {
-    "id": "20261110t020116583-0e0eb9e3",
-    "utc": "2026-11-10T02:13:22.591Z",
-    "artifactSha256": "7318c5284b8f9fdc3515b51728ea13887e63b65148135588ae72c168dbdec2da",
-    "evidence": "artifacts/releases/20261110t020116583-0e0eb9e3/release-result.json"
+    "id": "20261110t022830071-45ac9390",
+    "utc": "2026-11-10T02:29:12.610Z",
+    "artifactSha256": "f7ebf903ff3afe140925a0afa4bda58ea8b114e5d835b15f77ea7b877092fd6b",
+    "evidence": "artifacts/releases/20261110t022830071-45ac9390/release-result.json"
   },
   "role": "application",
   "developmentRef": "codex/fabric-single-root-20261024"
