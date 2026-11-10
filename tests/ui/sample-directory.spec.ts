@@ -113,6 +113,39 @@ test('desktop and narrow directory/customer picker have compact readable layouts
 test('whitespace edits preserve an existing customer choice instead of offering only a new duplicate',async({page})=>{
  await page.goto(entry);await page.getByRole('button',{name:'新建选样单',exact:true}).click();const input=page.getByRole('searchbox',{name:'搜索选样客户'});await input.fill('林女士');await expect(page.getByRole('button',{name:/林女士.*选择/})).toBeVisible();await input.fill('林女士 ');await expect(page.getByRole('button',{name:/林女士.*选择/})).toBeVisible();
 });
+// AC-104
+test('exact customer reuses the profile and can add a contact without discarding a failed draft',async({page})=>{
+ for(const width of [1440,360]){
+  await page.setViewportSize({width,height:800});await page.goto(entry);
+  await page.getByRole('button',{name:'新建选样单',exact:true}).click();
+  await page.getByRole('searchbox',{name:'搜索选样客户'}).fill('林女士');
+  const existing=page.getByRole('button',{name:/林女士.*选择/});
+  await expect(existing).toBeVisible();
+  await expect(page.getByRole('button',{name:/新建客户/})).toHaveCount(0);
+  await existing.click();
+  const add=page.getByRole('button',{name:'新增联系人',exact:true});
+  await expect(page.getByRole('button',{name:'林女士',exact:true})).toBeFocused();
+  await add.click();
+  const name=page.getByRole('textbox',{name:'姓名',exact:true});
+  await expect(name).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(add).toBeFocused();
+  expect(await page.evaluate(()=>(window as any).scanSelectionFixture.state.writes.length)).toBe(0);
+  await add.click();await name.fill('周女士');
+  await page.getByText('专用地址（选填）',{exact:true}).click();
+  await page.getByRole('textbox',{name:'专用地址',exact:true}).fill('浙江省杭州市专用地址');
+  await page.screenshot({path:'artifacts/customer-contact-reuse/selection-'+width+'.png'});
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+  await page.evaluate(()=>{(window as any).scanSelectionFixture.state.failNext=true;});
+  const save=page.getByRole('button',{name:'保存并选样',exact:true});
+  await save.click();await expect(page.getByRole('alert')).toContainText('重试');
+  await expect(name).toHaveValue('周女士');
+  await save.click();
+  await expect(page.getByRole('heading',{name:'林女士',exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'完成选样',exact:true}).click();
+  await expect(page.getByRole('button',{name:'选样明细 林女士 周女士',exact:true})).toBeVisible();
+ }
+});
 test('legacy pending creation keeps the application leave guard until the request resolves',async({page})=>{
  await page.goto(entry+'&legacy');await page.getByRole('button',{name:'新建选样单',exact:true}).click();await page.getByRole('textbox',{name:'客户名称',exact:true}).fill('旧模式客户');await page.evaluate(()=>{(window as any).scanSelectionFixture.state.deferLegacy=true;});await page.getByRole('button',{name:'新建选样',exact:true}).click();
  expect(await page.evaluate(()=>(window as any).scanSelectionFixture.state.leaveGuard?.()??true)).toBe(false);

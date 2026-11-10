@@ -3,7 +3,7 @@ import {identifiedContactChoices,saveContactIds,syncSelectionContactNames} from 
 import {recordDeletion} from '../audit/deletionAudit';
 import {createHash} from 'node:crypto';import {z} from 'zod';
 import type {AppPrincipal} from '../access/types';import type {SamplePool,SampleTx} from '../customer-samples/scanRepository';
-import {CustomerError,parseCustomerProfile,parseContactFollowup,parse,rows,id,customerId,requestId,version,date,shanghaiToday,type CustomerProfile,type CustomerDTO} from './model';
+import {CustomerError,parseCustomerProfile,newCustomerContactSchema,parseContactFollowup,parse,rows,id,customerId,requestId,version,date,shanghaiToday,type CustomerProfile,type CustomerDTO} from './model';
 import {transaction,lockCustomer,customerScope} from './access';import {lockCustomerSessionAccess} from './sessionBridge';
 const pageSchema=z.object({limit:z.number().int().min(1).max(50).default(20),offset:z.number().int().min(0).max(1000000).default(0)});
 const contactChoice=z.object({index:z.number().int().min(0).max(19),customerVersion:version}).strict();
@@ -23,42 +23,93 @@ export async function idempotent<T>(tx:SampleTx,actor:AppPrincipal,key:string,pa
  const [raw]=await tx.query('SELECT payload_hash,result_json FROM customer_requests WHERE actor_user_id=? AND request_id=? FOR UPDATE',[actor.userId,key]);const row=rows(raw)[0];if(!row||row.payload_hash!==digest)throw new CustomerError(409);if(row.result_json!==null)return json(row.result_json) as T;
  const result=await run();one((await tx.query('UPDATE customer_requests SET result_json=? WHERE actor_user_id=? AND request_id=?',[JSON.stringify(result),actor.userId,key]))[0]);return result;
 }
+const customerSearchText=(p:CustomerProfile)=>[p.displayName,p.invoiceTitle??'',...p.brands,...p.contacts.flatMap(c=>[c.name,c.phone??'',c.wechat??''])].join(' ');
+async function requireAvailableCustomerName(tx:SampleTx,name:string,exceptId?:string){
+ const [matches]=await tx.query("SELECT id FROM customers WHERE display_name=? AND archived_at IS NULL AND JSON_EXTRACT(profile_json,'$.deletedAt') IS NULL"+(exceptId?' AND id<>?':'')+' LIMIT 1 FOR UPDATE',exceptId?[name,exceptId]:[name]);
+ if(rows(matches).length)throw new CustomerError(409,'customer_name_taken');
+}
+async function writeCustomerProfile(tx:SampleTx,actor:AppPrincipal,c:CustomerDTO,p:CustomerProfile){
+ one((await tx.query('UPDATE customers SET display_name=?,profile_json=?,search_text=?,sales_channel=?,tier=?,relationship_stage=?,row_version=row_version+1 WHERE id=? AND row_version=?',[p.displayName,JSON.stringify(p),customerSearchText(p),p.salesChannel,p.tier,p.relationshipStage,c.id,c.rowVersion]))[0]);
+ await syncSelectionContactNames(tx,c.id,c.profile,p);
+ await event(tx,actor,c.id,'profile_updated');
+}
 export async function insertCustomer(tx:SampleTx,actor:AppPrincipal,profile:CustomerProfile){
  const p=saveContactIds(profile);
  await validatePreferences(tx,p);
- const searchable=[p.displayName,p.invoiceTitle??'',...p.brands,...p.contacts.flatMap(c=>[c.name,c.phone??'',c.wechat??''])].join(' ');
- const [raw]=await tx.query('INSERT INTO customers(display_name,profile_json,search_text,owner_user_id,created_by_user_id,sales_channel,tier,relationship_stage) VALUES (?,?,?,?,?,?,?,?)',[p.displayName,JSON.stringify(p),searchable,actor.userId,actor.userId,p.salesChannel,p.tier,p.relationshipStage]);const cid=id(one(raw).insertId);await event(tx,actor,cid,'created');return cid;
+ await requireAvailableCustomerName(tx,p.displayName);
+ const [raw]=await tx.query('INSERT INTO customers(display_name,profile_json,search_text,owner_user_id,created_by_user_id,sales_channel,tier,relationship_stage) VALUES (?,?,?,?,?,?,?,?)',[p.displayName,JSON.stringify(p),customerSearchText(p),actor.userId,actor.userId,p.salesChannel,p.tier,p.relationshipStage]);const cid=id(one(raw).insertId);await event(tx,actor,cid,'created');return cid;
 }
 export class CustomerService{
  constructor(readonly pool:SamplePool,readonly now=()=>new Date()){}
  async create(actor:AppPrincipal,input:unknown){const body=parse(record,input),p=parseCustomerProfile(body.profile);return transaction(this.pool,actor,async tx=>{const cid=await idempotent(tx,actor,body.requestId,{operation:'create',profile:p},()=>insertCustomer(tx,actor,p));return (await lockCustomer(tx,actor,cid)).dto;});}
  async get(actor:AppPrincipal,cid:string){return transaction(this.pool,actor,async tx=>(await lockCustomer(tx,actor,cid)).dto);}
  async list(actor:AppPrincipal,input:unknown){
-  const q=parse(pageSchema.extend({query:z.string().trim().max(160).default(''),due:z.enum(['all','today','overdue']).default('all')}).strict(),input);
-  return transaction(this.pool,actor,async tx=>{const scope=customerScope(actor);let where=' FROM customers c WHERE '+scope.sql+' AND c.archived_at IS NULL';const args:unknown[]=[...scope.args];where+=" AND JSON_EXTRACT(c.profile_json,'$.deletedAt') IS NULL";if(q.due!=='all'){where+=" AND JSON_UNQUOTE(JSON_EXTRACT(c.profile_json,'$.nextFollowupOn'))"+(q.due==='today'?'=':'<')+'?';args.push(shanghaiToday(this.now()));}if(q.query){where+=" AND c.search_text LIKE ? ESCAPE '!'";args.push('%'+q.query.replace(/[!%_]/g,'!$&')+'%');}
-   const total=Number(rows((await tx.query('SELECT COUNT(*) AS total'+where,args))[0])[0]?.total);if(!Number.isSafeInteger(total)||total<0)throw new CustomerError(503);
-   const data=rows((await tx.query('SELECT c.id'+where+' ORDER BY c.id DESC LIMIT ? OFFSET ?',[...args,q.limit,q.offset]))[0]);const locked=new Map<string,CustomerDTO>();for(const cid of data.map(r=>id(r.id)).sort(orderIds))locked.set(cid,(await lockCustomer(tx,actor,cid)).dto);const items=data.map(r=>locked.get(id(r.id))!);return {items,total,limit:q.limit,offset:q.offset};});
+  const q=parse(pageSchema.extend({query:z.string().trim().max(160).default(''),due:z.enum(['all','today','overdue']).default('all'),preferExactName:z.literal('true').optional()}).strict(),input);
+  return transaction(this.pool,actor,async tx=>{
+   const scope=customerScope(actor);
+   const prioritize=Boolean(q.preferExactName&&q.query);
+   let where=" FROM customers c WHERE "+scope.sql+" AND c.archived_at IS NULL AND JSON_EXTRACT(c.profile_json,'$.deletedAt') IS NULL";
+   const args:unknown[]=[...scope.args];
+   if(q.due!=='all'){where+=" AND JSON_UNQUOTE(JSON_EXTRACT(c.profile_json,'$.nextFollowupOn'))"+(q.due==='today'?'=':'<')+'?';args.push(shanghaiToday(this.now()));}
+   if(q.query){
+    where+=prioritize?" AND (c.display_name=? OR c.search_text LIKE ? ESCAPE '!')":" AND c.search_text LIKE ? ESCAPE '!'";
+    if(prioritize)args.push(q.query);
+    args.push('%'+q.query.replace(/[!%_]/g,'!$&')+'%');
+   }
+   const summary=rows((await tx.query('SELECT COUNT(*) AS total'+(prioritize?', MAX(c.display_name=?) AS exactNameMatch':'')+where,prioritize?[q.query,...args]:args))[0])[0];
+   const total=Number(summary?.total);if(!Number.isSafeInteger(total)||total<0)throw new CustomerError(503);
+   const data=rows((await tx.query('SELECT c.id'+where+' ORDER BY '+(prioritize?'CASE WHEN c.display_name=? THEN 0 ELSE 1 END, ':'')+'c.id DESC LIMIT ? OFFSET ?',[...args,...(prioritize?[q.query]:[]),q.limit,q.offset]))[0]);
+   const locked=new Map<string,CustomerDTO>();for(const cid of data.map(r=>id(r.id)).sort(orderIds))locked.set(cid,(await lockCustomer(tx,actor,cid)).dto);
+   const items=data.map(r=>locked.get(id(r.id))!);
+   return {items,total,limit:q.limit,offset:q.offset,...(q.preferExactName?{exactNameMatch:Number(summary?.exactNameMatch)===1}:{})};
+  });
  }
- async update(actor:AppPrincipal,cid:string,input:unknown){const b=parse(z.object({expectedRowVersion:version,profile:z.unknown()}).strict(),input),profile=parseCustomerProfile(b.profile);return transaction(this.pool,actor,async tx=>{const c=await lockCustomer(tx,actor,cid,true);expected(c.row,b.expectedRowVersion);const p=saveContactIds(profile,c.dto.profile);
-  if(p.displayName!==c.dto.profile.displayName){
-   const [matches]=await tx.query("SELECT id FROM customers WHERE display_name=? AND id<>? AND archived_at IS NULL AND JSON_EXTRACT(profile_json,'$.deletedAt') IS NULL LIMIT 1 FOR UPDATE",[p.displayName,cid]);
-   if(rows(matches).length)throw new CustomerError(409,'customer_name_taken');
-  }
-  await validatePreferences(tx,p,c.dto.profile);const search=[p.displayName,p.invoiceTitle??'',...p.brands,...p.contacts.flatMap(c=>[c.name,c.phone??'',c.wechat??''])].join(' ');
-  one((await tx.query('UPDATE customers SET display_name=?,profile_json=?,search_text=?,sales_channel=?,tier=?,relationship_stage=?,row_version=row_version+1 WHERE id=? AND row_version=?',[p.displayName,JSON.stringify(p),search,p.salesChannel,p.tier,p.relationshipStage,cid,b.expectedRowVersion]))[0]);await syncSelectionContactNames(tx,cid,c.dto.profile,p);await event(tx,actor,cid,'profile_updated');return (await lockCustomer(tx,actor,cid)).dto;});}
- async archive(actor:AppPrincipal,cid:string,input:unknown){const b=parse(z.object({expectedRowVersion:version,archived:z.boolean()}).strict(),input);return transaction(this.pool,actor,async tx=>{const c=await lockCustomer(tx,actor,cid,true);expected(c.row,b.expectedRowVersion);one((await tx.query('UPDATE customers SET archived_at='+ (b.archived?'UTC_TIMESTAMP()':'NULL')+',row_version=row_version+1 WHERE id=? AND row_version=?',[cid,b.expectedRowVersion]))[0]);await event(tx,actor,cid,b.archived?'archived':'restored');return (await lockCustomer(tx,actor,cid)).dto;});}
+ async update(actor:AppPrincipal,cid:string,input:unknown){
+  const b=parse(z.object({expectedRowVersion:version,profile:z.unknown()}).strict(),input),profile=parseCustomerProfile(b.profile);
+  return transaction(this.pool,actor,async tx=>{
+   const {row,dto}=await lockCustomer(tx,actor,cid,true);
+   expected(row,b.expectedRowVersion);
+   const p=saveContactIds(profile,dto.profile);
+   if(p.displayName!==dto.profile.displayName)await requireAvailableCustomerName(tx,p.displayName,cid);
+   await validatePreferences(tx,p,dto.profile);
+   await writeCustomerProfile(tx,actor,dto,p);
+   return (await lockCustomer(tx,actor,cid)).dto;
+  });
+ }
+ async archive(actor:AppPrincipal,cid:string,input:unknown){const b=parse(z.object({expectedRowVersion:version,archived:z.boolean()}).strict(),input);return transaction(this.pool,actor,async tx=>{const c=await lockCustomer(tx,actor,cid,true);expected(c.row,b.expectedRowVersion);if(!b.archived)await requireAvailableCustomerName(tx,c.dto.profile.displayName,cid);one((await tx.query('UPDATE customers SET archived_at='+ (b.archived?'UTC_TIMESTAMP()':'NULL')+',row_version=row_version+1 WHERE id=? AND row_version=?',[cid,b.expectedRowVersion]))[0]);await event(tx,actor,cid,b.archived?'archived':'restored');return (await lockCustomer(tx,actor,cid)).dto;});}
  async setAccess(actor:AppPrincipal,cid:string,userId:string,input:unknown){if(!customerId.safeParse(userId).success)throw new CustomerError(400);const b=parse(z.object({expectedRowVersion:version,permission:z.enum(['view','edit']).nullable()}).strict(),input);return transaction(this.pool,actor,async tx=>{const c=await lockCustomer(tx,actor,cid,true);if(!c.dto.canManageAccess)throw new CustomerError(404);expected(c.row,b.expectedRowVersion);if(userId===c.dto.ownerUserId)throw new CustomerError(409);
   const [users]=await tx.query('SELECT id,is_active FROM v2_access_users WHERE id=? FOR SHARE',[userId]);if(rows(users).length!==1||Number(rows(users)[0].is_active)!==1)throw new CustomerError(404);
   await tx.query('DELETE FROM customer_access WHERE customer_id=? AND user_id=?',[cid,userId]);if(b.permission)await tx.query('INSERT INTO customer_access(customer_id,user_id,permission,granted_by) VALUES (?,?,?,?)',[cid,userId,b.permission,actor.userId]);await tx.query('UPDATE customers SET row_version=row_version+1 WHERE id=?',[cid]);await event(tx,actor,cid,'access_changed',{userId,permission:b.permission});return (await lockCustomer(tx,actor,cid)).dto;});}
  async transferOwner(actor:AppPrincipal,cid:string,input:unknown){const b=parse(z.object({expectedRowVersion:version,userId:customerId}).strict(),input);return transaction(this.pool,actor,async tx=>{if(actor.role!=='admin')throw new CustomerError(404);const c=await lockCustomer(tx,actor,cid,true);expected(c.row,b.expectedRowVersion);const [u]=await tx.query('SELECT id,is_active FROM v2_access_users WHERE id=? FOR SHARE',[b.userId]);if(rows(u).length!==1||Number(rows(u)[0].is_active)!==1)throw new CustomerError(404);await tx.query('DELETE FROM customer_access WHERE customer_id=? AND user_id=?',[cid,b.userId]);await tx.query('UPDATE customers SET owner_user_id=?,row_version=row_version+1 WHERE id=?',[b.userId,cid]);await event(tx,actor,cid,'owner_transferred',{from:c.dto.ownerUserId,to:b.userId});return (await lockCustomer(tx,actor,cid)).dto;});}
  async withSampleSession(actor:AppPrincipal,input:unknown){
-  const b=parse(z.object({requestId,profile:z.unknown().optional(),customerId:customerId.optional(),contactChoice:contactChoice.optional()}).strict().refine(v=>Boolean(v.customerId)!==(v.profile!==undefined)&&(!v.contactChoice||Boolean(v.customerId))),input);const profile=b.profile===undefined?undefined:parseCustomerProfile(b.profile);
-  return transaction(this.pool,actor,async tx=>{const saved=await idempotent(tx,actor,b.requestId,{operation:'withSampleSession',...(profile?{profile}:{customerId:b.customerId}),...(b.contactChoice?{contactChoice:b.contactChoice}:{})},async()=>{const cid=b.customerId??await insertCustomer(tx,actor,profile!);const c=await lockCustomer(tx,actor,cid,true,false);
-   const choices=identifiedContactChoices(c.dto.profile);
-   const contact=b.contactChoice?chosenContact(choices,c.dto.rowVersion,b.contactChoice):choices.length===1?choices[0]:null;
-   const [insert]=await tx.query('INSERT INTO customer_sample_sessions (customer_reference,created_by_user_id,contact_name,contact_id) VALUES (?,?,?,?)',[c.dto.profile.displayName,actor.userId,contact?.name??null,contact?.id??null]);const sid=id(one(insert).insertId);
-   await tx.query('INSERT INTO customer_sample_session_access (session_id,user_id,can_manage) VALUES (?,?,1)',[sid,actor.userId]);await tx.query('INSERT INTO customer_session_links(session_id,customer_id,linked_by_user_id) VALUES (?,?,?)',[sid,cid,actor.userId]);await event(tx,actor,cid,'selection_created',{sessionId:sid});return {customerId:cid,sessionId:sid};});
-   const c=await lockCustomer(tx,actor,saved.customerId);const link=await lockCustomerSessionAccess(tx,actor,saved.sessionId,false);const [raw]=await tx.query('SELECT id,customer_reference,status,contact_name FROM customer_sample_sessions WHERE id=? AND deleted_at IS NULL FOR SHARE',[saved.sessionId]);const s=rows(raw)[0];if(!s)throw new CustomerError(404);return {customer:c.dto,session:{id:id(s.id),customerReference:s.customer_reference,status:s.status,canManage:c.dto.canEdit&&!c.dto.archived,customerId:c.dto.id,linkVersion:link?.linkVersion,contactName:s.contact_name??null}};});
+  const b=parse(z.object({requestId,profile:z.unknown().optional(),customerId:customerId.optional(),contactChoice:contactChoice.optional(),newContact:z.object({customerVersion:version,contact:newCustomerContactSchema}).strict().optional()}).strict().refine(v=>Boolean(v.customerId)!==(v.profile!==undefined)&&(!(v.contactChoice||v.newContact)||Boolean(v.customerId))&&!(v.contactChoice&&v.newContact)),input);
+  const profile=b.profile===undefined?undefined:parseCustomerProfile(b.profile);
+  const payload={operation:'withSampleSession',...(profile?{profile}:{customerId:b.customerId}),...(b.contactChoice?{contactChoice:b.contactChoice}:{}),...(b.newContact?{newContact:b.newContact}:{})};
+  return transaction(this.pool,actor,async tx=>{
+   const saved=await idempotent(tx,actor,b.requestId,payload,async()=>{
+    const cid=b.customerId??await insertCustomer(tx,actor,profile!);
+    const {dto}=await lockCustomer(tx,actor,cid,true,false);
+    let choices=identifiedContactChoices(dto.profile),choice=b.contactChoice;
+    if(b.newContact){
+     if(b.newContact.customerVersion!==dto.rowVersion)throw new CustomerError(409);
+     const updated=saveContactIds(parseCustomerProfile({...dto.profile,contacts:[...dto.profile.contacts,b.newContact.contact]}),dto.profile);
+     await writeCustomerProfile(tx,actor,dto,updated);
+     choices=identifiedContactChoices(updated);
+     choice={index:updated.contacts.length-1,customerVersion:dto.rowVersion};
+    }
+    const contact=choice?chosenContact(choices,dto.rowVersion,choice):choices.length===1?choices[0]:null;
+    const [insert]=await tx.query('INSERT INTO customer_sample_sessions (customer_reference,created_by_user_id,contact_name,contact_id) VALUES (?,?,?,?)',[dto.profile.displayName,actor.userId,contact?.name??null,contact?.id??null]);
+    const sid=id(one(insert).insertId);
+    await tx.query('INSERT INTO customer_sample_session_access (session_id,user_id,can_manage) VALUES (?,?,1)',[sid,actor.userId]);
+    await tx.query('INSERT INTO customer_session_links(session_id,customer_id,linked_by_user_id) VALUES (?,?,?)',[sid,cid,actor.userId]);
+    await event(tx,actor,cid,'selection_created',{sessionId:sid});
+    return {customerId:cid,sessionId:sid};
+   });
+   const c=await lockCustomer(tx,actor,saved.customerId);const link=await lockCustomerSessionAccess(tx,actor,saved.sessionId,false);
+   const [raw]=await tx.query('SELECT id,customer_reference,status,contact_name FROM customer_sample_sessions WHERE id=? AND deleted_at IS NULL FOR SHARE',[saved.sessionId]);const s=rows(raw)[0];
+   if(!s)throw new CustomerError(404);
+   return {customer:c.dto,session:{id:id(s.id),customerReference:s.customer_reference,status:s.status,canManage:c.dto.canEdit&&!c.dto.archived,customerId:c.dto.id,linkVersion:link?.linkVersion,contactName:s.contact_name??null}};
+  });
  }
  async sessionContact(actor:AppPrincipal,sid:string){
   if(!customerId.safeParse(sid).success)throw new CustomerError(400);

@@ -24,6 +24,7 @@ export interface V2DocumentOutputDependencies{
  loadImages?(company:Record<string,unknown>):Promise<import('../documentExcel').DocumentWorkbookInput['images']>;
 }
 function sendError(res:import('express').Response,error:unknown):void{
+ if(error instanceof CustomerError&&error.code==='customer_name_taken'){res.status(409).json({error:'该客户名称已存在，请选择已有客户。',code:error.code});return;}
  const status=(error instanceof CustomerError||error instanceof DocumentWriteError||error instanceof OrderLineError||error instanceof DocumentCalculationError||error instanceof OrderSearchError)
   ?error.status:503;
  const safe=[400,401,403,404,409,422].includes(status)?status:503;

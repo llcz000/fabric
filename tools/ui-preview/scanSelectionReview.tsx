@@ -7,12 +7,12 @@ import {SampleBusinessWorkspaceV2} from '../../src/components/product-master-v2/
 import {V2Shell} from '../../src/components/product-master-v2/V2Shell';
 import {ConfirmProvider} from '../../src/components/ui/ConfirmDialog';
 import {ToastProvider} from '../../src/components/ui/Toast';
-import {emptyCustomerProfile} from '../../src/components/customers/customerModel';
+import {emptyCustomerProfile,type CustomerProfile} from '../../src/components/customers/customerModel';
 import {resolveImageUrls} from '../../src/components/product-master-v2/catalogModel';
 import {useV2Navigation} from '../../src/components/product-master-v2/useV2Navigation';
 import {readV2Route} from '../../src/components/product-master-v2/v2Navigation';
 const initialToken='SCAN_FIXTURE_FIRST_CARD_TOKEN_12345',secondToken='SCAN_FIXTURE_SECOND_CARD_TOKEN_12345';
-const profile={...emptyCustomerProfile(),displayName:'林女士',brands:['云间服饰'],contacts:[{name:'林女士',phone:null,wechat:null}]};
+const profile:CustomerProfile={...emptyCustomerProfile(),displayName:'林女士',brands:['云间服饰'],contacts:[{name:'林女士',phone:null,wechat:null}]};
 const multiContacts=location.search.includes('multiContacts');
 if(multiContacts){profile.displayName='云间服饰';profile.contacts=[{name:'陈女士',phone:null,wechat:null},{name:'王先生',phone:null,wechat:null}];}
 const customer={id:'2',profile,canEdit:true,archived:false,ownerUserId:'1',rowVersion:'1',canManageAccess:false,access:[]};
@@ -39,8 +39,19 @@ const fakeFetch:typeof fetch=async(input,init)=>{
  const group=groups.find(g=>g.session.id===(body.sessionId??path.match(/\/sessions\/(\d+)/)?.[1]))??groups.at(-1);
  const card=cards.find(c=>c.id===body.cardId);
  if(path.endsWith('/capability'))return response({enabled:!location.search.includes('legacy')});
- if(path.endsWith('/customers')){if(state.failCustomerSearch){state.failCustomerSearch=false;return response({},503);}const query=url.searchParams.get('query')??'';const list=profile.displayName.includes(query)||profile.brands.some(b=>b.includes(query))?[customer]:[];return response({items:list,total:list.length,limit:20,offset:0});}
- if(path.endsWith('/with-sample-session')){const g=newGroup(body.profile?.displayName??profile.displayName);if(multiContacts)g.session.contactName=sampleContactChoices(profile.contacts).find(choice=>choice.index===body.contactChoice?.index)?.name??null;return response({customer,session:g.session});}
+ if(path.endsWith('/customers')){if(state.failCustomerSearch){state.failCustomerSearch=false;return response({},503);}const query=url.searchParams.get('query')??'';const list=profile.displayName.includes(query)||profile.brands.some(b=>b.includes(query))?[customer]:[];return response({items:list,total:list.length,limit:20,offset:0,exactNameMatch:query===profile.displayName});}
+ if(path.endsWith('/customers/'+customer.id))return response(customer);
+ if(path.endsWith('/with-sample-session')){
+  if(body.profile?.displayName===profile.displayName)return response({code:'customer_name_taken'},409);
+  if(body.newContact){
+   if(body.newContact.customerVersion!==customer.rowVersion)return response({},409);
+   profile.contacts.push(body.newContact.contact);customer.rowVersion=String(Number(customer.rowVersion)+1);
+  }
+  const g=newGroup(body.profile?.displayName??profile.displayName);
+  if(body.newContact)g.session.contactName=body.newContact.contact.name;
+  else if(multiContacts)g.session.contactName=sampleContactChoices(profile.contacts).find(choice=>choice.index===body.contactChoice?.index)?.name??null;
+  return response({customer,session:g.session});
+ }
  if(path.endsWith('/contact')&&group){
   const choices=sampleContactChoices(profile.contacts);
   if(init?.method==='PATCH'){

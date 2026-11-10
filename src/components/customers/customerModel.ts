@@ -1,8 +1,9 @@
 import type {SampleContactAssignment,SampleContactChoice,SampleContactOptions} from '../../lib/sampleContactChoices';
+export interface CustomerContact {id?:string;name:string;phone:string|null;wechat:string|null;address?:string|null}
 export interface CustomerProfile {
  important?:boolean;notes?:string|null;styleTagIds?:string[];commonFabricIds?:string[];fabricNote?:string|null;nextFollowupOn?:string|null;followupNote?:string|null;
  displayName:string;subjectType:'company'|'individual'|'unknown';invoiceTitle:string|null;brands:string[];
- contacts:{id?:string;name:string;phone:string|null;wechat:string|null}[];region:string|null;salesChannel:'online'|'offline'|'both'|'unknown';
+ contacts:CustomerContact[];region:string|null;salesChannel:'online'|'offline'|'both'|'unknown';
  prices:{fabricCategory:string;minPrice:string|null;maxPrice:string|null;currency:string;unit:'metre'|'yard'|null;taxBasis:'included'|'excluded'|'unknown';remark:string|null}[];
  tier:'A'|'B'|'C'|'unrated';tierReason:string|null;relationshipStage:'prospect'|'sampling'|'trading'|'repeat'|'unknown';stageReason:string|null;
 }
@@ -10,12 +11,16 @@ export interface CustomerDTO {id:string;profile:CustomerProfile;ownerUserId:stri
 export interface CustomerSession {id:string;customerReference:string;status:'open'|'closed';createdOn?:string;customerId?:string;contactName?:string|null;linkVersion?:string}
 export interface CustomerTask {canEdit?:boolean;id:string;customerId:string;customerName:string;dueOn:string|null;nextAction:string;status:'open'|'done'|'cancelled';rowVersion:string;assigneeUserId:string}
 export interface CustomerActivity {kind:'session'|'sample-followup'|'document';documentType?:'sample'|'bulk'|'deposit';amount?:string;id:string;sessionId?:string;summary:string;occurredOn:string}
-export interface Page<T>{items:T[];total:number;limit:number;offset:number}
+export interface Page<T>{items:T[];total:number;limit:number;offset:number;exactNameMatch?:boolean}
 export const emptyCustomerProfile=():CustomerProfile=>({displayName:'',subjectType:'unknown',invoiceTitle:null,brands:[],contacts:[{name:'',phone:null,wechat:null}],region:null,salesChannel:'unknown',prices:[],tier:'unrated',tierReason:null,relationshipStage:'unknown',stageReason:null});
 const nullable=(v:string|null)=>v?.trim()||null;
+const prepareContact=(contact:CustomerContact):CustomerContact=>{
+ const address=nullable(contact.address??null);
+ return {...(contact.id?{id:contact.id}:{}),name:contact.name.trim(),phone:nullable(contact.phone),wechat:nullable(contact.wechat),...(address?{address}:{})};
+};
 function greater(a:string,b:string){const [ai,af='']=a.split('.'),[bi,bf='']=b.split('.');const x=ai.replace(/^0+(?=\d)/,''),y=bi.replace(/^0+(?=\d)/,'');return x.length!==y.length?x.length>y.length:x!==y?x>y:af.padEnd(Math.max(af.length,bf.length),'0')>bf.padEnd(Math.max(af.length,bf.length),'0');}
 export function prepareCustomerProfile(profile:CustomerProfile):CustomerProfile {
- const result:CustomerProfile={...profile,displayName:profile.displayName.trim(),invoiceTitle:nullable(profile.invoiceTitle),fabricNote:nullable(profile.fabricNote??null),region:nullable(profile.region),brands:profile.brands.map(x=>x.trim()).filter(Boolean),contacts:profile.contacts.map(x=>({...(x.id?{id:x.id}:{}),name:x.name.trim(),phone:nullable(x.phone),wechat:nullable(x.wechat)})).filter(x=>x.name||x.phone||x.wechat),tierReason:nullable(profile.tierReason),stageReason:nullable(profile.stageReason),prices:profile.prices.map(p=>({...p,fabricCategory:p.fabricCategory.trim(),minPrice:nullable(p.minPrice),maxPrice:nullable(p.maxPrice),currency:p.currency.trim(),remark:nullable(p.remark)}))};
+ const result:CustomerProfile={...profile,displayName:profile.displayName.trim(),invoiceTitle:nullable(profile.invoiceTitle),fabricNote:nullable(profile.fabricNote??null),region:nullable(profile.region),brands:profile.brands.map(x=>x.trim()).filter(Boolean),contacts:profile.contacts.map(prepareContact).filter(x=>x.name||x.phone||x.wechat||x.address),tierReason:nullable(profile.tierReason),stageReason:nullable(profile.stageReason),prices:profile.prices.map(p=>({...p,fabricCategory:p.fabricCategory.trim(),minPrice:nullable(p.minPrice),maxPrice:nullable(p.maxPrice),currency:p.currency.trim(),remark:nullable(p.remark)}))};
  if(!result.displayName)throw Error('请填写客户名称');
 
 
@@ -36,7 +41,7 @@ export function createCustomerClient(apiFetch:typeof fetch){
  detail:(id:string,signal?:AbortSignal)=>request<CustomerDTO>(customerPath(id),{signal}),
  create:(profile:CustomerProfile,signal?:AbortSignal)=>create<CustomerDTO>('/customers',{profile:prepareCustomerProfile(profile)},signal),
  save:(c:CustomerDTO,profile:CustomerProfile,signal?:AbortSignal)=>request<CustomerDTO>(customerPath(c.id),{method:'PATCH',body:JSON.stringify({expectedRowVersion:c.rowVersion,profile:prepareCustomerProfile(profile)}),signal}),
- createSession:(payload:{customerId:string;contactChoice?:SampleContactChoice}|{profile:CustomerProfile},signal?:AbortSignal)=>create<{customer:CustomerDTO;session:CustomerSession}>('/customers/with-sample-session','profile' in payload?{profile:prepareCustomerProfile(payload.profile)}:payload,signal),
+ createSession:(payload:{customerId:string;contactChoice?:SampleContactChoice}|{customerId:string;newContact:{customerVersion:string;contact:Omit<CustomerContact,'id'>}}|{profile:CustomerProfile},signal?:AbortSignal)=>create<{customer:CustomerDTO;session:CustomerSession}>('/customers/with-sample-session','profile' in payload?{profile:prepareCustomerProfile(payload.profile)}:'newContact' in payload?{...payload,newContact:{...payload.newContact,contact:prepareContact(payload.newContact.contact)}}:payload,signal),
  sessionContact:(id:string,signal?:AbortSignal)=>request<SampleContactOptions>('/customer-samples/sessions/'+encodeURIComponent(id)+'/contact',{signal}),
  saveSessionContact:(id:string,expectedLinkVersion:string,contactChoice:SampleContactChoice|null,signal?:AbortSignal)=>request<SampleContactAssignment>('/customer-samples/sessions/'+encodeURIComponent(id)+'/contact',{method:'PATCH',body:JSON.stringify({expectedLinkVersion,contactChoice}),signal}),
  activity:(id:string,offset=0,signal?:AbortSignal)=>request<Page<CustomerActivity>&{salesAmount:string}>(customerPath(id)+'/activity?limit=20&offset='+offset,{signal}),

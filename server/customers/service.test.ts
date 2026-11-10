@@ -6,7 +6,37 @@ import {fixture,sales,admin,outsider,key} from './service.testFixture';
 test('customer + selection atomic idempotency; same key different content conflicts and rollback leaves no orphan',async()=>{
  const f=fixture();try{const a=await f.service.withSampleSession(sales,{requestId:key(1),profile:profile()});const b=await f.service.withSampleSession(sales,{requestId:key(1),profile:profile()});assert.equal(a.session.id,b.session.id);assert.equal(f.db.prepare('SELECT COUNT(*) n FROM customers').get()!.n,1);assert.equal(f.db.prepare('SELECT COUNT(*) n FROM customer_sample_sessions').get()!.n,1);
  await assert.rejects(f.service.withSampleSession(sales,{requestId:key(1),profile:{...profile(),displayName:'另一个'}}),{status:409});
- f.failSession();await assert.rejects(f.service.withSampleSession(sales,{requestId:key(2),profile:profile()}));assert.equal(f.db.prepare('SELECT COUNT(*) n FROM customers').get()!.n,1);
+ f.failSession();await assert.rejects(f.service.withSampleSession(sales,{requestId:key(2),profile:{...profile(),displayName:'事务失败客户'}}),/insert failed/);assert.equal(f.db.prepare('SELECT COUNT(*) n FROM customers').get()!.n,1);
+ }finally{f.db.close();}
+});
+test('existing name is prioritized in selection search and cannot be created again',async()=>{
+ const f=fixture();try{
+  const existing=await f.service.create(sales,{requestId:key(501),profile:{displayName:'创享'}});
+  await f.service.create(sales,{requestId:key(502),profile:{displayName:'创享服饰'}});
+  const page=await f.service.list(sales,{query:'创享',limit:1,preferExactName:'true'});
+  assert.equal(page.items[0].id,existing.id);
+  assert.equal(page.exactNameMatch,true);
+  await assert.rejects(f.service.withSampleSession(sales,{requestId:key(503),profile:{displayName:' 创享 '}}),{status:409,code:'customer_name_taken'});
+  await assert.rejects(f.service.create(sales,{requestId:key(504),profile:{displayName:'创享'}}),{status:409,code:'customer_name_taken'});
+  assert.equal(f.db.prepare('SELECT COUNT(*) n FROM customer_sample_sessions').get()!.n,0);
+ }finally{f.db.close();}
+});
+test('adding a contact during selection is versioned, atomic and replayable',async()=>{
+ const f=fixture();try{
+  const customer=await f.service.create(sales,{requestId:key(510),profile:{...profile(),region:'默认地址'}});
+  const input={requestId:key(511),customerId:customer.id,newContact:{customerVersion:customer.rowVersion,contact:{name:' 周女士 ',address:' 专用地址 '}}};
+  const saved=await f.service.withSampleSession(sales,input);
+  assert.equal(saved.customer.id,customer.id);
+  assert.equal(saved.customer.profile.region,'默认地址');
+  assert.deepEqual(saved.customer.profile.contacts.map(({name,address})=>[name,address]),[['王女士',undefined],['周女士','专用地址']]);
+  assert.equal(saved.session.contactName,'周女士');
+  assert.equal((await f.service.sessionContact(sales,saved.session.id)).selectedIndex,1);
+  assert.equal((await f.service.withSampleSession(sales,input)).session.id,saved.session.id);
+  await assert.rejects(f.service.withSampleSession(sales,{...input,requestId:key(512)}),{status:409});
+  f.failSession();
+  await assert.rejects(f.service.withSampleSession(sales,{...input,requestId:key(513),newContact:{customerVersion:saved.customer.rowVersion,contact:{name:'回滚联系人'}}}),/insert failed/);
+  assert.equal((await f.service.get(sales,customer.id)).profile.contacts.length,2);
+  assert.equal(f.db.prepare('SELECT COUNT(*) n FROM customer_sample_sessions').get()!.n,1);
  }finally{f.db.close();}
 });
 test('ACL scopes search/count/direct IDs and existing linked sessions; view cannot write, revoke overrides old grant',async()=>{
