@@ -31,6 +31,32 @@ test('customer activity excludes feedback of deleted selections without deleting
   assert.equal(f.db.prepare('SELECT COUNT(*) n FROM sample_followups').get()!.n,2);
  }finally{f.db.close();}
 });
+// AC-108
+test('activity uses the selection creation instant for Shanghai dates and paginates after date conversion',async()=>{
+ const f=fixture();try{
+  f.db.function('UNIX_TIMESTAMP',(value:any)=>Date.parse(String(value).replace(' ','T')+'+08:00')/1000);
+  const earlier=await f.service.withSampleSession(sales,{requestId:key(306),profile:{displayName:'选样日期客户'}});
+  const customerId=earlier.customer.id;
+  const later=await f.service.withSampleSession(sales,{requestId:key(307),customerId});
+  const setTime=f.db.prepare('UPDATE customer_sample_sessions SET created_at=? WHERE id=?');
+  setTime.run('2026-11-09 23:59:59',earlier.session.id);
+  setTime.run('2026-11-10 00:00:00',later.session.id);
+  f.db.prepare("INSERT INTO sample_followups VALUES(1,?,'2026-11-09','选样反馈')").run(earlier.session.id);
+  f.db.prepare("INSERT INTO orders VALUES(1,'sample','2026-11-08','YB1','选样日期客户',100,2)").run();
+  f.db.prepare('INSERT INTO customer_order_links VALUES(1,?,1,2)').run(customerId);
+
+  const history=await f.service.activity(sales,customerId,{});
+  assert.deepEqual(history.items.map(({kind,id,occurredOn})=>[kind,id,occurredOn]),[
+   ['session',later.session.id,'2026-11-10'],
+   ['sample-followup','1','2026-11-09'],
+   ['session',earlier.session.id,'2026-11-09'],
+   ['document','1','2026-11-08'],
+  ]);
+  const firstPage=await f.service.activity(sales,customerId,{limit:2,offset:0});
+  assert.equal(firstPage.total,4);
+  assert.deepEqual(firstPage.items,history.items.slice(0,2));
+ }finally{f.db.close();}
+});
 test('V1.2 name only, simple preferences and one followup date',async()=>{
  const p=parseCustomerProfile({displayName:'新客户',important:true,notes:'偏好素色',styleTagIds:[],commonFabricIds:[],nextFollowupOn:'2026-10-20',followupNote:'确认需求'});assert.equal(p.important,true);assert.deepEqual(p.prices,[]);
  const f=fixture();try{const c=await f.service.create(sales,{requestId:key(100),profile:p});assert.equal((await f.service.list(sales,{due:'today'})).total,1);assert.equal((await f.service.list(sales,{due:'overdue'})).total,0);await f.service.update(sales,c.id,{expectedRowVersion:c.rowVersion,profile:{...p,nextFollowupOn:null}});assert.equal((await f.service.list(sales,{due:'today'})).total,0);}finally{f.db.close();}

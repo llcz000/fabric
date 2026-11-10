@@ -83,6 +83,20 @@ test('migration and explicit full UI overrides cannot be downgraded by quick UI;
  assert.equal(selectBrowserValidation(context(['docs/project/项目需求总览.md'])).mode,'none');
  assert.equal(selectBrowserValidation(context([gallerySpec])).mode,'scoped');
 });
+test('customer history date hotfix omits browser regression only for the existing approved files',()=>{
+ const date='server/customers/service.ts';
+ const options={customerHistoryHotfix:true,baselineReleaseId:'20261110t020116583-0e0eb9e3'};
+ const changes=[date,'server/customers/service.testFixture.ts','server/customers/v12.test.ts','scripts/release/cli.mjs'];
+ const plan=selectBrowserValidation(context(changes,options));
+ assert.equal(plan.mode,'none');assert.equal(plan.reason,'customer-history-date-hotfix');
+ assert.equal(selectBrowserValidation(context(changes)).mode,'full');
+ for(const extra of [gallery,'server/customers/access.ts','scripts/release/remote.py'])assert.throws(()=>selectBrowserValidation(context([...changes,extra],options)),/date hotfix/);
+ assert.throws(()=>selectBrowserValidation(context(changes.slice(1),options)),/date hotfix/);
+ assert.throws(()=>selectBrowserValidation(context(changes,{...options,baselineReleaseId:'later-release'})),/date hotfix/);
+ assert.throws(()=>selectBrowserValidation(context(changes,{...options,migrations:['sample-contact']})),/date hotfix/);
+ const added=context(changes,options);added.previous.files=added.previous.files.filter(file=>file.path!==date);
+ assert.throws(()=>selectBrowserValidation(added),/date hotfix/);
+});
 test('duplicate manifests fail closed instead of hiding changed ownership',()=>{
  const ctx=context([gallery]);ctx.current.files.push({...ctx.current.files[0]});
  assert.throws(()=>selectBrowserValidation(ctx),/duplicate/);

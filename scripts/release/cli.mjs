@@ -89,7 +89,7 @@ function prepare(){
   requireSampleContactIdentityMigration(candidate.changed,args.migrations);
   if(candidate.changed.some(name=>/^(?:server\/product-master\/(?:schema|fabrics|fabricExcelImport|fabricExcelPreview|fabricNumberSchema)\.ts)$/.test(name)))
    timed('fabricValidation',()=>processRun(process.execPath,['scripts/run-ts-tests.mjs','server/product-master/fabricNumberSchema.test.ts','server/product-master/fabrics.test.ts','server/product-master/fabricExcelPreview.test.ts','server/product-master/fabricExcelImport.test.ts'],{log:path.join(dir,'fabric-validation.log')}));
-  browserValidation=selectBrowserValidation({...candidate,migrations:args.migrations,fullUi:args.fullUi,quickUi:args.quickUi});
+  browserValidation=selectBrowserValidation({...candidate,migrations:args.migrations,fullUi:args.fullUi,quickUi:args.quickUi,customerHistoryHotfix:args.customerHistoryHotfix});
   write(path.join(dir,'browser-validation-plan.json'),browserValidation);
   console.log(JSON.stringify({stage:'browser-validation',mode:browserValidation.mode,reason:browserValidation.reason,profiles:browserValidation.profiles,specs:browserValidation.specs}));
   const browserResult=executeBrowserValidation(browserValidation,{root,dir,run:(exe,argv,{label,...options})=>timed(label,()=>options.liveLog?runBrowserWithProgress(exe,argv,{root,...options}):processRun(exe,argv,options))});
@@ -100,7 +100,16 @@ function prepare(){
    if(checked.reportSha256!==uiReport.reportSha256||checked.sourceManifestSha256!==sourceSha)throw Error('UI review changed during browser validation');
    write(path.join(dir,'ui-evidence-after-browser.log'),checked);
   });
+  if(args.customerHistoryHotfix)timed('customerHistoryDate',()=>processRun(process.execPath,
+   ['--import','tsx','--test','--test-name-pattern','activity uses the selection creation instant','server/customers/v12.test.ts'],{log:path.join(dir,'customer-history-date.log')}));
   localHttpContract=timed('httpContract',()=>checkHttpContract(dir));timed('build',()=>processRun(process.platform==='win32'?(process.env.ComSpec??'cmd.exe'):'npm',process.platform==='win32'?['/d','/s','/c','npm run build']:['run','build'],{log:path.join(dir,'build.log')}));
+  if(args.customerHistoryHotfix)timed('browserAssetIdentity',()=>{
+   const published=json(path.join(root,'artifacts/releases',candidate.baselineReleaseId,'package/manifest.json'));
+   const fresh=collectBrowserFiles(path.join(root,'dist')).map(file=>'dist/'+file).sort();
+   if(published.id!==candidate.baselineReleaseId||published.files['dist/index.html'].sha256!==baseline.index||
+    JSON.stringify(fresh)!==JSON.stringify([...published.browserFiles].sort())||
+    fresh.some(file=>hash(fs.readFileSync(file))!==published.files[file].sha256))throw Error('Customer history date hotfix changed browser assets');
+  });
   for(const script of browserValidation.postBuildScripts)timed('uiFocusedBrowser',()=>processRun(process.execPath,[script],{log:path.join(dir,'ui-focused-browser.log'),timeout:60000}));
   processRun(process.execPath,['scripts/check-fabric-v2-development-source.mjs'],{log:path.join(dir,'source-after-build.log')});if(hash(fs.readFileSync(sourcePath))!==sourceSha||JSON.stringify(snapshot(source))!==JSON.stringify(before))throw Error('Source changed during build');}
  const appRoot=reuse?reuse.pkg:root;

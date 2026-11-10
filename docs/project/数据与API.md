@@ -68,7 +68,7 @@ PRD-08 / AC-161：`pattern-catalog` 的 `productCount` 由服务端按母版全�
 - GET /api/v2/products 新增可选sort=numberAsc|numberDesc，缺省保留原默认顺序；按母版数字、配色数字、产品ID排序后LIMIT/OFFSET，不用面料后缀作排序键。GET /api/v2/sample-cards 接受sort=newest|numberAsc|numberDesc，按母版数字及卡ID排序，缺省仍新增时间倒序；花型原numberAsc/numberDesc沿用。排序值严格白名单、重复/未知值拒绝，不影响导出字段或现有编号。
 - DELETE /api/v2/customers/:id 在客户FOR UPDATE及版本检查后重新统计未删除选样；有记录返回409 {code:"customer_has_selections",selectionCount:N,error:先删选样提示}，审计/客户/选样均不写入。创建选样同样取得客户更新锁，与删除串行；GET deletion-info仍提供确认前数量，不替代DELETE实时校验。所有选样已逻辑删除时才可删客户，保留已存三类单据及所有原始历史。
 - 客户profile.region字段和100字符上限保留，仅表单/详情文案改为“详细地址”；旧值读写不转换、不清空，无新增DB列或迁移。
-- 已授权的选样列表与单单读取通过 `customerReference` 返回展示名称，列表在服务端按同一口径筛选后分页。关联的有效档案用当前名称，未关联及已删除/旧归档档案回退到 `customer_sample_sessions.customer_reference`。客户档案业务历史中的选样摘要沿用同一口径，原始快照与受控关联的版本比较字段保留。
+- 已授权的选样列表与单单读取通过 `customerReference` 返回展示名称，列表在服务端按同一口径筛选后分页。关联的有效档案用当前名称，未关联及已删除/旧归档档案回退到 `customer_sample_sessions.customer_reference`。客户档案业务历史中的选样摘要沿用同一名称口径；选样日期从创建时间戳换算为北京时间，再与原反馈日期和单据日期合并排序分页。原始快照与受控关联的版本比较字段保留。
 - PATCH /api/v2/customers/:id 在鉴权与行版本校验后，于同一事务内校对变更后的名称。其他有效档案已使用该名称时返回 409 `customer_name_taken`，不返回匹配档案信息，前端保留草稿并显示专用提示。
 - GET /api/v2/customer-samples/sessions 的摘要以 canManage 控制编辑、canDelete 控制独立删除；后者按当前管理员/客户负责人/编辑授权判定，不受客户 deletedAt 或旧 archived_at 限制。摘要 contactName 仅返回有权查看的本单联系人姓名快照，未关联或未指定为 null，客户端兼容旧响应缺字段。DELETE /api/v2/customer-samples/sessions/:sessionId 在有效登录、客户/授权共享锁、链接一致性及选样更新锁内复核同一删除权限，仅写选样删除标记和最小审计；不恢复客户、不删除明细/反馈，审计失败回滚。普通编辑写入口继续拒绝已删/归档客户，仅查看授权不能删除，未关联客户仍复核旧显式选样管理grant。
 - GET /api/v2/customer-samples/sessions/:sessionId/cards/export.xlsx：不接收客户端卡ID，当前登录及该选样单读取权限复核后，在同一只读事务由有效选择项的扫码/人工来源求卡集合，去重后调用选样共用的 buildSelectionCardsWorkbook。旧已结束且未删除的选样单可读取导出；空集、卡失效/撤码整笔409，不静默漏导；响应no-store且不经JSON暴露二维码；单个和批量导出共用 V2-13 十列模板，选样日期从创建时间戳按北京时间生成。

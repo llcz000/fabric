@@ -12,6 +12,14 @@ test('full UI override works for read-only plan and fresh preparation but cannot
  assert.throws(()=>parseArgs(['prepare','--full-ui','--quick-ui']));
  assert.throws(()=>parseArgs(['prepare','--full-ui','--from-release','receipt.json']));
 });
+test('customer history hotfix flag requires a new build and excludes migrations or other browser options',()=>{
+ for(const command of ['prepare','run'])assert.equal(parseArgs([command,'--customer-history-hotfix']).customerHistoryHotfix,true);
+ assert.throws(()=>parseArgs(['run','existing','--customer-history-hotfix']));
+ assert.throws(()=>parseArgs(['deploy','existing','--customer-history-hotfix']));
+ for(const extra of [['--full-ui'],['--quick-ui'],['--from-release','receipt.json'],['--migrations','sample-contact'],['--rehearse']]){
+  assert.throws(()=>parseArgs(['prepare','--customer-history-hotfix',...extra]));
+ }
+});
 const profile={name:'production',url:'https://124.223.97.60',production:'/opt/fabric-v2-production-20261019-11910f5f',stageRoot:'/opt/fabric-releases',backupRoot:'/var/backups/fabric',process:'fabric-v2-production-20261019',recoveryProcess:'fabric-v2-production-readonly-20261019',starter:'start-v2.cjs',nginx:'/etc/nginx/sites-enabled/fabric',database:'fabric_db',serverUuid:'a937ff09-72b6-11f1-b04e-52540034488b',port:3008,recoveryPort:3009,sshConfig:'D:/fabric/.local/server/_config/ssh.local.json'};
 test('strict writable contract accepts missing/false only',()=>{for(const r of [{mode:'v2'},{mode:'v2',readOnly:false}])assertWritable(r);for(const r of [null,[],{mode:'v1'},{mode:'v2',readOnly:true},{mode:'v2',readOnly:0},{mode:'v2',readOnly:'false'},{mode:'v2',readOnly:null}])assert.throws(()=>assertWritable(r));});
 test('profile rejects unsafe target paths, identifiers, URLs and unexpected fields',()=>{assert.deepEqual(validateProfile(profile),profile);for(const change of [{production:'/opt/../etc'},{production:'/opt'},{stageRoot:'/opt'},{database:'fabric_db; DROP DATABASE x'},{process:'x;id'},{url:'https://user:password@host'},{port:'3008'},{nginx:'/etc/../tmp/x'},{extra:true}])assert.throws(()=>validateProfile({...profile,...change}));});

@@ -4,6 +4,10 @@ import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 
 const smoke=['tests/ui/internal-table-chrome.spec.ts','tests/ui/mobile-library-actions.spec.ts'];
+const customerHistoryBaseline='20261110t020116583-0e0eb9e3';
+const customerHistoryFiles=['server/customers/service.ts','server/customers/service.testFixture.ts','server/customers/v12.test.ts'];
+const customerHistoryToolFiles=['scripts/release/browser-validation.mjs','scripts/release/browser-validation.test.mjs',
+ 'scripts/release/cli.mjs','scripts/release/core.mjs','scripts/release/release.test.mjs'];
 const profiles=[{
  id:'model-gallery',paths:['src/components/product-master-v2/ModelGalleryV2.tsx',
   'tests/ui/model-gallery.spec.ts','tools/ui-preview/modelGalleryReview.tsx',
@@ -43,13 +47,20 @@ function manifestFiles(manifest){
  }
  return result;
 }
-export function selectBrowserValidation({previous,current,baselineReleaseId,sourceSha256,migrations=[],fullUi=false,quickUi=false}){
+export function selectBrowserValidation({previous,current,baselineReleaseId,sourceSha256,migrations=[],fullUi=false,quickUi=false,customerHistoryHotfix=false}){
  const old=manifestFiles(previous),next=manifestFiles(current);
  const changedFiles=sortedUnique([...old.keys(),...next.keys()]).filter(p=>old.get(p)!==next.get(p));
  const code=changedFiles.filter(p=>!p.startsWith('docs/'));
  const selected=profiles.filter(profile=>code.some(p=>profile.paths.includes(p)));
  const base={version:1,rulesVersion:'fabric-browser-scope-v1',baselineReleaseId,candidateManifestSha256:sourceSha256,
   changedFiles,profiles:[],specs:[],unitFiles:[],postBuildScripts:[]};
+ if(customerHistoryHotfix){
+  if(baselineReleaseId!==customerHistoryBaseline||migrations.length||fullUi||quickUi||
+   customerHistoryFiles.some(p=>!code.includes(p))||
+   code.some(p=>!old.has(p)||!next.has(p)||![...customerHistoryFiles,...customerHistoryToolFiles].includes(p)))
+   throw Error('Customer history date hotfix requires its verified baseline and exact file scope');
+  return {...base,mode:'none',reason:'customer-history-date-hotfix'};
+ }
  let result;
  if(fullUi)result={...base,mode:'full',reason:'explicit-full-ui'};
  else if(migrations.length)result={...base,mode:'full',reason:'database-migrations'};
