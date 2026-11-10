@@ -3,7 +3,8 @@ import {CatalogExportButton} from './CatalogExportButton';
 import {useV2LeaveProtection} from './useV2LeaveProtection';
 import {readV2Route,v2Route} from './v2Navigation';
 import React,{useEffect,useRef,useState,useCallback} from 'react';
-import {Image as ImageIcon,Plus,Search,X,ChevronLeft,ChevronRight,Images,RotateCcw} from 'lucide-react';
+import {Image as ImageIcon,Plus,Search,X,Images,RotateCcw} from 'lucide-react';
+import {LibraryPagination} from './LibraryPagination';
 import {ProductImageTabs,type CatalogImageResolver} from './ProductImageTabs';
 import {ProductTryOnDialog} from './ProductTryOnDialog';
 import {SampleCardPatternsDialog} from './SampleCardPatternsDialog';
@@ -136,6 +137,7 @@ export function CatalogV2Table({
    <ColumnSettingsMenu columns={productColumns} visibility={visibility}
     onToggle={toggleVisibility} onReset={resetVisibility}/>
   </div>
+  <LibraryPagination label="产品列表顶部分页" page={page} onPage={onPage} summary={<>共 {page.total} 条产品 · 每页 {page.limit} 条</>} disabled={updating} className="border-b border-slate-200 px-3 py-2"/>
   <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="产品列表，可左右滚动查看全部字段">
    <table className="v2-library-table w-full min-w-[1400px] border-collapse text-left text-xs text-[#191b24]">
     <colgroup>{shown.map(column=><col key={column.key} style={widthOf(column.key)}/>)}</colgroup>
@@ -152,15 +154,7 @@ export function CatalogV2Table({
    </table>
    {!rows.length?<div className="px-4 py-16 text-center text-sm text-slate-500">没有匹配的产品，请调整或清空筛选条件。</div>:null}
   </div>
-  <div className="mt-auto flex items-center justify-between gap-3 border-t border-[#ededf9] px-3 py-2.5 text-xs text-[#737686]">
-   <span>共 {page.total} 条产品 · 每页 {page.limit} 条 · 第 {Math.floor(page.offset/page.limit)+1} 页</span>
-   <div className="flex items-center gap-2">
-    <button type="button" aria-label="上一页" className={neutral+' px-2 py-1.5'}
-     disabled={updating||page.offset===0} onClick={()=>onPage(Math.max(0,page.offset-page.limit))}><ChevronLeft size={15}/></button>
-    <button type="button" aria-label="下一页" className={neutral+' px-2 py-1.5'}
-     disabled={updating||page.offset+page.limit>=page.total} onClick={()=>onPage(page.offset+page.limit)}><ChevronRight size={15}/></button>
-   </div>
-  </div>
+  <LibraryPagination label="产品分页" page={page} onPage={onPage} summary={<>共 {page.total} 条产品 · 每页 {page.limit} 条</>} disabled={updating} className="mt-auto border-t border-slate-200 px-3 py-2"/>
  </div>;
 }
 function ImageDialog({
@@ -353,7 +347,7 @@ export function ProductCatalogV2({apiFetch,canManage=false,allowExport=true,onCr
 
   </div>
 
-   <div className="v2-catalog-status" role="status" aria-live="polite">{busy?(page?'正在更新产品…':'正在查找产品…'):page?'共 '+page.total+' 条产品':''}</div>
+   {busy&&<div className="v2-catalog-status" role="status">{page?'正在更新产品…':'正在查找产品…'}</div>}
    {failure?<div role="alert" className="rounded-lg border border-rose-200 bg-white p-4 text-sm text-rose-700">
    {failure}<button type="button" onClick={()=>setRetry(n=>n+1)} className="ml-3 underline"><ActionIcon name="refresh"/>重试</button></div>:null}
    <div className="v2-catalog-viewport" aria-busy={busy} data-updating={busy}>

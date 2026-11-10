@@ -239,7 +239,9 @@ export function PatternLibraryV2({apiFetch,canManage=false,onCreateMaster,onEdit
   {loading?<p role="status" className="p-3 text-sm text-slate-500">正在加载花型…</p>:null}
   {error?<p role="alert" className="p-3 text-sm text-rose-700">{error}
    <button type="button" onClick={()=>setRetry(n=>n+1)} className="ml-2 underline"><ActionIcon name="refresh"/>重试</button></p>:null}
-  {!loading&&!error&&page?<><PatternMasterRows items={page.items} thumbnailUrls={thumbs} onShare={onShareMaster}
+  {!loading&&!error&&page?<>
+   <PatternPagination label="花型列表顶部分页" page={page} onPage={offset=>dispatch({type:'page',offset})}/>
+   <PatternMasterRows items={page.items} thumbnailUrls={thumbs} onShare={onShareMaster}
    onPreview={setPreview} onEdit={openEdit} onDelete={canManage?deleteMaster:undefined}
    onQuickTopicEdit={canManage?setQuickTopicMaster:undefined} onViewProducts={setLinkedMaster}
    sort={filters.sort} onSort={()=>dispatch({type:'sort',value:filters.sort==='numberAsc'?'numberDesc':'numberAsc'})}

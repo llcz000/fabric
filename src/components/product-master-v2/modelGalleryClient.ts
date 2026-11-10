@@ -9,8 +9,9 @@ export const categories:Record<ModelCategory,string>={
  dress:'连衣裙',top:'上衣',skirt:'半身裙',pants:'裤装',set:'套装',other:'其他'
 };
 export const angles:Record<ModelAngle,string>={front:'正面',side:'侧面',back:'背面',other:'其他'};
+export const MODEL_PAGE_SIZE=50;
 export async function listModelImages(apiFetch:typeof fetch,category?:ModelCategory,offset=0):Promise<{items:ModelImage[];total:number}>{
- const path='/api/v2/models?limit=50&offset='+offset+(category?'&category='+category:'');
+ const path='/api/v2/models?limit='+MODEL_PAGE_SIZE+'&offset='+offset+(category?'&category='+category:'');
  const response=await apiFetch(path,{cache:'no-store'});
  if(!response.ok)throw Error('模特图库读取失败（'+response.status+'）');
  const data=await response.json();

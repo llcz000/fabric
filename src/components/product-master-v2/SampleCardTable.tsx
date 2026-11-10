@@ -7,7 +7,7 @@ import {buildColumnVisibility,readColumnVisibility,toggleColumnVisibility,
  visibleColumns,writeColumnVisibility,type LibraryColumn} from './libraryTableChromeModel';
 import {ColumnSettingsMenu,SortableHeader} from './LibraryTableChrome';
 import {DialogDismissButton} from '../ui/DialogDismissButton';
-const button='rounded border border-[#c3c6d7] px-3 py-1.5 text-xs disabled:opacity-40';
+import {LibraryPagination} from './LibraryPagination';
 
 const border='rounded-lg border border-[#c3c6d7] bg-white';
 
@@ -85,6 +85,7 @@ export function SampleCardTable({page,selectedIds,onToggle,onPageAll,onPage,onCo
    <ColumnSettingsMenu columns={cardColumns} visibility={visibility}
     onToggle={toggleVisibility} onReset={resetVisibility}/>
   </div>
+  <LibraryPagination label="色卡列表顶部分页" page={page} onPage={onPage} summary={<>共 {page.total} 张色卡</>} disabled={busy} className="border-b border-slate-200 px-3 py-2"/>
   <div className="overflow-x-auto" role="region" aria-label="色卡列表，可横向滚动" tabIndex={0}>
    <table className="v2-library-table w-full min-w-[1160px] border-collapse text-left text-xs">
     <colgroup>
@@ -104,12 +105,7 @@ export function SampleCardTable({page,selectedIds,onToggle,onPageAll,onPage,onCo
    </table>
    {!rows.length?<p className="py-12 text-center text-xs text-slate-500">{busy?'加载中…':'没有匹配的色卡'}</p>:null}
   </div>
-  <footer className="flex flex-wrap items-center justify-end gap-3 border-t border-[#e5eaf0] bg-[#fbfcfd] px-4 py-3 text-[11px] text-slate-500">
-   <div className="flex items-center gap-3"><span>共 {page.total} 张色卡 · 页码 {Math.floor(page.offset/page.limit)+1}/{Math.max(1,Math.ceil(page.total/page.limit))}</span>
-    <button type="button" className={button} disabled={busy||page.offset===0} onClick={()=>onPage(Math.max(0,page.offset-page.limit))}><ActionIcon name="back"/>上一页</button>
-    <button type="button" className={button} disabled={busy||page.offset+page.limit>=page.total} onClick={()=>onPage(page.offset+page.limit)}><ActionIcon name="next"/>下一页</button>
-   </div>
-  </footer>
+  <LibraryPagination label="色卡分页" page={page} onPage={onPage} summary={<>共 {page.total} 张色卡</>} disabled={busy} className="mt-auto border-t border-slate-200 px-3 py-2"/>
  </section>;
 }
 

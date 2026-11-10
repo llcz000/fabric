@@ -2,7 +2,8 @@ import {useV2LeaveProtection} from './useV2LeaveProtection';
 import {CatalogExportButton} from './CatalogExportButton';
 import {ActionIcon} from './ActionIcon';
 import React,{useEffect,useRef,useState} from 'react';
-import {ChevronLeft,ChevronRight,Plus,Search,X} from 'lucide-react';
+import {Plus,Search,X} from 'lucide-react';
+import {LibraryPagination} from './LibraryPagination';
 import {
  emptyFabricFilters,reduceFabricFilters,fetchFabricCatalog,buildFabricCatalogUrl,
  fabricToDraft,validateFabricDraft,createFabric,updateFabric,deleteFabric,emptyFabricDraft,
@@ -172,6 +173,7 @@ export function FabricV2Table({
    {!editing&&<ColumnSettingsMenu columns={fabricColumns} visibility={visibility}
     onToggle={toggleVisibility} onReset={resetVisibility}/>}
   </div>
+  <LibraryPagination label="面料列表顶部分页" page={page} onPage={onPage} summary={<>共 {page.total} 条面料 · 每页 {page.limit} 条</>} className="border-b border-slate-200 px-3 py-2"/>
   <div className="overflow-x-auto">
    <table className={'v2-library-table w-full border-collapse text-left text-xs text-[#191b24] '+(editing?'min-w-[1300px]':'min-w-[1200px]')}>
     <colgroup>{shown.map(column=><col key={column.key} style={widthOf(column.key)}/>)}</colgroup>
@@ -193,17 +195,7 @@ export function FabricV2Table({
    </table>
    {!rows.length&&!creating?<p className="py-16 text-center text-sm text-[#64748b]">没有匹配的面料，请调整或清空筛选条件。</p>:null}
   </div>
-  <footer className="mt-auto flex items-center justify-between gap-2 border-t border-slate-200 p-3 text-xs text-slate-500">
-   <span>共 {page.total} 条面料 · 每页 {page.limit} 条 · 第 {Math.floor(page.offset/page.limit)+1} 页</span>
-   <div className="flex gap-2">
-    <button type="button" aria-label="上一页" disabled={page.offset===0}
-     className="rounded border px-2 py-1 disabled:opacity-40"
-     onClick={()=>onPage(Math.max(0,page.offset-page.limit))}><ChevronLeft size={16}/></button>
-    <button type="button" aria-label="下一页" disabled={page.offset+page.limit>=page.total}
-     className="rounded border px-2 py-1 disabled:opacity-40"
-     onClick={()=>onPage(page.offset+page.limit)}><ChevronRight size={16}/></button>
-   </div>
-  </footer>
+  <LibraryPagination label="面料分页" page={page} onPage={onPage} summary={<>共 {page.total} 条面料 · 每页 {page.limit} 条</>} className="mt-auto border-t border-slate-200 px-3 py-2"/>
  </div>;
 }
 export function ConfirmFabricDelete({item,onCancel,onConfirm,busy=false}:{

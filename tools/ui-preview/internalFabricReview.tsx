@@ -16,6 +16,9 @@ const samples:FabricCatalogItem[]=[
 {id:'2',fabricNo:'F032',fabricName:'高密棉麻',composition:'棉 65% / 亚麻 35%',weightValue:16.5,weightUnit:'mm',widthValue:148,remark:null,isActive:true,productCount:2},
 {id:'3',fabricNo:'F036',fabricName:'柔软仿真丝斜纹绸',composition:'涤纶 92% / 氨纶 8%',weightValue:null,weightUnit:null,widthValue:150,remark:'旧面料待清理',isActive:true,productCount:0}
 ];
+if(new URLSearchParams(location.search).has('pagination'))samples.push(...Array.from({length:99},(_,i)=>({
+ ...samples[0],id:String(i+4),fabricNo:'P'+String(i+1).padStart(3,'0')
+})));
 const apiFetch=(async(input:RequestInfo|URL,init?:RequestInit)=>{
  const url=new URL(String(input),location.href);
  if(url.pathname==='/api/image-assets/access-urls')return relatedProductImagesPreview(init);
@@ -36,7 +39,8 @@ const apiFetch=(async(input:RequestInfo|URL,init?:RequestInit)=>{
  const comp=(url.searchParams.get('composition')||'').toLowerCase();
  const inactive=url.searchParams.get('includeInactive')==='true';
  const matches=samples.filter(x=>(inactive||x.isActive)&&(!query||[x.fabricNo,x.fabricName,x.composition??''].some(v=>v.toLowerCase().includes(query)))&&x.fabricNo.toLowerCase().includes(no)&&x.fabricName.toLowerCase().includes(name)&&(x.composition??'').toLowerCase().includes(comp));
- return new Response(JSON.stringify({items:matches,total:matches.length,limit:50,offset:0}),{status:200,headers:{'content-type':'application/json'}});
+ const offset=Number(url.searchParams.get('offset')||0),limit=Number(url.searchParams.get('limit')||50);
+ return Response.json({items:matches.slice(offset,offset+limit),total:matches.length,limit,offset});
 }) as typeof fetch;
 
 function Screen(){

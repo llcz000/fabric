@@ -14,6 +14,9 @@ let models:ModelImage[]=[{id:'2',modelNo:'M00002',assetId:modelAsset,category:'d
 if(new URLSearchParams(location.search).get('layout')==='mixed')models=[models[0],
  {...models[0],id:'3',modelNo:'M00003',assetId:'cccccccc-cccc-4ccc-8ccc-cccccccccccc',width:420,height:210,note:''},
  {...models[0],id:'4',modelNo:'M00004',assetId:'dddddddd-dddd-4ddd-8ddd-dddddddddddd',width:280,height:280,note:'这是一条需要截断显示但保留完整内容的较长模特备注，检查资料区与操作按钮对齐。'}];
+if(new URLSearchParams(location.search).has('pagination'))models=Array.from({length:102},(_,i)=>({
+ ...models[0],id:String(i+1),modelNo:'M'+String(i+1).padStart(5,'0'),category:i<101?'dress':'top'
+}));
 const product:any={id:'12',productNo:'G0393-1-F018',masterId:'11',masterNo:'G0393',colorwayNo:1,
  fabricName:'轻薄雪纺',composition:'聚酯纤维',weightValue:75,weightUnit:'gsm',widthCm:145,patternImageAssetId:pattern};
 const apiFetch=(async(input:RequestInfo|URL,init?:RequestInit)=>{
@@ -28,7 +31,9 @@ const apiFetch=(async(input:RequestInfo|URL,init?:RequestInit)=>{
  }
  if(url.pathname==='/api/v2/models'){
   const offset=Number(url.searchParams.get('offset')||0);
-  return Response.json({items:models.slice(offset,offset+50),total:models.length});
+  const category=url.searchParams.get('category');
+  const matches=category?models.filter(model=>model.category===category):models;
+  return Response.json({items:matches.slice(offset,offset+50),total:matches.length});
  }
  if(url.pathname==='/api/image-assets/access-urls'){
   const data=JSON.parse(String(init?.body));

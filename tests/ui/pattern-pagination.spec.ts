@@ -1,10 +1,49 @@
 import {test,expect} from '@playwright/test';
+test('both pattern pagination bars jump directly and stay in sync',async({page})=>{
+ await page.setViewportSize({width:360,height:800});
+ await page.goto('/tools/ui-preview/entries/ui-ux-internal-patterns.html');
+ const top=page.getByRole('navigation',{name:'花型列表顶部分页',exact:true});
+ const bottom=page.getByRole('navigation',{name:'花型分页',exact:true});
+ const rows=page.getByRole('table',{name:'花型母版列表'}).getByRole('row');
+ await expect(top).toContainText('第 1 / 4 页');
+ await expect(bottom).toContainText('第 1 / 4 页');
+ await page.screenshot({path:'artifacts/library-pagination/pattern-360.png'});
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
+ const input=top.getByRole('textbox',{name:'目标页码'});
+ await input.fill('5');
+ await input.press('Enter');
+ await expect(top.getByRole('alert')).toHaveText('请输入 1–4 之间的整数页码');
+ await expect(input).toBeFocused();
+ await expect(bottom).toContainText('第 1 / 4 页');
+ await input.press('Escape');
+ await expect(input).toHaveValue('');
+ await expect(top.getByRole('alert')).toHaveCount(0);
+ await input.fill('4');
+ await input.press('Enter');
+ await expect(top).toContainText('第 4 / 4 页');
+ await expect(bottom).toContainText('第 4 / 4 页');
+ await expect(rows).toHaveCount(17);
+ await expect(bottom.getByRole('button',{name:'下一页'})).toBeDisabled();
+ await bottom.scrollIntoViewIfNeeded();
+ await page.screenshot({path:'artifacts/library-pagination/pattern-bottom-360.png'});
+ await bottom.getByRole('textbox',{name:'目标页码'}).fill('2');
+ await bottom.getByRole('button',{name:'跳转'}).click();
+ await expect(top).toContainText('第 2 / 4 页');
+ await expect(bottom).toContainText('第 2 / 4 页');
+ await expect(rows).toHaveCount(21);
+ await page.getByRole('textbox',{name:'搜索编号'}).fill('G0001');
+ await expect(top).toContainText('第 1 / 1 页');
+ await expect(bottom).toContainText('第 1 / 1 页');
+ await expect(bottom.getByRole('button',{name:'跳转'})).toBeDisabled();
+});
+
 test('76 masters / 144 versions: all four pages complete and unique, last-page controls and filtering reset',async({page})=>{
  await page.goto('/tools/ui-preview/entries/ui-ux-internal-patterns.html');
  const footer=page.getByRole('navigation',{name:'花型分页'});
  await expect(footer).toContainText('共 76 个花型 · 144 个配色');
  await expect(footer).toContainText('第 1 / 4 页');
  await expect(footer.getByRole('button',{name:'上一页'})).toBeDisabled();
+ await page.screenshot({path:'artifacts/library-pagination/pattern-1440.png'});
  await page.screenshot({path:'artifacts/ui-ux-pilot/pattern-pagination-first.png',fullPage:true});
  const masters=new Set<string>(),versions=new Set<string>();
  for(let i=1;i<=4;i++){

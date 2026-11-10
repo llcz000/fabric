@@ -13,7 +13,7 @@ test('product number sorts globally by master and numeric colorway, skips fabric
  const rows=page.locator('tbody tr'),numbers=rows.locator('td:nth-child(2)');
  await expect(rows).toHaveCount(50);
  await expect(numbers.first()).toHaveText('G8-2-F999');
- await page.getByRole('button',{name:'下一页',exact:true}).click();
+ await page.getByRole('navigation',{name:'产品分页',exact:true}).getByRole('button',{name:'下一页',exact:true}).click();
  await expect(numbers.first()).toHaveText('G11-10-F999');
  const header=page.getByRole('columnheader',{name:'货号',exact:true});
  await header.getByRole('button').click();
@@ -24,7 +24,7 @@ test('product number sorts globally by master and numeric colorway, skips fabric
  for(let index=0;index<3;index++){
   await expect(rows).toHaveCount(index===2?44:50);
   seen.push(...await numbers.allTextContents());
-  if(index<2)await page.getByRole('button',{name:'下一页',exact:true}).click();
+  if(index<2)await page.getByRole('navigation',{name:'产品分页',exact:true}).getByRole('button',{name:'下一页',exact:true}).click();
  }
  expect(seen).toHaveLength(144);expect(new Set(seen).size).toBe(144);
  expect(seen.indexOf('G8-2-F999')).toBeLessThan(seen.indexOf('G15-2-F999'));
@@ -45,7 +45,7 @@ test('card number sorts all pages by master while preserving separate complete f
  await page.goto(cards);
  const rows=page.locator('tbody tr'),numbers=rows.locator('[data-card-field="cardNo"] > div:first-child');
  await expect(rows).toHaveCount(50);
- await page.getByRole('button',{name:'下一页',exact:true}).click();
+ await page.getByRole('navigation',{name:'色卡分页',exact:true}).getByRole('button',{name:'下一页',exact:true}).click();
  await expect(rows).toHaveCount(22);
  const header=page.getByRole('columnheader',{name:'色卡编号',exact:true});
  await header.getByRole('button').click();
@@ -54,7 +54,7 @@ test('card number sorts all pages by master while preserving separate complete f
  await expect(numbers.first()).toHaveText('G1-F999');
  await expect(numbers.nth(1)).toHaveText('G1-F001');
  const seen=await numbers.allTextContents();
- await page.getByRole('button',{name:'下一页',exact:true}).click();
+ await page.getByRole('navigation',{name:'色卡分页',exact:true}).getByRole('button',{name:'下一页',exact:true}).click();
  await expect(rows).toHaveCount(22);seen.push(...await numbers.allTextContents());
  expect(seen).toHaveLength(72);expect(new Set(seen).size).toBe(72);
  expect(seen.indexOf('G8-F999')).toBeLessThan(seen.indexOf('G15-F999'));
