@@ -52,11 +52,10 @@ try{
  const pdf=Buffer.from((await send('Page.printToPDF',{preferCSSPageSize:true,printBackground:true})).data,'base64');
  await writeFile(path.join(dir,'fixture-print.pdf'),pdf);const box=/\/MediaBox\s*\[\s*0\s+0\s+([\d.]+)\s+([\d.]+)/.exec(pdf.toString('latin1'));assert(box,'PDF page size metadata');
  assert(Math.abs(Number(box[1])-240/25.4*72)<2&&Math.abs(Number(box[2])-140/25.4*72)<2,'browser PDF must use the approved 240×140 mm paper');checks.push('actual browser PDF uses 240×140 mm paper');
- for(const label of ['下载 PNG','下载打印 JSON','下载打印Excel']){await until(()=>js(`[...document.querySelectorAll('button')].some(b=>b.textContent.trim()===${JSON.stringify(label)}&&!b.disabled)`),'download action ready');await click(label);}
- await until(async()=>{const files=await readdir(downloads);return ['.png','.json','.xlsx'].every(ext=>files.some(file=>file.endsWith(ext)));},'actual print downloads');
+ for(const label of ['下载 PNG','下载 Excel']){await until(()=>js(`[...document.querySelectorAll('button')].some(b=>b.textContent.trim()===${JSON.stringify(label)}&&!b.disabled)`),'download action ready');await click(label);}
+ await until(async()=>{const files=await readdir(downloads);return ['.png','.xlsx'].every(ext=>files.some(file=>file.endsWith(ext)));},'actual print downloads');
  const files=await readdir(downloads),png=await sharp(await readFile(path.join(downloads,files.find(file=>file.endsWith('.png'))))).metadata();assert((png.width??0)>1500&&(png.height??0)>900);
- const projection=JSON.parse(await readFile(path.join(downloads,files.find(file=>file.endsWith('.json'))),'utf8'));assert.equal(Object.keys(projection.companyImages).length,3);assert.equal(projection.signatureLabels.issuer,'演练开单签字');
- const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(await readFile(path.join(downloads,files.find(file=>file.endsWith('.xlsx')))));assert.equal(workbook.worksheets[0].getImages().length,3);checks.push('actual browser PNG, print JSON and XLSX downloads include current company imagery and signatures');
+ const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(await readFile(path.join(downloads,files.find(file=>file.endsWith('.xlsx')))));assert.equal(workbook.worksheets[0].getImages().length,3);checks.push('PNG and XLSX download, with current company images in the workbook');
  await snap('print-current-company');await click('返回查询');
  await until(()=>js(`Boolean(document.querySelector('input[name="customer"]'))`),'back to list');
  await click('复制为新单');await until(()=>js(`Boolean(document.querySelector('[role="dialog"][aria-label="复制单据"] input'))`),'shared copy dialog');

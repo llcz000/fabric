@@ -5,24 +5,12 @@ import type {DocumentPrintModel} from '../../lib/documentPrintModel';
 import {resolveImageUrls} from '../product-master-v2/catalogModel';
 import {resolveSelectionThumbnails} from '../product-master-v2/selectedCardModel';
 import {documentResourceUrl} from './documentSearchModel';
-/** JSON of the shared, server-authorized print projection, not a database-backup export. */
-export function serializeV2PrintJson(model:DocumentPrintModel):string{
- return JSON.stringify(model,null,2);
-}
 const thumbnailColumnWidth=56;
 const sheetWidthMm=240;
 const sheetPaddingMm=10;
 const sheetContentWidthPx=(sheetWidthMm-2*sheetPaddingMm)*96/25.4;
 const printSideInsetMm=6;
-const printOffsetStorageKey='fabric.documentPrint.horizontalOffsetMm';
-const printOffsets=Array.from({length:2*printSideInsetMm+1},(_,i)=>i-printSideInsetMm);
-
-function savedPrintOffset(){
- try{
-  const offset=Number(window.localStorage.getItem(printOffsetStorageKey));
-  return printOffsets.includes(offset)?offset:0;
- }catch{return 0;}
-}
+const printLeftShiftMm=6;
 const rollColumn=/^roll\d+$/;
 const printWidthsByType:Record<DocumentPrintModel['type'],Record<string,number>>={
  sample:{itemNo:29,colorNo:10,productName:27,composition:25,weight:12,width:17,meters:18,unitPrice:21,amount:24,remark:21},
@@ -111,12 +99,6 @@ export default function V2DocumentPrintView({
  const [error,setError]=useState('');
  const [loading,setLoading]=useState(true);
  const [exporting,setExporting]=useState(false);
- const [printOffset,setPrintOffset]=useState(savedPrintOffset);
- const changePrintOffset=(offset:number)=>{
-  if(!printOffsets.includes(offset))return;
-  setPrintOffset(offset);
-  try{window.localStorage.setItem(printOffsetStorageKey,String(offset));}catch{/* Retain the setting for this preview. */}
- };
  const sheetRef=useRef<HTMLDivElement|null>(null);
  const offerDownload=(blob:Blob,name:string)=>{
   const url=URL.createObjectURL(blob);
@@ -124,13 +106,6 @@ export default function V2DocumentPrintView({
    const a=window.document.createElement('a');a.href=url;a.download=name;
    window.document.body.appendChild(a);a.click();a.remove();
   }finally{setTimeout(()=>URL.revokeObjectURL(url),1000);}
- };
- const downloadJson=()=>{
-  if(!model||exporting)return;
-  setError('');setExporting(true);
-  try{offerDownload(new Blob([serializeV2PrintJson(model)],{type:'application/json;charset=utf-8'}),'V2-'+documentId+'-print.json');}
-  catch(e){setError(e instanceof Error?e.message:'打印JSON导出失败');}
-  finally{setExporting(false);}
  };
  const downloadPng=async()=>{
   if(!model||exporting||!sheetRef.current)return;
@@ -223,12 +198,10 @@ export default function V2DocumentPrintView({
      width:100%!important;
      min-height:0!important;
      margin:0!important;
-     /* Add the remaining side clearance and table border inset on each page. */
+     /* Compensate for the measured 6 mm rightward printer offset on each page. */
      box-decoration-break:clone;
-     padding:15mm
-      calc(${printSideInsetMm}mm + 1px - var(--v2-print-offset, 0mm))
-      6mm
-      calc(${printSideInsetMm}mm + 1px + var(--v2-print-offset, 0mm))!important;
+     padding:15mm calc(${printSideInsetMm+printLeftShiftMm}mm + 1px)
+      6mm calc(${printSideInsetMm-printLeftShiftMm}mm + 1px)!important;
      color:#000;
      font:11pt/1.25 SimSun,"宋体",serif;
      overflow-wrap:anywhere;
@@ -256,27 +229,19 @@ export default function V2DocumentPrintView({
   <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
    <button type="button" onClick={onBack} className="rounded-lg border px-4 py-2 text-sm"><ActionIcon name="back"/>{backLabel}</button>
    <div className="flex flex-wrap gap-2">
-    <button type="button" disabled={!model||exporting} onClick={()=>window.print()} className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50"><ActionIcon name="print"/>浏览器打印</button>
-    <label className="flex items-center gap-2 text-sm">
-     <span>横向打印补偿</span>
-     <select id="document-print-offset" value={printOffset} onChange={event=>changePrintOffset(Number(event.target.value))}
-      title="保存在当前浏览器" className="rounded-lg border bg-white px-2 py-2">
-      {printOffsets.map(offset=><option key={offset} value={offset}>
-       {offset===0?'无补偿（居中）':(offset<0?'左移 ':'右移 ')+Math.abs(offset)+' mm'}
-      </option>)}
-     </select>
-    </label>
+    <button type="button" disabled={!model||exporting} onClick={()=>window.print()}
+     className="rounded-lg border border-emerald-700 bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">
+     <ActionIcon name="print"/>浏览器打印</button>
     <button type="button" disabled={!model||exporting} onClick={()=>void downloadPng()} className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50"><ActionIcon name="download"/>下载 PNG</button>
-    <button type="button" disabled={!model||exporting} onClick={downloadJson} className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50"><ActionIcon name="download"/>下载打印 JSON</button>
     <button type="button" disabled={!model||exporting} onClick={()=>void download()}
-     className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
-     <ActionIcon name="excel"/>{exporting?'正在导出…':'下载打印Excel'}</button>
+     className="rounded-lg border px-4 py-2 text-sm hover:bg-slate-50 disabled:opacity-50">
+     <ActionIcon name="excel"/>{exporting?'正在导出…':'下载 Excel'}</button>
    </div>
   </div>
   {loading&&<p role="status">正在读取打印资料…</p>}
   {error&&<p role="alert" className="text-sm text-rose-700">{error}</p>}
   {model&&<div className="overflow-x-auto">
-   <div ref={sheetRef} data-v2-print-sheet="true" className="mx-auto min-h-[140mm] bg-white text-slate-900" style={{width:sheetWidthMm+'mm',padding:`8mm ${sheetPaddingMm}mm`,boxSizing:'border-box',fontFamily:'SimSun, serif','--v2-print-offset':printOffset+'mm'} as CSSProperties}>
+   <div ref={sheetRef} data-v2-print-sheet="true" className="mx-auto min-h-[140mm] bg-white text-slate-900" style={{width:sheetWidthMm+'mm',padding:`8mm ${sheetPaddingMm}mm`,boxSizing:'border-box',fontFamily:'SimSun, serif'}}>
     <header className="flex items-start justify-between gap-4 border-b-2 border-slate-900 pb-1">
      <div>{model.companyImages?.brand_logo?<img src={model.companyImages.brand_logo} alt="公司Logo" className="max-h-12 max-w-[120px] object-contain"/>:<strong className="text-lg">{model.brandName}</strong>}</div>
      <div className="text-right">

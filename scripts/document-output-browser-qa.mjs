@@ -50,13 +50,6 @@ async function openPreview(type){
   await js(`document.querySelector('button[aria-label="预览 / Excel"]').click()`);
   await until(()=>js(`Boolean(document.querySelector('[data-v2-print-sheet]'))`),'print');
 }
-async function choosePrintOffset(mm){
- await js(`(()=>{
-  const select=document.getElementById('document-print-offset');
-  Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,${JSON.stringify(String(mm))});
-  select.dispatchEvent(new Event('change',{bubbles:true}));
- })()`);
-}
 async function printPdf(name,minPages=1,maxPages=minPages,displayHeaderFooter=false){
  await send('Emulation.setEmulatedMedia',{media:''});
  const result=await send('Page.printToPDF',{preferCSSPageSize:true,displayHeaderFooter});
@@ -92,12 +85,18 @@ try{
  await send('Fetch.enable',{patterns:[{urlPattern:'https://fabric-review.invalid/pattern/*'}]});
  await send('Browser.setDownloadBehavior',{behavior:'allow',downloadPath:downloads,eventsEnabled:true});
  await send('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false});
- await send('Page.addScriptToEvaluateOnNewDocument',{source:`window.__errors=[];addEventListener('error',e=>window.__errors.push(e.message));addEventListener('unhandledrejection',e=>window.__errors.push(String(e.reason)));`});
+ await send('Page.addScriptToEvaluateOnNewDocument',{source:`localStorage.setItem('fabric.documentPrint.horizontalOffsetMm','6');window.__errors=[];addEventListener('error',e=>window.__errors.push(e.message));addEventListener('unhandledrejection',e=>window.__errors.push(String(e.reason)));`});
  await send('Page.navigate',{url:base+'/'+reviewEntry+'?view=documents'});
  await until(()=>js(`Boolean(document.querySelector('select[name="type"]'))`),'query');
  for(const type of ['sample','deposit','bulk']){
   await openPreview(type);
-  await check(`document.getElementById('document-print-offset')?.value==='0'`,type+' starts centered without a saved compensation');
+  await check(`(()=>{
+   const preview=document.querySelector('[aria-label="V2单据打印预览"]');
+   const buttons=[...preview.querySelectorAll('button')];
+   const print=buttons.find(b=>b.textContent.trim()==='浏览器打印');
+   return buttons.slice(1).map(b=>b.textContent.trim()).join('|')==='浏览器打印|下载 PNG|下载 Excel'&&
+    print.classList.contains('bg-emerald-700')&&!preview.querySelector('select');
+  })()`,type+' offers print as the primary action, with PNG and Excel downloads');
   await check(`Math.abs(document.querySelector('[data-v2-print-sheet]').getBoundingClientRect().width-240*96/25.4)<1`,type+' fixed 240mm sheet');
   if(type==='sample'){
    await check(`(()=>{
@@ -130,8 +129,8 @@ try{
    const paper=[...printRules.cssRules].find(rule=>rule.type===CSSRule.PAGE_RULE&&rule.selectorText==='v2-document');
    const terms=table.tFoot.rows[table.tFoot.rows.length-1].cells;
    return paper?.style.margin==='0px 12mm'&&style.boxDecorationBreak==='clone'&&
-    Math.abs(parseFloat(style.paddingLeft)-(6*96/25.4+1))<.01&&
-    Math.abs(parseFloat(style.paddingRight)-parseFloat(style.paddingLeft))<.01&&
+    Math.abs(parseFloat(style.paddingLeft)-1)<.01&&
+    Math.abs(parseFloat(style.paddingRight)-(12*96/25.4+1))<.01&&
     Math.abs(parseFloat(style.paddingTop)-15*96/25.4)<.01&&Math.abs(parseFloat(style.paddingBottom)-6*96/25.4)<.01&&
     style.page==='v2-document'&&style.position==='static'&&
     terms.length===1&&terms[0].matches('[data-print-terms]')&&terms[0].colSpan===table.tHead.rows[0].cells.length&&
@@ -156,16 +155,6 @@ try{
   checks.push(type+' browser-generated PDF is one 240 × 140 mm page');
 
   await check(`document.querySelector('[data-v2-print-sheet] img[alt="公司Logo"]')&&document.querySelectorAll('[data-v2-print-sheet] figure').length===${type==='bulk'?0:2}`,type+' preview shows its applicable company images');
-  const json=JSON.parse((await download('下载打印 JSON')).toString('utf8'));
-  const displayed=await js(`(()=>{const s=document.querySelector('[data-v2-print-sheet]'),t=s.querySelector('table:not([data-sample-table="preview"])');return {title:s.querySelector('h2').textContent,companyName:s.querySelector('h3').textContent,headers:[...t.querySelectorAll('th')].map(e=>e.textContent),rows:[...t.querySelectorAll('tbody tr')].map(tr=>[...tr.querySelectorAll('td')].map(e=>e.textContent)),text:s.textContent};})()`);
-  assert.equal(json.title,displayed.title);assert.equal(json.companyName,displayed.companyName);
-  assert.deepEqual(json.columns.map(c=>c.label),displayed.headers);assert.deepEqual(json.rows,displayed.rows);
-  for(const summary of json.summaries){assert(displayed.text.includes(summary.left));if(summary.right)assert(displayed.text.includes(summary.right));}
-  for(const value of [json.docNo,json.dateText,json.customerName,...json.companyLines,json.terms,...Object.values(json.signature)]){
-   if(value)assert(displayed.text.includes(value),'print metadata present: '+value);
-  }
-  checks.push(type+' JSON document identity, current company lines, terms and signature match preview');
-  assert(!('ownerId' in json));assert(!('displaySnapshot' in json));assert(!('patternThumbnailAssetIds' in json));checks.push(type+' downloaded JSON matches all print rows/summaries');
   const size=await js(`(()=>{const r=document.querySelector('[data-v2-print-sheet]').getBoundingClientRect();return {width:r.width,height:r.height};})()`);
   const png=await download('下载 PNG'),metadata=await sharp(png).metadata();
   assert.equal(metadata.format,'png');
@@ -191,20 +180,17 @@ try{
    checks.push('sample image failure keeps the row and replaces only the thumbnail');
   }
   if(type==='deposit'){
-   assert(displayed.text.includes('25%  ¥150.00'));assert(!/应收|应付/.test(displayed.text));checks.push('deposit JSON/preview uses rounded monetary deposit without receivable');
+   await check(`(()=>{
+    const table=document.querySelector('[data-v2-print-sheet] table');
+    return table.textContent.includes('25%  ¥150.00')&&!/应收|应付/.test(table.textContent);
+   })()`,'deposit preview uses rounded monetary deposit without receivable');
    // The review fixture intentionally has no XLSX endpoint: test the real error UI without claiming successful server export.
-   await click('下载打印Excel');await until(()=>js(`document.querySelector('[role="alert"]')?.textContent.includes('没有导出权限')`),'explicit Excel failure');
-   await check(`[...document.querySelectorAll('button')].filter(b=>['下载 PNG','下载打印 JSON','下载打印Excel'].includes(b.textContent.trim())).every(b=>!b.disabled)`,'export failure restores actions');
-   await download('下载打印 JSON');await check(`!document.querySelector('[role="alert"]')`,'retrying local JSON clears prior export failure');
+   await click('下载 Excel');await until(()=>js(`document.querySelector('[role="alert"]')?.textContent.includes('没有导出权限')`),'explicit Excel failure');
+   await check(`[...document.querySelectorAll('button')].filter(b=>['浏览器打印','下载 PNG','下载 Excel'].includes(b.textContent.trim())).every(b=>!b.disabled)`,'export failure restores actions');
+   await download('下载 PNG');await check(`!document.querySelector('[role="alert"]')`,'PNG download clears prior Excel export failure');
   }
 
   if(type==='sample'){
-   await choosePrintOffset(-6);
-   const offsetPng=await download('下载 PNG');
-   assert.deepEqual(await sharp(offsetPng).raw().toBuffer(),await sharp(png).raw().toBuffer());
-   checks.push('horizontal print compensation does not change PNG pixels');
-   await snap('sample-offset-preview');
-   await choosePrintOffset(0);
    await js(`(()=>{
     const sheet=document.querySelector('[data-v2-print-sheet]');
     const table=sheet.querySelector('[data-sample-table="output"]');
@@ -217,7 +203,6 @@ try{
    await printPdf('sample-detailed-print',1,1,true);
    checks.push('narrow detailed sample keeps long product codes, amounts, terms and QR codes on one page');
   }
-  let pageCount=1;
   if(type==='bulk'){
    await js(`(()=>{
     const sheet=document.querySelector('[data-v2-print-sheet]');
@@ -249,34 +234,10 @@ try{
      tbody.append(row);
     }
    })()`);
-   pageCount=await printPdf('bulk-multipage-print',2,5);
+   const pageCount=await printPdf('bulk-multipage-print',2,5);
    await printPdf('bulk-multipage-browser-headers',pageCount,pageCount,true);
    checks.push('long sales document flows across custom-sized pages');
   }
-
-  await choosePrintOffset(-6);
-  await send('Emulation.setEmulatedMedia',{media:'print'});
-  await check(`(()=>{
-   const sheet=document.querySelector('[data-v2-print-sheet]');
-   const style=getComputedStyle(sheet);
-   const left=parseFloat(style.paddingLeft),right=parseFloat(style.paddingRight);
-   return !document.getElementById('document-print-offset').getClientRects().length&&
-    Math.abs(left-1)<.01&&Math.abs(right-(12*96/25.4+1))<.01;
-  })()`,type+' print shifts left by 6 mm inside the same paper box and hides the control');
-  await printPdf(type+'-offset-left-print',pageCount,pageCount,true);
-  if(type==='sample'){
-   await send('Page.reload');
-
-   await until(()=>js(`Boolean(document.querySelector('select[name="type"]'))`),'query after reload');
-   await openPreview(type);
-   await check(`document.getElementById('document-print-offset')?.value==='-6'`,'print compensation survives a reload and reopening preview');
-  }
-  if(type==='deposit'){
-   await choosePrintOffset(6);
-   await printPdf('deposit-offset-right-print',1,1,true);
-  }
-  await choosePrintOffset(0);
-  await check(`document.getElementById('document-print-offset')?.value==='0'`,type+' can reset compensation to centered');
   await click('返回查询');
  }
  await check(`window.__errors.length===0`,'no browser runtime errors');
