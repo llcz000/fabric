@@ -43,6 +43,20 @@ async function click(text){await js(`(()=>{const e=[...document.querySelectorAll
 async function check(expression,label){assert(await js(expression),label);checks.push(label);}
 async function snap(name){const result=await send('Page.captureScreenshot',{format:'png'});await writeFile(path.join(dir,name+'.png'),Buffer.from(result.data,'base64'));}
 
+async function openPreview(type){
+  await js(`(()=>{const e=document.querySelector('select[name="type"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(e,${JSON.stringify(type)});e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  await click('查询');
+  await until(()=>js(`Boolean(document.querySelector('button[aria-label="预览 / Excel"]'))`),'matching documents');
+  await js(`document.querySelector('button[aria-label="预览 / Excel"]').click()`);
+  await until(()=>js(`Boolean(document.querySelector('[data-v2-print-sheet]'))`),'print');
+}
+async function choosePrintOffset(mm){
+ await js(`(()=>{
+  const select=document.getElementById('document-print-offset');
+  Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,${JSON.stringify(String(mm))});
+  select.dispatchEvent(new Event('change',{bubbles:true}));
+ })()`);
+}
 async function printPdf(name,minPages=1,maxPages=minPages,displayHeaderFooter=false){
  await send('Emulation.setEmulatedMedia',{media:''});
  const result=await send('Page.printToPDF',{preferCSSPageSize:true,displayHeaderFooter});
@@ -82,11 +96,8 @@ try{
  await send('Page.navigate',{url:base+'/'+reviewEntry+'?view=documents'});
  await until(()=>js(`Boolean(document.querySelector('select[name="type"]'))`),'query');
  for(const type of ['sample','deposit','bulk']){
-  await js(`(()=>{const e=document.querySelector('select[name="type"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(e,${JSON.stringify(type)});e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
-  await click('查询');
-  await until(()=>js(`Boolean(document.querySelector('button[aria-label="预览 / Excel"]'))`),'matching documents');
-  await js(`document.querySelector('button[aria-label="预览 / Excel"]').click()`);
-  await until(()=>js(`Boolean(document.querySelector('[data-v2-print-sheet]'))`),'print');
+  await openPreview(type);
+  await check(`document.getElementById('document-print-offset')?.value==='0'`,type+' starts centered without a saved compensation');
   await check(`Math.abs(document.querySelector('[data-v2-print-sheet]').getBoundingClientRect().width-240*96/25.4)<1`,type+' fixed 240mm sheet');
   if(type==='sample'){
    await check(`(()=>{
@@ -188,6 +199,12 @@ try{
   }
 
   if(type==='sample'){
+   await choosePrintOffset(-6);
+   const offsetPng=await download('下载 PNG');
+   assert.deepEqual(await sharp(offsetPng).raw().toBuffer(),await sharp(png).raw().toBuffer());
+   checks.push('horizontal print compensation does not change PNG pixels');
+   await snap('sample-offset-preview');
+   await choosePrintOffset(0);
    await js(`(()=>{
     const sheet=document.querySelector('[data-v2-print-sheet]');
     const table=sheet.querySelector('[data-sample-table="output"]');
@@ -200,6 +217,7 @@ try{
    await printPdf('sample-detailed-print',1,1,true);
    checks.push('narrow detailed sample keeps long product codes, amounts, terms and QR codes on one page');
   }
+  let pageCount=1;
   if(type==='bulk'){
    await js(`(()=>{
     const sheet=document.querySelector('[data-v2-print-sheet]');
@@ -231,10 +249,34 @@ try{
      tbody.append(row);
     }
    })()`);
-   const pageCount=await printPdf('bulk-multipage-print',2,5);
+   pageCount=await printPdf('bulk-multipage-print',2,5);
    await printPdf('bulk-multipage-browser-headers',pageCount,pageCount,true);
    checks.push('long sales document flows across custom-sized pages');
   }
+
+  await choosePrintOffset(-6);
+  await send('Emulation.setEmulatedMedia',{media:'print'});
+  await check(`(()=>{
+   const sheet=document.querySelector('[data-v2-print-sheet]');
+   const style=getComputedStyle(sheet);
+   const left=parseFloat(style.paddingLeft),right=parseFloat(style.paddingRight);
+   return !document.getElementById('document-print-offset').getClientRects().length&&
+    Math.abs(left-1)<.01&&Math.abs(right-(12*96/25.4+1))<.01;
+  })()`,type+' print shifts left by 6 mm inside the same paper box and hides the control');
+  await printPdf(type+'-offset-left-print',pageCount,pageCount,true);
+  if(type==='sample'){
+   await send('Page.reload');
+
+   await until(()=>js(`Boolean(document.querySelector('select[name="type"]'))`),'query after reload');
+   await openPreview(type);
+   await check(`document.getElementById('document-print-offset')?.value==='-6'`,'print compensation survives a reload and reopening preview');
+  }
+  if(type==='deposit'){
+   await choosePrintOffset(6);
+   await printPdf('deposit-offset-right-print',1,1,true);
+  }
+  await choosePrintOffset(0);
+  await check(`document.getElementById('document-print-offset')?.value==='0'`,type+' can reset compensation to centered');
   await click('返回查询');
  }
  await check(`window.__errors.length===0`,'no browser runtime errors');
