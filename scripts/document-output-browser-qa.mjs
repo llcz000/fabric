@@ -13,12 +13,20 @@ const dir=engine==='chromium'?path.join(evidenceRoot,'chromium'):evidenceRoot;
 const site=path.join(evidenceRoot,'site'),downloads=await mkdtemp(path.join(root,'tmp/document-output-downloads-'));
 await mkdir(dir,{recursive:true});
 if(!process.argv.includes('--built'))await build({configFile:path.join(root,'vite.config.ts'),base:'./',build:{outDir:site,emptyOutDir:true,copyPublicDir:false,rollupOptions:{input:path.join(root,'tools/ui-review/entries/product-master-v2-review.html')}}});
+const reviewEntry='tools/ui-review/entries/product-master-v2-review.html';
+const reviewFile=path.join(site,reviewEntry);
+const reviewHtml=await readFile(reviewFile,'utf8');
+const reviewStyle=reviewHtml.match(/<link rel="stylesheet"[^>]* href="([^"]+)"[^>]*>/);
+assert(reviewStyle,'built review stylesheet');
+const reviewCss=await readFile(path.resolve(path.dirname(reviewFile),reviewStyle[1]),'utf8');
+// Keep the compiled styles available when html2canvas clones the fixture into an iframe.
+const reviewPage=reviewHtml.replace(reviewStyle[0],()=>'<style>'+reviewCss+'</style>');
 let base='',ws,serial=0;const pending=new Map(),checks=[],files=[],completed=new Map();
 const pattern=await sharp({create:{width:64,height:40,channels:3,background:'#fa00da'}}).png().toBuffer();
 const server=createServer(async(req,res)=>{try{
  const file=path.resolve(site,decodeURIComponent(new URL(req.url??'/',base).pathname).replace(/^\//,''));
  if(!file.startsWith(site+path.sep)){res.writeHead(403).end();return;}
- res.setHeader('Content-Type',file.endsWith('.js')?'text/javascript':file.endsWith('.css')?'text/css':'text/html; charset=utf-8');res.end(await readFile(file));
+ res.setHeader('Content-Type',file.endsWith('.js')?'text/javascript':file.endsWith('.css')?'text/css':'text/html; charset=utf-8');res.end(file===reviewFile?reviewPage:await readFile(file));
 }catch{res.writeHead(404).end();}});
 await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});base=`http://127.0.0.1:${server.address().port}`;
 const profile=await mkdtemp(path.join(root,'tmp/document-output-'+engine+'-'));
@@ -71,7 +79,7 @@ try{
  await send('Browser.setDownloadBehavior',{behavior:'allow',downloadPath:downloads,eventsEnabled:true});
  await send('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false});
  await send('Page.addScriptToEvaluateOnNewDocument',{source:`window.__errors=[];addEventListener('error',e=>window.__errors.push(e.message));addEventListener('unhandledrejection',e=>window.__errors.push(String(e.reason)));`});
- await send('Page.navigate',{url:base+'/tools/ui-review/entries/product-master-v2-review.html?view=documents'});
+ await send('Page.navigate',{url:base+'/'+reviewEntry+'?view=documents'});
  await until(()=>js(`Boolean(document.querySelector('select[name="type"]'))`),'query');
  for(const type of ['sample','deposit','bulk']){
   await js(`(()=>{const e=document.querySelector('select[name="type"]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(e,${JSON.stringify(type)});e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
@@ -132,7 +140,9 @@ try{
   assert(!('ownerId' in json));assert(!('displaySnapshot' in json));assert(!('patternThumbnailAssetIds' in json));checks.push(type+' downloaded JSON matches all print rows/summaries');
   const size=await js(`(()=>{const r=document.querySelector('[data-v2-print-sheet]').getBoundingClientRect();return {width:r.width,height:r.height};})()`);
   const png=await download('下载 PNG'),metadata=await sharp(png).metadata();
-  assert.equal(metadata.format,'png');assert(Math.abs(metadata.width-size.width*2)<3);assert(Math.abs(metadata.height-size.height*2)<3);
+  assert.equal(metadata.format,'png');
+  assert(Math.abs(metadata.width-size.width*2)<3,`${type} PNG width ${metadata.width} vs sheet ${size.width*2}`);
+  assert(Math.abs(metadata.height-size.height*2)<3,`${type} PNG height ${metadata.height} vs sheet ${size.height*2}`);
   if(type==='sample'){
    const pixels=await sharp(png).removeAlpha().raw().toBuffer();
    assert(!pixels.some((red,i)=>i%3===0&&red>240&&pixels[i+1]<20&&pixels[i+2]>200),'sample PNG excludes the preview colorway pixels');
