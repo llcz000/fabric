@@ -89,7 +89,20 @@ function prepare(){
   requireSampleContactIdentityMigration(candidate.changed,args.migrations);
   if(candidate.changed.some(name=>/^(?:server\/product-master\/(?:schema|fabrics|fabricExcelImport|fabricExcelPreview|fabricNumberSchema)\.ts)$/.test(name)))
    timed('fabricValidation',()=>processRun(process.execPath,['scripts/run-ts-tests.mjs','server/product-master/fabricNumberSchema.test.ts','server/product-master/fabrics.test.ts','server/product-master/fabricExcelPreview.test.ts','server/product-master/fabricExcelImport.test.ts'],{log:path.join(dir,'fabric-validation.log')}));
-  browserValidation=selectBrowserValidation({...candidate,migrations:args.migrations,fullUi:args.fullUi,quickUi:args.quickUi,customerHistoryHotfix:args.customerHistoryHotfix});
+  if(args.reusePrintReview){
+   const reviewedCommit='d70a4d6abfe88a05b95046557cac014aa6ee52b7';
+   const releaseChanges=new Set(['scripts/release/cli.mjs','scripts/release/core.mjs','docs/operations/统一发布工具.md']);
+   processRun('git',['merge-base','--is-ancestor',reviewedCommit,sourceGit.commit]);
+   const subsequentChanges=processRun('git',['-c','core.quotePath=false','diff','--name-only',reviewedCommit,sourceGit.commit,'--']).trim().split(/\r?\n/).filter(Boolean);
+   if(candidate.baselineReleaseId!=='20261116t040357563-79ebffd7'||subsequentChanges.some(file=>!releaseChanges.has(file))||
+      reviewed.required===false||reviewed.status!=='pass'||reviewed.changedUiFiles!==1||reviewed.browserChecks!==82)
+    throw Error('Print review reuse requires the exact reviewed print changes and the verified baseline');
+   browserValidation={version:1,baselineReleaseId:candidate.baselineReleaseId,candidateManifestSha256:sourceSha,
+    changedFiles:candidate.changed,mode:'none',reason:'reuse-verified-print-review',profiles:['document-print'],
+    specs:[],unitFiles:[],postBuildScripts:[],reviewedCommit,reviewSha256:reviewed.reportSha256,reusedChecks:reviewed.browserChecks};
+  }else{
+   browserValidation=selectBrowserValidation({...candidate,migrations:args.migrations,fullUi:args.fullUi,quickUi:args.quickUi,customerHistoryHotfix:args.customerHistoryHotfix});
+  }
   write(path.join(dir,'browser-validation-plan.json'),browserValidation);
   console.log(JSON.stringify({stage:'browser-validation',mode:browserValidation.mode,reason:browserValidation.reason,profiles:browserValidation.profiles,specs:browserValidation.specs}));
   const browserResult=executeBrowserValidation(browserValidation,{root,dir,run:(exe,argv,{label,...options})=>timed(label,()=>options.liveLog?runBrowserWithProgress(exe,argv,{root,...options}):processRun(exe,argv,options))});
