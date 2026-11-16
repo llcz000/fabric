@@ -52,7 +52,9 @@ export function DocumentPrintTable({model,previewThumbnailUrls,outputOnly=false}
   <tfoot className="table-row-group">{model.summaries.map((s,i)=><tr key={i} className="bg-slate-50 font-medium">
    <td colSpan={s.right&&rightSpan>0?leftSpan:columns} className="break-words border border-slate-500 px-2 py-2 text-left">{s.left}{rightSpan===0&&s.right?'　'+s.right:''}</td>
    {s.right&&rightSpan>0&&<td colSpan={rightSpan} className="break-words border border-slate-500 px-2 py-2 text-left">{s.right}</td>}
-  </tr>)}</tfoot>
+  </tr>)}
+   {model.terms&&<tr><td data-print-terms colSpan={columns} className="whitespace-pre-wrap break-words border border-slate-500 px-2 py-1 text-left">备注条款：{model.terms}</td></tr>}
+  </tfoot>
  </table>;
 }
 
@@ -161,7 +163,8 @@ export default function V2DocumentPrintView({
    @media print{
     @page v2-document{
      size:${sheetWidthMm}mm 140mm;
-     margin:15mm 12mm 6mm;
+     /* Chromium uses the page margins for its automatic headers and footers. */
+     margin:0 12mm;
     }
     body:has([data-v2-print-sheet]) > :not([data-v2-print-sheet],:has([data-v2-print-sheet])),
     body :has([data-v2-print-sheet]) > :not([data-v2-print-sheet],:has([data-v2-print-sheet])){
@@ -185,8 +188,10 @@ export default function V2DocumentPrintView({
      width:100%!important;
      min-height:0!important;
      margin:0!important;
-     /* Allow for the outer half of the collapsed table border. */
-     padding:0 1px!important;
+     /* Reserve the preprinted number and lower clearance on every page.
+        The inline inset also accounts for the outer half of the table border. */
+     box-decoration-break:clone;
+     padding:15mm 1px 6mm!important;
      color:#000;
      font:11pt/1.25 SimSun,"宋体",serif;
      overflow-wrap:anywhere;
@@ -198,11 +203,13 @@ export default function V2DocumentPrintView({
     [data-v2-print-sheet] figcaption{font-size:9pt}
     [data-v2-print-sheet] table{table-layout:fixed!important}
     [data-v2-print-sheet] :is(th,td){
-     padding:1mm .65mm!important;
+     padding:.8mm .65mm!important;
      font-size:10pt!important;
      line-height:1.25;
      overflow-wrap:anywhere;
     }
+    [data-v2-print-sheet] [data-print-terms]{padding:.7mm 1.4mm!important}
+    [data-v2-print-sheet] [data-print-signatures]{margin-top:1.5mm;line-height:1.2}
     [data-v2-print-sheet] :is(tr,tfoot,[data-print-signatures]){break-inside:avoid}
     [data-v2-print-sheet] [data-sample-table="preview"]{display:none}
     [data-v2-print-sheet] [data-sample-table="output"]{display:table}
@@ -236,7 +243,6 @@ export default function V2DocumentPrintView({
     </div>
     {model.type==='sample'&&<DocumentPrintTable model={model} previewThumbnailUrls={previewThumbnailUrls}/>}
     <DocumentPrintTable model={model} outputOnly={model.type==='sample'}/>
-    <p data-print-terms className="mt-3 border border-slate-200 p-2 text-xs">备注条款：{model.terms}</p>
     <div data-print-signatures className="mt-3 flex justify-between gap-4">
      <footer className="min-w-0 flex-1 text-xs">
       <p>{model.signatureLabels?.issuer??'开单人签字'}：{model.signature.issuer}</p>

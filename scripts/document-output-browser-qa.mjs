@@ -6,8 +6,11 @@ import {build} from 'vite';
 import {mkdir,mkdtemp,readFile,writeFile} from 'node:fs/promises';
 import path from 'node:path';
 import sharp from 'sharp';
-const root=process.cwd(),dir=path.join(root,'artifacts/document-preview-output');
-const site=path.join(dir,'site'),downloads=await mkdtemp(path.join(root,'tmp/document-output-downloads-'));
+import {chromium} from 'playwright';
+const root=process.cwd(),evidenceRoot=path.join(root,'artifacts/document-preview-output');
+const engine=process.argv.includes('--chromium')?'chromium':'edge';
+const dir=engine==='chromium'?path.join(evidenceRoot,'chromium'):evidenceRoot;
+const site=path.join(evidenceRoot,'site'),downloads=await mkdtemp(path.join(root,'tmp/document-output-downloads-'));
 await mkdir(dir,{recursive:true});
 if(!process.argv.includes('--built'))await build({configFile:path.join(root,'vite.config.ts'),base:'./',build:{outDir:site,emptyOutDir:true,copyPublicDir:false,rollupOptions:{input:path.join(root,'tools/ui-review/entries/product-master-v2-review.html')}}});
 let base='',ws,serial=0;const pending=new Map(),checks=[],files=[],completed=new Map();
@@ -18,8 +21,9 @@ const server=createServer(async(req,res)=>{try{
  res.setHeader('Content-Type',file.endsWith('.js')?'text/javascript':file.endsWith('.css')?'text/css':'text/html; charset=utf-8');res.end(await readFile(file));
 }catch{res.writeHead(404).end();}});
 await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});base=`http://127.0.0.1:${server.address().port}`;
-const profile=await mkdtemp(path.join(root,'tmp/document-output-edge-'));
-const edge=spawn('C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',['--headless=new','--disable-gpu','--disable-background-networking','--disable-sync','--disable-extensions','--no-first-run','--remote-debugging-port=0','--remote-allow-origins=*',`--user-data-dir=${profile}`,'about:blank'],{windowsHide:true,stdio:'ignore'});
+const profile=await mkdtemp(path.join(root,'tmp/document-output-'+engine+'-'));
+const executable=engine==='chromium'?chromium.executablePath():'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
+const browser=spawn(executable,['--headless=new','--disable-gpu','--disable-background-networking','--disable-sync','--disable-extensions','--no-first-run','--remote-debugging-port=0','--remote-allow-origins=*',`--user-data-dir=${profile}`,'about:blank'],{windowsHide:true,stdio:'ignore'});
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function until(fn,label){const started=Date.now();while(Date.now()-started<20000){if(await fn())return;await sleep(60);}throw Error('Timeout '+label);}
 function send(method,params={}){return new Promise((resolve,reject)=>{
@@ -31,9 +35,9 @@ async function click(text){await js(`(()=>{const e=[...document.querySelectorAll
 async function check(expression,label){assert(await js(expression),label);checks.push(label);}
 async function snap(name){const result=await send('Page.captureScreenshot',{format:'png'});await writeFile(path.join(dir,name+'.png'),Buffer.from(result.data,'base64'));}
 
-async function printPdf(name,minPages=1,maxPages=minPages){
+async function printPdf(name,minPages=1,maxPages=minPages,displayHeaderFooter=false){
  await send('Emulation.setEmulatedMedia',{media:''});
- const result=await send('Page.printToPDF',{preferCSSPageSize:true,displayHeaderFooter:false});
+ const result=await send('Page.printToPDF',{preferCSSPageSize:true,displayHeaderFooter});
  const bytes=Buffer.from(result.data,'base64');
  await writeFile(path.join(dir,name+'.pdf'),bytes);
  const pdf=bytes.toString('latin1');
@@ -43,6 +47,7 @@ async function printPdf(name,minPages=1,maxPages=minPages){
   assert(Math.abs(Number(width)-240*72/25.4)<1,`${name}: PDF width ${width}pt`);
   assert(Math.abs(Number(height)-140*72/25.4)<1,`${name}: PDF height ${height}pt`);
  }
+ return pages.length;
 }
 async function download(label){
  const before=completed.size;await click(label);await until(()=>completed.size>before,'download '+label);
@@ -98,15 +103,19 @@ try{
    const footer=s.querySelector('footer');
    const [issuer,receiver]=footer.children;
    const printRules=[...s.closest('section').querySelector('style').sheet.cssRules].find(rule=>rule.conditionText==='print');
-   const paper=[...printRules.cssRules].find(rule=>rule.selectorText==='v2-document'&&rule.type===CSSRule.PAGE_RULE);
-   return paper?.style.margin==='15mm 12mm 6mm'&&style.page==='v2-document'&&style.position==='static'&&
+   const paper=[...printRules.cssRules].find(rule=>rule.type===CSSRule.PAGE_RULE&&rule.selectorText==='v2-document');
+   const terms=table.tFoot.rows[table.tFoot.rows.length-1].cells;
+   return paper?.style.margin==='0px 12mm'&&style.boxDecorationBreak==='clone'&&
+    Math.abs(parseFloat(style.paddingTop)-15*96/25.4)<.01&&Math.abs(parseFloat(style.paddingBottom)-6*96/25.4)<.01&&
+    style.page==='v2-document'&&style.position==='static'&&
+    terms.length===1&&terms[0].matches('[data-print-terms]')&&terms[0].colSpan===table.tHead.rows[0].cells.length&&
     getComputedStyle(table).tableLayout==='fixed'&&hasSize('h3',18)&&hasSize('h2',16)&&
     hasSize('table:not([data-sample-table="preview"]) th',10)&&
     hasSize('table:not([data-sample-table="preview"]) tbody td',10)&&
     hasSize('footer',11)&&issuer.textContent.includes('开单人签字')&&
     receiver.textContent.includes('收货人签字')&&receiver.textContent.includes('电话：')&&
     receiver.getBoundingClientRect().top>issuer.getBoundingClientRect().top;
-  })()`,type+' print uses its paper profile, Excel fonts and separate signature lines');
+  })()`,type+' print uses its paper profile, Excel fonts, a full-width terms row and separate signature lines');
   await printPdf(type+'-print');
   checks.push(type+' browser-generated PDF is one 240 × 140 mm page');
 
@@ -153,6 +162,28 @@ try{
 
   if(type==='bulk'){
    await js(`(()=>{
+    const sheet=document.querySelector('[data-v2-print-sheet]');
+    sheet.querySelector('h3').textContent='杭州某某纺织服饰有限公司';
+    sheet.querySelector('header p').textContent='地址：杭州市某某区北干街道兴五路68号产业园3幢1302-2室';
+    sheet.querySelectorAll('header p')[1].textContent='电话：00000000000';
+    sheet.querySelector('[data-print-terms]').textContent='备注条款：货物出门，如有质量问题，应在七天内向我公司书面通知，一经深加工或裁剪，我公司概不负责。 如客户欠款，此单作为欠款凭证。';
+    const [a,b]=sheet.querySelector('tbody').rows;
+    a.cells[0].textContent='C001-1-TT7550';a.cells[2].textContent='涤纶斜纹绸';
+    b.cells[0].textContent='C002-1-15687';b.cells[2].textContent='12MM真丝斜纹绸';
+   })()`);
+   await printPdf('bulk-detailed-default');
+   await printPdf('bulk-detailed-browser-headers',1,1,true);
+   // Keep the 240 × 140 mm paper but model a driver with a smaller usable area.
+   await js(`(()=>{
+    const style=document.createElement('style');
+    style.id='print-driver-inset';
+    style.textContent='@media print{@page v2-document {margin-bottom:7mm}}';
+    document.body.append(style);
+   })()`);
+   try{await printPdf('bulk-detailed-reduced-area')}
+   finally{await js(`document.getElementById('print-driver-inset').remove()`)}
+   checks.push('two detailed sales rows, long terms and both signature lines fit on one sheet with a reduced printable area');
+   await js(`(()=>{
     const tbody=document.querySelector('[data-v2-print-sheet] tbody'),rows=[...tbody.rows];
     for(let i=0;i<36;i++){
      const row=rows[i%rows.length].cloneNode(true);
@@ -160,12 +191,13 @@ try{
      tbody.append(row);
     }
    })()`);
-   await printPdf('bulk-multipage-print',2,4);
+   const pageCount=await printPdf('bulk-multipage-print',2,5);
+   await printPdf('bulk-multipage-browser-headers',pageCount,pageCount,true);
    checks.push('long sales document flows across custom-sized pages');
   }
   await click('返回查询');
  }
  await check(`window.__errors.length===0`,'no browser runtime errors');
- const report={passed:checks.length,checks,errors:[],files,scope:'Current React print view, production CSS and Edge PDF from memory fixtures; no production DB, COS or physical printer.',userUIAccepted:false};
+ const report={passed:checks.length,checks,errors:[],files,scope:'Current React print view, production CSS and '+engine+' PDF from memory fixtures; no production DB, COS or physical printer.',userUIAccepted:false};
  await writeFile(path.join(dir,'result.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report));
-}finally{ws?.close();edge.kill();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
+}finally{ws?.close();browser.kill();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
