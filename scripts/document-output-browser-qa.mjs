@@ -103,6 +103,11 @@ try{
    await check(`getComputedStyle(document.querySelector('[data-sample-table="preview"]')).display==='none'&&getComputedStyle(document.querySelector('[data-sample-table="output"]')).display==='table'&&document.querySelector('[data-sample-table="output"] th').textContent==='货号'`,'sample browser print shows the separate image-free table');
    await send('Emulation.setEmulatedMedia',{media:'screen'});
   }else await check(`!document.querySelector('[data-sample-table]')`,type+' preview has no thumbnail column');
+  const expectedWidths={
+   sample:[29,11,27,25,13,17,18,21,24,21],
+   deposit:[37,15,48,28,33,45],
+   bulk:[23,10,22,...Array(10).fill(9),10,15,16,20]
+  }[type];
   await send('Emulation.setEmulatedMedia',{media:'print'});
   await check(`(()=>{
    const s=document.querySelector('[data-v2-print-sheet]'),style=getComputedStyle(s);
@@ -114,6 +119,7 @@ try{
    const paper=[...printRules.cssRules].find(rule=>rule.type===CSSRule.PAGE_RULE&&rule.selectorText==='v2-document');
    const terms=table.tFoot.rows[table.tFoot.rows.length-1].cells;
    return paper?.style.margin==='0px 12mm'&&style.boxDecorationBreak==='clone'&&
+    Math.abs(parseFloat(style.paddingRight)-parseFloat(style.paddingLeft)-10*96/25.4)<.01&&
     Math.abs(parseFloat(style.paddingTop)-15*96/25.4)<.01&&Math.abs(parseFloat(style.paddingBottom)-6*96/25.4)<.01&&
     style.page==='v2-document'&&style.position==='static'&&
     terms.length===1&&terms[0].matches('[data-print-terms]')&&terms[0].colSpan===table.tHead.rows[0].cells.length&&
@@ -124,6 +130,16 @@ try{
     receiver.textContent.includes('收货人签字')&&receiver.textContent.includes('电话：')&&
     receiver.getBoundingClientRect().top>issuer.getBoundingClientRect().top;
   })()`,type+' print uses its paper profile, Excel fonts, a full-width terms row and separate signature lines');
+  await check(`(()=>{
+   const table=document.querySelector('[data-v2-print-sheet] table:not([data-sample-table="preview"])');
+   const cells=[...table.tHead.rows[0].cells],expected=${JSON.stringify(expectedWidths)};
+   const fractions=()=>cells.map(cell=>206*cell.getBoundingClientRect().width/(cells.at(-1).getBoundingClientRect().right-cells[0].getBoundingClientRect().left));
+   const before=fractions(),long=table.tBodies[0].rows[0].cells[0],value=long.textContent;
+   long.textContent='LONG-UNBROKEN-CODE-1234567890123456789012345';
+   const after=fractions();
+   long.textContent=value;
+   return before.length===expected.length&&before.every((width,i)=>Math.abs(width-expected[i])<.1&&Math.abs(width-after[i])<.01);
+  })()`,type+' prints the fixed column widths regardless of cell content');
   await printPdf(type+'-print');
   checks.push(type+' browser-generated PDF is one 240 × 140 mm page');
 
@@ -170,6 +186,19 @@ try{
    await download('下载打印 JSON');await check(`!document.querySelector('[role="alert"]')`,'retrying local JSON clears prior export failure');
   }
 
+  if(type==='sample'){
+   await js(`(()=>{
+    const sheet=document.querySelector('[data-v2-print-sheet]');
+    const table=sheet.querySelector('[data-sample-table="output"]');
+    const [a,b]=table.tBodies[0].rows;
+    const rows=[['C26315-1-10102','1','10MM真丝乔其','100%桑蚕丝','10 mm','137','3.00','¥95.00','¥285.00',''],
+     ['C26315-1-12102','1','真丝双绉','100%桑蚕丝','14 mm','137','1.80','¥110.00','¥198.00','']];
+    [a,b].forEach((row,i)=>[...row.cells].forEach((cell,j)=>{cell.textContent=rows[i][j]}));
+    table.querySelector('[data-print-terms]').textContent='备注条款：货物出门，如有质量问题，应在七天内向我公司书面通知，一经深加工或裁剪，我公司概不负责。 如客户欠款，此单作为欠款凭证。';
+   })()`);
+   await printPdf('sample-detailed-print',1,1,true);
+   checks.push('narrow detailed sample keeps long product codes, amounts, terms and QR codes on one page');
+  }
   if(type==='bulk'){
    await js(`(()=>{
     const sheet=document.querySelector('[data-v2-print-sheet]');

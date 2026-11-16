@@ -1,4 +1,4 @@
-import React,{useEffect,useRef,useState} from 'react';
+import React,{useEffect,useRef,useState,type CSSProperties} from 'react';
 import {ActionIcon} from '../product-master-v2/ActionIcon';
 import html2canvas from 'html2canvas-pro';
 import type {DocumentPrintModel} from '../../lib/documentPrintModel';
@@ -13,6 +13,16 @@ const thumbnailColumnWidth=56;
 const sheetWidthMm=240;
 const sheetPaddingMm=10;
 const sheetContentWidthPx=(sheetWidthMm-2*sheetPaddingMm)*96/25.4;
+const printRightInsetMm=10;
+const rollColumn=/^roll\d+$/;
+const printWidthsByType:Record<DocumentPrintModel['type'],Record<string,number>>={
+ sample:{itemNo:29,colorNo:11,productName:27,composition:25,weight:13,width:17,meters:18,unitPrice:21,amount:24,remark:21},
+ deposit:{itemNo:37,colorNo:15,productName:48,meters:28,unitPrice:33,amount:45},
+ sales:{itemNo:23,colorNo:10,productName:22,pieceCount:10,meters:15,unitPrice:16,amount:20},
+};
+const salesWithDeductionWidths:Record<string,number>={
+ itemNo:22,colorNo:10,productName:20,pieceCount:9,meters:14,deduction:13,unitPrice:15,amount:18,
+};
 function PatternThumbnail({src}:{src?:string|null}){
  const [failed,setFailed]=useState(false);
  return <div className="mx-auto flex h-10 w-11 items-center justify-center">
@@ -27,13 +37,23 @@ export function DocumentPrintTable({model,previewThumbnailUrls,outputOnly=false}
  const columns=model.columns.length+Number(showThumbnails);
  const leftSpan=Math.max(1,Math.floor(model.columns.length/2))+Number(showThumbnails),rightSpan=columns-leftSpan;
  const weight=model.columns.reduce((sum,col)=>sum+col.webFraction,0);
+ const hasDeduction=model.type==='sales'&&model.columns.some(column=>column.key==='deduction');
+ const printLayout=hasDeduction?salesWithDeductionWidths:printWidthsByType[model.type];
+ // Fixed proportions for the 206 mm print area. Screen and PNG use their existing columns.
+ const printWidths=model.columns.map(({key,webFraction})=>
+  rollColumn.test(key)?(hasDeduction?8.5:9):printLayout?.[key]??webFraction);
+ const printWidth=printWidths.reduce((sum,width)=>sum+width,0);
  const mode=showThumbnails?'preview':outputOnly?'output':undefined;
  return <table data-sample-table={mode} className="w-full table-fixed border-collapse text-[10px]" aria-label="单据明细及汇总">
   <colgroup>
    {showThumbnails&&<col style={{width:thumbnailColumnWidth}}/>}
-   {model.columns.map(c=>{
-    const fraction=c.webFraction/weight;
-    return <col key={c.key} style={{width:showThumbnails?fraction*(sheetContentWidthPx-thumbnailColumnWidth):fraction*100+'%'}}/>;
+   {model.columns.map((column,index)=>{
+    const fraction=column.webFraction/weight;
+    const style:CSSProperties&{'--v2-print-column-width':string}={
+     width:showThumbnails?fraction*(sheetContentWidthPx-thumbnailColumnWidth):fraction*100+'%',
+     '--v2-print-column-width':printWidths[index]/printWidth*100+'%',
+    };
+    return <col key={column.key} style={style}/>;
    })}
   </colgroup>
   <thead><tr>
@@ -44,7 +64,7 @@ export function DocumentPrintTable({model,previewThumbnailUrls,outputOnly=false}
    const group=model.rowGroups?.find(g=>i>=g.start&&i<g.start+g.rowCount);
    const thumbnail=previewThumbnailUrls?.[i];
    return <tr key={i}>{showThumbnails&&<td className="border border-slate-500 px-1 py-1 text-center"><PatternThumbnail key={thumbnail??''} src={thumbnail}/></td>}{row.map((value,j)=>{
-    const merge=group&&group.rowCount>1&&!/^roll\d+$/.test(model.columns[j].key);
+    const merge=group&&group.rowCount>1&&!rollColumn.test(model.columns[j].key);
     if(merge&&i!==group.start)return null;
     return <td key={j} rowSpan={merge?group.rowCount:undefined} className="break-words border border-slate-500 px-1 py-2 text-center">{value}</td>;
    })}</tr>;
@@ -188,10 +208,10 @@ export default function V2DocumentPrintView({
      width:100%!important;
      min-height:0!important;
      margin:0!important;
-     /* Reserve the preprinted number and lower clearance on every page.
-        The inline inset also accounts for the outer half of the table border. */
+     /* Keep the page margins symmetric for Chromium's automatic headers and footers.
+        Reserve the feed allowance on the sheet, together with the table border inset. */
      box-decoration-break:clone;
-     padding:15mm 1px 6mm!important;
+     padding:15mm calc(${printRightInsetMm}mm + 1px) 6mm 1px!important;
      color:#000;
      font:11pt/1.25 SimSun,"宋体",serif;
      overflow-wrap:anywhere;
@@ -202,6 +222,7 @@ export default function V2DocumentPrintView({
     [data-v2-print-sheet] [data-print-reference],[data-v2-print-sheet] footer{font-size:11pt}
     [data-v2-print-sheet] figcaption{font-size:9pt}
     [data-v2-print-sheet] table{table-layout:fixed!important}
+    [data-v2-print-sheet] col{width:var(--v2-print-column-width,auto)!important}
     [data-v2-print-sheet] :is(th,td){
      padding:.8mm .65mm!important;
      font-size:10pt!important;
