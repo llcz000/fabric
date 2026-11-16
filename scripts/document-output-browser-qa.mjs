@@ -104,9 +104,9 @@ try{
    await send('Emulation.setEmulatedMedia',{media:'screen'});
   }else await check(`!document.querySelector('[data-sample-table]')`,type+' preview has no thumbnail column');
   const expectedWidths={
-   sample:[29,11,27,25,13,17,18,21,24,21],
-   deposit:[37,15,48,28,33,45],
-   bulk:[23,10,22,...Array(10).fill(9),10,15,16,20]
+   sample:[29,10,27,25,12,17,18,21,24,21],
+   deposit:[37,13,48,28,33,45],
+   bulk:[23,9,22,...Array(10).fill(9),9,15,16,20]
   }[type];
   await send('Emulation.setEmulatedMedia',{media:'print'});
   await check(`(()=>{
@@ -119,7 +119,8 @@ try{
    const paper=[...printRules.cssRules].find(rule=>rule.type===CSSRule.PAGE_RULE&&rule.selectorText==='v2-document');
    const terms=table.tFoot.rows[table.tFoot.rows.length-1].cells;
    return paper?.style.margin==='0px 12mm'&&style.boxDecorationBreak==='clone'&&
-    Math.abs(parseFloat(style.paddingRight)-parseFloat(style.paddingLeft)-10*96/25.4)<.01&&
+    Math.abs(parseFloat(style.paddingLeft)-(6*96/25.4+1))<.01&&
+    Math.abs(parseFloat(style.paddingRight)-parseFloat(style.paddingLeft))<.01&&
     Math.abs(parseFloat(style.paddingTop)-15*96/25.4)<.01&&Math.abs(parseFloat(style.paddingBottom)-6*96/25.4)<.01&&
     style.page==='v2-document'&&style.position==='static'&&
     terms.length===1&&terms[0].matches('[data-print-terms]')&&terms[0].colSpan===table.tHead.rows[0].cells.length&&
@@ -133,7 +134,7 @@ try{
   await check(`(()=>{
    const table=document.querySelector('[data-v2-print-sheet] table:not([data-sample-table="preview"])');
    const cells=[...table.tHead.rows[0].cells],expected=${JSON.stringify(expectedWidths)};
-   const fractions=()=>cells.map(cell=>206*cell.getBoundingClientRect().width/(cells.at(-1).getBoundingClientRect().right-cells[0].getBoundingClientRect().left));
+   const fractions=()=>cells.map(cell=>204*cell.getBoundingClientRect().width/(cells.at(-1).getBoundingClientRect().right-cells[0].getBoundingClientRect().left));
    const before=fractions(),long=table.tBodies[0].rows[0].cells[0],value=long.textContent;
    long.textContent='LONG-UNBROKEN-CODE-1234567890123456789012345';
    const after=fractions();

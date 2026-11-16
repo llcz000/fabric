@@ -13,15 +13,15 @@ const thumbnailColumnWidth=56;
 const sheetWidthMm=240;
 const sheetPaddingMm=10;
 const sheetContentWidthPx=(sheetWidthMm-2*sheetPaddingMm)*96/25.4;
-const printRightInsetMm=10;
+const printSideInsetMm=6;
 const rollColumn=/^roll\d+$/;
 const printWidthsByType:Record<DocumentPrintModel['type'],Record<string,number>>={
- sample:{itemNo:29,colorNo:11,productName:27,composition:25,weight:13,width:17,meters:18,unitPrice:21,amount:24,remark:21},
- deposit:{itemNo:37,colorNo:15,productName:48,meters:28,unitPrice:33,amount:45},
- sales:{itemNo:23,colorNo:10,productName:22,pieceCount:10,meters:15,unitPrice:16,amount:20},
+ sample:{itemNo:29,colorNo:10,productName:27,composition:25,weight:12,width:17,meters:18,unitPrice:21,amount:24,remark:21},
+ deposit:{itemNo:37,colorNo:13,productName:48,meters:28,unitPrice:33,amount:45},
+ sales:{itemNo:23,colorNo:9,productName:22,pieceCount:9,meters:15,unitPrice:16,amount:20},
 };
 const salesWithDeductionWidths:Record<string,number>={
- itemNo:22,colorNo:10,productName:20,pieceCount:9,meters:14,deduction:13,unitPrice:15,amount:18,
+ itemNo:22,colorNo:9,productName:20,pieceCount:9,meters:14,deduction:12,unitPrice:15,amount:18,
 };
 function PatternThumbnail({src}:{src?:string|null}){
  const [failed,setFailed]=useState(false);
@@ -39,7 +39,7 @@ export function DocumentPrintTable({model,previewThumbnailUrls,outputOnly=false}
  const weight=model.columns.reduce((sum,col)=>sum+col.webFraction,0);
  const hasDeduction=model.type==='sales'&&model.columns.some(column=>column.key==='deduction');
  const printLayout=hasDeduction?salesWithDeductionWidths:printWidthsByType[model.type];
- // Fixed proportions for the 206 mm print area. Screen and PNG use their existing columns.
+ // Fixed proportions for the 204 mm print area. Screen and PNG use their existing columns.
  const printWidths=model.columns.map(({key,webFraction})=>
   rollColumn.test(key)?(hasDeduction?8.5:9):printLayout?.[key]??webFraction);
  const printWidth=printWidths.reduce((sum,width)=>sum+width,0);
@@ -208,10 +208,9 @@ export default function V2DocumentPrintView({
      width:100%!important;
      min-height:0!important;
      margin:0!important;
-     /* Keep the page margins symmetric for Chromium's automatic headers and footers.
-        Reserve the feed allowance on the sheet, together with the table border inset. */
+     /* Add the remaining side clearance and table border inset on each page. */
      box-decoration-break:clone;
-     padding:15mm calc(${printRightInsetMm}mm + 1px) 6mm 1px!important;
+     padding:15mm calc(${printSideInsetMm}mm + 1px) 6mm!important;
      color:#000;
      font:11pt/1.25 SimSun,"宋体",serif;
      overflow-wrap:anywhere;
