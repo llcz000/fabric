@@ -30,6 +30,20 @@ async function js(expression){const result=await send('Runtime.evaluate',{expres
 async function click(text){await js(`(()=>{const e=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()===${JSON.stringify(text)});if(!e||e.disabled)throw Error('Button missing/disabled');e.click();})()`);}
 async function check(expression,label){assert(await js(expression),label);checks.push(label);}
 async function snap(name){const result=await send('Page.captureScreenshot',{format:'png'});await writeFile(path.join(dir,name+'.png'),Buffer.from(result.data,'base64'));}
+
+async function printPdf(name,minPages=1,maxPages=minPages){
+ await send('Emulation.setEmulatedMedia',{media:''});
+ const result=await send('Page.printToPDF',{preferCSSPageSize:true,displayHeaderFooter:false});
+ const bytes=Buffer.from(result.data,'base64');
+ await writeFile(path.join(dir,name+'.pdf'),bytes);
+ const pdf=bytes.toString('latin1');
+ const pages=[...pdf.matchAll(/\/MediaBox\s*\[0 0 ([\d.]+) ([\d.]+)\]/g)];
+ assert(pages.length>=minPages&&pages.length<=maxPages,`${name}: unexpected PDF pages ${pages.map(page=>page.slice(1).join(' × ')).join(', ')}`);
+ for(const [,width,height] of pages){
+  assert(Math.abs(Number(width)-240*72/25.4)<1,`${name}: PDF width ${width}pt`);
+  assert(Math.abs(Number(height)-140*72/25.4)<1,`${name}: PDF height ${height}pt`);
+ }
+}
 async function download(label){
  const before=completed.size;await click(label);await until(()=>completed.size>before,'download '+label);
  const item=[...completed.values()].at(-1);assert.equal(item.state,'completed');
@@ -62,12 +76,40 @@ try{
   await until(()=>js(`Boolean(document.querySelector('[data-v2-print-sheet]'))`),'print');
   await check(`Math.abs(document.querySelector('[data-v2-print-sheet]').getBoundingClientRect().width-240*96/25.4)<1`,type+' fixed 240mm sheet');
   if(type==='sample'){
+   await check(`(()=>{
+    const print=window.print;
+    let calls=0;
+    window.print=()=>{calls++};
+    try{[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='浏览器打印').click()}
+    finally{window.print=print}
+    return calls===1;
+   })()`,'browser print button opens the native print dialog');
    await until(()=>js(`document.querySelector('[data-sample-table="preview"] img')?.naturalWidth===64`),'sample colorway image');
    await check(`(()=>{const t=document.querySelector('[data-sample-table="preview"]'),[a,b]=t.tBodies[0].rows;return t.rows[0].cells[0].textContent==='花型'&&t.rows[0].cells[1].textContent==='货号'&&a.cells[1].textContent==='P001'&&b.cells[0].textContent==='—'&&a.cells[0].offsetWidth===56&&a.cells[1].offsetWidth>a.cells[10].offsetWidth&&a.offsetHeight>=48&&[...t.tFoot.rows].every(r=>[...r.cells].reduce((s,c)=>s+c.colSpan,0)===11)})()`,'sample screen shows aligned 56px colorway column, wider product number and missing image fallback');
    await send('Emulation.setEmulatedMedia',{media:'print'});
    await check(`getComputedStyle(document.querySelector('[data-sample-table="preview"]')).display==='none'&&getComputedStyle(document.querySelector('[data-sample-table="output"]')).display==='table'&&document.querySelector('[data-sample-table="output"] th').textContent==='货号'`,'sample browser print shows the separate image-free table');
    await send('Emulation.setEmulatedMedia',{media:'screen'});
   }else await check(`!document.querySelector('[data-sample-table]')`,type+' preview has no thumbnail column');
+  await send('Emulation.setEmulatedMedia',{media:'print'});
+  await check(`(()=>{
+   const s=document.querySelector('[data-v2-print-sheet]'),style=getComputedStyle(s);
+   const hasSize=(selector,points)=>Math.abs(parseFloat(getComputedStyle(s.querySelector(selector)).fontSize)*.75-points)<.01;
+   const table=s.querySelector('table:not([data-sample-table="preview"])');
+   const footer=s.querySelector('footer');
+   const [issuer,receiver]=footer.children;
+   const printRules=[...s.closest('section').querySelector('style').sheet.cssRules].find(rule=>rule.conditionText==='print');
+   const paper=[...printRules.cssRules].find(rule=>rule.selectorText==='v2-document'&&rule.type===CSSRule.PAGE_RULE);
+   return paper?.style.margin==='15mm 12mm 6mm'&&style.page==='v2-document'&&style.position==='static'&&
+    getComputedStyle(table).tableLayout==='fixed'&&hasSize('h3',18)&&hasSize('h2',16)&&
+    hasSize('table:not([data-sample-table="preview"]) th',10)&&
+    hasSize('table:not([data-sample-table="preview"]) tbody td',10)&&
+    hasSize('footer',11)&&issuer.textContent.includes('开单人签字')&&
+    receiver.textContent.includes('收货人签字')&&receiver.textContent.includes('电话：')&&
+    receiver.getBoundingClientRect().top>issuer.getBoundingClientRect().top;
+  })()`,type+' print uses its paper profile, Excel fonts and separate signature lines');
+  await printPdf(type+'-print');
+  checks.push(type+' browser-generated PDF is one 240 × 140 mm page');
+
   await check(`document.querySelector('[data-v2-print-sheet] img[alt="公司Logo"]')&&document.querySelectorAll('[data-v2-print-sheet] figure').length===${type==='bulk'?0:2}`,type+' preview shows its applicable company images');
   const json=JSON.parse((await download('下载打印 JSON')).toString('utf8'));
   const displayed=await js(`(()=>{const s=document.querySelector('[data-v2-print-sheet]'),t=s.querySelector('table:not([data-sample-table="preview"])');return {title:s.querySelector('h2').textContent,companyName:s.querySelector('h3').textContent,headers:[...t.querySelectorAll('th')].map(e=>e.textContent),rows:[...t.querySelectorAll('tbody tr')].map(tr=>[...tr.querySelectorAll('td')].map(e=>e.textContent)),text:s.textContent};})()`);
@@ -108,9 +150,22 @@ try{
    await check(`[...document.querySelectorAll('button')].filter(b=>['下载 PNG','下载打印 JSON','下载打印Excel'].includes(b.textContent.trim())).every(b=>!b.disabled)`,'export failure restores actions');
    await download('下载打印 JSON');await check(`!document.querySelector('[role="alert"]')`,'retrying local JSON clears prior export failure');
   }
+
+  if(type==='bulk'){
+   await js(`(()=>{
+    const tbody=document.querySelector('[data-v2-print-sheet] tbody'),rows=[...tbody.rows];
+    for(let i=0;i<36;i++){
+     const row=rows[i%rows.length].cloneNode(true);
+     if(i===35)row.cells[0].textContent='LAST-PRINT-ROW';
+     tbody.append(row);
+    }
+   })()`);
+   await printPdf('bulk-multipage-print',2,4);
+   checks.push('long sales document flows across custom-sized pages');
+  }
   await click('返回查询');
  }
  await check(`window.__errors.length===0`,'no browser runtime errors');
- const report={passed:checks.length,checks,errors:[],files,scope:'Current React print view and production CSS with memory fixtures; no production DB, COS or physical printer.',userUIAccepted:false};
+ const report={passed:checks.length,checks,errors:[],files,scope:'Current React print view, production CSS and Edge PDF from memory fixtures; no production DB, COS or physical printer.',userUIAccepted:false};
  await writeFile(path.join(dir,'result.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report));
 }finally{ws?.close();edge.kill();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}

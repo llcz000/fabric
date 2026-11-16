@@ -159,11 +159,53 @@ export default function V2DocumentPrintView({
   <style>{`
    [data-sample-table="output"]{display:none}
    @media print{
-    body *{visibility:hidden!important}
-    [data-v2-print-sheet],[data-v2-print-sheet] *{visibility:visible!important}
-    [data-v2-print-sheet]{position:absolute!important;top:0;left:0;width:${sheetWidthMm}mm!important}
-    [data-sample-table="preview"]{display:none}
-    [data-sample-table="output"]{display:table}
+    @page v2-document{
+     size:${sheetWidthMm}mm 140mm;
+     margin:15mm 12mm 6mm;
+    }
+    body:has([data-v2-print-sheet]) > :not([data-v2-print-sheet],:has([data-v2-print-sheet])),
+    body :has([data-v2-print-sheet]) > :not([data-v2-print-sheet],:has([data-v2-print-sheet])){
+     display:none!important;
+    }
+    body:has([data-v2-print-sheet]),body :has([data-v2-print-sheet]){
+     display:block!important;
+     position:static!important;
+     width:auto!important;
+     max-width:none!important;
+     height:auto!important;
+     min-height:0!important;
+     max-height:none!important;
+     margin:0!important;
+     padding:0!important;
+     overflow:visible!important;
+     transform:none!important;
+    }
+    [data-v2-print-sheet]{
+     page:v2-document;
+     width:100%!important;
+     min-height:0!important;
+     margin:0!important;
+     /* Allow for the outer half of the collapsed table border. */
+     padding:0 1px!important;
+     color:#000;
+     font:11pt/1.25 SimSun,"宋体",serif;
+     overflow-wrap:anywhere;
+    }
+    [data-v2-print-sheet] header strong,[data-v2-print-sheet] h3{font-size:18pt}
+    [data-v2-print-sheet] h2{font-size:16pt}
+    [data-v2-print-sheet] header p,[data-v2-print-sheet] [data-print-terms]{font-size:10pt}
+    [data-v2-print-sheet] [data-print-reference],[data-v2-print-sheet] footer{font-size:11pt}
+    [data-v2-print-sheet] figcaption{font-size:9pt}
+    [data-v2-print-sheet] table{table-layout:fixed!important}
+    [data-v2-print-sheet] :is(th,td){
+     padding:1mm .65mm!important;
+     font-size:10pt!important;
+     line-height:1.25;
+     overflow-wrap:anywhere;
+    }
+    [data-v2-print-sheet] :is(tr,tfoot,[data-print-signatures]){break-inside:avoid}
+    [data-v2-print-sheet] [data-sample-table="preview"]{display:none}
+    [data-v2-print-sheet] [data-sample-table="output"]{display:table}
    }
   `}</style>
   <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
@@ -189,15 +231,18 @@ export default function V2DocumentPrintView({
      </div>
     </header>
     <h2 className="my-1 text-center text-base font-black tracking-[0.5em]">{model.title}</h2>
-    <div className="mb-1 flex items-end justify-between gap-3 text-xs">
+    <div data-print-reference className="mb-1 flex items-end justify-between gap-3 text-xs">
      <div className="min-w-0 break-all"><p>NO：{model.docNo}</p><p>收货单位：{model.customerName}</p></div><span className="shrink-0 whitespace-nowrap">日期：{model.dateText}</span>
     </div>
     {model.type==='sample'&&<DocumentPrintTable model={model} previewThumbnailUrls={previewThumbnailUrls}/>}
     <DocumentPrintTable model={model} outputOnly={model.type==='sample'}/>
-    <p className="mt-3 border border-slate-200 p-2 text-xs">备注条款：{model.terms}</p>
-    <div className="mt-3 flex justify-between gap-4"><footer className="min-w-0 flex-1 text-xs">{model.signatureLabels?.issuer??'开单人签字'}：{model.signature.issuer}　{model.signatureLabels?.receiver??'收货人签字'}：{model.signature.receiver}　电话：{model.signature.phone}
-     {(model.type==='deposit'||model.signature.receiverAddress)&&<p className="mt-1 min-h-5 whitespace-pre-wrap break-words">收货地址：{model.signature.receiverAddress}</p>}
-    </footer>
+    <p data-print-terms className="mt-3 border border-slate-200 p-2 text-xs">备注条款：{model.terms}</p>
+    <div data-print-signatures className="mt-3 flex justify-between gap-4">
+     <footer className="min-w-0 flex-1 text-xs">
+      <p>{model.signatureLabels?.issuer??'开单人签字'}：{model.signature.issuer}</p>
+      <p>{model.signatureLabels?.receiver??'收货人签字'}：{model.signature.receiver}　电话：{model.signature.phone}</p>
+      {(model.type==='deposit'||model.signature.receiverAddress)&&<p className="mt-1 min-h-5 whitespace-pre-wrap break-words">收货地址：{model.signature.receiverAddress}</p>}
+     </footer>
      {model.type!=='sales'&&<div className="flex gap-3">{(['wechat_qr','alipay_qr'] as const).map(role=>model.companyImages?.[role]?<figure key={role} className="text-center text-[9px]"><img src={model.companyImages[role]} alt={role==='wechat_qr'?'微信收款码':'支付宝收款码'} className="h-16 w-16 object-contain"/><figcaption>{role==='wechat_qr'?'微信收款':'支付宝收款'}</figcaption></figure>:null)}</div>}
     </div>
    </div>
