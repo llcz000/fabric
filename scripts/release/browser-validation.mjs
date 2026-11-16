@@ -8,6 +8,10 @@ const customerHistoryBaseline='20261110t020116583-0e0eb9e3';
 const customerHistoryFiles=['server/customers/service.ts','server/customers/service.testFixture.ts','server/customers/v12.test.ts'];
 const customerHistoryToolFiles=['scripts/release/browser-validation.mjs','scripts/release/browser-validation.test.mjs',
  'scripts/release/cli.mjs','scripts/release/core.mjs','scripts/release/release.test.mjs'];
+const printView='src/components/document-product-selector/V2DocumentPrintView.tsx';
+const printQa='scripts/document-output-browser-qa.mjs';
+const printRegistrationBaseline='20261116t014419464-d2a31ac2';
+const printRegistrationTools=['scripts/release/browser-validation.mjs','scripts/release/browser-validation.test.mjs'];
 const profiles=[{
  id:'model-gallery',paths:['src/components/product-master-v2/ModelGalleryV2.tsx',
   'tests/ui/model-gallery.spec.ts','tools/ui-preview/modelGalleryReview.tsx',
@@ -21,6 +25,13 @@ const profiles=[{
  specs:['tests/ui/internal-fabric-design.spec.ts','tests/ui/internal-fabric-weight-unit.spec.ts','tests/ui/related-products.spec.ts'],
  unitFiles:['src/components/product-master-v2/FabricLibraryV2.test.ts'],
  postBuildScripts:['scripts/release/targeted-fabric-ui.mjs'],
+},{
+ id:'document-print',
+ paths:[printView,printQa],
+ specs:['tests/ui/document-delete.spec.ts'],
+ unitFiles:['src/components/document-product-selector/V2DocumentPrintView.test.ts',
+  'src/lib/documentPrintModel.test.ts','server/documentExcel.test.ts','server/order-v2/print.test.ts'],
+ postBuildScripts:[printQa],
 },{
  id:'customer-selection',
  paths:['server/customer-samples/sessionDirectory.test.ts','server/customer-samples/sessionDirectory.ts',
@@ -61,12 +72,16 @@ export function selectBrowserValidation({previous,current,baselineReleaseId,sour
    throw Error('Customer history date hotfix requires its verified baseline and exact file scope');
   return {...base,mode:'none',reason:'customer-history-date-hotfix'};
  }
+ // Let this registration ship with the reviewed print fix on its original verified baseline.
+ const printRegistration=[printView,printQa,...printRegistrationTools];
+ const registeringPrintScope=quickUi&&baselineReleaseId===printRegistrationBaseline&&
+  code.length===printRegistration.length&&printRegistration.every(p=>code.includes(p));
  let result;
  if(fullUi)result={...base,mode:'full',reason:'explicit-full-ui'};
  else if(migrations.length)result={...base,mode:'full',reason:'database-migrations'};
  else if(!code.length)result={...base,mode:'none',reason:'no-code-changes'};
  else if(code.some(p=>!old.has(p)||!next.has(p)))result={...base,mode:'full',reason:'added-or-removed-code'};
- else if(code.some(p=>!selected.some(profile=>profile.paths.includes(p))))result={...base,mode:'full',reason:'unmapped-or-shared-code'};
+ else if(code.some(p=>!selected.some(profile=>profile.paths.includes(p))&&!(registeringPrintScope&&printRegistrationTools.includes(p))))result={...base,mode:'full',reason:'unmapped-or-shared-code'};
  else{
   const specs=sortedUnique([...smoke,...selected.flatMap(p=>p.specs)]);
   const unitFiles=sortedUnique(selected.flatMap(p=>p.unitFiles));

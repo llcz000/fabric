@@ -18,11 +18,18 @@ const customerUnits=['server/customers/service.test.ts','server/customers/routes
  'server/customer-samples/sessionDirectory.test.ts','server/customer-samples/sessionDirectoryRoutes.test.ts',
  'server/customer-samples/sessionRead.test.ts','server/customer-samples/scanRepository.test.ts',
  'server/order-v2/documents.test.ts','src/components/customers/customerModel.test.ts'];
+const printView='src/components/document-product-selector/V2DocumentPrintView.tsx';
+const printQa='scripts/document-output-browser-qa.mjs';
+const printSpec='tests/ui/document-delete.spec.ts';
+const printUnits=['src/components/document-product-selector/V2DocumentPrintView.test.ts',
+ 'src/lib/documentPrintModel.test.ts','server/documentExcel.test.ts','server/order-v2/print.test.ts'];
+const printRegistration=[printView,printQa,'scripts/release/browser-validation.mjs','scripts/release/browser-validation.test.mjs'];
 const files=[gallery,fabric,gallerySpec,...smoke,'src/components/product-master-v2/FabricLibraryV2.test.ts',
  'tests/ui/internal-fabric-design.spec.ts','tests/ui/internal-fabric-weight-unit.spec.ts','tests/ui/related-products.spec.ts',
  'scripts/release/targeted-fabric-ui.mjs','tools/ui-preview/modelGalleryReview.tsx',
  'tools/ui-preview/entries/ui-ux-model-gallery.html','tools/ui-preview/internalFabricReview.tsx',
  'tools/ui-preview/entries/ui-ux-internal-fabrics.html','docs/project/项目需求总览.md',
+ printView,printQa,printSpec,...printUnits,
  ...new Set([...customerRenamePaths,...customerSpecs,...customerUnits])];
 function context(changes,options={}){
  const previous={files:files.map(path=>({path,sha256:'old'}))};
@@ -96,6 +103,33 @@ test('customer history date hotfix omits browser regression only for the existin
  assert.throws(()=>selectBrowserValidation(context(changes,{...options,migrations:['sample-contact']})),/date hotfix/);
  const added=context(changes,options);added.previous.files=added.previous.files.filter(file=>file.path!==date);
  assert.throws(()=>selectBrowserValidation(added),/date hotfix/);
+});
+test('document print layout changes select document browser, print-model and post-build print checks',()=>{
+ const result=selectBrowserValidation(context([printView,printQa]));
+ assert.equal(result.mode,'scoped');
+ assert.deepEqual(result.profiles,['document-print']);
+ assert.deepEqual(result.specs,[...smoke,printSpec].sort());
+ assert.deepEqual(result.unitFiles,[...printUnits].sort());
+ assert.deepEqual(result.postBuildScripts,[printQa]);
+ const missing=context([printView]);
+ missing.current.files=missing.current.files.filter(file=>file.path!==printSpec);
+ assert.equal(selectBrowserValidation(missing).mode,'full');
+});
+test('the document print scope registration can ship with the exact reviewed fix on its verified baseline',()=>{
+ const options={quickUi:true,baselineReleaseId:'20261116t014419464-d2a31ac2'};
+ const result=selectBrowserValidation(context(printRegistration,options));
+ assert.equal(result.mode,'scoped');
+ assert.deepEqual(result.profiles,['document-print']);
+ assert.equal(selectBrowserValidation(context(printRegistration)).mode,'full');
+ for(const changes of [printRegistration.slice(1),[...printRegistration,'scripts/release/cli.mjs'],[...printRegistration,gallery]]){
+  assert.throws(()=>selectBrowserValidation(context(changes,options)),/quick-ui/);
+ }
+ for(const extra of [{baselineReleaseId:'later-release'},{migrations:['sample-contact']},{fullUi:true}]){
+  assert.throws(()=>selectBrowserValidation(context(printRegistration,{...options,...extra})),/quick-ui/);
+ }
+ const added=context(printRegistration,options);
+ added.previous.files=added.previous.files.filter(file=>file.path!==printQa);
+ assert.throws(()=>selectBrowserValidation(added),/quick-ui/);
 });
 test('duplicate manifests fail closed instead of hiding changed ownership',()=>{
  const ctx=context([gallery]);ctx.current.files.push({...ctx.current.files[0]});
