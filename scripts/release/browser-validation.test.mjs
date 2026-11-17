@@ -10,10 +10,15 @@ const smoke=['tests/ui/internal-table-chrome.spec.ts','tests/ui/mobile-library-a
 const customerRenamePaths=['server/customer-samples/sessionDirectory.test.ts','server/customer-samples/sessionDirectory.ts',
  'server/customer-samples/sessionRead.ts','server/customers/model.ts','server/customers/routes.test.ts','server/customers/routes.ts',
  'server/customers/service.test.ts','server/customers/service.ts','server/customers/sessionBridge.ts',
- 'src/components/customers/customerModel.test.ts','src/components/customers/customerModel.ts',
- 'tests/ui/customer-delete-address.spec.ts','tools/ui-preview/customerWorkspaceReview.tsx'];
+ 'src/components/customers/customerModel.test.ts','src/components/customers/customerModel.ts'];
 const customerSpecs=['tests/ui/customer-delete-address.spec.ts','tests/ui/sample-directory.spec.ts',
  'tests/ui/scan-selection.spec.ts','tests/ui/sample-card-review.spec.ts'];
+const customerFormSpec='tests/ui/customer-delete-address.spec.ts';
+const customerFormPaths=['src/components/customers/CustomerContactPasteDialog.tsx','src/components/customers/CustomerProfileDialog.tsx',
+ 'src/components/customers/CustomerProfileForm.tsx','src/components/customers/customerContactText.test.ts',
+ 'src/components/customers/customerContactText.ts',customerFormSpec,'tools/ui-preview/customerWorkspaceReview.tsx'];
+const customerFormUnits=['src/components/customers/customerContactText.test.ts','src/components/customers/customerModel.test.ts',
+ 'src/components/customers/CompactCustomerChoice.test.tsx','src/components/document-product-selector/V2DocumentWorkspace.test.ts'];
 const customerUnits=['server/customers/service.test.ts','server/customers/routes.test.ts','server/customers/documentIntegration.test.ts',
  'server/customer-samples/sessionDirectory.test.ts','server/customer-samples/sessionDirectoryRoutes.test.ts',
  'server/customer-samples/sessionRead.test.ts','server/customer-samples/scanRepository.test.ts',
@@ -30,7 +35,7 @@ const files=[gallery,fabric,gallerySpec,...smoke,'src/components/product-master-
  'tools/ui-preview/entries/ui-ux-model-gallery.html','tools/ui-preview/internalFabricReview.tsx',
  'tools/ui-preview/entries/ui-ux-internal-fabrics.html','docs/project/项目需求总览.md',
  printView,printQa,printSpec,...printUnits,
- ...new Set([...customerRenamePaths,...customerSpecs,...customerUnits])];
+ ...new Set([...customerRenamePaths,...customerSpecs,...customerUnits,...customerFormPaths,...customerFormUnits])];
 function context(changes,options={}){
  const previous={files:files.map(path=>({path,sha256:'old'}))};
  const current={files:previous.files.map(f=>({...f,sha256:changes.includes(f.path)?'new':f.sha256}))};
@@ -58,6 +63,29 @@ test('the customer rename release selects customer and sampling flows with servi
  assert.equal(result.mode,'scoped');assert.deepEqual(result.profiles,['customer-selection']);
  assert.deepEqual(result.specs,[...customerSpecs,...smoke].sort());
  assert.deepEqual(result.unitFiles,[...customerUnits].sort());
+});
+test('the customer form release selects its browser tests, shared smoke and the real document quick-create regression',()=>{
+ const result=selectBrowserValidation(context([...customerFormPaths,'docs/project/项目需求总览.md']));
+ assert.equal(result.mode,'scoped');assert.deepEqual(result.profiles,['customer-profile']);
+ assert.deepEqual(result.specs,[customerFormSpec,...smoke].sort());
+ assert.deepEqual(result.unitFiles,[...customerFormUnits].sort());
+ for(const p of customerFormPaths)assert.equal(selectBrowserValidation(context([p])).mode,'scoped',p);
+});
+test('a customer form and customer-selection change keeps the required checks of both',()=>{
+ const result=selectBrowserValidation(context([...customerFormPaths,'server/customers/service.ts']));
+ assert.equal(result.mode,'scoped');assert.deepEqual(result.profiles,['customer-profile','customer-selection']);
+ assert.deepEqual(result.specs,[...customerSpecs,...smoke].sort());
+ assert.deepEqual(result.unitFiles,[...new Set([...customerUnits,...customerFormUnits])].sort());
+});
+test('missing quick-create coverage or an unrelated unregistered file cannot use the customer form scope',()=>{
+ const unknown='src/components/document-product-selector/V2DocumentWorkspace.tsx';
+ const mixed=selectBrowserValidation(context([...customerFormPaths,unknown]));
+ assert.equal(mixed.mode,'full');assert.deepEqual(mixed.unmappedFiles,[unknown]);
+ const ctx=context(customerFormPaths);
+ ctx.current.files=ctx.current.files.filter(f=>f.path!=='src/components/document-product-selector/V2DocumentWorkspace.test.ts');
+ assert.equal(selectBrowserValidation(ctx).reason,'added-or-removed-code');
+ for(const side of ['previous','current'])ctx[side].files=ctx[side].files.filter(f=>f.path!=='src/components/document-product-selector/V2DocumentWorkspace.test.ts');
+ assert.equal(selectBrowserValidation(ctx).reason,'missing-required-check');
 });
 test('a customer change with an unregistered permission file or a missing order check still runs full regression',()=>{
  assert.equal(selectBrowserValidation(context([...customerRenamePaths,'server/customers/access.ts'])).mode,'full');

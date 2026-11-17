@@ -33,13 +33,22 @@ const profiles=[{
   'src/lib/documentPrintModel.test.ts','server/documentExcel.test.ts','server/order-v2/print.test.ts'],
  postBuildScripts:[printQa],
 },{
+ id:'customer-profile',
+ paths:['src/components/customers/CustomerContactPasteDialog.tsx','src/components/customers/CustomerProfileDialog.tsx',
+  'src/components/customers/CustomerProfileForm.tsx','src/components/customers/customerContactText.test.ts',
+  'src/components/customers/customerContactText.ts','tests/ui/customer-delete-address.spec.ts',
+  'tools/ui-preview/customerWorkspaceReview.tsx'],
+ specs:['tests/ui/customer-delete-address.spec.ts'],
+ unitFiles:['src/components/customers/customerContactText.test.ts','src/components/customers/customerModel.test.ts',
+  'src/components/customers/CompactCustomerChoice.test.tsx','src/components/document-product-selector/V2DocumentWorkspace.test.ts'],
+ postBuildScripts:[],
+},{
  id:'customer-selection',
  paths:['server/customer-samples/sessionDirectory.test.ts','server/customer-samples/sessionDirectory.ts',
   'server/customer-samples/sessionRead.ts','server/customers/model.ts','server/customers/routes.test.ts',
   'server/customers/routes.ts','server/customers/service.test.ts','server/customers/service.ts',
   'server/customers/sessionBridge.ts','src/components/customers/customerModel.test.ts',
-  'src/components/customers/customerModel.ts','tests/ui/customer-delete-address.spec.ts',
-  'tools/ui-preview/customerWorkspaceReview.tsx'],
+  'src/components/customers/customerModel.ts'],
  specs:['tests/ui/customer-delete-address.spec.ts','tests/ui/sample-directory.spec.ts',
   'tests/ui/scan-selection.spec.ts','tests/ui/sample-card-review.spec.ts'],
  unitFiles:['server/customers/service.test.ts','server/customers/routes.test.ts','server/customers/documentIntegration.test.ts',
@@ -76,12 +85,14 @@ export function selectBrowserValidation({previous,current,baselineReleaseId,sour
  const printRegistration=[printView,printQa,...printRegistrationTools];
  const registeringPrintScope=quickUi&&baselineReleaseId===printRegistrationBaseline&&
   code.length===printRegistration.length&&printRegistration.every(p=>code.includes(p));
+ const unmappedFiles=code.filter(p=>!selected.some(profile=>profile.paths.includes(p))&&
+  !(registeringPrintScope&&printRegistrationTools.includes(p)));
  let result;
  if(fullUi)result={...base,mode:'full',reason:'explicit-full-ui'};
  else if(migrations.length)result={...base,mode:'full',reason:'database-migrations'};
  else if(!code.length)result={...base,mode:'none',reason:'no-code-changes'};
  else if(code.some(p=>!old.has(p)||!next.has(p)))result={...base,mode:'full',reason:'added-or-removed-code'};
- else if(code.some(p=>!selected.some(profile=>profile.paths.includes(p))&&!(registeringPrintScope&&printRegistrationTools.includes(p))))result={...base,mode:'full',reason:'unmapped-or-shared-code'};
+ else if(unmappedFiles.length)result={...base,mode:'full',reason:'unmapped-or-shared-code',unmappedFiles};
  else{
   const specs=sortedUnique([...smoke,...selected.flatMap(p=>p.specs)]);
   const unitFiles=sortedUnique(selected.flatMap(p=>p.unitFiles));

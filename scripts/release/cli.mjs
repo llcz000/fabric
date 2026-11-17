@@ -104,7 +104,7 @@ function prepare(){
    browserValidation=selectBrowserValidation({...candidate,migrations:args.migrations,fullUi:args.fullUi,quickUi:args.quickUi,customerHistoryHotfix:args.customerHistoryHotfix});
   }
   write(path.join(dir,'browser-validation-plan.json'),browserValidation);
-  console.log(JSON.stringify({stage:'browser-validation',mode:browserValidation.mode,reason:browserValidation.reason,profiles:browserValidation.profiles,specs:browserValidation.specs}));
+  console.log(JSON.stringify({stage:'browser-validation',mode:browserValidation.mode,reason:browserValidation.reason,profiles:browserValidation.profiles,specs:browserValidation.specs,unmappedFiles:browserValidation.unmappedFiles}));
   const browserResult=executeBrowserValidation(browserValidation,{root,dir,run:(exe,argv,{label,...options})=>timed(label,()=>options.liveLog?runBrowserWithProgress(exe,argv,{root,...options}):processRun(exe,argv,options))});
   browserValidation={...browserValidation,result:browserResult};
   write(path.join(dir,'browser-validation-result.json'),browserResult);
@@ -184,7 +184,15 @@ async function phases(run,last){
   }else result=remote(phase,run,extra);
   console.log(JSON.stringify({stage:phase,result:'passed',id:run.id,durationMs:Date.now()-start}));return result;
  },()=>write(path.join(run.dir,'run.json'),run));
- if(run.phases.verify?.status==='passed'){const v=run.phases.verify.result.remote.version;const receipt={state:'released',sourceGit:run.manifest.sourceGit,gitCloseout:'pending',artifactSha256:run.archiveSha256,indexSha256:v.index,backendSha256:v.backend,sourceManifestSha256:run.manifest.sourceManifestSha256,migrations:run.manifest.migrations,backup:run.phases.backup.result.folder,fullSuiteRun:false,browserFullSuiteRun:run.manifest.browserFullSuiteRun??false,uiBrowserScope:run.manifest.uiBrowserScope,browserValidation:run.manifest.browserValidation??null,browserUiAcceptance:'pending',phases:Object.fromEntries(Object.entries(run.phases).map(([k,v])=>[k,{status:v.status,durationMs:v.durationMs}])),utc:new Date().toISOString()};write(path.join(run.dir,'release-result.json'),receipt);syncVerifiedPointer(root,run,receipt);console.log(JSON.stringify({stage:'release-pointer',result:'synced',id:run.id,gitCloseout:'pending',next:'Commit and push release records, then run npm run workspace:verify'}));}
+ if(run.phases.verify?.status==='passed'){
+  const v=run.phases.verify.result.remote.version;const receipt={state:'released',sourceGit:run.manifest.sourceGit,gitCloseout:'pending',artifactSha256:run.archiveSha256,indexSha256:v.index,backendSha256:v.backend,sourceManifestSha256:run.manifest.sourceManifestSha256,migrations:run.manifest.migrations,backup:run.phases.backup.result.folder,fullSuiteRun:false,browserFullSuiteRun:run.manifest.browserFullSuiteRun??false,uiBrowserScope:run.manifest.uiBrowserScope,browserValidation:run.manifest.browserValidation??null,browserUiAcceptance:'pending',phases:Object.fromEntries(Object.entries(run.phases).map(([k,v])=>[k,{status:v.status,durationMs:v.durationMs}])),utc:new Date().toISOString()};
+  write(path.join(run.dir,'release-result.json'),receipt);syncVerifiedPointer(root,run,receipt);
+  const onlineUiCheck=run.manifest.uiQualityGate?.required?{
+   tool:'ego-browser',status:'pending',evidence:path.relative(root,path.join(run.dir,'online-ui-check.json'))}:undefined;
+  console.log(JSON.stringify({stage:'release-pointer',result:'synced',id:run.id,gitCloseout:'pending',onlineUiCheck,
+   next:onlineUiCheck?'Record the Ego read-only UI check, then commit and push release records and run npm run workspace:verify':
+    'Commit and push release records, then run npm run workspace:verify'}));
+ }
  return run;
 }
 async function main(){
@@ -203,7 +211,7 @@ async function main(){
    browserValidation=selectBrowserValidation({...reviewContext({pointer:json('docs/project/fabric-v2-active-workspace.json'),baseline:json(baselinePath)}),fullUi:args.fullUi});
   }
   console.log(JSON.stringify({profile:profile.name,url:profile.url,baselineInitialized:fs.existsSync(baselinePath),browserValidation,
-   flow:['source identity','source-bound visual evidence if UI changed','automatic scoped/full browser validation','complete production HTTP contract check','build once','freeze artifact and browser references','preflight','consistent backup','encrypted offsite readback','restore rehearsal if migrations','registered migrations','atomic deploy','server and independent public verify','guarded code rollback on failure'],
+   flow:['source identity','source-bound visual evidence if UI changed','automatic scoped/full browser validation','complete production HTTP contract check','build once','freeze artifact and browser references','preflight','consistent backup','encrypted offsite readback','restore rehearsal if migrations','registered migrations','atomic deploy','server and independent public verify','guarded code rollback on verification failure','Ego read-only production UI check after successful verification if UI changed'],
    migrationsAvailable:migrationIds,fullSuiteRun:false}));return;
  }
  if(args.command==='baseline'){
