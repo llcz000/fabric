@@ -150,3 +150,59 @@ test('editing a customer without contacts shows empty name and phone without cre
  await expect(dialog).toHaveCount(0);
  expect(await page.evaluate(()=>(window as any).customerQa.profile.contacts)).toEqual([]);
 });
+
+test('paste recognition previews the fields and updates only the editor draft until Save',async({page})=>{
+ for(const width of [1366,360]){
+  await page.setViewportSize({width,height:800});await page.goto(entry);
+  await page.getByRole('button',{name:'编辑客户',exact:true}).click();
+  const editor=page.getByRole('dialog',{name:'编辑客户'});
+  const open=editor.getByRole('button',{name:'粘贴识别'});
+  await open.click();
+  const dialog=page.getByRole('dialog',{name:'粘贴识别联系方式'});
+  const raw=dialog.getByRole('textbox',{name:'收货或联系文字'});
+  await expect(raw).toBeFocused();
+  await raw.fill('收货人：赵女士\n电话：13900139000\n地址：浙江省绍兴市柯桥区纺织大道66号');
+  await dialog.getByRole('button',{name:'识别',exact:true}).click();
+  await expect(dialog.getByRole('textbox',{name:'联系人姓名',exact:true})).toHaveValue('赵女士');
+  await expect(dialog.getByRole('textbox',{name:'电话',exact:true})).toHaveValue('13900139000');
+  await expect(dialog.getByRole('textbox',{name:'客户详细地址',exact:true})).toHaveValue('浙江省绍兴市柯桥区纺织大道66号');
+  await page.screenshot({path:'artifacts/customer-contact-paste/preview-'+width+'.png'});
+  await dialog.getByRole('button',{name:'填入表单',exact:true}).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(open).toBeFocused();
+  await expect(editor.getByRole('textbox',{name:'联系人1姓名',exact:true})).toHaveValue('赵女士');
+  await expect(editor.getByRole('textbox',{name:'详细地址',exact:true})).toHaveValue('浙江省绍兴市柯桥区纺织大道66号');
+  expect(await page.evaluate(()=>(window as any).customerQa.rowVersion)).toBe('1');
+  await editor.getByRole('button',{name:'保存',exact:true}).click();
+  await expect(editor).toHaveCount(0);
+  expect(await page.evaluate(()=>(window as any).customerQa.profile)).toMatchObject({
+   displayName:'林女士客户',region:'浙江省绍兴市柯桥区纺织大道66号',contacts:[{name:'赵女士',phone:'13900139000'}]
+  });
+ }
+});
+
+test('ambiguous phones require confirmation and multiple contacts require a target',async({page})=>{
+ await page.goto(entry);
+ await page.evaluate(()=>{(window as any).customerQa.profile.contacts.push({name:'第二联系人',phone:'13700000000',wechat:'existing'});});
+ await page.getByRole('button',{name:'编辑客户',exact:true}).click();
+ const editor=page.getByRole('dialog',{name:'编辑客户'}),open=editor.getByRole('button',{name:'粘贴识别'});
+ await open.click();
+ const dialog=page.getByRole('dialog',{name:'粘贴识别联系方式'});
+ await dialog.getByRole('textbox',{name:'收货或联系文字'}).fill('姓名：赵女士\n电话：13800001234 或 13900005678');
+ await dialog.getByRole('button',{name:'识别',exact:true}).click();
+ await expect(dialog.getByRole('status')).toContainText('电话');
+ await expect(dialog.getByRole('textbox',{name:'电话',exact:true})).toHaveValue('');
+ const apply=dialog.getByRole('button',{name:'填入表单'});
+ await expect(apply).toBeDisabled();
+ await dialog.getByRole('combobox',{name:'填入联系人'}).selectOption('1');
+ await apply.click();
+ await expect(dialog).toHaveCount(0);
+ await expect(editor.getByRole('textbox',{name:'联系人1姓名',exact:true})).toHaveValue('林女士');
+ await expect(editor.getByRole('textbox',{name:'联系人2姓名',exact:true})).toHaveValue('赵女士');
+ await expect(editor.getByRole('textbox',{name:'联系人2电话',exact:true})).toHaveValue('13700000000');
+ await open.click();
+ await page.keyboard.press('Escape');
+ await expect(editor).toBeVisible();
+ await expect(open).toBeFocused();
+ expect(await page.evaluate(()=>(window as any).customerQa.rowVersion)).toBe('1');
+});

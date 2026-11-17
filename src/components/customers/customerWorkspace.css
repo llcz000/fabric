@@ -110,3 +110,9 @@
  .customer-edit-more>.customer-profile-grid{grid-template-areas:"basic" "prices" "followup" "preferences";padding-inline:12px}
  .customer-edit-more .customer-price-row{grid-template-columns:minmax(0,1fr) 26px}
 }
+
+.customer-edit-contact-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.customer-edit-contact-heading>.customer-section-title{margin:0;font-size:15px;color:#1e293b}
+.customer-paste-dialog{width:min(560px,calc(100vw - 20px))}
+.customer-paste-dialog .customer-dialog-footer>button{min-height:40px}
+@media(max-width:767px){.customer-paste-dialog .customer-dialog-footer>button{min-height:44px}}

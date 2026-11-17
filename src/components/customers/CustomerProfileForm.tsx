@@ -1,4 +1,6 @@
 import {FabricSearchSelect} from '../product-master-v2/FabricSearchSelect';
+import {CustomerContactPasteDialog} from './CustomerContactPasteDialog';
+import type {ContactFields} from './customerContactText';
 import React,{useEffect,useState} from 'react';
 import {X,Plus} from 'lucide-react';
 import {emptyCustomerProfile,type CustomerProfile} from './customerModel';
@@ -7,6 +9,7 @@ const customerButtonBase='inline-flex min-h-10 shrink-0 items-center justify-cen
 export const customerButton=customerButtonBase+' border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 aria-pressed:border-sky-600 aria-pressed:bg-sky-50 aria-pressed:text-sky-700';
 export const customerPrimaryButton=customerButtonBase+' border border-transparent bg-sky-600 text-white hover:bg-sky-700';
 export function CustomerProfileForm({value,onChange,disabled=false,quick=false,editLayout=false,apiFetch}:{apiFetch?:typeof fetch;value:CustomerProfile;onChange(value:CustomerProfile):void;disabled?:boolean;quick?:boolean;editLayout?:boolean}){
+ const [pasteOpen,setPasteOpen]=useState(false);
  const set=<K extends keyof CustomerProfile>(key:K,v:CustomerProfile[K])=>onChange({...value,[key]:v});
  const input=(label:string,key:'displayName'|'invoiceTitle'|'region'|'tierReason'|'stageReason',required=false)=><label className="grid gap-1 text-sm">{label}<input className={customerField} aria-label={label} required={required} maxLength={key==='region'?100:key.endsWith('Reason')?1000:160} value={value[key]??''} onChange={e=>set(key,e.target.value)}/></label>;
  const select=<K extends 'subjectType'|'salesChannel'|'tier'|'relationshipStage'>(label:string,key:K,options:[CustomerProfile[K],string][])=><label className="grid gap-1 text-sm">{label}<select className={customerField} aria-label={label} value={value[key]} onChange={e=>set(key,e.target.value as CustomerProfile[K])}>{options.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>;
@@ -21,6 +24,16 @@ export function CustomerProfileForm({value,onChange,disabled=false,quick=false,e
  </>;
  const emptyContact:CustomerProfile['contacts'][number]={name:'',phone:null,wechat:null};
  const contacts=editLayout&&!value.contacts.length?[emptyContact]:value.contacts;
+ const fillFromPaste=(result:ContactFields,index:number)=>{
+  let updatedContacts=value.contacts;
+  if(result.name||result.phone){
+   const current=value.contacts[index]??emptyContact;
+   const contact={...current,name:result.name||current.name,phone:result.phone||current.phone};
+   updatedContacts=index===value.contacts.length?[...value.contacts,contact]:value.contacts.map((item,i)=>i===index?contact:item);
+  }
+  onChange({...value,contacts:updatedContacts,region:result.address||value.region});
+  setPasteOpen(false);
+ };
  const contactList=<div className={editLayout?'space-y-3':'mt-3 space-y-2'}>{contacts.map((contact,i)=>{
   const change=(key:'name'|'phone'|'wechat'|'address',v:string)=>set('contacts',contacts.map((c,index)=>index===i?{...c,[key]:v}:c));
   const field=(key:'name'|'phone'|'wechat',label:string)=><label className="grid gap-1 text-sm">{label}<input className={customerField}
@@ -52,7 +65,9 @@ export function CustomerProfileForm({value,onChange,disabled=false,quick=false,e
    </div>
   </section>
   <section className="customer-contacts customer-form-section" aria-label="联系人">
-   {editLayout?<><h3 className="customer-section-title">联系人</h3>{contactList}</>:
+   {editLayout?<><header className="customer-edit-contact-heading"><h3 className="customer-section-title">联系人</h3>
+    <button type="button" className={customerButton+' max-md:min-h-11 !px-3'} onClick={event=>{event.currentTarget.focus({preventScroll:true});setPasteOpen(true);}}>粘贴识别</button>
+   </header>{contactList}</>:
     <details open={!quick}><summary className="customer-section-title cursor-pointer">{quick?'联系人（选填）':'联系人'}</summary>{contactList}</details>}
   </section>
   {!quick&&(editLayout?<details className="customer-edit-more"><summary>更多资料</summary>
@@ -61,6 +76,7 @@ export function CustomerProfileForm({value,onChange,disabled=false,quick=false,e
     {secondarySections}
    </div>
   </details>:secondarySections)}
+  {editLayout&&pasteOpen&&<CustomerContactPasteDialog contacts={value.contacts} onClose={()=>setPasteOpen(false)} onApply={fillFromPaste}/>}
  </fieldset>;
 }
 
