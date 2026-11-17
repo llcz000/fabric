@@ -72,7 +72,7 @@ test('a contact can override and clear an address independently of the customer 
   await page.setViewportSize({width,height:900});await page.goto(entry);
   await page.getByRole('button',{name:'编辑客户',exact:true}).click();
   const dialog=page.getByRole('dialog'),address=dialog.getByRole('textbox',{name:'联系人1专用地址',exact:true});
-  await dialog.getByText('专用地址',{exact:true}).click();
+  await dialog.getByText('更多联系方式',{exact:true}).click();
   await address.fill('浙江省杭州市联系人专用地址');
   await page.screenshot({path:'artifacts/customer-contact-reuse/profile-'+width+'.png'});
   await dialog.getByRole('button',{name:'保存',exact:true}).click();
@@ -80,7 +80,7 @@ test('a contact can override and clear an address independently of the customer 
   await expect(dialog.getByText('专用地址 浙江省杭州市联系人专用地址',{exact:true})).toBeVisible();
   await expect(dialog.getByText('浙江省杭州市西湖区文一路88号3幢201室',{exact:true})).toBeVisible();
   await dialog.getByRole('button',{name:'编辑',exact:true}).click();
-  await dialog.getByText('专用地址（已填写）',{exact:true}).click();
+  await dialog.getByText('更多联系方式',{exact:true}).click();
   await address.clear();
   await dialog.getByRole('button',{name:'保存',exact:true}).click();
   expect(await page.evaluate(()=>(window as any).customerQa.profile.contacts[0].address)).toBeUndefined();
@@ -90,4 +90,63 @@ test('a contact can override and clear an address independently of the customer 
 test('detailed address labels preserve existing values through display editing and save at both widths',async({page})=>{
  for(const width of [1440,360]){await page.setViewportSize({width,height:900});await page.goto(entry);await page.getByRole('button',{name:'查看档案',exact:true}).click();const dialog=page.getByRole('dialog');await expect(dialog.getByText('详细地址',{exact:true})).toBeVisible();await expect(dialog.getByText('浙江省杭州市西湖区文一路88号3幢201室',{exact:true})).toBeVisible();await page.screenshot({path:'artifacts/catalog-customer-update/address-view-'+width+'.png'});await dialog.getByRole('button',{name:'编辑',exact:true}).click();const address=page.getByRole('textbox',{name:'详细地址',exact:true});await expect(address).toHaveValue('浙江省杭州市西湖区文一路88号3幢201室');await expect(page.getByRole('textbox',{name:'地区',exact:true})).toHaveCount(0);await address.fill('浙江省杭州市详细街道66号');await page.screenshot({path:'artifacts/catalog-customer-update/address-edit-'+width+'.png'});await page.getByRole('button',{name:'保存',exact:true}).click();await expect(page.getByRole('dialog')).toHaveCount(0);expect(await page.evaluate(()=>(window as any).customerQa.profile.region)).toBe('浙江省杭州市详细街道66号');expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
  }
+});
+
+test('customer editing puts the four everyday fields first and fits a full-length address',async({page})=>{
+ for(const [width,height] of [[1366,768],[360,800]]){
+  await page.setViewportSize({width,height});await page.goto(entry);
+  const original='浙江省绍兴市柯桥区中国轻纺城国际面料采购中心东区二层北门入内沿主通道到第六排再向西至梭织样品接待处'.repeat(3).slice(0,100);
+  await page.evaluate(address=>{
+   const {profile}=(window as any).customerQa;
+   Object.assign(profile,{region:address,brands:['原有品牌'],notes:'原有备注'});
+   Object.assign(profile.contacts[0],{phone:'13812345678',wechat:'example-wechat',address:'另一处收货点'});
+  },original);
+  await page.getByRole('button',{name:'编辑客户',exact:true}).click();
+  const dialog=page.getByRole('dialog');
+  const form=dialog.getByRole('form',{name:'客户档案表单'});
+  const name=form.getByRole('textbox',{name:'客户名称',exact:true});
+  const address=form.getByRole('textbox',{name:'详细地址',exact:true});
+  const person=form.getByRole('textbox',{name:'联系人1姓名',exact:true});
+  const phone=form.getByRole('textbox',{name:'联系人1电话',exact:true});
+  await expect(address).toHaveValue(original);
+  expect(await address.evaluate(el=>el.tagName)).toBe('TEXTAREA');
+  expect(await address.evaluate(el=>el.scrollHeight)).toBeLessThanOrEqual(await address.evaluate(el=>el.clientHeight+1));
+  const addressBox=(await address.boundingBox())!;
+  expect(addressBox.width).toBeGreaterThan(width===360?250:400);
+  expect(addressBox.height).toBeGreaterThanOrEqual(112);
+  for(const field of [name,address,person,phone])await expect(field).toBeInViewport({ratio:1});
+  expect(await dialog.locator('.customer-dialog-body').evaluate(el=>el.scrollWidth)).toBeLessThanOrEqual(await dialog.locator('.customer-dialog-body').evaluate(el=>el.clientWidth+1));
+  await expect(form.getByRole('textbox',{name:'品牌',exact:true})).toBeHidden();
+  await expect(form.getByRole('textbox',{name:'联系人1微信',exact:true})).toBeHidden();
+  await page.screenshot({path:'artifacts/customer-edit-layout/edit-'+width+'.png'});
+  await form.getByText('更多资料',{exact:true}).click();
+  await expect(form.getByRole('textbox',{name:'品牌',exact:true})).toHaveValue('原有品牌');
+  await form.getByText('更多资料',{exact:true}).click();
+  await name.fill('林女士客户更新');
+  await address.fill('浙江省绍兴市柯桥区面料中心\n北门二楼样品收货处');
+  await person.fill('林女士更新');
+  await phone.fill('13912345678');
+  await dialog.getByRole('button',{name:'保存',exact:true}).click();
+  await expect(dialog).toHaveCount(0);
+  expect(await page.evaluate(()=>(window as any).customerQa.profile)).toMatchObject({
+   displayName:'林女士客户更新',region:'浙江省绍兴市柯桥区面料中心 北门二楼样品收货处',brands:['原有品牌'],notes:'原有备注',
+   contacts:[{name:'林女士更新',phone:'13912345678',wechat:'example-wechat',address:'另一处收货点'}]
+  });
+  await page.getByRole('button',{name:'编辑客户',exact:true}).click();
+  await expect(address).toHaveValue('浙江省绍兴市柯桥区面料中心 北门二楼样品收货处');
+  await expect(phone).toHaveValue('13912345678');
+ }
+});
+
+test('editing a customer without contacts shows empty name and phone without creating a contact on save',async({page})=>{
+ await page.goto(entry);
+ await page.evaluate(()=>{(window as any).customerQa.profile.contacts=[];});
+ await page.getByRole('button',{name:'编辑客户',exact:true}).click();
+ const dialog=page.getByRole('dialog');
+ await expect(dialog.getByRole('textbox',{name:'联系人1姓名',exact:true})).toHaveValue('');
+ await expect(dialog.getByRole('textbox',{name:'联系人1电话',exact:true})).toHaveValue('');
+ await dialog.getByRole('textbox',{name:'详细地址',exact:true}).fill('测试地址');
+ await dialog.getByRole('button',{name:'保存',exact:true}).click();
+ await expect(dialog).toHaveCount(0);
+ expect(await page.evaluate(()=>(window as any).customerQa.profile.contacts)).toEqual([]);
 });

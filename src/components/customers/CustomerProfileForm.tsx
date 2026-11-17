@@ -6,18 +6,61 @@ export const customerField='rounded border border-slate-300 bg-white px-3 py-2 t
 const customerButtonBase='inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 disabled:cursor-not-allowed disabled:opacity-40';
 export const customerButton=customerButtonBase+' border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 aria-pressed:border-sky-600 aria-pressed:bg-sky-50 aria-pressed:text-sky-700';
 export const customerPrimaryButton=customerButtonBase+' border border-transparent bg-sky-600 text-white hover:bg-sky-700';
-export function CustomerProfileForm({value,onChange,disabled=false,quick=false,apiFetch}:{apiFetch?:typeof fetch;value:CustomerProfile;onChange(value:CustomerProfile):void;disabled?:boolean;quick?:boolean}){
+export function CustomerProfileForm({value,onChange,disabled=false,quick=false,editLayout=false,apiFetch}:{apiFetch?:typeof fetch;value:CustomerProfile;onChange(value:CustomerProfile):void;disabled?:boolean;quick?:boolean;editLayout?:boolean}){
  const set=<K extends keyof CustomerProfile>(key:K,v:CustomerProfile[K])=>onChange({...value,[key]:v});
  const input=(label:string,key:'displayName'|'invoiceTitle'|'region'|'tierReason'|'stageReason',required=false)=><label className="grid gap-1 text-sm">{label}<input className={customerField} aria-label={label} required={required} maxLength={key==='region'?100:key.endsWith('Reason')?1000:160} value={value[key]??''} onChange={e=>set(key,e.target.value)}/></label>;
  const select=<K extends 'subjectType'|'salesChannel'|'tier'|'relationshipStage'>(label:string,key:K,options:[CustomerProfile[K],string][])=><label className="grid gap-1 text-sm">{label}<select className={customerField} aria-label={label} value={value[key]} onChange={e=>set(key,e.target.value as CustomerProfile[K])}>{options.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>;
  const removeButton=(label:string,action:()=>void)=><button type="button" className="customer-remove" aria-label={label} title={label} onClick={action}><X size={16} aria-hidden="true"/></button>;
  const addButton=(label:string,action:()=>void)=><button type="button" className="customer-add" onClick={action}><Plus size={15} aria-hidden="true"/>{label}</button>;
- return <fieldset disabled={disabled} className={quick?'customer-quick-profile space-y-4':'customer-profile-grid'}><section className="customer-basic customer-form-section">{!quick&&<h3 className="customer-section-title">基础资料</h3>}<div className="customer-basic-fields grid gap-3 sm:grid-cols-2">{input('客户名称','displayName',true)}{!quick&&<><label className="grid gap-1 text-sm">品牌<input className={customerField} aria-label="品牌" maxLength={160} value={value.brands[0]??''} onChange={e=>set('brands',e.target.value?[e.target.value]:[])}/></label>{select('客户主体','subjectType',[['unknown','待补充'],['company','公司'],['individual','个人']])}{input('详细地址','region')}{select('销售渠道','salesChannel',[['unknown','待补充'],['online','线上'],['offline','线下'],['both','兼有']])}<label className="customer-important"><input type="checkbox" aria-label="重点客户" checked={value.important??false} onChange={e=>set('important',e.target.checked)}/>重点客户</label></>}</div></section>
- <section className="customer-contacts customer-form-section" aria-label="联系人"><details open={!quick}><summary className="customer-section-title cursor-pointer">{quick?'联系人（选填）':'联系人'}</summary><div className="mt-3 space-y-2">{value.contacts.map((contact,i)=><div key={contact.id??i}><div className="customer-contact-row">{(['name','phone','wechat'] as const).map((key,j)=>{const label='联系人'+(i+1)+['姓名','电话','微信'][j];return <label className="grid gap-1 text-sm" key={key}>{['姓名','电话','微信'][j]}<input className={customerField} aria-label={label} type={key==='phone'?'tel':'text'} autoComplete={key==='phone'?'tel':key==='name'?'name':'off'} maxLength={100} value={contact[key]??''} onChange={e=>set('contacts',value.contacts.map((c,index)=>index===i?{...c,[key]:e.target.value}:c))}/></label>;})}{removeButton('移除联系人'+(i+1),()=>set('contacts',value.contacts.filter((_,index)=>index!==i)))}</div>{!quick&&<details className="mt-1"><summary className="cursor-pointer text-xs text-sky-700">{contact.address?'专用地址（已填写）':'专用地址'}</summary><label className="mt-1 grid gap-1">专用地址（留空使用客户详细地址）<input aria-label={'联系人'+(i+1)+'专用地址'} className={customerField} maxLength={100} value={contact.address??''} onChange={e=>set('contacts',value.contacts.map((c,index)=>index===i?{...c,address:e.target.value}:c))}/></label></details>}</div>)}{value.contacts.length<20&&addButton('添加联系人',()=>set('contacts',[...value.contacts,{name:'',phone:null,wechat:null}]))}</div></details></section>
- {!quick&&<>
+ const otherBasics=<>
+  <label className="grid gap-1 text-sm">品牌<input className={customerField} aria-label="品牌" maxLength={160} value={value.brands[0]??''} onChange={e=>set('brands',e.target.value?[e.target.value]:[])}/></label>
+  {select('客户主体','subjectType',[['unknown','待补充'],['company','公司'],['individual','个人']])}
+  {!editLayout&&input('详细地址','region')}
+  {select('销售渠道','salesChannel',[['unknown','待补充'],['online','线上'],['offline','线下'],['both','兼有']])}
+  <label className="customer-important"><input type="checkbox" aria-label="重点客户" checked={value.important??false} onChange={e=>set('important',e.target.checked)}/>重点客户</label>
+ </>;
+ const emptyContact:CustomerProfile['contacts'][number]={name:'',phone:null,wechat:null};
+ const contacts=editLayout&&!value.contacts.length?[emptyContact]:value.contacts;
+ const contactList=<div className={editLayout?'space-y-3':'mt-3 space-y-2'}>{contacts.map((contact,i)=>{
+  const change=(key:'name'|'phone'|'wechat'|'address',v:string)=>set('contacts',contacts.map((c,index)=>index===i?{...c,[key]:v}:c));
+  const field=(key:'name'|'phone'|'wechat',label:string)=><label className="grid gap-1 text-sm">{label}<input className={customerField}
+   aria-label={'联系人'+(i+1)+label} type={key==='phone'?'tel':'text'} autoComplete={key==='phone'?'tel':key==='name'?'name':'off'} maxLength={100}
+   value={contact[key]??''} onChange={e=>change(key,e.target.value)}/></label>;
+  const address=<label className="mt-1 grid gap-1">专用地址（留空使用客户详细地址）<input aria-label={'联系人'+(i+1)+'专用地址'} className={customerField} maxLength={100} value={contact.address??''} onChange={e=>change('address',e.target.value)}/></label>;
+  return <div key={contact.id??i}>
+   <div className={editLayout?'customer-edit-contact-row':'customer-contact-row'}>
+    {field('name','姓名')}{field('phone','电话')}{!editLayout&&field('wechat','微信')}
+    {value.contacts.length>0&&removeButton('移除联系人'+(i+1),()=>set('contacts',value.contacts.filter((_,index)=>index!==i)))}
+   </div>
+   {editLayout?<details className="customer-edit-contact-extras"><summary aria-label={'联系人'+(i+1)+'更多联系方式'}>更多联系方式</summary><div>{field('wechat','微信')}{address}</div></details>:
+    !quick&&<details className="mt-1"><summary className="cursor-pointer text-xs text-sky-700">{contact.address?'专用地址（已填写）':'专用地址'}</summary>{address}</details>}
+  </div>;
+ })}{value.contacts.length<20&&(!editLayout||value.contacts.length>0)&&addButton('添加联系人',()=>set('contacts',[...value.contacts,emptyContact]))}</div>;
+ const secondarySections=<>
  <section aria-label="面料价格接受度" className="customer-prices customer-form-section"><h3 className="customer-section-title">接受价格 <span className="customer-muted">元/米</span></h3>{value.prices.map((price,i)=>{const change=(key:'fabricCategory'|'minPrice'|'maxPrice'|'remark',v:string|null)=>set('prices',value.prices.map((p,j):CustomerProfile['prices'][number]=>j===i?{...p,currency:'CNY',unit:'metre',taxBasis:'unknown',[key]:v}:p));return <div className="customer-price-row" key={i}><label className="grid gap-1 text-sm">面料类别<input className={customerField} aria-label={'面料类别'+(i+1)} maxLength={100} value={price.fabricCategory} onChange={e=>change('fabricCategory',e.target.value)}/></label><div className="grid gap-1 text-sm"><span>价格范围</span><div className="customer-range-inputs">{(['minPrice','maxPrice'] as const).map((key,j)=><React.Fragment key={key}>{j===1&&<span aria-hidden="true">—</span>}<input className={customerField} aria-label={(j?'价格上限':'价格下限')+(i+1)} inputMode="decimal" placeholder={j?'上限':'下限'} maxLength={13} value={price[key]??''} onChange={e=>change(key,e.target.value)}/></React.Fragment>)}</div></div><label className="customer-price-note grid gap-1 text-sm">备注<input className={customerField} aria-label={'价格备注'+(i+1)} maxLength={400} value={price.remark??''} onChange={e=>change('remark',e.target.value)}/></label>{removeButton('移除价格'+(i+1),()=>set('prices',value.prices.filter((_,j)=>j!==i)))}</div>;})}{addButton('添加价格范围',()=>set('prices',[...value.prices,{fabricCategory:'',minPrice:null,maxPrice:null,currency:'CNY',unit:'metre',taxBasis:'unknown',remark:null}]))}</section>
  <section className="customer-followup customer-form-section"><h3 className="customer-section-title">回访与备注</h3><div className="grid gap-3 sm:grid-cols-2"><label className="grid gap-1 text-sm">下次回访日期<input type="date" aria-label="下次回访日期" className={customerField} value={value.nextFollowupOn??''} onChange={e=>set('nextFollowupOn',e.target.value||null)}/></label><label className="grid gap-1 text-sm">回访备注<input aria-label="回访备注" className={customerField} maxLength={400} value={value.followupNote??''} onChange={e=>set('followupNote',e.target.value||null)}/></label><label className="customer-notes grid gap-1 text-sm">客户备注<textarea aria-label="客户备注" rows={2} className={customerField} maxLength={2000} value={value.notes??''} onChange={e=>set('notes',e.target.value||null)}/></label></div></section>
- {apiFetch&&<CustomerPreferences apiFetch={apiFetch} value={value} onChange={onChange}/>}</>}
+  {apiFetch&&<CustomerPreferences apiFetch={apiFetch} value={value} onChange={onChange}/>}
+ </>;
+ return <fieldset disabled={disabled} className={quick?'customer-quick-profile space-y-4':editLayout?'customer-edit-profile':'customer-profile-grid'}>
+  <section className="customer-basic customer-form-section">
+   {!quick&&<h3 className="customer-section-title">{editLayout?'客户信息':'基础资料'}</h3>}
+   <div className={editLayout?'customer-edit-identity':'customer-basic-fields grid gap-3 sm:grid-cols-2'}>
+    {input('客户名称','displayName',true)}
+    {editLayout?<label className="grid gap-1 text-sm">详细地址<textarea className={customerField} aria-label="详细地址" autoComplete="street-address"
+     rows={5} maxLength={100} value={value.region??''} onChange={e=>set('region',e.target.value.replace(/[\r\n\t]+/g,' '))}/></label>:
+     !quick&&otherBasics}
+   </div>
+  </section>
+  <section className="customer-contacts customer-form-section" aria-label="联系人">
+   {editLayout?<><h3 className="customer-section-title">联系人</h3>{contactList}</>:
+    <details open={!quick}><summary className="customer-section-title cursor-pointer">{quick?'联系人（选填）':'联系人'}</summary>{contactList}</details>}
+  </section>
+  {!quick&&(editLayout?<details className="customer-edit-more"><summary>更多资料</summary>
+   <div className="customer-profile-grid">
+    <section className="customer-basic customer-form-section"><h3 className="customer-section-title">客户属性</h3><div className="customer-basic-fields grid gap-2">{otherBasics}</div></section>
+    {secondarySections}
+   </div>
+  </details>:secondarySections)}
  </fieldset>;
 }
 
