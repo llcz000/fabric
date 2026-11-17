@@ -149,6 +149,51 @@ class ReleaseTests(unittest.TestCase):
             r=remote.Release.__new__(remote.Release);r.prod=prod;r.b={'backend':h(b'old'),'index':h(b'old-html')};r.load=Mock(return_value={'files':{'dist/server.cjs':{'sha256':h(b'new')},'dist/index.html':{'sha256':h(b'new-html')}}});r.verified_backup=Mock(return_value={'folder':str(backup)});r.restart=Mock();r.baseline=Mock();r.sql=Mock()
             r.p={'url':'https://example.test'};r.request=Mock(return_value=(200,b'old-html'))
             result=r.rollback();self.assertEqual((prod/'dist/server.cjs').read_bytes(),b'old');self.assertFalse(result['databaseRestored']);r.sql.assert_not_called()
+    def test_historical_manifest_may_only_operate_on_fixed_root_for_status_verify_or_rollback(self):
+        profile=json.loads(pathlib.Path(__file__).with_name('production.json').read_text())
+        legacy={**profile,'production':'/opt/fabric-v2-production-20261019-11910f5f',
+                'process':'fabric-v2-production-20261019','recoveryProcess':'fabric-v2-production-readonly-20261019'}
+        for action in ('status','verify','rollback'):
+            release=remote.Release({'action':action,'profile':profile,'frozenProfile':legacy})
+            self.assertEqual(release.prod,pathlib.Path('/opt/fabric'))
+            self.assertEqual(release.frozen_profile,legacy)
+        with self.assertRaisesRegex(RuntimeError,'Historical deployment target refused'):
+            remote.Release({'action':'deploy','profile':profile,'frozenProfile':legacy})
+        with self.assertRaisesRegex(RuntimeError,'fixed Fabric runtime'):
+            remote.Release({'action':'deploy','profile':legacy})
+
+    @unittest.skipUnless(sys.platform.startswith('linux'),'Remote retention uses POSIX filesystem paths')
+    def test_retention_preserves_five_pairs_and_requires_revalidated_offsite_proof(self):
+        with fixture_directory() as folder:
+            root=pathlib.Path(folder)
+            stage=root/'stage';backup=root/'backup'
+            stage.mkdir();backup.mkdir()
+            ids=[f'20261117t00000000{i}-deadbeef' for i in range(7)]
+            proof={'archiveSha256':h(b'archive'),'encryptedSha256':h(b'encrypted'),'sqlSha256':h(b'database')}
+            phases={name:{'status':'passed'} for name in ('backup','offsite','deploy','verify')}
+            phases['backup']['result']=dict(proof)
+            phases['offsite']['result']={'verified':True,'keyStoredSeparately':True,'encryptedSha256':proof['encryptedSha256'],'decryptedSha256':proof['sqlSha256']}
+            for release_id in ids:
+                dest=stage/release_id;dest.mkdir()
+                (dest/'release.tar.gz').write_bytes(b'archive')
+                (dest/'state.json').write_text(json.dumps({'id':release_id,'phases':phases,'archiveSha256':proof['archiveSha256']}))
+                pair=backup/('release-'+release_id);pair.mkdir()
+                (pair/'database.sql.gz.enc').write_bytes(b'encrypted')
+                (pair/'database.sql.gz').write_bytes(b'database')
+            release=remote.Release.__new__(remote.Release);release.baseline=Mock()
+            release.p={'stageRoot':str(stage),'backupRoot':str(backup)}
+            release.b={'releaseId':ids[0]}
+            self.assertEqual(release.retention()['candidates'],{ids[1]:proof})
+            release.r={'localProofs':{ids[0]:proof}}
+            with self.assertRaisesRegex(RuntimeError,'offsite proof changed'):
+                release.retention(apply=True)
+            release.r={'localProofs':{ids[1]:proof}}
+            result=release.retention(apply=True)
+            self.assertEqual(result['pruned'],[ids[1]])
+            self.assertFalse((stage/ids[1]).exists())
+            self.assertTrue((stage/ids[0]).is_dir())
+            self.assertTrue((backup/'retired-releases'/(ids[1]+'.json')).is_file())
+
     def test_completed_install_receipt_verifies_instead_of_reinstalling(self):
         r=remote.Release.__new__(remote.Release);r.state={'phases':{'deploy':{'status':'passed','result':{'state':'released'}}}};r.r={};r.load=Mock();r.verify=Mock();r.deploy=Mock()
         self.assertEqual(r.dispatch('deploy'),{'state':'released'});r.verify.assert_called_once();r.deploy.assert_not_called()

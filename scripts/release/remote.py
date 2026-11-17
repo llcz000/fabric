@@ -100,12 +100,21 @@ class Release:
         p=self.p
         for k in ['production','stageRoot','backupRoot','nginx']:
             value=p[k];must(isinstance(value,str) and re.fullmatch(r'/[\w/.-]+',value) and pathlib.PurePosixPath(value).as_posix()==value and '..' not in pathlib.PurePosixPath(value).parts and len(pathlib.PurePosixPath(value).parts)>2,'Unsafe target path')
-        must(p['production']!=p['stageRoot'] and not p['stageRoot'].startswith(p['production']+'/'),'Overlapping directories')
+        must(p['name']=='production' and (p['production'],p['process'],p['recoveryProcess'],p['starter'])==('/opt/fabric','fabric','fabric-readonly','start-v2.cjs'),'Production must use the fixed Fabric runtime')
+        prod_path=pathlib.PurePosixPath(p['production'])
+        for key in ('stageRoot','backupRoot'):
+            storage_path=pathlib.PurePosixPath(p[key]);must(storage_path!=prod_path and prod_path not in storage_path.parents and storage_path not in prod_path.parents,'Overlapping directories')
+        self.frozen_profile=request.get('frozenProfile',p)
+        if self.frozen_profile!=p:
+            legacy={**p,'production':'/opt/fabric-v2-production-20261019-11910f5f','process':'fabric-v2-production-20261019','recoveryProcess':'fabric-v2-production-readonly-20261019'}
+            must(self.frozen_profile==legacy and request['action'] in ('status','verify','rollback'),'Historical deployment target refused')
         for k in ['process','recoveryProcess','starter','database']:must(re.fullmatch(r'[A-Za-z0-9_-]+(?:\.cjs)?',p[k]) is not None,'Unsafe identity')
         must(re.fullmatch(r'[a-f0-9-]{36}',p['serverUuid']) is not None,'Invalid database UUID')
         must(p['url'].startswith('https://') and '@' not in p['url'],'Invalid public URL')
         for k in ['port','recoveryPort']:must(type(p[k]) is int and 1024<=p[k]<=65535,'Invalid port')
+        must(p['port']!=p['recoveryPort'],'Production and recovery ports must differ')
         self.prod=pathlib.Path(p['production']);self.local='http://127.0.0.1:'+str(p['port']);self.recovery='http://127.0.0.1:'+str(p['recoveryPort'])
+        self.state={}
         if self.id:
             must(re.fullmatch(r'[a-z0-9][a-z0-9_-]{0,63}',self.id) is not None,'Unsafe release ID')
             self.stage=pathlib.Path(p['stageRoot'])/self.id
@@ -131,9 +140,15 @@ class Release:
         writable(self.obj(self.local,'/api/runtime'))
         h=self.obj(self.local,'/api/health');must(h.get('storage')=='mysql' and h.get('mode')=='v2' and h.get('status')=='ok','MySQL health failed')
         r=self.obj(self.recovery,'/api/runtime');must(r.get('mode')=='v2' and r.get('readOnly') is True,'Recovery runtime contract failed')
+        h=self.obj(self.recovery,'/api/health');must(h.get('storage')=='mysql' and h.get('mode')=='v2' and h.get('status')=='ok','Recovery MySQL health failed')
     def processes(self):
         items=json.loads(subprocess.check_output(['pm2','jlist'],timeout=30));main=[i for i in items if i['name']==self.p['process']];recovery=[i for i in items if i['name']==self.p['recoveryProcess']]
-        must(len(main)==len(recovery)==1,'PM2 process identity mismatch');m=main[0]['pm2_env'];must(m['pm_cwd']==str(self.prod) and m['pm_exec_path']==str(self.prod/self.p['starter']) and m['status']=='online' and recovery[0]['pm2_env']['status']=='online','PM2 target mismatch')
+        must(len(main)==len(recovery)==1,'PM2 process identity mismatch')
+        must(self.prod.resolve()==self.prod,'Production must be a real directory')
+        for item,starter in ((main[0],self.p['starter']),(recovery[0],'start-recovery.cjs')):
+            env=item['pm2_env'];pid=item['pid'];script=self.prod/starter
+            must(env['pm_cwd']==str(self.prod) and env['pm_exec_path']==str(script) and env['status']=='online' and pid>0 and script.resolve()==script and script.is_file(),'PM2 target mismatch: '+item['name'])
+            must(pathlib.Path('/proc',str(pid),'cwd').resolve()==self.prod,'Live process cwd mismatch: '+item['name'])
         return {'productionPid':main[0]['pid'],'recoveryPid':recovery[0]['pid']}
     def inventory(self):
         self.runtimes();writable(self.obj(self.p['url'],'/api/runtime'));must(self.sql('SELECT @@server_uuid')==self.p['serverUuid'],'Physical database identity mismatch')
@@ -150,7 +165,7 @@ class Release:
     def load(self):
         must(re.fullmatch(r'[a-f0-9]{64}',self.archive_sha or '') is not None,'Archive identity required')
         must(re.fullmatch(r'[a-f0-9]{64}',self.manifest_sha or '') is not None and sha(self.stage/'manifest.json')==self.manifest_sha,'Frozen manifest changed')
-        m=json.loads((self.stage/'manifest.json').read_text());must(m.get('kind')=='fabric-release-v1' and m['id']==self.id and m['profile']==self.p and m['baseline']==self.b,'Manifest target drift')
+        m=json.loads((self.stage/'manifest.json').read_text());must(m.get('kind')=='fabric-release-v1' and m['id']==self.id and m['profile']==self.frozen_profile and m['baseline']==self.b,'Manifest target drift')
         must(sha(self.stage/'release.tar.gz')==self.archive_sha,'Frozen archive changed')
         for n,v in m['files'].items():
             must(re.fullmatch(r'[A-Za-z0-9_./-]+',n) is not None and '..' not in pathlib.PurePosixPath(n).parts and not n.startswith('/'),'Unsafe manifest filename')
@@ -219,7 +234,7 @@ class Release:
         return {'state':'code-rolled-back','databaseRestored':False,'newTablesAndBusinessWritesPreserved':True}
     def verify(self):
         m=self.load();actual=self.inventory();must(actual['index']==m['files']['dist/index.html']['sha256'] and actual['backend']==m['files']['dist/server.cjs']['sha256'],'Installed version drift');must(actual['starter']==self.b['starter'] and actual['nginx']==self.b['nginx'],'Startup/nginx drift')
-        if self.state['phases'].get('preflight',{}).get('result',{}).get('processes'):must(actual['processes']['recoveryPid']==self.state['phases']['preflight']['result']['processes']['recoveryPid'],'Recovery process changed')
+        if self.frozen_profile==self.p and self.state['phases'].get('preflight',{}).get('result',{}).get('processes'):must(actual['processes']['recoveryPid']==self.state['phases']['preflight']['result']['processes']['recoveryPid'],'Recovery process changed')
         writable(self.obj(self.p['url'],'/api/runtime'));h=self.obj(self.p['url'],'/api/health');must(h.get('storage')=='mysql' and h.get('mode')=='v2','Public MySQL health failed')
         for n in m['browserFiles']:
             code,raw=self.request(self.p['url'],'/'+n[5:]);must(code==200 and hashlib.sha256(raw).hexdigest()==m['files'][n]['sha256'],'Public resource byte mismatch '+n)
@@ -259,9 +274,54 @@ class Release:
                 try:self.state['automaticRollback']=self.rollback();self.save()
                 except Exception as error:self.state['automaticRollback']={'state':'guarded-rollback-failed','error':str(error)};self.save()
             raise
+    def retention(self,apply=False):
+        self.baseline()
+        stage_root=pathlib.Path(self.p['stageRoot']);backup_root=pathlib.Path(self.p['backupRoot'])
+        must(stage_root.resolve()==stage_root and backup_root.resolve()==backup_root,'Indirect retention root')
+        current=self.b.get('releaseId')
+        must(isinstance(current,str) and re.fullmatch(r'\d{8}t\d{9}-[a-f0-9]{8}',current),'A verified active release ID is required for retention')
+        verified={}
+        for stage in sorted(stage_root.iterdir(),reverse=True):
+            if not re.fullmatch(r'\d{8}t\d{9}-[a-f0-9]{8}',stage.name) or not stage.is_dir() or stage.is_symlink() or stage.is_mount():continue
+            state_file=stage/'state.json'
+            if not state_file.is_file() or state_file.is_symlink():continue
+            state=json.loads(state_file.read_text());phases=state.get('phases',{})
+            if state.get('id')!=stage.name or state.get('automaticRollback') or phases.get('rollback',{}).get('status')=='passed':continue
+            if any(phases.get(phase,{}).get('status')!='passed' for phase in ('backup','offsite','deploy','verify')):continue
+            backup=backup_root/('release-'+stage.name)
+            if not backup.is_dir() or backup.is_symlink() or backup.is_mount():continue
+            proof=phases['offsite']['result']
+            backup_record=phases['backup']['result']
+            if proof.get('verified') is not True or proof.get('keyStoredSeparately') is not True:continue
+            if proof['encryptedSha256']!=backup_record['encryptedSha256'] or proof['decryptedSha256']!=backup_record['sqlSha256']:continue
+            verified[stage.name]={'archiveSha256':state['archiveSha256'],'encryptedSha256':proof['encryptedSha256'],'sqlSha256':proof['decryptedSha256']}
+        must(current in verified,'Active release is missing its verified rollback pair')
+        keep=list(verified)[:5]
+        if current not in keep:keep.append(current)
+        candidates={key:value for key,value in verified.items() if key not in keep}
+        if not apply:return {'kept':keep,'candidates':candidates}
+        requested=self.r.get('localProofs',{})
+        must(isinstance(requested,dict) and all(key in candidates and value==candidates[key] for key,value in requested.items()),'Retention candidate or offsite proof changed')
+        retired=backup_root/'retired-releases';retired.mkdir(mode=0o700,exist_ok=True)
+        must(retired.resolve()==retired,'Indirect retention receipt directory')
+        for key,proof in requested.items():
+            stage=stage_root/key;backup=backup_root/('release-'+key)
+            for item,digest in ((stage/'release.tar.gz',proof['archiveSha256']),(backup/'database.sql.gz.enc',proof['encryptedSha256']),(backup/'database.sql.gz',proof['sqlSha256'])):
+                must(item.is_file() and not item.is_symlink() and sha(item)==digest,'Retention file drift: '+key)
+            must(not any(not entry.is_symlink() and entry.is_mount() for folder in (stage,backup) for entry in folder.rglob('*')),'Retention tree contains a mount')
+        for key,proof in requested.items():
+            receipt=retired/(key+'.json')
+            with receipt.open('x') as f:json.dump({'id':key,'retiredAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),**proof},f)
+            shutil.rmtree(stage_root/key)
+            shutil.rmtree(backup_root/('release-'+key))
+        return {'kept':keep,'pruned':list(requested),'retainedWithoutLocalProof':sorted(candidates.keys()-requested.keys())}
     def dispatch(self,action):
         if action=='inventory':return self.inventory()
-        if action=='status':return {'state':self.state,'inventory':self.inventory()}
+        if action in ('retention-plan','retention-apply'):return self.retention(action=='retention-apply')
+        if action=='status':
+            receipt=pathlib.Path(self.p['backupRoot'])/'retired-releases'/(self.id+'.json')
+            if not self.state_path.exists() and receipt.is_file():self.state={**self.state,'retired':True,'archiveSha256':json.loads(receipt.read_text())['archiveSha256']}
+            return {'state':self.state,'inventory':self.inventory()}
         if action=='stage':
             must(not self.stage.exists() or self.state.get('archiveSha256')==self.archive_sha,'Stage identity conflict')
             self.state['archiveSha256']=self.archive_sha;self.save();return {'stage':str(self.stage)}

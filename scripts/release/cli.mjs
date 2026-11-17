@@ -29,8 +29,13 @@ function transport(){
  return {host:c.username+'@'+c.host,opts:['-o','BatchMode=yes','-o','StrictHostKeyChecking=yes'],port:String(c.port)};
 }
 function remote(action,run,extra={}){
- const c=transport();const request={action,profile,baseline:run?.manifest.baseline??null,id:run?.id,archiveSha256:run?.archiveSha256,manifestSha256:run?.manifestSha256,...extra};
- const executor=fs.readFileSync(run?path.join(run.dir,'package/remote.py'):'scripts/release/remote.py');if(run&&hash(executor)!==run.manifest.executorSha256)throw Error('Frozen executor drift');
+ const frozenProfile=run?.manifest.profile;
+ const historical=Boolean(frozenProfile&&frozenProfile.production!==profile.production);
+ if(historical&&!['status','verify','rollback'].includes(action))throw Error('Historical releases cannot deploy; prepare a new release for /opt/fabric');
+ const c=transport();const request={action,profile,baseline:run?.manifest.baseline??null,id:run?.id,archiveSha256:run?.archiveSha256,manifestSha256:run?.manifestSha256,...(historical?{frozenProfile}:{}),...extra};
+ const frozenExecutor=run&&fs.readFileSync(path.join(run.dir,'package/remote.py'));
+ if(run&&hash(frozenExecutor)!==run.manifest.executorSha256)throw Error('Frozen executor drift');
+ const executor=historical||!run?fs.readFileSync('scripts/release/remote.py'):frozenExecutor;
  const output=processRun('ssh',[...c.opts,'-p',c.port,c.host,'python3 - '+Buffer.from(JSON.stringify(request)).toString('base64')],{input:executor,log:run?path.join(run.dir,'remote-'+action+'.log'):undefined,acceptRemoteFailure:true});
  const response=JSON.parse(output.trim());if(response.ok!==true){if(run&&response.automaticRollback){recordRollbackReceipt(run,response.automaticRollback);write(path.join(run.dir,'run.json'),run);}throw Error(response.error??'Remote operation failed');}return response.result;
 }
@@ -154,15 +159,35 @@ function awaitlessBuildMigration(pkg){
  processRun(process.execPath,['--input-type=module','-e',"import {build} from 'esbuild'; await build({entryPoints:['scripts/release/migrations.ts'],outfile:process.argv[1],bundle:true,platform:'node',format:'cjs',target:'node20'});",path.join(pkg,'operator.cjs')],{log:path.join(path.dirname(pkg),'migration-build.log')});
 }
 function loadRun(id){const dir=path.join(root,'artifacts/releases',id),run=json(path.join(dir,'run.json'));if(run.id!==id||run.dir!==dir||run.archive!==path.join(dir,'release.tar.gz'))throw Error('Release state identity drift');const manifestFile=path.join(dir,'package/manifest.json');if(hash(fs.readFileSync(manifestFile))!==run.manifestSha256||JSON.stringify(json(manifestFile))!==JSON.stringify(run.manifest))throw Error('Frozen manifest drift');verifyFiles(path.join(dir,'package'),run.manifest.files);if(hash(fs.readFileSync(run.archive))!==run.archiveSha256)throw Error('Frozen archive drift');if(run.rolledBack&&!['status','report','help'].includes(args.command))throw Error('Release was rolled back; prepare a new immutable release');return run;}
-async function offsite(run,backup){
- const c=transport(),encrypted=path.join(run.dir,'database.sql.gz.enc'),key=path.join(privateRoot,run.id+'.passphrase.local');
- fs.mkdirSync(privateRoot,{recursive:true});copy(c.host+':'+backup.encrypted,encrypted,path.join(run.dir,'offsite-download.log'));copy(c.host+':'+backup.key,key,path.join(run.dir,'offsite-key-download.log'));
+async function offsiteProof(encrypted,key){
  const fd=fs.openSync(encrypted,'r'),header=Buffer.alloc(16);try{fs.readSync(fd,header,0,16,0);}finally{fs.closeSync(fd);}if(header.subarray(0,8).toString()!=='Salted__')throw Error('Encrypted backup header mismatch');
  const material=pbkdf2Sync(fs.readFileSync(key,'utf8').trim(),header.subarray(8,16),10000,48,'sha256'),decipher=createDecipheriv('aes-256-cbc',material.subarray(0,32),material.subarray(32));
  const cipherHash=createHash('sha256').update(header),plainHash=createHash('sha256');
  try{for await(const chunk of fs.createReadStream(encrypted,{start:16})){cipherHash.update(chunk);plainHash.update(decipher.update(chunk));}plainHash.update(decipher.final());}finally{material.fill(0);}
- const digest=plainHash.digest('hex');if(cipherHash.digest('hex')!==backup.encryptedSha256||digest!==backup.sqlSha256)throw Error('Offsite cipher/decrypted backup mismatch');
- const proof={verified:true,encryptedSha256:backup.encryptedSha256,decryptedSha256:digest,bytes:fs.statSync(encrypted).size,keyStoredSeparately:true};write(path.join(run.dir,'offsite.json'),proof);remote('offsite',run,{offsite:proof,resume:args.command==='resume'});return proof;
+ return {verified:true,encryptedSha256:cipherHash.digest('hex'),decryptedSha256:plainHash.digest('hex'),bytes:fs.statSync(encrypted).size,keyStoredSeparately:true};
+}
+async function offsite(run,backup){
+ const c=transport(),encrypted=path.join(run.dir,'database.sql.gz.enc'),key=path.join(privateRoot,run.id+'.passphrase.local');
+ fs.mkdirSync(privateRoot,{recursive:true});copy(c.host+':'+backup.encrypted,encrypted,path.join(run.dir,'offsite-download.log'));copy(c.host+':'+backup.key,key,path.join(run.dir,'offsite-key-download.log'));
+ const proof=await offsiteProof(encrypted,key);
+ if(proof.encryptedSha256!==backup.encryptedSha256||proof.decryptedSha256!==backup.sqlSha256)throw Error('Offsite cipher/decrypted backup mismatch');
+ write(path.join(run.dir,'offsite.json'),proof);remote('offsite',run,{offsite:proof,resume:args.command==='resume'});return proof;
+}
+async function prune(){
+ const baseline=json(baselinePath);
+ const plan=remote('retention-plan',null,{baseline});
+ const localProofs={};
+ for(const [id,expected] of Object.entries(plan.candidates)){
+  const dir=path.join(root,'artifacts/releases',id);
+  const archive=path.join(dir,'release.tar.gz'),encrypted=path.join(dir,'database.sql.gz.enc'),key=path.join(privateRoot,id+'.passphrase.local');
+  if(![archive,encrypted,key].every(file=>fs.existsSync(file)&&fs.lstatSync(file).isFile()))continue;
+  try{
+   const proof=await offsiteProof(encrypted,key);
+   if(proof.encryptedSha256===expected.encryptedSha256&&proof.decryptedSha256===expected.sqlSha256&&hash(fs.readFileSync(archive))===expected.archiveSha256)localProofs[id]=expected;
+  }catch{ /* The remote pair remains available if local verification fails. */ }
+ }
+ if(args.apply)console.log(JSON.stringify(remote('retention-apply',null,{baseline,localProofs})));
+ else console.log(JSON.stringify({kept:plan.kept,eligible:Object.keys(localProofs),retainedWithoutLocalProof:Object.keys(plan.candidates).filter(id=>!(id in localProofs))}));
 }
 async function publicVerify(run){
  const get=p=>new Promise((resolve,reject)=>{const req=https.get(profile.url+p,{timeout:20000},res=>{const chunks=[];res.on('data',b=>chunks.push(b));res.on('end',()=>resolve({code:res.statusCode,body:Buffer.concat(chunks)}));});req.on('timeout',()=>req.destroy(Error('Public timeout')));req.on('error',reject);});
@@ -196,7 +221,7 @@ async function phases(run,last){
  return run;
 }
 async function main(){
- if(args.command==='help'){console.log('npm run release -- plan | test | baseline --evidence <release-result.json> | prepare [--full-ui] [--migrations IDs] [--rehearse] | preflight|rehearse|deploy|verify|rollback|status|report|resume <id> | progress [id] | run [id]\nprepare builds once; run/deploy publish; rehearse restores in an isolated DB without deploying; progress/verify/status/report never deploy. Browser validation is selected automatically; --full-ui forces full browser regression. No full business unit suite is run.');return;}
+ if(args.command==='help'){console.log('npm run release -- plan | test | baseline --evidence <release-result.json> | prepare [--full-ui] [--migrations IDs] [--rehearse] | preflight|rehearse|deploy|verify|rollback|status|report|resume <id> | progress [id] | run [id] | prune [--apply]\nprepare builds once; run/deploy publish; rehearse restores in an isolated DB without deploying; progress/verify/status/report never deploy. Browser validation is selected automatically; --full-ui forces full browser regression. No full business unit suite is run.');return;}
  if(args.command==='progress'){
   const releases=path.join(root,'artifacts/releases');
   const id=args.id??(fs.existsSync(releases)?fs.readdirSync(releases,{withFileTypes:true}).filter(entry=>entry.isDirectory()&&/^\d{8}t\d{9}-[a-f0-9]{8}$/.test(entry.name)).map(entry=>entry.name).sort().findLast(name=>['prepare-progress.json','run.json'].some(file=>fs.existsSync(path.join(releases,name,file)))):undefined);
@@ -210,23 +235,25 @@ async function main(){
    processRun(process.execPath,['scripts/check-fabric-v2-development-source.mjs']);
    browserValidation=selectBrowserValidation({...reviewContext({pointer:json('docs/project/fabric-v2-active-workspace.json'),baseline:json(baselinePath)}),fullUi:args.fullUi});
   }
-  console.log(JSON.stringify({profile:profile.name,url:profile.url,baselineInitialized:fs.existsSync(baselinePath),browserValidation,
+  console.log(JSON.stringify({profile:profile.name,production:profile.production,process:profile.process,recoveryProcess:profile.recoveryProcess,url:profile.url,baselineInitialized:fs.existsSync(baselinePath),browserValidation,
    flow:['source identity','source-bound visual evidence if UI changed','automatic scoped/full browser validation','complete production HTTP contract check','build once','freeze artifact and browser references','preflight','consistent backup','encrypted offsite readback','restore rehearsal if migrations','registered migrations','atomic deploy','server and independent public verify','guarded code rollback on verification failure','Ego read-only production UI check after successful verification if UI changed'],
    migrationsAvailable:migrationIds,fullSuiteRun:false}));return;
  }
+ if(args.command==='prune')return prune();
  if(args.command==='baseline'){
   if(!args.evidence)throw Error('A previously verified release-result.json is required');const evidence=json(path.resolve(args.evidence));const artifact=json(path.join(path.dirname(path.resolve(args.evidence)),'artifact.json'));
   if(evidence.state!=='released'||artifact.sha256!==evidence.artifactSha256)throw Error('Evidence is not a verified release');const a=remote('inventory');const seed={index:evidence.indexSha256,backend:evidence.backendSha256,starter:artifact.manifest.expectedStarter??artifact.manifest.baseline?.starter,nginx:artifact.manifest.expectedNginx??artifact.manifest.baseline?.nginx,serverUuid:profile.serverUuid};for(const [k,v]of Object.entries(seed))if(a[k]!==v)throw Error('Live release does not match verified evidence: '+k);
-  write(baselinePath,{...seed,archiveSha256:evidence.artifactSha256,evidenceSha256:hash(fs.readFileSync(args.evidence)),verifiedAt:new Date().toISOString()});console.log(JSON.stringify({stage:'baseline',result:'verified',businessWrites:false}));return;
+  write(baselinePath,{...seed,releaseId:artifact.manifest.id,archiveSha256:evidence.artifactSha256,evidenceSha256:hash(fs.readFileSync(args.evidence)),verifiedAt:new Date().toISOString()});console.log(JSON.stringify({stage:'baseline',result:'verified',businessWrites:false}));return;
  }
  let run=args.command==='prepare'||args.command==='run'&&!args.id?prepare():loadRun(args.id);
  if(args.command==='prepare')return;
  if(args.command==='report'){console.log(JSON.stringify(releaseTimingReport(run),null,2));return;}
+ if(run.manifest.profile.production!==profile.production&&!['status','report','verify','rollback'].includes(args.command))throw Error('This release predates the fixed production directory; prepare a new release');
  if(args.command==='status'||args.command==='resume'){
   const remoteStatus=remote('status',run);write(path.join(run.dir,'remote-status.json'),remoteStatus);
   if(remoteStatus.state.archiveSha256&&remoteStatus.state.archiveSha256!==run.archiveSha256)throw Error('Remote release identity mismatch');
   if(remoteStatus.state.automaticRollback){recordRollbackReceipt(run,remoteStatus.state.automaticRollback);write(path.join(run.dir,'run.json'),run);if(args.command==='resume')throw Error('Remote rollback recorded; inspect status and prepare a new immutable release');}
-  if(args.command==='status'){const compact=s=>Object.fromEntries(Object.entries(s).map(([k,v])=>[k,{status:v.status,error:v.error,durationMs:v.durationMs}]));console.log(JSON.stringify({id:run.id,local:compact(run.phases),remote:compact(remoteStatus.state.phases),automaticRollback:remoteStatus.state.automaticRollback,live:remoteStatus.inventory}));return;}
+  if(args.command==='status'){const compact=s=>Object.fromEntries(Object.entries(s).map(([k,v])=>[k,{status:v.status,error:v.error,durationMs:v.durationMs}]));console.log(JSON.stringify({id:run.id,local:compact(run.phases),remote:compact(remoteStatus.state.phases),automaticRollback:remoteStatus.state.automaticRollback,retired:remoteStatus.state.retired===true,live:remoteStatus.inventory}));return;}
   for(const [phase,s]of Object.entries(run.phases)){if(s.status==='passed')continue;const remotePhase=remoteStatus.state.phases[phase==='upload'?'unpack':phase];if(remotePhase?.status==='passed'&&phase!=='verify')run.phases[phase]={status:'passed',result:remotePhase.result,recoveredFromRemoteReceipt:true};else if(s.status==='failed'||['upload','preflight','offsite','verify'].includes(phase))delete run.phases[phase];}
   write(path.join(run.dir,'run.json'),run);
  }

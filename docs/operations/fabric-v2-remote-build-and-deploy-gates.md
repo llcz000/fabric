@@ -16,7 +16,7 @@
 
 ## 如需引入 GitHub CD
 
-真实 Linux 服务器已有历史核查的项目路径 /opt/fabric、PM2 fabric 及 MySQL 8.0；可选择在 GitHub runner 先编译并校验制品，再将**同一精确 Git SHA** 的版本传至服务器受控版本目录，执行依赖安装和健康/业务回归，通过原子切换目录或 PM2 reload 更新版本。生产环境仍要有原 .env 与持久 uploads、Excel 模板、COS 配置的独立保护；不得随制品覆盖。
+GitHub runner 可以编译并校验制品。若启用 CD，仍应将同一精确 Git SHA 的冻结制品传入独立暂存区，再由[统一发布工具](统一发布工具.md)原子更新 `/opt/fabric/dist/` 并定向重启 PM2 `fabric`。生产运行目录固定为 `/opt/fabric`，运行配置、持久 uploads、Excel 模板及 COS 配置由线上独立维护。
 
 部署前必须获得实际目标的独立审查与签收：
 

@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -20,10 +21,22 @@ test('customer history hotfix flag requires a new build and excludes migrations 
   assert.throws(()=>parseArgs(['prepare','--customer-history-hotfix',...extra]));
  }
 });
-const profile={name:'production',url:'https://124.223.97.60',production:'/opt/fabric-v2-production-20261019-11910f5f',stageRoot:'/opt/fabric-releases',backupRoot:'/var/backups/fabric',process:'fabric-v2-production-20261019',recoveryProcess:'fabric-v2-production-readonly-20261019',starter:'start-v2.cjs',nginx:'/etc/nginx/sites-enabled/fabric',database:'fabric_db',serverUuid:'a937ff09-72b6-11f1-b04e-52540034488b',port:3008,recoveryPort:3009,sshConfig:'D:/fabric/.local/server/_config/ssh.local.json'};
+const profile={name:'production',url:'https://124.223.97.60',production:'/opt/fabric',stageRoot:'/opt/fabric-releases',backupRoot:'/var/backups/fabric',process:'fabric',recoveryProcess:'fabric-readonly',starter:'start-v2.cjs',nginx:'/etc/nginx/sites-enabled/fabric',database:'fabric_db',serverUuid:'a937ff09-72b6-11f1-b04e-52540034488b',port:3008,recoveryPort:3009,sshConfig:'D:/fabric/.local/server/_config/ssh.local.json'};
 test('strict writable contract accepts missing/false only',()=>{for(const r of [{mode:'v2'},{mode:'v2',readOnly:false}])assertWritable(r);for(const r of [null,[],{mode:'v1'},{mode:'v2',readOnly:true},{mode:'v2',readOnly:0},{mode:'v2',readOnly:'false'},{mode:'v2',readOnly:null}])assert.throws(()=>assertWritable(r));});
-test('profile rejects unsafe target paths, identifiers, URLs and unexpected fields',()=>{assert.deepEqual(validateProfile(profile),profile);for(const change of [{production:'/opt/../etc'},{production:'/opt'},{stageRoot:'/opt'},{database:'fabric_db; DROP DATABASE x'},{process:'x;id'},{url:'https://user:password@host'},{port:'3008'},{nginx:'/etc/../tmp/x'},{extra:true}])assert.throws(()=>validateProfile({...profile,...change}));});
+test('profile rejects unsafe target paths, identifiers, URLs and unexpected fields',()=>{assert.deepEqual(validateProfile(profile),profile);for(const change of [{production:'/opt/../etc'},{production:'/opt'},{production:'/opt/fabric-old'},{stageRoot:'/opt'},{backupRoot:'/opt/fabric/backups'},{process:'fabric-old'},{recoveryPort:3008},{database:'fabric_db; DROP DATABASE x'},{process:'x;id'},{url:'https://user:password@host'},{port:'3008'},{nginx:'/etc/../tmp/x'},{extra:true}])assert.throws(()=>validateProfile({...profile,...change}));});
 test('CLI rejects arbitrary commands and unknown flags',()=>{assert.deepEqual(parseArgs(['status','abc123']),{command:'status',id:'abc123',migrations:[],rehearse:false});assert.throws(()=>parseArgs(['exec','rm']));assert.throws(()=>parseArgs(['run','--skip-backup']));assert.throws(()=>parseArgs(['deploy','../x']));assert.throws(()=>parseArgs(['prepare','--migrations','unknown']));});
+test('retention only applies on explicit prune --apply',()=>{
+ assert.equal(parseArgs(['prune']).apply,undefined);
+ assert.equal(parseArgs(['prune','--apply']).apply,true);
+ for(const args of [['prune','release-id'],['prune','--rehearse'],['deploy','release-id','--apply']])assert.throws(()=>parseArgs(args));
+});
+test('committed PM2 configuration matches the fixed production profile',()=>{
+ const {apps}=createRequire(import.meta.url)('./ecosystem.config.cjs');
+ assert.deepEqual(apps.map(({name,cwd,script})=>({name,cwd,script})),[
+  {name:profile.process,cwd:profile.production,script:profile.production+'/'+profile.starter},
+  {name:profile.recoveryProcess,cwd:profile.production,script:profile.production+'/start-recovery.cjs'},
+ ]);
+});
 test('explicit quick UI flag is only for a fresh run or prepare',()=>{
  assert.equal(parseArgs(['run','--quick-ui']).quickUi,true);
  assert.equal(parseArgs(['prepare','--quick-ui']).quickUi,true);
