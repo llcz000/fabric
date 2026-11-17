@@ -10,6 +10,8 @@ const labelPattern=new RegExp('('+Object.keys(labels).join('|')+')[ \\t]*[:：][
 const phonePattern=/(?<!\d)(?:(?:\+?86[ -]?)?1[3-9]\d(?:[ -]?\d){8}|0\d{2,3}[ -]?\d{7,8}(?:[-转]\d{1,6})?)(?!\d)/g;
 const addressMarker=/[省市区县镇乡路巷弄]|街道|大道|\d[号栋幢楼室]/;
 const cjkName=/^[\p{Script=Han}·]{2,8}$/u;
+const latinName=/^\p{Script=Latin}[\p{Script=Latin}\p{M} .'’-]{0,39}$/u;
+const looksLikeChineseName=(value:string)=>cjkName.test(value)&&!addressMarker.test(value)&&!/公司|收货|物流|快递|电话|地址/.test(value);
 const clean=(s:string)=>s.replace(/[\s\p{Cc}\p{Cf}]+/gu,' ').replace(/^[，,；;、 ]+|[，,；;、 ]+$/g,'');
 const phoneKey=(s:string)=>s.replace(/[ -]/g,'').replace(/^\+?86(?=1[3-9]\d{9}$)/,'');
 
@@ -25,9 +27,17 @@ export function recognizeContactText(text:string):ContactFields&{ambiguous:(keyo
   });
  }else{
   found.phone=text.match(phonePattern)??[];
-  const fragments=text.replace(phonePattern,'\n').split(/[\r\n，,；;、]+/).map(clean).filter(Boolean);
-  found.name=fragments.filter(part=>cjkName.test(part)&&!addressMarker.test(part)&&!/公司|收货|物流|快递|电话|地址/.test(part));
-  found.address=fragments.filter(part=>part.length>=6&&addressMarker.test(part));
+  const fields=text.split(/[\r\n\t，,；;、]+/).map(clean);
+  const [first,middle,last]=fields;
+  if(fields.length===3&&found.phone.length===1&&middle===clean(found.phone[0])&&last&&
+    (looksLikeChineseName(first)||latinName.test(first))){
+   found.name=[first];
+   found.address=[last];
+  }else{
+   const fragments=text.replace(phonePattern,'\n').split(/[\r\n，,；;、]+/).map(clean).filter(Boolean);
+   found.name=fragments.filter(looksLikeChineseName);
+   found.address=fragments.filter(part=>part.length>=6&&addressMarker.test(part));
+  }
  }
  const ambiguous:(keyof ContactFields)[]=[];
  const choose=(field:keyof ContactFields)=>{

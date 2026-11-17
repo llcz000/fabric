@@ -28,7 +28,7 @@ export function CustomerContactPasteDialog({contacts,onClose,onApply}:{
   <header className="customer-dialog-header"><h2 id={title}>粘贴识别联系方式</h2><DialogDismissButton label="关闭粘贴识别" onClick={onClose}/></header>
   <div className="customer-dialog-body space-y-3">
    <label className="grid gap-1 text-sm">收货或联系文字<textarea ref={input} className={field} rows={4} maxLength={2000} value={text}
-    placeholder={'姓名：张三\n电话：13800138000\n地址：浙江省杭州市西湖区…'}
+    placeholder="例如：张三 13800138000 浙江省杭州市西湖区文一路88号"
     onChange={event=>{setText(event.target.value);setValue(null);}}/></label>
    <button type="button" className={secondary} disabled={!text.trim()} onClick={()=>setValue(recognizeContactText(text))}>识别</button>
    {value&&<section className="grid gap-3 rounded-lg border border-slate-200 p-3" aria-label="识别结果">

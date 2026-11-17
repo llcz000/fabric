@@ -206,3 +206,72 @@ test('ambiguous phones require confirmation and multiple contacts require a targ
  await expect(open).toBeFocused();
  expect(await page.evaluate(()=>(window as any).customerQa.rowVersion)).toBe('1');
 });
+
+test('new customer shows the focused layout and can save reviewed contact text',async({page})=>{
+ const address='浙江省绍兴市柯桥区中国轻纺城国际面料采购中心东区二层北门入内沿主通道到第六排再向西至梭织样品接待处'.repeat(3).slice(0,100);
+ for(const [width,height] of [[1366,768],[360,800]]){
+  await page.setViewportSize({width,height});await page.goto(entry,{waitUntil:'domcontentloaded'});
+  const trigger=page.getByRole('button',{name:'新建客户',exact:true});
+  await trigger.click();
+  const editor=page.getByRole('dialog',{name:'新建客户'});
+  const name=editor.getByRole('textbox',{name:'客户名称',exact:true}),street=editor.getByRole('textbox',{name:'详细地址',exact:true});
+  const person=editor.getByRole('textbox',{name:'联系人1姓名',exact:true}),phone=editor.getByRole('textbox',{name:'联系人1电话',exact:true});
+  await expect(street).toHaveJSProperty('tagName','TEXTAREA');
+  for(const field of [name,street,person,phone])await expect(field).toBeInViewport({ratio:1});
+  await expect(editor.getByRole('textbox',{name:'品牌',exact:true})).toBeHidden();
+  await editor.getByText('更多资料',{exact:true}).click();
+  await expect(editor.getByRole('textbox',{name:'品牌',exact:true})).toBeVisible();
+  await editor.getByText('更多资料',{exact:true}).click();
+
+  const open=editor.getByRole('button',{name:'粘贴识别',exact:true});
+  const preview=page.getByRole('dialog',{name:'粘贴识别联系方式'});
+  const raw=preview.getByRole('textbox',{name:'收货或联系文字'});
+  const pasted=width===360?address+'，13900139000、赵女士':'联系人：赵女士\n电话：13900139000\n地址：'+address;
+  const plain=width===1366;
+  await open.click();await expect(raw).toBeFocused();
+  await raw.fill(plain?'abc,13900139000,xxxxxx':pasted);
+  await preview.getByRole('button',{name:'识别',exact:true}).click();
+  await expect(preview.getByRole('textbox',{name:'联系人姓名',exact:true})).toHaveValue(plain?'abc':'赵女士');
+  await expect(preview.getByRole('textbox',{name:'电话',exact:true})).toHaveValue('13900139000');
+  await expect(preview.getByRole('textbox',{name:'客户详细地址',exact:true})).toHaveValue(plain?'xxxxxx':address);
+  await page.screenshot({path:`artifacts/customer-create-layout/recognition-${width}.png`});
+  await page.keyboard.press('Escape');
+  await expect(preview).toHaveCount(0);await expect(open).toBeFocused();await expect(street).toHaveValue('');
+  await open.click();await raw.fill(pasted);
+  await preview.getByRole('button',{name:'识别',exact:true}).click();
+  await preview.getByRole('button',{name:'填入表单',exact:true}).click();
+  await expect(open).toBeFocused();
+  await expect(name).toHaveValue('');await expect(street).toHaveValue(address);
+  await expect(person).toHaveValue('赵女士');await expect(phone).toHaveValue('13900139000');
+  expect(await street.evaluate(el=>el.scrollHeight<=el.clientHeight+1)).toBe(true);
+  expect(await editor.locator('.customer-dialog-body').evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
+  expect(await page.evaluate(()=>(window as any).customerQa.created.length)).toBe(0);
+
+  await name.fill('演示新客户');
+  await page.screenshot({path:`artifacts/customer-create-layout/new-${width}.png`});
+  await name.fill('林女士客户');
+  const save=editor.getByRole('button',{name:'保存',exact:true});
+  await save.click();
+  await expect(editor.getByRole('alert')).toHaveText('该客户名称已存在，请修改后再保存。');
+  await expect(street).toHaveValue(address);
+  await name.fill('演示新客户');
+  await save.click();
+  await expect(editor).toHaveCount(0);await expect(trigger).toBeFocused();
+  await expect(page.getByRole('button',{name:'演示新客户',exact:true})).toBeVisible();
+  expect(await page.evaluate(()=>(window as any).customerQa.created.map((item:any)=>item.profile))).toMatchObject([
+   {displayName:'演示新客户',region:address,contacts:[{name:'赵女士',phone:'13900139000'}]},
+  ]);
+ }
+});
+
+test('new customer can be saved with only a name',async({page})=>{
+ await page.goto(entry,{waitUntil:'domcontentloaded'});
+ await page.getByRole('button',{name:'新建客户',exact:true}).click();
+ const editor=page.getByRole('dialog',{name:'新建客户'});
+ await editor.getByRole('textbox',{name:'客户名称',exact:true}).fill('只填写名称的客户');
+ await editor.getByRole('button',{name:'保存',exact:true}).click();
+ await expect(editor).toHaveCount(0);
+ expect(await page.evaluate(()=>(window as any).customerQa.created.map((item:any)=>item.profile))).toMatchObject([
+  {displayName:'只填写名称的客户',region:null,contacts:[]},
+ ]);
+});

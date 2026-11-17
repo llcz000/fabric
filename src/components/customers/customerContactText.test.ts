@@ -14,6 +14,17 @@ test('recognizes labels on one line and an unlabeled name phone address',()=>{
   {name:'赵启明',phone:'13900139000',address:'广东省深圳市南山区科技中路3号',ambiguous:[]});
 });
 
+test('uses the order of three delimited fields around one phone for initials and an address without markers',()=>{
+ assert.deepEqual(recognizeContactText('abc,13900139000,xxxxxx'),
+  {name:'abc',phone:'13900139000',address:'xxxxxx',ambiguous:[]});
+ assert.deepEqual(recognizeContactText('赵女士，13900139000；北门仓库'),
+  {name:'赵女士',phone:'13900139000',address:'北门仓库',ambiguous:[]});
+ assert.deepEqual(recognizeContactText('广东省深圳市南山区科技中路3号、13900139000、赵女士'),
+  {name:'赵女士',phone:'13900139000',address:'广东省深圳市南山区科技中路3号',ambiguous:[]});
+ assert.deepEqual(recognizeContactText('abc,13900139000,13800138000'),
+  {name:'',phone:'',address:'',ambiguous:['phone']});
+});
+
 test('returns blank for conflicting matches and for incomplete masked phones',()=>{
  const result=recognizeContactText('联系人：赵女士\n电话：13800001234 或 13900005678\n收货地址：杭州市拱墅区庆隆路15号');
  assert.deepEqual(result,{name:'赵女士',phone:'',address:'杭州市拱墅区庆隆路15号',ambiguous:['phone']});

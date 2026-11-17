@@ -1,10 +1,10 @@
 import React from 'react';
 import '../../src/components/customers/customerWorkspace.css';
 import {CustomerWorkspace} from '../../src/components/customers/CustomerWorkspace';
-import {emptyCustomerProfile} from '../../src/components/customers/customerModel';
+import {emptyCustomerProfile,type CustomerDTO} from '../../src/components/customers/customerModel';
 import {ConfirmProvider} from '../../src/components/ui/ConfirmDialog';
 import {V2Shell} from '../../src/components/product-master-v2/V2Shell';
-const state={selections:2,previewSelections:null as number|null,documents:{sample:0,bulk:0,deposit:0},previewDocuments:null as {sample:number;bulk:number;deposit:number}|null,deletes:0,deleted:false,profile:{...emptyCustomerProfile(),displayName:'林女士客户',contacts:[{name:'林女士',phone:null,wechat:null}],region:'浙江省杭州市西湖区文一路88号3幢201室'},rowVersion:'1'};
+const state={selections:2,previewSelections:null as number|null,documents:{sample:0,bulk:0,deposit:0},previewDocuments:null as {sample:number;bulk:number;deposit:number}|null,deletes:0,deleted:false,profile:{...emptyCustomerProfile(),displayName:'林女士客户',contacts:[{name:'林女士',phone:null,wechat:null}],region:'浙江省杭州市西湖区文一路88号3幢201室'},rowVersion:'1',created:[] as CustomerDTO[]};
 Object.assign(window,{customerQa:state});
 const dto=()=>({id:'1',profile:state.profile,rowVersion:state.rowVersion,ownerUserId:'1',archived:false,canEdit:true,canDelete:true,canManageAccess:true,canTransferOwner:true,access:[]});
 const fake:typeof fetch=async(input,init)=>{
@@ -22,7 +22,17 @@ const fake:typeof fetch=async(input,init)=>{
   }
   return Response.json(dto());
  }
- if(p.endsWith('/customers'))return Response.json({items:state.deleted?[]:[dto()],total:state.deleted?0:1,limit:20,offset:0});
+ if(p.endsWith('/customers')){
+  const items=state.deleted?[...state.created]:[dto(),...state.created];
+  if(init?.method==='POST'){
+   const {profile}=JSON.parse(String(init.body));
+   if(items.some(item=>item.profile.displayName===profile.displayName))return Response.json({code:'customer_name_taken'},{status:409});
+   const customer={...dto(),id:String(state.created.length+2),profile,rowVersion:'1'};
+   state.created.push(customer);
+   return Response.json(customer,{status:201});
+  }
+  return Response.json({items,total:items.length,limit:20,offset:0});
+ }
  if(p.endsWith('/tags'))return Response.json({items:[]});
  if(p.endsWith('/fabrics'))return Response.json({items:[],total:0,limit:20,offset:0});
  return Response.json({}, {status:404});
