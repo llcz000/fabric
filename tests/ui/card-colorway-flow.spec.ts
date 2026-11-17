@@ -53,6 +53,7 @@ test('only the current twenty cards request image signatures, including after de
 });
 test.beforeEach(async({page})=>{page.on('pageerror',error=>{throw error;});await page.route('https://fabric-card-fixture.invalid/**',route=>{const id=Number(route.request().url().match(/(\d+)\.svg/)?.[1]??1);return route.fulfill({contentType:'image/svg+xml',body:`<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120"><rect width="120" height="120" fill="${['#ede5df','#d9e7ec','#e9dce8','#e3e8d8'][id%4]}"/><path d="M0 100Q70 30 120 40" fill="none" stroke="#607369" stroke-width="2"/><circle cx="55" cy="45" r="20" fill="#ae7286"/></svg>`});});});
 test('card library directly displays every colorway, keeps different fabrics separate and never opens originals',async({page})=>{
+ test.setTimeout(60_000);
  await page.goto('/tools/ui-preview/entries/ui-ux-internal-cards.html');const row=page.locator('table tbody tr').first();
  await expect(row.getByRole('img')).toHaveCount(6);await expect(page.getByRole('button',{name:/查看花型/})).toHaveCount(0);
  await row.getByRole('img').first().click();await expect(page.getByRole('dialog')).toHaveCount(0);

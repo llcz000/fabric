@@ -73,7 +73,8 @@ test('customer selection actions share the document-list button hierarchy at des
   const row=page.getByRole('article').first(),rowExport=row.getByRole('button',{name:/^导出 Excel/}),more=row.getByRole('button',{name:/^选样单更多操作/});
   await expect(rowExport).toHaveClass(/v2-business-button/);await expect(more).toHaveClass(/v2-business-icon-button/);
   for(const target of [primary,multi,search,rowExport,more]){const box=await target.boundingBox();expect(box!.height).toBeGreaterThanOrEqual(minHeight);}
-  const idleBackground=await multi.evaluate(el=>getComputedStyle(el).backgroundColor);await multi.click();await expect(multi).toHaveAttribute('aria-pressed','true');expect(await multi.evaluate(el=>getComputedStyle(el).backgroundColor)).not.toBe(idleBackground);
+  await multi.click();await expect(multi).toHaveAttribute('aria-pressed','true');await page.mouse.move(0,0);
+  await expect(multi).toHaveCSS('background-color','rgb(237, 242, 255)');await expect(multi).toHaveCSS('border-color','rgb(52, 110, 246)');
   await search.click();const searchCancel=page.getByRole('button',{name:'取消',exact:true});await expect(searchCancel).toHaveClass(/v2-business-button/);await page.keyboard.press('Escape');
   await page.getByRole('button',{name:'选样明细 林女士',exact:true}).click();
   const panel=page.getByRole('region',{name:'客户选样明细'}),continueScan=page.getByRole('button',{name:'继续扫码',exact:true});

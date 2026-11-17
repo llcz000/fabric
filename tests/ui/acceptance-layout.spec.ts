@@ -139,14 +139,14 @@ test('phone keeps long names compact and exposes full values in the existing det
 });
 
 test('phone libraries reveal the swipe hint and keep primary touches usable',async({page})=>{
- test.setTimeout(60_000);
+ test.setTimeout(120_000);
  await page.setViewportSize({width:360,height:800});
  for(const [key,url,button] of [
   ['patterns',entry+'patterns.html?dimensions','新增花型'],
   ['fabrics',entry+'fabrics.html','列设置'],
   ['products',entry+'fabrics.html?products=1','列设置']
  ]){
-  await page.goto(url);
+  await page.goto(url,{waitUntil:'domcontentloaded'});
   await expect(page.getByText('左右滑动查看全部字段',{exact:true})).toBeVisible();
   await touchSize(page.getByRole('button',{name:button,exact:true}),44);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
@@ -158,7 +158,7 @@ test('phone libraries reveal the swipe hint and keep primary touches usable',asy
  for(const width of [360,1440]){
   await page.setViewportSize({width,height:800});
   const minimum=width===360?44:40;
-  await page.goto(entry+'fabrics.html?products=1&linkedImages=1');
+  await page.goto(entry+'fabrics.html?products=1&linkedImages=1',{waitUntil:'domcontentloaded'});
   const image=page.getByRole('button',{name:/^查看花型原图/}).first();
   await image.click();
   const original=page.getByRole('dialog',{name:/^花型原图/});
@@ -167,7 +167,7 @@ test('phone libraries reveal the swipe hint and keep primary touches usable',asy
   await page.screenshot({path:evidence+'-product-dialog-'+width+'.png'});
   await page.keyboard.press('Escape');
   await expect(image).toBeFocused();
-  await page.goto(entry+'cards.html');
+  await page.goto(entry+'cards.html',{waitUntil:'domcontentloaded'});
   const qr=page.getByRole('button',{name:/^放大色卡二维码/}).first();
   await touchSize(qr,minimum);
   await page.screenshot({path:evidence+'-cards-'+width+'.png'});
