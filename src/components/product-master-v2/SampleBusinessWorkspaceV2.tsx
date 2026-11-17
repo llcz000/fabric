@@ -60,15 +60,13 @@ function SessionDetails({session,apiFetch,onBack,onRegisterLeaveGuard,onScan,rea
  const leave=(action:()=>void)=>{void (async()=>{if(await canLeave())action();})();};
  if(revoked)return <section className="space-y-4 p-6"><p role="alert">访问权限已失效，请返回列表</p><button className={button} onClick={onBack}><ActionIcon name="back"/>返回客户选样</button></section>;
  return <section className="space-y-2 p-3 sm:space-y-3 sm:p-6" aria-label="客户选样业务">
-   <header className="flex items-center justify-between gap-2">
-    <div className="flex min-w-0 items-center gap-2">
-     <button className="v2-business-icon-button shrink-0" disabled={busy} onClick={()=>leave(onBack)} aria-label="返回客户选样"><ActionIcon name="back"/></button>
-     <h2 className="min-w-0 truncate text-base font-semibold sm:text-xl" title={session.customerReference}>{session.customerReference} · 选样</h2>
-    </div>
-    {!readOnly&&onScan&&<button className={primaryButton+" shrink-0 whitespace-nowrap"} disabled={busy} onClick={()=>leave(onScan)}><ActionIcon name="scan"/>继续扫码</button>}
+   <header className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 sm:flex">
+    <button className="v2-business-icon-button col-start-1 row-start-1 shrink-0" disabled={busy} onClick={()=>leave(onBack)} aria-label="返回客户选样"><ActionIcon name="back"/></button>
+    <h2 className="col-span-2 row-start-2 min-w-0 text-base font-semibold [overflow-wrap:anywhere] sm:flex-1 sm:text-xl" title={session.customerReference}>{session.customerReference} · 选样</h2>
+    {!readOnly&&onScan&&<button className={primaryButton+" col-start-2 row-start-1 shrink-0 justify-self-end whitespace-nowrap"} disabled={busy} onClick={()=>leave(onScan)}><ActionIcon name="scan"/>继续扫码</button>}
    </header>
    <div className="flex min-w-0 items-center gap-2 text-sm text-slate-600">
-    <span className="truncate" title={session.contactName??'未指定'}>联系人 · {session.contactName??'未指定'}</span>
+    <span className="min-w-0 [overflow-wrap:anywhere]" title={session.contactName??'未指定'}>联系人 · {session.contactName??'未指定'}</span>
     {!readOnly&&session.customerId&&<button type="button" aria-label="编辑本单联系人" title="编辑本单联系人" className="v2-business-icon-button shrink-0" onClick={()=>setEditingContact(true)}><ActionIcon name="edit"/></button>}
    </div>
    {editingContact&&<SampleSessionContact sessionId={session.id} apiFetch={apiFetch} onClose={()=>setEditingContact(false)} onSaved={value=>onStatusChanged({...session,...value})} onBusyChange={value=>{pending.current=value;}} onAccessLost={accessRevoked}/>}

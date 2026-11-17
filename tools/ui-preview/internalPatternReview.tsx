@@ -1,4 +1,4 @@
-import {relatedProductsPreview,relatedProductImagesPreview} from './fixtures/relatedProducts';
+import {relatedProductsPreview,relatedProductImagesPreview,relatedImageId} from './fixtures/relatedProducts';
 import React from 'react';
 import {createRoot} from 'react-dom/client';
 import '../../src/index.css';
@@ -8,7 +8,7 @@ import {PatternWorkspaceV2} from '../../src/components/product-master-v2/Pattern
 import {ConfirmProvider} from '../../src/components/ui/ConfirmDialog';
 const all=Array.from({length:76},(_,i)=>{
  const id=String(i+1),masterNo='G'+String(i+1).padStart(4,'0');
- return {id,masterNo,productCount:i===75?21:0,isActive:true,nextColorwayNo:3,topicTags:[],colorTags:[],versions:Array.from({length:i<68?2:1},(_,j)=>({id:id+'0'+j,masterId:id,colorwayNo:j+1,patternNo:masterNo+'-'+(j+1),patternImageAssetId:null,remark:'',isActive:true,colorTags:[]}))};
+ return {id,masterNo,productCount:i===75?21:0,isActive:true,nextColorwayNo:3,topicTags:[],colorTags:[],versions:Array.from({length:i<68?2:1},(_,j)=>({id:id+'0'+j,masterId:id,colorwayNo:j+1,patternNo:masterNo+'-'+(j+1),patternImageAssetId:location.search.includes('gallery=1')&&id==='68'?relatedImageId(id+String(j+1)):null,remark:'',isActive:true,colorTags:[]}))};
 }).reverse();
 let shrunk=false,failDimensionSave=location.search.includes('fail-dimensions'),catalogReads=0;
 const dimensionMode=location.search.includes('dimensions');

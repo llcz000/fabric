@@ -169,8 +169,8 @@ export function V2DocumentStats({apiFetch,onProduct,onDocument}:{
    <form className="v2-stats-range" onSubmit={event=>{event.preventDefault();setQuick('all');setRange({from,to});}}>
     <label className="text-xs">起始日期<input className="ml-2 rounded border p-2" type="date" value={from} onChange={event=>{setFrom(event.target.value);setQuick('all');}}/></label>
     <label className="text-xs">截止日期<input className="ml-2 rounded border p-2" type="date" value={to} onChange={event=>{setTo(event.target.value);setQuick('all');}}/></label>
-    <button type="submit" className="rounded bg-blue-700 px-4 py-2 text-sm font-medium text-white"><ActionIcon name="search"/>查询统计</button>
-    <button type="button" className="rounded border px-4 py-2 text-sm" onClick={()=>applyQuick('all')}><ActionIcon name="reset"/>重置</button>
+    <button type="submit" className="min-h-10 rounded bg-blue-700 px-4 py-2 text-sm font-medium text-white max-md:min-h-11"><ActionIcon name="search"/>查询统计</button>
+    <button type="button" className="min-h-10 rounded border px-4 py-2 text-sm max-md:min-h-11" onClick={()=>applyQuick('all')}><ActionIcon name="reset"/>重置</button>
    </form>
   </div>
   {loading&&<p role="status">正在获取当前账号统计…</p>}

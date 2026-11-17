@@ -174,7 +174,8 @@ export function FabricV2Table({
     onToggle={toggleVisibility} onReset={resetVisibility}/>}
   </div>
   <LibraryPagination label="面料列表顶部分页" page={page} onPage={onPage} summary={<>共 {page.total} 条面料 · 每页 {page.limit} 条</>} className="border-b border-slate-200 px-3 py-2"/>
-  <div className="overflow-x-auto">
+  <p className="v2-table-scroll-hint">左右滑动查看全部字段</p>
+  <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="面料列表，可左右滚动查看全部字段">
    <table className={'v2-library-table w-full border-collapse text-left text-xs text-[#191b24] '+(editing?'min-w-[1300px]':'min-w-[1200px]')}>
     <colgroup>{shown.map(column=><col key={column.key} style={widthOf(column.key)}/>)}</colgroup>
     <thead><tr className="border-b border-[#c3c6d7] bg-[#f8fafc] text-[#475569]">

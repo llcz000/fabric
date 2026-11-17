@@ -241,6 +241,7 @@ export function PatternLibraryV2({apiFetch,canManage=false,onCreateMaster,onEdit
    <button type="button" onClick={()=>setRetry(n=>n+1)} className="ml-2 underline"><ActionIcon name="refresh"/>重试</button></p>:null}
   {!loading&&!error&&page?<>
    <PatternPagination label="花型列表顶部分页" page={page} onPage={offset=>dispatch({type:'page',offset})}/>
+   <p className="v2-table-scroll-hint">左右滑动查看全部字段</p>
    <PatternMasterRows items={page.items} thumbnailUrls={thumbs} onShare={onShareMaster}
    onPreview={setPreview} onEdit={openEdit} onDelete={canManage?deleteMaster:undefined}
    onQuickTopicEdit={canManage?setQuickTopicMaster:undefined} onViewProducts={setLinkedMaster}

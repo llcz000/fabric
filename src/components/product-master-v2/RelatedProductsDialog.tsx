@@ -96,8 +96,8 @@ export function RelatedProductsDialog({apiFetch,source,onClose}:{apiFetch:typeof
    </div>}
    <footer className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600">
     <span>第 {Math.floor(offset/20)+1} / {Math.max(1,Math.ceil(data.total/20))} 页</span>
-    <div className="flex gap-2"><button type="button" disabled={!offset} onClick={()=>setOffset(n=>Math.max(0,n-20))} className="rounded-lg border px-3 py-2 disabled:opacity-40">上一页</button>
-     <button type="button" disabled={offset+20>=data.total} onClick={()=>setOffset(n=>n+20)} className="rounded-lg border px-3 py-2 disabled:opacity-40">下一页</button></div>
+    <div className="flex gap-2"><button type="button" disabled={!offset} onClick={()=>setOffset(n=>Math.max(0,n-20))} className="min-h-10 rounded-lg border px-3 py-2 disabled:opacity-40 max-md:min-h-11">上一页</button>
+     <button type="button" disabled={offset+20>=data.total} onClick={()=>setOffset(n=>n+20)} className="min-h-10 rounded-lg border px-3 py-2 disabled:opacity-40 max-md:min-h-11">下一页</button></div>
    </footer>
   </>}
  </dialog>;

@@ -125,7 +125,7 @@ export function PatternColorwayEditor({
        const imageUrl=imageId?(stagedThumbs.get(imageId)??thumbnailUrls.get(imageId)):undefined;
        return <tr key={version.id} className="border-b border-[#e2e8f0]">
        <td className="px-3 py-3">{imageId&&imageUrl&&onPreview?
-        <button type="button" aria-label={'查看花型原图 '+version.patternNo} onClick={()=>onPreview({...version,patternImageAssetId:imageId})}>
+        <button type="button" aria-label={'查看花型原图 '+version.patternNo} onClick={event=>{event.currentTarget.focus({preventScroll:true});onPreview({...version,patternImageAssetId:imageId});}}>
          <img src={imageUrl} alt={'配色 '+version.patternNo}
           className="h-14 w-14 rounded border object-cover" loading="lazy"/></button>:
         <button type="button" disabled={!canManage||working||adding||editing!==null&&editing!==version.id} aria-label={'编辑花型图 '+version.patternNo} onClick={()=>{setDraft({remark:version.remark,isActive:true,patternImageAssetId:version.patternImageAssetId});setEditing(version.id);}}

@@ -1,8 +1,9 @@
 import {CustomerWorkspaceReview} from './customerWorkspaceReview';
-import {DocumentBrowserReview} from './documentBrowserReview';
+import {DocumentBrowserReview,DocumentStatsReview} from './documentBrowserReview';
 import React,{useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import '../../src/index.css';
+import '../../src/components/product-master-v2/v2Experience.css';
 import {ColumnSettingsMenu,SortableHeader} from '../../src/components/product-master-v2/LibraryTableChrome';
 import {buildColumnVisibility,readColumnVisibility,writeColumnVisibility,visibleColumns,sortRows,nextSortState,type LibraryColumn,type SortState} from '../../src/components/product-master-v2/libraryTableChromeModel';
 
@@ -34,4 +35,4 @@ function App(){
   </table>
  </main>;
 }
-createRoot(document.getElementById('root')!).render(<React.StrictMode>{location.search.includes('documents')?<DocumentBrowserReview/>:location.search.includes('customers')?<CustomerWorkspaceReview/>:<App/>}</React.StrictMode>);
+createRoot(document.getElementById('root')!).render(<React.StrictMode>{location.search.includes('documents')?<DocumentBrowserReview/>:location.search.includes('stats')?<DocumentStatsReview/>:location.search.includes('customers')?<CustomerWorkspaceReview/>:<App/>}</React.StrictMode>);

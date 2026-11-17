@@ -138,6 +138,7 @@ export function CatalogV2Table({
     onToggle={toggleVisibility} onReset={resetVisibility}/>
   </div>
   <LibraryPagination label="产品列表顶部分页" page={page} onPage={onPage} summary={<>共 {page.total} 条产品 · 每页 {page.limit} 条</>} disabled={updating} className="border-b border-slate-200 px-3 py-2"/>
+  <p className="v2-table-scroll-hint">左右滑动查看全部字段</p>
   <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="产品列表，可左右滚动查看全部字段">
    <table className="v2-library-table w-full min-w-[1400px] border-collapse text-left text-xs text-[#191b24]">
     <colgroup>{shown.map(column=><col key={column.key} style={widthOf(column.key)}/>)}</colgroup>
@@ -182,7 +183,7 @@ function ImageDialog({
    className="flex max-h-[95vh] w-full max-w-[990px] flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
    <div className="flex items-center justify-between border-b px-4 py-3">
     <strong className="text-sm">{title}</strong>
-    <button ref={ref} aria-label="关闭图片预览" type="button" className="rounded p-2 hover:bg-slate-100" onClick={onClose}><X size={18}/></button>
+    <button ref={ref} aria-label="关闭图片预览" type="button" className="grid size-10 shrink-0 place-items-center rounded hover:bg-slate-100 max-md:size-11" onClick={onClose}><X size={18}/></button>
    </div>
    <div className="overflow-y-auto p-4">{children}</div>
   </div>

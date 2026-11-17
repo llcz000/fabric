@@ -226,21 +226,24 @@ export default function V2DocumentPrintView({
     [data-v2-print-sheet] [data-sample-table="output"]{display:table}
    }
   `}</style>
-  <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
-   <button type="button" onClick={onBack} className="rounded-lg border px-4 py-2 text-sm"><ActionIcon name="back"/>{backLabel}</button>
-   <div className="flex flex-wrap gap-2">
+  <h2 className="text-lg font-semibold md:hidden print:hidden">单据预览{model&&' · '+model.title}</h2>
+  <div className="grid grid-cols-2 items-center justify-between gap-2 md:flex md:flex-wrap print:hidden">
+   <button type="button" onClick={onBack} className="min-h-10 rounded-lg border px-3 py-2 text-sm max-md:min-h-11"><ActionIcon name="back"/>{backLabel}</button>
+   <div className="contents md:flex md:flex-wrap md:gap-2">
     <button type="button" disabled={!model||exporting} onClick={()=>window.print()}
-     className="rounded-lg border border-emerald-700 bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">
+     className="min-h-10 rounded-lg border border-emerald-700 bg-emerald-700 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50 max-md:min-h-11">
      <ActionIcon name="print"/>浏览器打印</button>
-    <button type="button" disabled={!model||exporting} onClick={()=>void downloadPng()} className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50"><ActionIcon name="download"/>下载 PNG</button>
+    <button type="button" disabled={!model||exporting} onClick={()=>void downloadPng()} className="min-h-10 rounded-lg border px-3 py-2 text-sm disabled:opacity-50 max-md:min-h-11"><ActionIcon name="download"/>下载 PNG</button>
     <button type="button" disabled={!model||exporting} onClick={()=>void download()}
-     className="rounded-lg border px-4 py-2 text-sm hover:bg-slate-50 disabled:opacity-50">
+     className="min-h-10 rounded-lg border px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50 max-md:min-h-11">
      <ActionIcon name="excel"/>{exporting?'正在导出…':'下载 Excel'}</button>
    </div>
   </div>
   {loading&&<p role="status">正在读取打印资料…</p>}
   {error&&<p role="alert" className="text-sm text-rose-700">{error}</p>}
-  {model&&<div className="overflow-x-auto">
+  {model&&<>
+   <p className="text-xs text-slate-600 md:hidden print:hidden">左右滑动查看整张单据</p>
+   <div role="region" aria-label="单据纸面" tabIndex={0} className="overflow-x-auto">
    <div ref={sheetRef} data-v2-print-sheet="true" className="mx-auto min-h-[140mm] bg-white text-slate-900" style={{width:sheetWidthMm+'mm',padding:`8mm ${sheetPaddingMm}mm`,boxSizing:'border-box',fontFamily:'SimSun, serif'}}>
     <header className="flex items-start justify-between gap-4 border-b-2 border-slate-900 pb-1">
      <div>{model.companyImages?.brand_logo?<img src={model.companyImages.brand_logo} alt="公司Logo" className="max-h-12 max-w-[120px] object-contain"/>:<strong className="text-lg">{model.brandName}</strong>}</div>
@@ -264,6 +267,6 @@ export default function V2DocumentPrintView({
      {model.type!=='sales'&&<div className="flex gap-3">{(['wechat_qr','alipay_qr'] as const).map(role=>model.companyImages?.[role]?<figure key={role} className="text-center text-[9px]"><img src={model.companyImages[role]} alt={role==='wechat_qr'?'微信收款码':'支付宝收款码'} className="h-16 w-16 object-contain"/><figcaption>{role==='wechat_qr'?'微信收款':'支付宝收款'}</figcaption></figure>:null)}</div>}
     </div>
    </div>
-  </div>}
+  </div></>}
  </section>;
 }

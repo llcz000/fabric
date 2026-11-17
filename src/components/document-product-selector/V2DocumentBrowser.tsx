@@ -9,8 +9,12 @@ import {createDocumentSearchController,emptySearchFilters,loadMatchingItems,Docu
 
 const names={sample:'样布码单',bulk:'销售发货码单',deposit:'定金单'};
 const money=(n:number)=>n.toFixed(2);
+const hasExtraFilters=(value:DocumentSearchFilters)=>Boolean(value.productNo||value.colorNo||value.productName||value.from||value.to||value.settled);
 const input='mt-1 w-full rounded-lg border border-[#c3c6d7] bg-white px-3 py-2 text-sm text-[#191b24] focus:outline-[#346ef6]';
-const button='rounded-lg border border-[#c3c6d7] px-3 py-2 text-sm disabled:opacity-40';
+const button='min-h-10 rounded-lg border border-[#c3c6d7] px-3 py-2 text-sm disabled:opacity-40 max-md:min-h-11';
+function PreviewButton({onClick}:{onClick():void}){
+ return <button type="button" className="v2-row-action" aria-label="预览 / Excel" title="预览 / Excel" onClick={onClick}><FileSearch size={16}/><span>预览</span></button>;
+}
 export function DocumentSearchResults({state,expanded,onToggle,onEdit,onPreview,onCopy,onDelete,renderDetails}: {
  state:DocumentSearchState;expanded:string|null;onToggle(id:string):void;onEdit(id:string):void;onPreview(id:string):void;
  onCopy?:(id:string,no:string)=>void;onDelete?:(id:string,no:string)=>void;
@@ -30,19 +34,22 @@ export function DocumentSearchResults({state,expanded,onToggle,onEdit,onPreview,
    <p className="mt-3 text-xs text-slate-500">合计包含样布和销售命中明细；定金合同额、定金和预收不计入。下表数值为整单数据。</p>
   </section>
   {state.page.items.length===0?<p className="rounded-lg border bg-white p-6 text-sm text-slate-600">没有符合条件的单据，可清除筛选后重试。</p>:
-  <div className="overflow-x-auto rounded-xl border border-[#c3c6d7] bg-white">
+  <div role="region" aria-label="单据列表，可左右滚动" tabIndex={0} className="overflow-x-auto rounded-xl border border-[#c3c6d7] bg-white">
    <table className="w-full min-w-[1180px] text-left text-sm">
     <thead className="bg-[#f3f4fa] text-xs text-[#434655]"><tr>{['','开单日期','单据编号','类型','客户','整单米数','整单匹数','整单金额','结清状态','操作'].map(label=><th key={label} className="px-3 py-2 font-semibold">{label}</th>)}</tr></thead>
     <tbody>{state.page.items.map(item=><React.Fragment key={item.id}>
      <tr className="border-t border-[#ededf9] align-top hover:bg-[#f8f9ff]">
-      <td className="w-12 px-2 py-2"><button type="button" className="v2-expand-toggle" aria-label={expanded===item.id?'收起命中明细':'展开命中明细'} title={expanded===item.id?'收起命中明细':'展开命中明细'} aria-expanded={expanded===item.id} onClick={()=>onToggle(item.id)}>{expanded===item.id?<ChevronDown size={18}/>:<ChevronRight size={18}/>}<span className="v2-expand-hint">{expanded===item.id?'收起':'明细'}</span></button></td>
+      <td className="w-12 px-2 py-2">
+       <div className="mb-1 md:hidden"><PreviewButton onClick={()=>onPreview(item.id)}/></div>
+       <button type="button" className="v2-expand-toggle" aria-label={expanded===item.id?'收起命中明细':'展开命中明细'} title={expanded===item.id?'收起命中明细':'展开命中明细'} aria-expanded={expanded===item.id} onClick={()=>onToggle(item.id)}>{expanded===item.id?<ChevronDown size={18}/>:<ChevronRight size={18}/>}<span className="v2-expand-hint">{expanded===item.id?'收起':'明细'}</span></button>
+      </td>
       <td className="px-3 py-2 whitespace-nowrap">{item.date}</td><td className="px-3 py-2 font-medium">{item.orderNo}</td><td className="px-3 py-2 whitespace-nowrap">{names[item.type]}</td><td className="max-w-[180px] break-words px-3 py-2">{item.receivingUnit||'—'}</td>
       <td className="px-3 py-2 tabular-nums">{money(item.totalMeters)}{item.type==='bulk'&&(item.deductionMeters??0)>0&&<span className="block whitespace-nowrap text-xs text-amber-700">扣损 {money(item.deductionMeters!)} 米</span>}</td><td className="px-3 py-2 tabular-nums">{item.type==='deposit'?'—':item.totalPieces}</td>
       <td className="px-4 py-3 tabular-nums">¥ {money(item.totalAmount)}{item.type==='deposit'&&<span className="block text-xs text-slate-500">合同金额</span>}</td>
       <td className="px-4 py-3">{item.type==='deposit'?'不适用':item.settled?'已结清':'未结清'}</td>
       <td className="px-4 py-3"><div className="v2-row-actions">
        <button type="button" className="v2-row-action" aria-label="编辑单据" title="编辑单据" onClick={()=>onEdit(item.id)}><Pencil size={16}/><span>编辑</span></button>
-       <button type="button" className="v2-row-action" aria-label="预览 / Excel" title="预览 / Excel" onClick={()=>onPreview(item.id)}><FileSearch size={16}/><span>预览</span></button>
+       <div className="hidden md:block"><PreviewButton onClick={()=>onPreview(item.id)}/></div>
         {onCopy&&<button type="button" className="v2-row-action" aria-label="复制为新单" title="复制为新单" onClick={()=>onCopy(item.id,item.orderNo)}><Copy size={16}/><span>复制</span></button>}
         {onDelete&&<button type="button" className="v2-row-action v2-row-action-danger" aria-label="确认删除" title="确认删除" onClick={()=>onDelete(item.id,item.orderNo)}><Trash2 size={16}/><span>删除</span></button>}
       </div></td>
@@ -78,6 +85,7 @@ function MatchingDetails({apiFetch,orderId,filters,onDenied}:{apiFetch:typeof fe
 }
 export function V2DocumentBrowser({apiFetch,role,companyProfile,initialFilters}:{apiFetch:typeof fetch;role:'admin'|'sales';companyProfile:CompanyProfile;initialFilters?:Partial<DocumentSearchFilters>}){
  const [filters,setFilters]=useState<DocumentSearchFilters>(()=>({...emptySearchFilters(),...initialFilters})),[applied,setApplied]=useState<DocumentSearchFilters>(()=>({...emptySearchFilters(),...initialFilters}));
+ const [showExtraFilters,setShowExtraFilters]=useState(false);
  const [state,setState]=useState<DocumentSearchState>({loading:true,error:'',page:null,totals:null});
  const [expanded,setExpanded]=useState<string|null>(null),[limit,setLimit]=useState(20),[offset,setOffset]=useState(0);
  const [selected,setSelected]=useState<{id:string;mode:'edit'|'preview'}|null>(null);
@@ -133,6 +141,8 @@ export function V2DocumentBrowser({apiFetch,role,companyProfile,initialFilters}:
  };
  // Stable callback: detail effects must not restart when unrelated state changes.
  const onDenied=React.useCallback((message:string)=>{controller.current?.revoke(message);setExpanded(null);},[]);
+ const extraFilterClass=showExtraFilters?'':' hidden md:block';
+ const extraFilterStatus=hasExtraFilters(applied)?'已生效':hasExtraFilters(filters)?'已填写':'';
  if(selected?.mode==='edit')return <V2DocumentWorkspace apiFetch={apiFetch} role={role} companyProfile={companyProfile} documentId={selected.id}
   onCancel={()=>setSelected(null)} onSaved={()=>{setSelected(null);search(applied,offset);}}/>;
  if(selected?.mode==='preview')return <V2DocumentPrintView apiFetch={apiFetch} documentId={selected.id} onBack={()=>setSelected(null)} backLabel="返回查询"/>;
@@ -140,16 +150,20 @@ export function V2DocumentBrowser({apiFetch,role,companyProfile,initialFilters}:
   <header className="flex flex-wrap justify-between gap-3"><div><h2 className="text-xl font-semibold">单据查询</h2><p className="mt-1 text-xs text-slate-500">{role==='admin'?'查看全公司单据':'仅查看本人单据'} · 按开单日期倒序</p></div><button className={button} disabled={exporting} onClick={()=>void exportDocuments()}><ActionIcon name="download"/>{exporting?'正在导出…':role==='admin'?'导出全公司单据 JSON':'导出全部本人单据 JSON'}</button></header>
   <form className="rounded-xl border border-[#c3c6d7] bg-white p-4" onSubmit={event=>{event.preventDefault();search(filters);}}>
    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-    {([['customer','客户'],['productNo','货号'],['colorNo','色号'],['productName','品名']] as const).map(([key,label])=><label key={key} className="text-xs font-medium">{label}<input name={key} className={input} maxLength={100} value={filters[key]} onChange={e=>setFilters(v=>({...v,[key]:e.target.value}))}/></label>)}
+    {([['customer','客户'],['productNo','货号'],['colorNo','色号'],['productName','品名']] as const).map(([key,label])=><label key={key} className={'text-xs font-medium'+(key==='customer'?'':extraFilterClass)}>{label}<input name={key} className={input} maxLength={100} value={filters[key]} onChange={e=>setFilters(v=>({...v,[key]:e.target.value}))}/></label>)}
     <label className="text-xs font-medium">单据类型<select name="type" className={input} value={filters.type} onChange={e=>setFilters(v=>({...v,type:e.target.value as DocumentSearchFilters['type'],settled:e.target.value==='deposit'?'':v.settled}))}>
      <option value="">全部类型</option>{Object.entries(names).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
-    {([['from','起始日期'],['to','截止日期']] as const).map(([key,label])=><label key={key} className="text-xs font-medium">{label}<input name={key} type="date" className={input} value={filters[key]} onChange={e=>setFilters(v=>({...v,[key]:e.target.value}))}/></label>)}
-    <label className="text-xs font-medium">结清状态<select name="settled" className={input} disabled={filters.type==='deposit'} value={filters.settled} onChange={e=>setFilters(v=>({...v,settled:e.target.value as DocumentSearchFilters['settled']}))}>
+    {([['from','起始日期'],['to','截止日期']] as const).map(([key,label])=><label key={key} className={'text-xs font-medium'+extraFilterClass}>{label}<input name={key} type="date" className={input} value={filters[key]} onChange={e=>setFilters(v=>({...v,[key]:e.target.value}))}/></label>)}
+    <label className={'text-xs font-medium'+extraFilterClass}>结清状态<select name="settled" className={input} disabled={filters.type==='deposit'} value={filters.settled} onChange={e=>setFilters(v=>({...v,settled:e.target.value as DocumentSearchFilters['settled']}))}>
      <option value="">全部状态</option><option value="false">未结清</option><option value="true">已结清</option></select></label>
    </div>
-   <div className="mt-4 flex flex-wrap items-center gap-3"><button type="submit" className="rounded-lg bg-[#0053da] px-5 py-2 text-sm font-semibold text-white"><ActionIcon name="search"/>查询</button>
+   <div className="mt-4 flex flex-wrap items-center gap-2 md:gap-3"><button type="submit" className="min-h-10 rounded-lg bg-[#0053da] px-4 py-2 text-sm font-semibold text-white max-md:min-h-11"><ActionIcon name="search"/>查询</button>
     <button type="button" className={button} onClick={()=>{const next=emptySearchFilters();setFilters(next);search(next);}}><ActionIcon name="reset"/>清除筛选</button>
-    <p className="text-xs text-slate-500">多个明细条件由同一行同时满足；定金单不参与结清筛选。</p>
+    <button type="button" aria-expanded={showExtraFilters} aria-description={extraFilterStatus?'其他筛选'+extraFilterStatus:undefined}
+     className="min-h-11 rounded px-1.5 text-xs font-medium text-[#0053da] md:hidden" onClick={()=>setShowExtraFilters(value=>!value)}>
+     更多筛选{!showExtraFilters&&extraFilterStatus&&<span aria-hidden="true"> · {extraFilterStatus}</span>}
+    </button>
+    <p className={'text-xs text-slate-500'+extraFilterClass}>多个明细条件由同一行同时满足；定金单不参与结清筛选。</p>
    </div>
   </form>
   {action&&<ActionPanel ref={(node:HTMLElement|null)=>{actionDialog.current=action.kind==='delete'?node as HTMLDialogElement:null;}} role="dialog" aria-modal={action.kind==='delete'?true:undefined} aria-label={action.kind==='copy'?'复制单据':'确认删除单据'} onCancel={event=>{event.preventDefault();if(!actionBusy){setAction(null);setActionError('');}}} className={'rounded-xl border border-sky-300 bg-sky-50 p-4 space-y-3'+(action.kind==='delete'?' m-auto w-[min(92vw,448px)] backdrop:bg-[#0f172a66]':'')}>

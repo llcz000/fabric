@@ -13,11 +13,11 @@ export function PatternMasterRows({items,thumbnailUrls,onPreview,onEdit,onDelete
  onQuickTopicEdit?(master:PatternMasterItem):void;onViewProducts?(master:PatternMasterItem):void;
  sort?:'newest'|'numberAsc'|'numberDesc';onSort?():void;
 }){
- return <div role="table" aria-label="花型母版列表" className={box+' overflow-x-auto'}>
+ return <div role="table" aria-label="花型母版列表" tabIndex={0} className={box+' overflow-x-auto'}>
   <div role="row" className="flex min-w-[640px] gap-3 border-b border-[#c3c6d7] bg-[#fbfcfd] px-3 py-2 text-xs text-[#434655]">
    <span role="columnheader" aria-sort={sort==='newest'?'none':sort==='numberAsc'?'ascending':'descending'} className="w-32 shrink-0">
     {onSort?<button type="button" aria-label={'按花型号排序 '+(sort==='numberAsc'?'降序':'升序')} onClick={onSort}
-     className="inline-flex items-center gap-1 text-[#0053da] hover:underline">花型号 {sort==='numberAsc'?<ArrowUp size={12}/>:sort==='numberDesc'?<ArrowDown size={12}/>:<ArrowUpDown size={12}/>}</button>:'花型号'}
+     className="inline-flex min-h-10 min-w-10 items-center gap-1 text-[#0053da] hover:underline max-md:min-h-11 max-md:min-w-11">花型号 {sort==='numberAsc'?<ArrowUp size={12}/>:sort==='numberDesc'?<ArrowDown size={12}/>:<ArrowUpDown size={12}/>}</button>:'花型号'}
    </span><span role="columnheader" className="w-32 shrink-0">题材标签</span><span role="columnheader" className="min-w-0 flex-1">配色版本</span><span role="columnheader" className="w-24 shrink-0 text-center">关联产品</span><span role="columnheader" className="w-28 shrink-0 text-center">操作</span>
   </div>
   {items.map(master=><div key={master.id} role="row"
@@ -40,7 +40,7 @@ export function PatternMasterRows({items,thumbnailUrls,onPreview,onEdit,onDelete
     {master.versions.length?master.versions.map(version=>{
      const url=version.patternImageAssetId?thumbnailUrls.get(version.patternImageAssetId):undefined;
      return <div key={version.id} className="flex w-[104px] shrink-0 flex-col items-center rounded-lg border border-[#ededf9] p-1">
-      {url?<button type="button" aria-label={'查看花型原图 '+version.patternNo} onClick={()=>onPreview(version)}
+      {url?<button type="button" aria-label={'查看花型原图 '+version.patternNo} onClick={event=>{event.currentTarget.focus({preventScroll:true});onPreview(version);}}
         className="rounded focus-visible:outline-2 focus-visible:outline-[#346ef6]">
         <img className="h-16 w-16 rounded object-cover" src={url}
          alt={'花型 '+version.patternNo} width={64} height={64} loading="lazy"/></button>:
