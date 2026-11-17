@@ -12,7 +12,7 @@ import sys
 import time
 import urllib.request
 
-ROOT = pathlib.Path('/opt/fabric-candidates')
+ROOT = pathlib.Path('/opt/fabric-candidate')
 STATE = pathlib.Path('/var/lib/fabric-candidates')
 PRODUCTION = pathlib.Path('/opt/fabric')
 

@@ -101,13 +101,12 @@ class Release:
         for k in ['production','stageRoot','backupRoot','nginx']:
             value=p[k];must(isinstance(value,str) and re.fullmatch(r'/[\w/.-]+',value) and pathlib.PurePosixPath(value).as_posix()==value and '..' not in pathlib.PurePosixPath(value).parts and len(pathlib.PurePosixPath(value).parts)>2,'Unsafe target path')
         must(p['name']=='production' and (p['production'],p['process'],p['recoveryProcess'],p['starter'])==('/opt/fabric','fabric','fabric-readonly','start-v2.cjs'),'Production must use the fixed Fabric runtime')
-        prod_path=pathlib.PurePosixPath(p['production'])
-        for key in ('stageRoot','backupRoot'):
-            storage_path=pathlib.PurePosixPath(p[key]);must(storage_path!=prod_path and prod_path not in storage_path.parents and storage_path not in prod_path.parents,'Overlapping directories')
+        must(p['backupRoot']=='/opt/fabric-backups' and p['stageRoot']==p['backupRoot']+'/releases','Release storage must use the fixed Fabric backup directory')
         self.frozen_profile=request.get('frozenProfile',p)
         if self.frozen_profile!=p:
-            legacy={**p,'production':'/opt/fabric-v2-production-20261019-11910f5f','process':'fabric-v2-production-20261019','recoveryProcess':'fabric-v2-production-readonly-20261019'}
-            must(self.frozen_profile==legacy and request['action'] in ('status','verify','rollback'),'Historical deployment target refused')
+            legacy_storage={**p,'stageRoot':'/opt/fabric-releases','backupRoot':'/var/backups/fabric'}
+            legacy_runtime={**legacy_storage,'production':'/opt/fabric-v2-production-20261019-11910f5f','process':'fabric-v2-production-20261019','recoveryProcess':'fabric-v2-production-readonly-20261019'}
+            must(self.frozen_profile in (legacy_storage,legacy_runtime) and request['action'] in ('status','verify','rollback'),'Historical deployment target refused')
         for k in ['process','recoveryProcess','starter','database']:must(re.fullmatch(r'[A-Za-z0-9_-]+(?:\.cjs)?',p[k]) is not None,'Unsafe identity')
         must(re.fullmatch(r'[a-f0-9-]{36}',p['serverUuid']) is not None,'Invalid database UUID')
         must(p['url'].startswith('https://') and '@' not in p['url'],'Invalid public URL')
@@ -194,7 +193,15 @@ class Release:
         subprocess.run(['openssl','enc','-aes-256-cbc','-pbkdf2','-salt','-in',str(dumpfile),'-out',str(encrypted),'-pass','file:'+str(key)],check=True,capture_output=True,timeout=60)
         return {'folder':str(folder),'sqlSha256':sha(dumpfile),'bytes':dumpfile.stat().st_size,'encrypted':str(encrypted),'encryptedSha256':sha(encrypted),'key':str(key),'tables':tables,'createdAt':time.time()}
     def verified_backup(self):
-        b=self.state['phases'].get('backup',{});must(b.get('status')=='passed','Completed backup required');b=b['result'];folder=pathlib.Path(b['folder']);must(folder==pathlib.Path(self.p['backupRoot'])/('release-'+self.id),'Backup path drift');must(sha(folder/'database.sql.gz')==b['sqlSha256'],'SQL backup changed');must(sha(folder/'server.cjs')==self.b['backend'] and sha(folder/'index.html')==self.b['index'],'Program backup changed');return b
+        receipt=self.state['phases'].get('backup',{})
+        must(receipt.get('status')=='passed','Completed backup required')
+        backup=receipt['result'];name='release-'+self.id
+        original=pathlib.Path(self.frozen_profile['backupRoot'])/name
+        folder=pathlib.Path(self.p['backupRoot'])/name
+        must(pathlib.Path(backup['folder'])==original and folder.resolve()==folder and folder.is_dir(),'Backup path drift')
+        must(sha(folder/'database.sql.gz')==backup['sqlSha256'],'SQL backup changed')
+        must(sha(folder/'server.cjs')==self.b['backend'] and sha(folder/'index.html')==self.b['index'],'Program backup changed')
+        return {**backup,'folder':str(folder)}
     def offsite(self):
         b=self.verified_backup();proof=self.r.get('offsite',{});must(proof.get('verified') is True and proof.get('encryptedSha256')==b['encryptedSha256'] and proof.get('decryptedSha256')==b['sqlSha256'],'Offsite readback proof missing');return proof
     def operator(self,mode,database,b,m):

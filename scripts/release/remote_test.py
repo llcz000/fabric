@@ -151,16 +151,39 @@ class ReleaseTests(unittest.TestCase):
             result=r.rollback();self.assertEqual((prod/'dist/server.cjs').read_bytes(),b'old');self.assertFalse(result['databaseRestored']);r.sql.assert_not_called()
     def test_historical_manifest_may_only_operate_on_fixed_root_for_status_verify_or_rollback(self):
         profile=json.loads(pathlib.Path(__file__).with_name('production.json').read_text())
-        legacy={**profile,'production':'/opt/fabric-v2-production-20261019-11910f5f',
-                'process':'fabric-v2-production-20261019','recoveryProcess':'fabric-v2-production-readonly-20261019'}
-        for action in ('status','verify','rollback'):
-            release=remote.Release({'action':action,'profile':profile,'frozenProfile':legacy})
-            self.assertEqual(release.prod,pathlib.Path('/opt/fabric'))
-            self.assertEqual(release.frozen_profile,legacy)
-        with self.assertRaisesRegex(RuntimeError,'Historical deployment target refused'):
-            remote.Release({'action':'deploy','profile':profile,'frozenProfile':legacy})
+        legacy_storage={**profile,'stageRoot':'/opt/fabric-releases','backupRoot':'/var/backups/fabric'}
+        legacy_runtime={**legacy_storage,'production':'/opt/fabric-v2-production-20261019-11910f5f',
+                        'process':'fabric-v2-production-20261019','recoveryProcess':'fabric-v2-production-readonly-20261019'}
+        for legacy in (legacy_storage,legacy_runtime):
+            for action in ('status','verify','rollback'):
+                release=remote.Release({'action':action,'profile':profile,'frozenProfile':legacy})
+                self.assertEqual(release.prod,pathlib.Path('/opt/fabric'))
+                self.assertEqual(release.frozen_profile,legacy)
+            with self.assertRaisesRegex(RuntimeError,'Historical deployment target refused'):
+                remote.Release({'action':'deploy','profile':profile,'frozenProfile':legacy})
         with self.assertRaisesRegex(RuntimeError,'fixed Fabric runtime'):
-            remote.Release({'action':'deploy','profile':legacy})
+            remote.Release({'action':'deploy','profile':legacy_runtime})
+        with self.assertRaisesRegex(RuntimeError,'fixed Fabric backup directory'):
+            remote.Release({'action':'deploy','profile':legacy_storage})
+
+    def test_backup_receipt_keeps_its_original_path_after_relocation(self):
+        with fixture_directory() as directory:
+            root=pathlib.Path(directory)
+            original=root/'old';current=root/'new';folder=current/'release-test'
+            folder.mkdir(parents=True)
+            for filename,contents in [('database.sql.gz',b'sql'),('server.cjs',b'code'),('index.html',b'html')]:
+                (folder/filename).write_bytes(contents)
+            release=remote.Release.__new__(remote.Release)
+            release.id='test';release.p={'backupRoot':str(current)}
+            release.frozen_profile={'backupRoot':str(original)}
+            release.b={'backend':h(b'code'),'index':h(b'html')}
+            backup={'folder':str(original/'release-test'),'sqlSha256':h(b'sql')}
+            release.state={'phases':{'backup':{'status':'passed','result':backup}}}
+            self.assertEqual(pathlib.Path(release.verified_backup()['folder']),folder)
+            self.assertEqual(backup['folder'],str(original/'release-test'))
+            backup['folder']=str(root/'unexpected')
+            with self.assertRaisesRegex(RuntimeError,'Backup path drift'):
+                release.verified_backup()
 
     @unittest.skipUnless(sys.platform.startswith('linux'),'Remote retention uses POSIX filesystem paths')
     def test_retention_preserves_five_pairs_and_requires_revalidated_offsite_proof(self):

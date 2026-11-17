@@ -20,7 +20,7 @@ export function validateProfile(p){
  if(!p||Object.keys(p).length!==keys.length||keys.some(k=>!(k in p)))throw Error('Invalid release profile fields');
  for(const k of ['production','stageRoot','backupRoot','nginx'])if(typeof p[k]!=='string'||!p[k].startsWith('/')||path.posix.normalize(p[k])!==p[k]||!/^[\w/.-]+$/.test(p[k])||p[k].split('/').length<3)throw Error('Unsafe target '+k);
  if(p.name!=='production'||p.production!=='/opt/fabric'||p.process!=='fabric'||p.recoveryProcess!=='fabric-readonly'||p.starter!=='start-v2.cjs')throw Error('Production must use the fixed Fabric runtime');
- for(const root of [p.stageRoot,p.backupRoot])if(root===p.production||p.production.startsWith(root+'/')||root.startsWith(p.production+'/'))throw Error('Release storage and production directories overlap');
+ if(p.backupRoot!=='/opt/fabric-backups'||p.stageRoot!==p.backupRoot+'/releases')throw Error('Release storage must use the fixed Fabric backup directory');
  for(const k of ['name','process','recoveryProcess','starter','database'])if(typeof p[k]!=='string'||!(/^[A-Za-z0-9_-]+(?:\.cjs)?$/).test(p[k]))throw Error('Unsafe identity '+k);
  if(p.port===p.recoveryPort||!(/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/).test(p.serverUuid))throw Error('Invalid physical target identity');
  for(const k of ['port','recoveryPort'])if(!Number.isInteger(p[k])||p[k]<1024||p[k]>65535)throw Error('Invalid port');

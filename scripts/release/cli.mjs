@@ -28,9 +28,12 @@ function transport(){
  const c=json(profile.sshConfig).ssh;if(!c||!/^[A-Za-z0-9.:-]+$/.test(c.host)||!/^[A-Za-z0-9_-]+$/.test(c.username)||!Number.isInteger(c.port)||c.port<1||c.port>65535)throw Error('Invalid private SSH configuration');
  return {host:c.username+'@'+c.host,opts:['-o','BatchMode=yes','-o','StrictHostKeyChecking=yes'],port:String(c.port)};
 }
+function historicalTarget(frozen){
+ return Boolean(frozen&&['production','stageRoot','backupRoot'].some(key=>frozen[key]!==profile[key]));
+}
 function remote(action,run,extra={}){
  const frozenProfile=run?.manifest.profile;
- const historical=Boolean(frozenProfile&&frozenProfile.production!==profile.production);
+ const historical=historicalTarget(frozenProfile);
  if(historical&&!['status','verify','rollback'].includes(action))throw Error('Historical releases cannot deploy; prepare a new release for /opt/fabric');
  const c=transport();const request={action,profile,baseline:run?.manifest.baseline??null,id:run?.id,archiveSha256:run?.archiveSha256,manifestSha256:run?.manifestSha256,...(historical?{frozenProfile}:{}),...extra};
  const frozenExecutor=run&&fs.readFileSync(path.join(run.dir,'package/remote.py'));
@@ -248,7 +251,7 @@ async function main(){
  let run=args.command==='prepare'||args.command==='run'&&!args.id?prepare():loadRun(args.id);
  if(args.command==='prepare')return;
  if(args.command==='report'){console.log(JSON.stringify(releaseTimingReport(run),null,2));return;}
- if(run.manifest.profile.production!==profile.production&&!['status','report','verify','rollback'].includes(args.command))throw Error('This release predates the fixed production directory; prepare a new release');
+ if(historicalTarget(run.manifest.profile)&&!['status','report','verify','rollback'].includes(args.command))throw Error('This release uses a retired storage or production target; prepare a new release');
  if(args.command==='status'||args.command==='resume'){
   const remoteStatus=remote('status',run);write(path.join(run.dir,'remote-status.json'),remoteStatus);
   if(remoteStatus.state.archiveSha256&&remoteStatus.state.archiveSha256!==run.archiveSha256)throw Error('Remote release identity mismatch');
