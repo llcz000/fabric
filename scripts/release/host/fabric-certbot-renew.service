@@ -1,0 +1,11 @@
+[Unit]
+Description=Renew Fabric IP TLS certificate
+After=network-online.target nginx.service
+Wants=network-online.target
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+PrivateTmp=true
+TimeoutStartSec=300
+ExecStart=/opt/fabric/ops/certbot/bin/certbot renew --quiet --no-random-sleep-on-renew --config-dir /etc/letsencrypt-fabric --work-dir /etc/letsencrypt-fabric/work --logs-dir /etc/letsencrypt-fabric/logs

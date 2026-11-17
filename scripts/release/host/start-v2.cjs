@@ -1,0 +1,1 @@
+require('dotenv').config({quiet:true,override:true});require('./dist/server.cjs');

@@ -2,3 +2,6 @@
 .agents/skills/ui-ux-pro-max/** -text -whitespace
 .agents/skills/frontend-design/** -text -whitespace
 .agents/skills/web-design-guidelines/** -text -whitespace
+
+# Linux host templates are compared by SHA256 before installation.
+scripts/release/host/** text eol=lf

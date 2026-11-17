@@ -1,0 +1,1 @@
+process.env.FABRIC_V2_RECOVERY='READ_ONLY_V2';process.env.FABRIC_V2_RECOVERY_UPSTREAM='http://127.0.0.1:3008';process.env.HOST='127.0.0.1';process.env.PORT='3009';require('./dist/recovery.cjs');
