@@ -150,7 +150,17 @@ test('execution streams browser progress separately from the machine-readable re
  assert(calls[0].args.includes('--reporter=line,json'));assert.deepEqual(calls[0].args.slice(-3),plan.specs);
  assert.equal(calls[0].options.liveLog,path.join(dir,'ui-browser-progress.log'));
  assert.equal(calls[0].options.env.PLAYWRIGHT_JSON_OUTPUT_FILE,path.join(dir,'ui-browser-tests.log'));
+ assert.equal(calls[0].options.timeout,10*60_000);
  assert.equal(result.passed,3);assert.equal(result.mode,'scoped');
+});
+test('full browser regression uses the longer time budget and runs the entire suite',()=>{
+ const plan=selectBrowserValidation(context([gallery],{fullUi:true})),root=path.resolve('fixture-root');
+ const result=executeBrowserValidation(plan,{root,dir:root,run(_exe,args,options){
+  assert.equal(options.timeout,45*60_000);
+  assert.equal(args.at(-1),'--reporter=line,json');
+  return reportFor([gallerySpec],root);
+ }});
+ assert.equal(result.mode,'full');assert.equal(result.passed,1);
 });
 test('zero tests, omitted required specs, malformed reports and browser failures block release',()=>{
  const plan=selectBrowserValidation(context([gallery])),root=path.resolve('fixture-root');

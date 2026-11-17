@@ -109,8 +109,9 @@ export function executeBrowserValidation(plan,{root,dir,execPath=process.execPat
   {log:path.join(dir,'ui-focused-unit.log'),label:'uiFocusedUnit'});
  const args=['node_modules/@playwright/test/cli.js','test','--config=playwright.ui.config.ts','--reporter=line,json',...plan.specs];
  const log=path.join(dir,'ui-browser-tests.log');
+ const timeout=(plan.mode==='full'?45:10)*60_000;
  const output=run(execPath,args,{log,liveLog:path.join(dir,'ui-browser-progress.log'),
-  env:{PLAYWRIGHT_JSON_OUTPUT_FILE:log},timeout:600000,label:'uiBrowserTests'});
+  env:{PLAYWRIGHT_JSON_OUTPUT_FILE:log},timeout,label:'uiBrowserTests'});
  let report;try{report=JSON.parse(output);}catch{throw Error('Browser validation: malformed Playwright JSON report');}
  if(!report.stats||!Number.isInteger(report.stats.expected)||report.stats.expected<=0||
     !Number.isInteger(report.stats.skipped)||report.stats.skipped<0||report.stats.unexpected!==0||report.stats.flaky!==0||
