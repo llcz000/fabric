@@ -13,7 +13,7 @@ import time
 import urllib.request
 
 ROOT = pathlib.Path('/opt/fabric-candidate')
-STATE = pathlib.Path('/var/lib/fabric-candidates')
+STATE = ROOT / '.state'
 PRODUCTION = pathlib.Path('/opt/fabric')
 
 ISOLATION_CHECK = r"""
