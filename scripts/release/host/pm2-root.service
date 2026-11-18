@@ -1,0 +1,23 @@
+[Unit]
+Description=Fabric PM2 process manager
+Wants=network-online.target
+After=network-online.target mysql.service
+Documentation=https://pm2.keymetrics.io/docs/usage/startup/
+
+[Service]
+Type=forking
+User=root
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=PM2_HOME=/root/.pm2
+PIDFile=/root/.pm2/pm2.pid
+ExecStart=/usr/lib/node_modules/pm2/bin/pm2 resurrect
+ExecStartPost=/opt/fabric/ops/pm2-wait-for-fabric.sh
+TimeoutStartSec=150
+ExecStop=/usr/lib/node_modules/pm2/bin/pm2 kill
+Restart=on-failure
+LimitNOFILE=infinity
+LimitNPROC=infinity
+LimitCORE=infinity
+
+[Install]
+WantedBy=multi-user.target
