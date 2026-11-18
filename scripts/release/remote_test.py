@@ -186,36 +186,62 @@ class ReleaseTests(unittest.TestCase):
                 release.verified_backup()
 
     @unittest.skipUnless(sys.platform.startswith('linux'),'Remote retention uses POSIX filesystem paths')
-    def test_retention_preserves_five_pairs_and_requires_revalidated_offsite_proof(self):
+    def test_retention_keeps_one_meaningful_rollback_after_an_unchanged_redeploy(self):
         with fixture_directory() as folder:
             root=pathlib.Path(folder)
             stage=root/'stage';backup=root/'backup'
             stage.mkdir();backup.mkdir()
-            ids=[f'20261117t00000000{i}-deadbeef' for i in range(7)]
+            older,previous,current,newer=[f'20261117t00000000{i}-deadbeef' for i in range(4)]
+            environment={'starter':'starter','nginx':'nginx','serverUuid':'uuid'}
+            live={'index':h(b'active'),'backend':h(b'backend'),**environment}
             proof={'archiveSha256':h(b'archive'),'encryptedSha256':h(b'encrypted'),'sqlSha256':h(b'database')}
             phases={name:{'status':'passed'} for name in ('backup','offsite','deploy','verify')}
             phases['backup']['result']=dict(proof)
             phases['offsite']['result']={'verified':True,'keyStoredSeparately':True,'encryptedSha256':proof['encryptedSha256'],'decryptedSha256':proof['sqlSha256']}
-            for release_id in ids:
+            for release_id,before in ((older,b'old'),(previous,b'previous'),(current,b'active'),(newer,b'other')):
                 dest=stage/release_id;dest.mkdir()
+                (dest/'manifest.json').write_text(json.dumps({'id':release_id,'baseline':{**live,'index':h(before)},
+                    'files':{'dist/index.html':{'sha256':live['index']},'dist/server.cjs':{'sha256':live['backend']}}}))
                 (dest/'release.tar.gz').write_bytes(b'archive')
                 (dest/'state.json').write_text(json.dumps({'id':release_id,'phases':phases,'archiveSha256':proof['archiveSha256']}))
                 pair=backup/('release-'+release_id);pair.mkdir()
                 (pair/'database.sql.gz.enc').write_bytes(b'encrypted')
                 (pair/'database.sql.gz').write_bytes(b'database')
+                (pair/'index.html').write_bytes(before)
+                (pair/'server.cjs').write_bytes(b'backend')
             release=remote.Release.__new__(remote.Release);release.baseline=Mock()
             release.p={'stageRoot':str(stage),'backupRoot':str(backup)}
-            release.b={'releaseId':ids[0]}
-            self.assertEqual(release.retention()['candidates'],{ids[1]:proof})
-            release.r={'localProofs':{ids[0]:proof}}
+            release.b={**live,'releaseId':current}
+            with self.assertRaisesRegex(RuntimeError,'newer verified release'):
+                release.retention()
+            newer_state=stage/newer/'state.json'
+            incomplete=json.loads(newer_state.read_text())
+            incomplete['phases']['verify']={'status':'running'}
+            newer_state.write_text(json.dumps(incomplete))
+
+            plan=release.retention()
+            self.assertEqual(plan['kept'],[current,previous])
+            self.assertEqual(plan['rollbackReleaseId'],previous)
+            self.assertEqual(plan['candidates'],{older:proof})
+            release.r={'localProofs':{previous:proof}}
             with self.assertRaisesRegex(RuntimeError,'offsite proof changed'):
                 release.retention(apply=True)
-            release.r={'localProofs':{ids[1]:proof}}
+            release.r={'localProofs':{older:proof}}
             result=release.retention(apply=True)
-            self.assertEqual(result['pruned'],[ids[1]])
-            self.assertFalse((stage/ids[1]).exists())
-            self.assertTrue((stage/ids[0]).is_dir())
-            self.assertTrue((backup/'retired-releases'/(ids[1]+'.json')).is_file())
+            self.assertEqual(result['pruned'],[older])
+            self.assertTrue(newer_state.exists())
+            self.assertTrue((stage/current).is_dir())
+            self.assertTrue((stage/previous).is_dir())
+            self.assertTrue((backup/'retired-releases'/(older+'.json')).is_file())
+
+            current_manifest=stage/current/'manifest.json'
+            manifest=json.loads(current_manifest.read_text())
+            manifest['baseline']['index']=h(b'prior')
+            current_manifest.write_text(json.dumps(manifest))
+            (backup/('release-'+current)/'index.html').write_bytes(b'prior')
+            plan=release.retention()
+            self.assertEqual(plan['kept'],[current])
+            self.assertEqual(plan['rollbackReleaseId'],current)
 
     def test_completed_install_receipt_verifies_instead_of_reinstalling(self):
         r=remote.Release.__new__(remote.Release);r.state={'phases':{'deploy':{'status':'passed','result':{'state':'released'}}}};r.r={};r.load=Mock();r.verify=Mock();r.deploy=Mock()

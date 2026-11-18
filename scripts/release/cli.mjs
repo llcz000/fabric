@@ -190,7 +190,7 @@ async function prune(){
   }catch{ /* The remote pair remains available if local verification fails. */ }
  }
  if(args.apply)console.log(JSON.stringify(remote('retention-apply',null,{baseline,localProofs})));
- else console.log(JSON.stringify({kept:plan.kept,eligible:Object.keys(localProofs),retainedWithoutLocalProof:Object.keys(plan.candidates).filter(id=>!(id in localProofs))}));
+ else console.log(JSON.stringify({kept:plan.kept,rollbackReleaseId:plan.rollbackReleaseId,eligible:Object.keys(localProofs),retainedWithoutLocalProof:Object.keys(plan.candidates).filter(id=>!(id in localProofs))}));
 }
 async function publicVerify(run){
  const get=p=>new Promise((resolve,reject)=>{const req=https.get(profile.url+p,{timeout:20000},res=>{const chunks=[];res.on('data',b=>chunks.push(b));res.on('end',()=>resolve({code:res.statusCode,body:Buffer.concat(chunks)}));});req.on('timeout',()=>req.destroy(Error('Public timeout')));req.on('error',reject);});

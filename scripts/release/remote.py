@@ -303,10 +303,33 @@ class Release:
             if proof['encryptedSha256']!=backup_record['encryptedSha256'] or proof['decryptedSha256']!=backup_record['sqlSha256']:continue
             verified[stage.name]={'archiveSha256':state['archiveSha256'],'encryptedSha256':proof['encryptedSha256'],'sqlSha256':proof['decryptedSha256']}
         must(current in verified,'Active release is missing its verified rollback pair')
-        keep=list(verified)[:5]
-        if current not in keep:keep.append(current)
+        must(not any(key>current for key in verified),'A newer verified release exists; refresh the active baseline before retention')
+        keys=('index','backend')
+        live=tuple(self.b[key] for key in keys)
+        rollback=None
+        # An unchanged redeploy can share its installed bytes with an older release.
+        # Its own snapshot still supports verification, while the older snapshot can change code.
+        for release_id in (current,*(key for key in verified if key<current)):
+            manifest_file=stage_root/release_id/'manifest.json'
+            must(manifest_file.is_file() and not manifest_file.is_symlink(),'Missing retention manifest')
+            manifest=json.loads(manifest_file.read_text())
+            must(manifest.get('id')==release_id,'Retention manifest identity changed')
+            installed=tuple(manifest['files']['dist/'+name]['sha256'] for name in ('index.html','server.cjs'))
+            if release_id==current:must(installed==live,'Active release does not match its manifest')
+            if installed!=live:continue
+            before=manifest['baseline']
+            if any(before[key]!=self.b[key] for key in ('starter','nginx','serverUuid')):continue
+            folder=backup_root/('release-'+release_id)
+            for key,name in zip(keys,('index.html','server.cjs')):
+                item=folder/name
+                must(item.is_file() and not item.is_symlink() and sha(item)==before[key],'Retained program backup drift: '+release_id)
+            if tuple(before[key] for key in keys)!=live:
+                rollback=release_id
+                break
+        keep=[current]
+        if rollback and rollback!=current:keep.append(rollback)
         candidates={key:value for key,value in verified.items() if key not in keep}
-        if not apply:return {'kept':keep,'candidates':candidates}
+        if not apply:return {'kept':keep,'rollbackReleaseId':rollback,'candidates':candidates}
         requested=self.r.get('localProofs',{})
         must(isinstance(requested,dict) and all(key in candidates and value==candidates[key] for key,value in requested.items()),'Retention candidate or offsite proof changed')
         retired=backup_root/'retired-releases';retired.mkdir(mode=0o700,exist_ok=True)
@@ -321,7 +344,7 @@ class Release:
             with receipt.open('x') as f:json.dump({'id':key,'retiredAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),**proof},f)
             shutil.rmtree(stage_root/key)
             shutil.rmtree(backup_root/('release-'+key))
-        return {'kept':keep,'pruned':list(requested),'retainedWithoutLocalProof':sorted(candidates.keys()-requested.keys())}
+        return {'kept':keep,'rollbackReleaseId':rollback,'pruned':list(requested),'retainedWithoutLocalProof':sorted(candidates.keys()-requested.keys())}
     def dispatch(self,action):
         if action=='inventory':return self.inventory()
         if action in ('retention-plan','retention-apply'):return self.retention(action=='retention-apply')
