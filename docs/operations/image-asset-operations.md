@@ -20,6 +20,10 @@
 
 ## 访问、错误与费用
 
+新增或切换 Fabric 站点域名时，同时检查私有 COS 存储桶的浏览器直传规则。上传会话返回 `201` 后由浏览器向 COS 签名地址发送 `PUT`。若没有后续 finalize 且浏览器报 `Failed to fetch`，先用实际网页的 `Origin`、`Access-Control-Request-Method: PUT` 和 `Access-Control-Request-Headers: content-type` 对 COS 执行 `OPTIONS`。站点健康检查只覆盖同源 API，无法验证这一步。
+
+生产 CORS 配置变更须单独授权。先备份现有规则，再为新站点精确允许 HTTPS 来源、`PUT` 和 `Content-Type`，保留仍在用的规则。写入后回读并从新旧入口验证预检，确认无关来源仍被拒绝。用临时测试文件验证签名上传并清理该测试对象。花型入库需另验 finalize 和保存。仍需排障时，以浏览器网络请求和脱敏日志核对上传会话、COS PUT、finalize 三阶段。
+
 图片请求保持身份/公开授权、短时签名及共享引用保护。产品三类图片只加载当前类别，同次查看复用；CSS 缩小不减少原图传输量，不能承诺再次打开免费。COS 存储、外网、请求和回源费用按真实地域/合同/账单及当期价格核查，旧报价与估算不作为当前费用承诺。
 
 日志使用 `server/image-assets/observability.ts` 的脱敏规则，保留稳定 requestId/assetId/jobId/errorCode；不得记录密钥、Cookie、完整签名 URL。错误码和 retryable 行为以当前 API 与测试为准，失败时保留原始资料，不通过手工删库/删对象来重试。
