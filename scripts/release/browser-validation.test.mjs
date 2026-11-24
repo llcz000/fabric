@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import {selectBrowserValidation,executeBrowserValidation,deletionGuidanceReviewedFiles} from './browser-validation.mjs';
+import {selectBrowserValidation,executeBrowserValidation,deletionGuidanceReviewedFiles,adminDocumentLookupReviewedFiles} from './browser-validation.mjs';
 
 const gallery='src/components/product-master-v2/ModelGalleryV2.tsx';
 const fabric='src/components/product-master-v2/FabricLibraryV2.tsx';
@@ -196,6 +196,39 @@ test('deletion guidance registration is bound to the reviewed production baselin
  assert.throws(()=>selectBrowserValidation(missing),/quick-ui/);
  const unknown=candidate();unknown.current.files.push({path:'server/unknown.ts',sha256:'new'});
  assert.throws(()=>selectBrowserValidation(unknown),/quick-ui/);
+});
+
+test('administrator document lookup takes the reviewed scope only on the current deletion baseline',()=>{
+ const tools=['scripts/release/browser-validation.mjs','scripts/release/browser-validation.test.mjs'];
+ const reviewed=Object.keys(adminDocumentLookupReviewedFiles),shared='src/components/product-master-v2/V2App.tsx';
+ const specs=['tests/ui/deletion-guidance.spec.ts','tests/ui/catalog-number-sort.spec.ts',
+  'tests/ui/related-products.spec.ts','tests/ui/document-delete.spec.ts',...smoke];
+ const candidate=(overrides={})=>{
+  const ctx=context([...reviewed,...tools],{quickUi:true,baselineReleaseId:'20261124t055326487-fcc99aa4',...overrides});
+  for(const file of ctx.current.files)if(adminDocumentLookupReviewedFiles[file.path])file.sha256=adminDocumentLookupReviewedFiles[file.path];
+  for(const p of Object.keys(deletionGuidanceReviewedFiles).concat(['server/product-master/catalogExport.test.ts',
+   'server/product-master/productsV2.test.ts','server/product-master/productProtection.test.ts','server/product-master/patternDeletion.test.ts',
+   'server/product-master/colorwayIdentity.test.ts','server/product-master/v2CatalogAssembly.test.ts',
+   'src/components/product-master-v2/PatternLibraryV2.test.ts','src/components/product-master-v2/patternBulkImportModel.test.ts','src/components/document-product-selector/documentSearchModel.test.ts',
+   'src/components/document-product-selector/V2DocumentBrowser.test.ts']))if(!ctx.current.files.some(f=>f.path===p))
+   for(const side of ['current','previous'])ctx[side].files.push({path:p,sha256:'old'});
+  return ctx;
+ };
+ const result=selectBrowserValidation(candidate());
+ assert.equal(result.mode,'scoped');
+ assert.equal(result.reason,'reviewed-admin-document-lookup');
+ assert.deepEqual(result.specs,specs.sort());
+ assert(result.unitFiles.includes('server/order-v2/orderQueries.test.ts'));
+ assert(result.unitFiles.includes('src/components/product-master-v2/productCardAssociation.test.ts'));
+ for(const override of [{baselineReleaseId:'different-release'},{migrations:['test-migration']},{fullUi:true}])
+  assert.throws(()=>selectBrowserValidation(candidate(override)),/quick-ui/);
+ assert.equal(selectBrowserValidation(candidate({quickUi:false})).mode,'full');
+ for(const mutate of [
+  ctx=>{ctx.current.files.find(f=>f.path===shared).sha256='unreviewed';},
+  ctx=>{ctx.previous.files=ctx.previous.files.filter(f=>f.path!==shared);},
+  ctx=>{ctx.current.files=ctx.current.files.filter(f=>f.path!==smoke[0]);},
+  ctx=>{ctx.current.files.push({path:'server/extra.ts',sha256:'new'});},
+ ]){const ctx=candidate();mutate(ctx);assert.throws(()=>selectBrowserValidation(ctx),/quick-ui/);}
 });
 
 function reportFor(specs,root){return JSON.stringify({config:{rootDir:path.join(root,'tests/ui')},errors:[],

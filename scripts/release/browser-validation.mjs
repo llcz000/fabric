@@ -68,6 +68,26 @@ export const deletionGuidanceReviewedFiles=Object.freeze({
  'tools/ui-preview/internalFabricReview.tsx':'ab73cf06d0734010589f564b26d796ea7d9101fc3912c085f6c7ef7b5d697c75',
  'tools/ui-preview/internalPatternReview.tsx':'fc3dd9e47e3c0fbadb6bbb51f4179eee2a59c9a0e292093dc54664fac99d5f3b',
 });
+const adminDocumentLookupBaseline='20261124t055326487-fcc99aa4';
+export const adminDocumentLookupReviewedFiles=Object.freeze({
+ 'server/order-v2/orderQueries.test.ts':'fc5bd5ed3a56473ad32a80f75ac9cc4fc5fb46df5ce5b5f419a8fe89fe10c26f',
+ 'server/order-v2/orderQueries.ts':'03dd3bd47d96eb5cbb7649101a5e50ab4e0f14fade230e543fa46af73607d41e',
+ 'src/components/document-product-selector/V2DocumentBrowser.tsx':'6a8992dd20b36c21c3dadacef3a2ed7e4d3d0d06e4d3279163824a413cecd483',
+ 'src/components/product-master-v2/catalogModel.ts':'6c373ddcc33f6ae41f9d258b9638a658a27448aaf347fa2325d736e5ed986838',
+ 'src/components/product-master-v2/PatternDeleteDialog.tsx':'a58c52c58929634cd64a79b6ba32489e1ab9aefa8ef71668b73f294ca552132b',
+ 'src/components/product-master-v2/productCardAssociation.test.ts':'4a8cf78401e5d1d0dda4c28e6301fed9de4edc767d6cdf41388f7b117d048efe',
+ 'src/components/product-master-v2/ProductCatalogV2.test.ts':'559eedf38aecef3e8bdf069dea3d28facf21f149d399a85ad94daad53e93c09f',
+ 'src/components/product-master-v2/ProductCatalogV2.tsx':'c107699141f76baec79d83afec9d59f24b25a66878d131a301ffed42053ba956',
+ 'src/components/product-master-v2/RelatedProductsDialog.tsx':'61f64b50f0edff3793a1bb7a69cf418b540b086c549b1260b7ebd1092723a4bf',
+ 'src/components/product-master-v2/uiExperience.test.ts':'dfe24308d3e18636afc9cb574f777167e6d3b2c2c8d69fa80fe28f2438910188',
+ 'src/components/product-master-v2/useV2Identity.ts':'da78809d2d2aa760a330e70f98a23619772def3e4ad9ddbd7f869fba97a7adc8',
+ 'src/components/product-master-v2/V2App.tsx':'a50753a93f457e1cfa08f2fda27963c1e6c8545b880e493b277806885a621845',
+ 'tests/ui/catalog-number-sort.spec.ts':'b260d2e4efe06dd936b5f217544644eee9ede44e536b548c9080308d0eff1b48',
+ 'tests/ui/deletion-guidance.spec.ts':'9464759893d3d8c71cf684061b3fe927dc7240594634097b1375df714bb48b12',
+ 'tools/ui-preview/fixtures/relatedProducts.ts':'e95a2936781761a270e76e4d5ab01d06d9835bdc327cfd961bfe5f7194fc8cf6',
+ 'tools/ui-preview/internalFabricReview.tsx':'97b8127bfa4e26321b24b821132e3fafdcdb74d0f64ea978b4d2a3a5c99ace53',
+ 'tools/ui-preview/internalPatternReview.tsx':'1877fd82428978d42742b6fe0d44b13d3402211eb99bd17bc04eb23bd1077e01',
+});
 const deletionGuidanceSpecs=['tests/ui/deletion-guidance.spec.ts','tests/ui/catalog-number-sort.spec.ts',
  'tests/ui/related-products.spec.ts','tests/ui/document-delete.spec.ts'];
 const deletionGuidanceUnits=[
@@ -80,6 +100,11 @@ const deletionGuidanceUnits=[
  'src/components/product-master-v2/PatternLibraryV2.test.ts','src/components/product-master-v2/patternBulkImportModel.test.ts',
  'src/components/product-master-v2/uiExperience.test.ts','src/components/document-product-selector/documentSearchModel.test.ts',
  'src/components/document-product-selector/V2DocumentBrowser.test.ts',
+];
+const reviewedDeletionScopes=[
+ {baseline:deletionGuidanceBaseline,files:deletionGuidanceReviewedFiles,reason:'reviewed-deletion-guidance-registration',profile:'deletion-guidance',unitFiles:deletionGuidanceUnits},
+ {baseline:adminDocumentLookupBaseline,files:adminDocumentLookupReviewedFiles,reason:'reviewed-admin-document-lookup',profile:'admin-document-lookup',
+  unitFiles:[...deletionGuidanceUnits,'src/components/product-master-v2/productCardAssociation.test.ts']},
 ];
 const profiles=[{
  id:'model-gallery',paths:['src/components/product-master-v2/ModelGalleryV2.tsx',
@@ -150,16 +175,17 @@ export function selectBrowserValidation({previous,current,baselineReleaseId,sour
    throw Error('Customer history date hotfix requires its verified baseline and exact file scope');
   return {...base,mode:'none',reason:'customer-history-date-hotfix'};
  }
- if(quickUi&&baselineReleaseId===deletionGuidanceBaseline&&!migrations.length&&!fullUi){
-  const reviewed=Object.entries(deletionGuidanceReviewedFiles);
+ const reviewedScope=reviewedDeletionScopes.find(scope=>scope.baseline===baselineReleaseId);
+ if(quickUi&&reviewedScope&&!migrations.length&&!fullUi){
+  const reviewed=Object.entries(reviewedScope.files);
   const expected=[...reviewed.map(([p])=>p),...scopeRegistrationTools];
   const specs=sortedUnique([...smoke,...deletionGuidanceSpecs]);
   if(code.length===expected.length&&expected.every(p=>code.includes(p))&&
      scopeRegistrationTools.every(p=>old.has(p)&&next.has(p))&&
-     reviewed.every(([p,digest])=>next.get(p)===digest)&&
-     [...specs,...deletionGuidanceUnits].every(p=>next.has(p))){
-   return {...base,mode:'scoped',reason:'reviewed-deletion-guidance-registration',profiles:['deletion-guidance'],
-    specs,unitFiles:sortedUnique(deletionGuidanceUnits)};
+     reviewed.every(([p,digest])=>next.get(p)===digest&&(reviewedScope.baseline!==adminDocumentLookupBaseline||old.has(p)))&&
+     [...specs,...reviewedScope.unitFiles].every(p=>next.has(p))){
+   return {...base,mode:'scoped',reason:reviewedScope.reason,profiles:[reviewedScope.profile],
+    specs,unitFiles:sortedUnique(reviewedScope.unitFiles)};
   }
  }
  // Let this registration ship with the reviewed print fix on its original verified baseline.
