@@ -23,7 +23,7 @@ const SAFE_REQUEST_ID = /^[a-zA-Z0-9_-]{1,128}$/;
 const uploadSessionSchema = z.object({
   purpose: z.enum(['company_logo', 'company_qr', 'product_image']),
   originalFilename: z.string().min(1).max(1_024),
-  declaredMime: z.enum(['image/jpeg', 'image/png', 'image/webp', 'image/gif']),
+  declaredMime: z.enum(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/tiff']),
   declaredByteSize: z.number().int().positive(),
 }).strict();
 

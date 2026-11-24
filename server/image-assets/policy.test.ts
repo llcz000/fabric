@@ -58,6 +58,39 @@ test('high-resolution textile WebP within byte limit validates and generates bou
  assert.equal(getAssetPolicy('company_logo').maxPixels,40_000_000);
 });
 
+test('product images accept mislabelled TIFF bytes and normalize the original variant to lossless WebP',async()=>{
+ const sharp=(await import('sharp')).default;
+ const {validateImageBuffer}=await import('./validator');
+ const {generateImageVariants}=await import('./processor');
+ const buffer=await sharp({create:{width:32,height:24,channels:3,background:'#789abc'}}).tiff().toBuffer();
+ const policy=getAssetPolicy('product_image');
+ const validated=await validateImageBuffer(buffer,{mime:'image/webp',byteSize:buffer.length,extension:'webp'},policy);
+ assert.equal(validated.mime,'image/webp');assert.equal(validated.extension,'webp');
+ const variants=await generateImageVariants(buffer,validated,policy);
+ assert.equal(variants[0].mime,'image/webp');assert.equal(variants[0].extension,'webp');
+ assert.equal((await sharp(variants[0].body).metadata()).format,'webp');
+ assert.deepEqual(await sharp(variants[0].body).raw().toBuffer(),await sharp(buffer).raw().toBuffer());
+});
+
+test('company image policy continues to reject TIFF input',async()=>{
+ const sharp=(await import('sharp')).default;
+ const {validateImageBuffer}=await import('./validator');
+ const buffer=await sharp({create:{width:8,height:8,channels:3,background:'#789abc'}}).tiff().toBuffer();
+ await assert.rejects(validateImageBuffer(buffer,{mime:'image/png',byteSize:buffer.length,extension:'png'},getAssetPolicy('company_logo')),
+  (error:unknown)=>error instanceof ImageAssetError&&error.code==='IMAGE_CONTENT_INVALID');
+});
+
+test('TIFF content cannot masquerade as JPEG, PNG, or GIF for product images',async()=>{
+ const sharp=(await import('sharp')).default;
+ const {validateImageBuffer}=await import('./validator');
+ const buffer=await sharp({create:{width:8,height:8,channels:3,background:'#789abc'}}).tiff().toBuffer();
+ const policy=getAssetPolicy('product_image');
+ for(const declared of [{mime:'image/jpeg',extension:'jpg'},{mime:'image/png',extension:'png'},{mime:'image/gif',extension:'gif'}]){
+  await assert.rejects(validateImageBuffer(buffer,{...declared,byteSize:buffer.length},policy),
+   (error:unknown)=>error instanceof ImageAssetError&&error.code==='IMAGE_CONTENT_INVALID');
+ }
+});
+
 test('textile pixel ceiling remains bounded for the production image worker memory budget',()=>{
  assert.equal(getAssetPolicy('product_image').maxPixels,100_000_000);
 });

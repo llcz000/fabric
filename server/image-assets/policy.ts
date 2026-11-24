@@ -5,25 +5,26 @@ const COMPANY_MAX_BYTES = 2 * 1024 * 1024;
 // Support high-resolution textile originals within the production memory budget.
 const PRODUCT_MAX_PIXELS = 100_000_000;
 const PRODUCT_MAX_BYTES = 20 * 1024 * 1024;
-const ALLOWED_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+const COMPANY_ALLOWED_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+const PRODUCT_ALLOWED_MIMES = new Set([...COMPANY_ALLOWED_MIMES, 'image/tiff']);
 
 const POLICIES: Record<AssetPurpose, AssetPolicy> = {
   company_logo: {
     maxBytes: COMPANY_MAX_BYTES,
     maxPixels: MAX_PIXELS,
-    allowedMimes: ALLOWED_MIMES,
+    allowedMimes: COMPANY_ALLOWED_MIMES,
     variants: ['original', 'display'],
   },
   company_qr: {
     maxBytes: COMPANY_MAX_BYTES,
     maxPixels: MAX_PIXELS,
-    allowedMimes: ALLOWED_MIMES,
+    allowedMimes: COMPANY_ALLOWED_MIMES,
     variants: ['original', 'display'],
   },
   product_image: {
     maxBytes: PRODUCT_MAX_BYTES,
     maxPixels: PRODUCT_MAX_PIXELS,
-    allowedMimes: ALLOWED_MIMES,
+    allowedMimes: PRODUCT_ALLOWED_MIMES,
     variants: ['original', 'display', 'thumbnail'],
   },
 };

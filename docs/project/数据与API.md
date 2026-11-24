@@ -23,6 +23,10 @@
 
 正式业务通过 `server/product-master/v2ProductionHttp.ts` 装配，`v2CatalogAssembly.ts` 组合受认证的 V2 业务路由。主数据/单据/色卡/选样的具体方法与DTO取各领域Routes；公开分享由 `patternShareRuntime.ts` 单独装配受限投影。健康检查、匿名拒绝、旧API退役及静态资源合同需同时核对正式HTTP装配，不能按文件名或旧 `server.ts` 行号推断。
 
+## 图片上传格式
+
+IMAGE-01：产品花型图等 `product_image` 资产接受 JPEG、PNG、WebP、GIF 和 TIFF。服务端以实际解码格式为准；TIFF 即使被 `.webp` 文件名或 `image/webp` MIME 标记，也可在 20 MiB/100 MP 上限内上传，并在入库时将原图无损规范化为 WebP，展示图和缩略图继续使用 WebP。公司 Logo 与二维码仍只接受 JPEG、PNG、WebP、GIF。文件名和浏览器 MIME 仅作为声明，不替代真实内容校验。
+
 ## 花型厘米尺寸
 
 PAT-08：`pattern_masters.width_cm/height_cm` 使用可空 `DECIMAL(12,4)`，同母版只存一组。`patternMasters.ts` 的新增/更新复用 `src/lib/patternDimensions.ts` 校验成对正数或成对null；省略两字段保留原值。`pattern-catalog` 在母版DTO返回 `widthCm/heightCm`，`colorway-details` 同时读取母版最新尺寸；现有受认证主数据权限沿用，配色和产品身份不变，公开分享投影不增加字段。前端新增和编辑复用尺寸输入，列表在母版编号下显示一次；尺寸保存立即使旧列表请求失效，再重查，防止旧响应覆盖新值。

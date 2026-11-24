@@ -27,6 +27,7 @@ const FORMAT_DETAILS: Record<string, { mime: string; extension: string }> = {
   png: { mime: 'image/png', extension: 'png' },
   webp: { mime: 'image/webp', extension: 'webp' },
   gif: { mime: 'image/gif', extension: 'gif' },
+  tiff: { mime: 'image/tiff', extension: 'tif' },
 };
 
 export async function validateImageBuffer(
@@ -45,16 +46,22 @@ export async function validateImageBuffer(
     if (!details || !metadata.width || !metadata.height) throw invalidError('Unsupported or undecodable image content');
     if (metadata.width * metadata.height > policy.maxPixels) throw new ImageAssetError('IMAGE_PIXELS_EXCEEDED', 413, false, 'Image exceeds the pixel limit');
     if (!policy.allowedMimes.has(details.mime)) throw invalidError('Image type is not allowed');
-    if (declared.mime.toLowerCase() !== details.mime) throw invalidError('Declared MIME does not match image content');
-    if (declared.extension && !extensionsMatch(declared.extension, details.extension)) {
+    const declaredMime = declared.mime.toLowerCase();
+    const isTiff = metadata.format === 'tiff';
+    if (declaredMime !== details.mime && !(isTiff && declaredMime === 'image/webp')) {
+      throw invalidError('Declared MIME does not match image content');
+    }
+    if (declared.extension && !extensionsMatch(declared.extension, details.extension)
+      && !(isTiff && declared.extension.replace(/^\./, '').toLowerCase() === 'webp')) {
       throw invalidError('Declared extension does not match image content');
     }
 
     await image.clone().extract({ left: 0, top: 0, width: 1, height: 1 }).raw().toBuffer();
 
+    const canonicalDetails = isTiff ? FORMAT_DETAILS.webp : details;
     return {
-      mime: details.mime,
-      extension: details.extension,
+      mime: canonicalDetails.mime,
+      extension: canonicalDetails.extension,
       width: metadata.width,
       height: metadata.height,
       byteSize: buffer.length,
@@ -76,6 +83,7 @@ async function loadSharp(): Promise<SharpFactory> {
 function extensionsMatch(declared: string, detected: string): boolean {
   const normalized = declared.replace(/^\./, '').toLowerCase();
   if (detected === 'jpg') return normalized === 'jpg' || normalized === 'jpeg';
+  if (detected === 'tif') return normalized === 'tif' || normalized === 'tiff';
   return normalized === detected;
 }
 

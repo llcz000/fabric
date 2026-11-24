@@ -647,6 +647,31 @@ test('same verified bytes reuse one asset and one permanent original key', async
   });
 });
 
+test('TIFF pattern uploads are stored as lossless WebP originals and remain worker-reprocessable',async()=>{
+ const clock=new MutableClock();
+ const repository=new MemoryAssetRepository(clock);
+ const storage=new MemoryStorage();
+ const service=new ImageAssetService(repository,storage,{now:clock.now,randomId:idSequence('session-tiff','object-tiff')});
+ const worker=new ImageAssetWorker(repository,storage,{now:clock.now});
+ const sharp=(await import(SHARP_MODULE)).default;
+ const bytes=await sharp({create:{width:32,height:24,channels:3,background:{r:32,g:96,b:160}}}).tiff().toBuffer();
+ const grant=await service.createUploadSession({purpose:'product_image',originalFilename:'G0736-2.webp',declaredMime:'image/webp',declaredByteSize:bytes.length,principalId:'principal-1'});
+ const session=repository.sessions.get(grant.sessionId);assert.ok(session);
+ storage.objects.set(session.quarantineKey,{body:Buffer.from(bytes),contentType:'image/webp'});
+ const descriptor=await service.finalizeUploadSession(grant.sessionId,'principal-1');
+ const asset=repository.requireAsset(descriptor.id);
+ assert.equal(asset.detectedMime,'image/webp');assert.equal(asset.detectedExtension,'webp');
+ await worker.runOnce();assert.equal(asset.status,'ready');
+ const original=repository.variants.get(asset.id)?.find(variant=>variant.variant==='original');assert.ok(original);
+ assert.equal(original.mime,'image/webp');assert(original.objectKey.endsWith('.webp'));
+ const stored=storage.objects.get(original.objectKey)?.body;assert.ok(stored);
+ assert.equal((await sharp(stored).metadata()).format,'webp');
+ assert.deepEqual(await sharp(stored).raw().toBuffer(),await sharp(bytes).raw().toBuffer());
+ assert.equal(storage.objects.has(session.quarantineKey),false);
+ const job=[...repository.jobs.values()][0];assert.ok(job);job.status='queued';job.attempts=0;
+ await worker.runOnce();assert.equal(asset.status,'ready');
+});
+
 test('invalid raster deletes its quarantine object before returning IMAGE_CONTENT_INVALID', async () => {
   const clock = new MutableClock();
   const repository = new MemoryAssetRepository(clock);

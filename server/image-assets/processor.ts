@@ -24,15 +24,31 @@ export async function generateImageVariants(
   const variants: ProcessedVariant[] = [];
   for (const variant of policy.variants) {
     if (variant === 'original') {
-      variants.push({
-        variant,
-        body: original,
-        mime: image.mime,
-        extension: image.extension,
-        width: image.width,
-        height: image.height,
-        byteSize: original.length,
-      });
+      const sourceMetadata = await sharp(original, { limitInputPixels: policy.maxPixels, animated: false }).metadata();
+      if (sourceMetadata.format === 'tiff') {
+        const output = await sharp(original, { limitInputPixels: policy.maxPixels, animated: false })
+          .webp({ lossless: true })
+          .toBuffer({ resolveWithObject: true });
+        variants.push({
+          variant,
+          body: output.data,
+          mime: 'image/webp',
+          extension: 'webp',
+          width: output.info.width,
+          height: output.info.height,
+          byteSize: output.data.length,
+        });
+      } else {
+        variants.push({
+          variant,
+          body: original,
+          mime: image.mime,
+          extension: image.extension,
+          width: image.width,
+          height: image.height,
+          byteSize: original.length,
+        });
+      }
       continue;
     }
 

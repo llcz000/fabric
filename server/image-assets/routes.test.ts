@@ -205,6 +205,22 @@ test('upload session crosses real HTTP auth and returns only the public grant co
   });
 });
 
+test('product image upload sessions accept a declared TIFF MIME for pattern artwork',async()=>{
+ let receivedMime:string|undefined;
+ const service=routeService({async createUploadSession(input){
+  receivedMime=input.declaredMime;
+  return {sessionId:'session-tiff',uploadUrl:'https://upload.example.test/tiff',method:'PUT',
+   headers:{'Content-Type':'image/tiff'},expiresAt:'2026-08-22T01:15:00.000Z'};
+ }});
+ await withHttpServer(routeRuntime({service}),async baseUrl=>{
+  const response=await fetch(baseUrl+'/api/image-assets/upload-sessions',authenticatedJson('POST',{
+   purpose:'product_image',originalFilename:'G0736-2.tif',declaredMime:'image/tiff',declaredByteSize:4,
+  }));
+  assert.equal(response.status,201);assert.equal(receivedMime,'image/tiff');
+  const body=await response.json() as {headers:Record<string,string>};assert.equal(body.headers['Content-Type'],'image/tiff');
+ });
+});
+
 test('repeated finalize requests return the same stable assetId', async () => {
   await withHttpServer(routeRuntime(), async (baseUrl) => {
     const first = await fetch(`${baseUrl}/api/image-assets/upload-sessions/session-1/finalize`, authenticatedJson('POST', {}));
