@@ -150,7 +150,6 @@ export function V2DocumentBrowser({apiFetch,role,companyProfile,initialFilters,r
   <header className="flex flex-wrap justify-between gap-3"><div><h2 className="text-xl font-semibold">单据查询</h2><p className="mt-1 text-xs text-slate-500">{role==='admin'?'查看全公司单据':'仅查看本人单据'} · 按开单日期倒序</p></div><button className={button} disabled={exporting} onClick={()=>void exportDocuments()}><ActionIcon name="download"/>{exporting?'正在导出…':role==='admin'?'导出全公司单据 JSON':'导出全部本人单据 JSON'}</button></header>
   {applied.productId&&<div className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm">
    <strong>关联单据{referenceNo?' · '+referenceNo:''}</strong>
-   {role==='sales'&&<p className="mt-1 text-xs text-slate-600">仅显示本人有权查看的单据。若产品仍被锁定，请由管理员核对其他单据。</p>}
   </div>}
   <form className="rounded-xl border border-[#c3c6d7] bg-white p-4" onSubmit={event=>{event.preventDefault();search(filters);}}>
    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

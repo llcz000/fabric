@@ -1,6 +1,7 @@
 import {relatedProductsPreview,relatedProductImagesPreview,relatedImageId} from './fixtures/relatedProducts';
 import React from 'react';
 import {createRoot} from 'react-dom/client';
+import {V2DocumentLookupContext} from '../../src/components/product-master-v2/useV2Identity';
 import '../../src/index.css';
 import '../../src/components/product-master-v2/v2Experience.css';
 import PatternLibraryV2 from '../../src/components/product-master-v2/PatternLibraryV2';
@@ -74,4 +75,6 @@ const apiFetch=(async(input:RequestInfo|URL,init?:RequestInit)=>{
  return Response.json({items:[]});
 }) as typeof fetch;
 const Library=dimensionMode?PatternWorkspaceV2:PatternLibraryV2;
-createRoot(document.getElementById('root')!).render(<ConfirmProvider><Library apiFetch={apiFetch} canManage onUploadPatternImage={async file=>{if(file.name.endsWith('-1.jpg'))throw Error('图片校验失败');return 'a1111111-1111-4111-8111-111111111111';}}/></ConfirmProvider>);
+createRoot(document.getElementById('root')!).render(<V2DocumentLookupContext.Provider value={!new URLSearchParams(location.search).has('sales')}>
+ <ConfirmProvider><Library apiFetch={apiFetch} canManage onUploadPatternImage={async file=>{if(file.name.endsWith('-1.jpg'))throw Error('图片校验失败');return 'a1111111-1111-4111-8111-111111111111';}}/></ConfirmProvider>
+</V2DocumentLookupContext.Provider>);

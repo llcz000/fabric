@@ -52,14 +52,16 @@ test('QUERY-02 count and page use one correlated EXISTS across ALL item criteria
  assert(!sql.includes('JOIN order_items i ON'),'count cannot be inflated by multiple lines');
  assert.deepEqual(args,['200','%客\\_户\\%%',0,'%货\\_号%','%红\\%%','%棉\\\\\\_%']);
 });
-test('deletion guidance matches saved product IDs within the existing document permissions',async()=>{
+test('deletion guidance matches saved product IDs only for administrators',async()=>{
  const db=new Fake();
  const filters=parseScopedOrderFilters({productId:'18446744073709551615',colorNo:'12'});
- await listScopedOrders(db,actor,filters);
+ await assert.rejects(listScopedOrders(db,actor,filters),(error:unknown)=>error instanceof OrderSearchError&&error.status===403);
+ assert.equal(db.sql.length,0);
+ await listScopedOrders(db,{...actor,role:'admin'},filters);
  for(const {sql,args} of db.sql){
-  assert.match(sql,/o\.created_by_user_id = \?/);
+  assert.doesNotMatch(sql,/o\.created_by_user_id = \?/);
   assert.match(sql,/i\.v2_product_id=\? AND i\.color_no LIKE/);
-  assert.deepEqual(args.slice(0,3),['200','18446744073709551615','%12%']);
+  assert.deepEqual(args.slice(0,2),['18446744073709551615','%12%']);
   assert.doesNotMatch(sql,/i\.product_no LIKE/);
  }
  for(const productId of [5,'0','18446744073709551616','5 OR 1=1', ['5']]){
@@ -409,6 +411,11 @@ test('QUERY-02 real HTTP matching-items hides other owners, validates filters an
   const addr=server.address();assert(addr&&typeof addr!=='string');const base='http://127.0.0.1:'+addr.port+'/api/v2/documents/';
   assert.equal((await fetch(base+'47/matching-items')).status,401);assert.equal(business.length,0);
   const headers={authorization:'Bearer '+'a'.repeat(64)};
+  for(const path of ['../documents?productId=7','matching-totals?productId=7','47/matching-items?productId=7']){
+   const response=await fetch(new URL(path,base),{headers});
+   assert.equal(response.status,403,path);
+   assert.equal(business.length,0,path);
+  }
   assert.equal((await fetch(base+'47/matching-items?ownerId=999',{headers})).status,400);assert.equal(business.length,0);
   assert.equal((await fetch(base+'48/matching-items',{headers})).status,404);assert.equal(business.length,1);
   const allowed=await fetch(base+'47/matching-items?productNo=P1&colorNo=2',{headers});assert.equal(allowed.status,200);

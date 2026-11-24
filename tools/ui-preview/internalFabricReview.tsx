@@ -9,6 +9,7 @@ import '../../src/index.css';
 import '../../src/components/product-master-v2/v2Experience.css';
 import FabricLibraryV2 from '../../src/components/product-master-v2/FabricLibraryV2';
 import {ConfirmProvider} from '../../src/components/ui/ConfirmDialog';
+import {V2DocumentLookupContext} from '../../src/components/product-master-v2/useV2Identity';
 import type {FabricCatalogItem} from '../../src/components/product-master-v2/fabricModel';
 
 const samples:FabricCatalogItem[]=[
@@ -57,4 +58,5 @@ function Screen(){
   {message?<p role="status" className="mx-5 text-sm text-slate-500">{message}</p>:null}
  </ConfirmProvider></div>;
 }
-createRoot(document.getElementById('root')!).render(<React.StrictMode><Screen/></React.StrictMode>);
+createRoot(document.getElementById('root')!).render(<React.StrictMode><V2DocumentLookupContext.Provider
+ value={!new URLSearchParams(location.search).has('sales')}><Screen/></V2DocumentLookupContext.Provider></React.StrictMode>);

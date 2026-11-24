@@ -21,7 +21,7 @@ import { resolveImageUrls } from './catalogModel';
 import { V2Shell, V2DiscardDialog } from './V2Shell';
 import { V2LeaveContext } from './useV2LeaveProtection';
 import { readV2Route } from './v2Navigation';
-import { useV2Identity } from './useV2Identity';
+import { useV2Identity,V2DocumentLookupContext } from './useV2Identity';
 import { useV2Company } from './useV2Company';
 import { useV2Navigation } from './useV2Navigation';
 import { V2ViewBoundary } from './V2ViewBoundary';
@@ -53,12 +53,18 @@ export default function V2App(){
   </form>
  </main>;
  if(!actor||!company)return <main className="space-y-4 p-6">{error?<p role="alert">{error}</p>:<p role="status">正在读取账号与公司资料…</p>}<button className="rounded border p-2" onClick={reload}><ActionIcon name="refresh"/>重新读取</button><button className="ml-3 rounded border p-2" onClick={expire}><ActionIcon name="back"/>返回登录</button></main>;
- return <V2LeaveContext.Provider value={protectedEditors}><V2Shell actor={actor} view={view} blocked={Boolean(pendingLeave)} onNavigate={id=>{if(id!==view)requestLeave(()=>navigate(id));}} onLogout={()=>requestLeave(()=>void logout())}>
+ const canQueryDocuments=actor.role==='admin';
+ return <V2DocumentLookupContext.Provider value={canQueryDocuments}><V2LeaveContext.Provider value={protectedEditors}><V2Shell actor={actor} view={view} blocked={Boolean(pendingLeave)} onNavigate={id=>{if(id!==view)requestLeave(()=>navigate(id));}} onLogout={()=>requestLeave(()=>void logout())}>
   {notice&&<p role="status" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{notice}</p>}
   <V2ViewBoundary key={view} label={VIEW_LABELS[view]??'页面'} onBack={()=>requestLeave(()=>navigate('stats'))}>
   {view==='stats'&&<V2DocumentStats apiFetch={apiFetch} onProduct={name=>requestLeave(()=>navigate('documents',{productName:name}))} onDocument={id=>requestLeave(()=>navigate('preview',{id}))}/>}
-  {view==='documents'&&<V2DocumentBrowser key={productName+':'+routeRevision} apiFetch={apiFetch} role={actor.role} companyProfile={company}
-   initialFilters={referenceProductId?{productId:referenceProductId}:productName?{productName}:undefined} referenceNo={referenceNo}/>}
+  {view==='documents'&&(referenceProductId&&!canQueryDocuments?
+   <div className="space-y-3 p-4">
+    <p role="alert" className="text-sm text-slate-700">仅管理员可查询关联单据。</p>
+    <button type="button" className="rounded border border-slate-300 px-4 py-2 text-sm" onClick={()=>navigate('documents')}>返回单据列表</button>
+   </div>:
+   <V2DocumentBrowser key={productName+':'+routeRevision} apiFetch={apiFetch} role={actor.role} companyProfile={company}
+    initialFilters={referenceProductId?{productId:referenceProductId}:productName?{productName}:undefined} referenceNo={referenceNo}/>)}
   {view==='create'&&<V2DocumentWorkspace apiFetch={apiFetch} role={actor.role} companyProfile={company} onSaved={doc=>navigate('preview',{id:doc.id})} onCancel={()=>navigate('documents')}/>}
   {view==='preview'&&<V2DocumentPrintView apiFetch={apiFetch} documentId={previewId} backLabel="返回单据列表" onBack={()=>requestLeave(()=>navigate('documents'))}/>}
   {view==='pattern'&&<PatternWorkspaceV2 apiFetch={apiFetch} canManage resolvePatternImages={resolveImages} onCreateProduct={master=>requestLeave(()=>navigate('products',{batchMasterId:master.id}))}/>}
@@ -79,7 +85,7 @@ export default function V2App(){
   {view==='inventory'&&<V2InventoryWorkspace apiFetch={apiFetch}/>}
   {view==='members'&&actor.role==='admin'&&<V2MemberManager apiFetch={apiFetch} onProfileChanged={reloadActor}/>}
   </V2ViewBoundary>
- </V2Shell>{pendingLeave&&<V2DiscardDialog onCancel={cancelLeave} onDiscard={discardLeave}/>}</V2LeaveContext.Provider>;
+ </V2Shell>{pendingLeave&&<V2DiscardDialog onCancel={cancelLeave} onDiscard={discardLeave}/>}</V2LeaveContext.Provider></V2DocumentLookupContext.Provider>;
 }
 
 function CustomerRoute(props:{apiFetch:typeof fetch;onRegisterLeaveGuard:RegisterSampleLeaveGuard;onOpenDocument?(id:string):void}){

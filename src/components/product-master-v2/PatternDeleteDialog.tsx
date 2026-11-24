@@ -1,7 +1,8 @@
-import {useEffect,useRef,useState} from 'react';
+import {useContext,useEffect,useRef,useState} from 'react';
 import {RelatedProductsDialog} from './RelatedProductsDialog';
 import {useV2LeaveProtection} from './useV2LeaveProtection';
 import {v2Route} from './v2Navigation';
+import {V2DocumentLookupContext} from './useV2Identity';
 
 interface Impact{
  colorwayCount:number;
@@ -16,6 +17,7 @@ const primary='rounded bg-[#0053da] px-4 py-2 text-sm text-white';
 export function PatternDeleteDialog({apiFetch,kind,id,label,onClose,onDelete}:{
  apiFetch:typeof fetch;kind:'pattern'|'colorway';id:string;label:string;onClose():void;onDelete():Promise<void>;
 }){
+ const canQueryDocuments=useContext(V2DocumentLookupContext);
  const dialog=useRef<HTMLDialogElement>(null),closeButton=useRef<HTMLButtonElement>(null);
  const [impact,setImpact]=useState<Impact|null>(null),[checking,setChecking]=useState(true),[revision,setRevision]=useState(0);
  const [readError,setReadError]=useState(''),[deleteError,setDeleteError]=useState('');
@@ -72,6 +74,7 @@ export function PatternDeleteDialog({apiFetch,kind,id,label,onClose,onDelete}:{
   {impact&&<div className="mt-3 space-y-2 text-sm">
    {blocked?<><p className="font-medium text-amber-800">当前无法删除</p>
     {impact.productCount>0&&<p>关联 {impact.productCount} 款产品，其中 {impact.orderedProductCount} 款被单据引用。请先核对关联产品。</p>}
+    {!canQueryDocuments&&impact.orderedProductCount>0&&<p>请联系管理员核对关联单据。</p>}
     {impact.independentCardCount>0&&<p>另有 {impact.independentCardCount} 张有效色卡没有对应产品，请到色卡库核对。</p>}
    </>:<p className="text-slate-700">{kind==='pattern'
      ?'将删除整个花型及其 '+impact.colorwayCount+' 个配色。'

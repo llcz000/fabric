@@ -4,22 +4,28 @@ import React from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {act,create,type ReactTestRenderer} from 'react-test-renderer';
 import {CatalogV2Table,ProductCatalogV2} from './ProductCatalogV2';
+import {V2DocumentLookupContext} from './useV2Identity';
 import {buildCatalogUrl,emptyCatalogFilters,reduceCatalogFilters,parseCatalogPage,type CatalogProduct} from './catalogModel';
 
 const product:CatalogProduct={id:'1',productNo:'G01-1-F01',patternColorwayId:'11',fabricId:'8',masterId:'7',masterNo:'G01',colorwayNo:1,fabricNo:'F01',fabricName:'Silk',composition:null,weightValue:19.99,weightUnit:'mm',widthCm:145.01,remark:'note',isActive:true,isAvailableForSampling:true,masterActive:true,colorwayActive:true,fabricActive:true,isSelectable:true,rowVersion:'1',patternImageAssetId:null,topicTags:[],colorTags:[],imageCounts:{fabricDisplay:0,detail:0,aiEffect:0},totalImages:0};
 const page=(item:CatalogProduct)=>({items:[item],total:1,limit:50,offset:0});
-const table=(item:CatalogProduct,canManage=true)=>renderToStaticMarkup(React.createElement(CatalogV2Table,{page:page(item),canManage,patternUrls:new Map(),onPatternPreview(){},onProductImages(){},onPage(){},onCard(){}}));
+const table=(item:CatalogProduct,canManage=true,admin=true)=>renderToStaticMarkup(React.createElement(V2DocumentLookupContext.Provider,{value:admin},
+ React.createElement(CatalogV2Table,{page:page(item),canManage,patternUrls:new Map(),onPatternPreview(){},onProductImages(){},onPage(){},onCard(){}})));
 test('product row shows a current card and independent disabled/reprint states after its own remark',()=>{
  const html=table({...product,sampleCard:{id:'17',cardNo:'G01-F01',isActive:false,needsReprint:true}});
  assert.match(html,/关联色卡/);assert.match(html,/G01-F01/);assert.match(html,/需重新打印/);
  assert.ok(html.indexOf('>备注<')<html.indexOf('>关联色卡<'));assert.ok(html.indexOf('>关联色卡<')<html.indexOf('>操作<'));
  const cells=[...html.matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/g)].map(match=>match[1]);
  assert.match(cells[1],/G01-1-F01/);assert.match(cells[7],/note/);assert.match(cells[8],/G01-F01/);
+ assert.match(cells[8],/href="#\/documents\?productId=1&amp;refNo=G01-1-F01" target="_blank"/);
+ assert.match(cells[8],/>查询关联单据<\/a>/);
 });
 test('missing association has no manual creation and never labels unread data unlinked',()=>{
  assert.doesNotMatch(table({...product,sampleCard:null}),/去建色卡/);assert.match(table({...product,sampleCard:null}),/待补齐/);
  assert.doesNotMatch(table({...product,sampleCard:null},false),/去建色卡/);
  assert.match(table(product),/关联待读取/);
+ assert.match(table({...product,sampleCard:null,hasOrderReference:false},false),/>查询关联单据<\/a>/);
+ assert.doesNotMatch(table({...product,sampleCard:null,hasOrderReference:true},true,false),/查询关联单据/);
 });
 test('association selection resets paging and is carried to list/export URL',()=>{
  const value=reduceCatalogFilters({...emptyCatalogFilters,productNo:' G01 ',fabricName:'Silk',offset:50},{type:'cardAssociation',value:'unlinked'});

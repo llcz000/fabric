@@ -1,6 +1,8 @@
-import {useCallback,useEffect,useMemo,useRef,useState,type FormEvent} from 'react';
+import {createContext,useCallback,useEffect,useMemo,useRef,useState,type FormEvent} from 'react';
 import {createV2LoginStore,V2_LOGIN_KEY} from './v2LoginStorage';
 import {v2AuthenticatedFetch} from './v2AppModel';
+
+export const V2DocumentLookupContext=createContext(false);
 
 /** Owns login storage and request identity. An old request can never expire a newer token. */
 export function useV2Identity(){

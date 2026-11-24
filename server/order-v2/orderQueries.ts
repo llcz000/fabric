@@ -73,6 +73,7 @@ function array(value:unknown):Row[]{
 }
 function where(actor:AppPrincipal|null|undefined,filters:Partial<ScopedOrderFilters>,itemAlias?:'i',customerProfilesEnabled=false){
  const scoped=scopeOrdersQuery(actor);
+ if(filters.productId&&actor?.role!=='admin')throw new OrderSearchError('仅管理员可查询关联单据。',403);
  const parts=[scoped.predicate],args:unknown[]=[...scoped.parameters];
  if(filters.orderNo){parts.push("o.order_no LIKE ? ESCAPE '\\\\'");args.push(escapeLike(filters.orderNo));}
  if(filters.customer){parts.push(orderCustomerNameSql(customerProfilesEnabled)+" LIKE ? ESCAPE '\\\\'");args.push(escapeLike(filters.customer));}

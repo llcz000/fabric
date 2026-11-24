@@ -1,7 +1,8 @@
-import React,{useEffect,useRef,useState} from 'react';
+import React,{useContext,useEffect,useRef,useState} from 'react';
 import {X} from 'lucide-react';
 import {parseCatalogPage,resolveImageUrls,type CatalogPage} from './catalogModel';
 import {v2Route} from './v2Navigation';
+import {V2DocumentLookupContext} from './useV2Identity';
 export type RelatedProductSource={kind:'pattern'|'fabric'|'colorway';id:string;label:string};
 const text=(value:string|null|undefined)=>value?.trim()||'未填写';
 function RelatedPatternThumbnail({url,number,pending,hasImage,onError}:{url?:string;number:string;pending:boolean;hasImage:boolean;onError():void}){
@@ -16,6 +17,7 @@ function RelatedPatternThumbnail({url,number,pending,hasImage,onError}:{url?:str
 }
 
 export function RelatedProductsDialog({apiFetch,source,onClose,showActions=false}:{apiFetch:typeof fetch;source:RelatedProductSource;onClose():void;showActions?:boolean}){
+ const canQueryDocuments=useContext(V2DocumentLookupContext);
  const dialog=useRef<HTMLDialogElement>(null);
  const [offset,setOffset]=useState(0),[retry,setRetry]=useState(0);
  const [data,setData]=useState<CatalogPage|null>(null),[error,setError]=useState('');
@@ -97,9 +99,9 @@ export function RelatedProductsDialog({apiFetch,source,onClose,showActions=false
         <div tabIndex={0} aria-label="面料信息，可左右滚动" title={fabricInfo}
          className="overflow-x-auto whitespace-nowrap text-xs leading-5 [scrollbar-width:thin] focus-visible:outline-2 focus-visible:outline-[#346ef6]">{fabricInfo}</div>
         {showActions&&<div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs">
-         {item.hasOrderReference?<a target="_blank" rel="noopener" className="font-medium text-[#0053da] underline"
+         {item.hasOrderReference&&canQueryDocuments?<a target="_blank" rel="noopener" className="font-medium text-[#0053da] underline"
           href={v2Route('documents',{productId:item.id,refNo:item.productNo})}>查看关联单据</a>:
-          <span className="text-slate-600">{item.hasOrderReference===false?'未被单据引用':'单据关联待确认'}</span>}
+          <span className="text-slate-600">{item.hasOrderReference===true?'请联系管理员核对关联单据':item.hasOrderReference===false?'未被单据引用':'单据关联待确认'}</span>}
          <a target="_blank" rel="noopener" className="text-[#0053da] underline"
           href={v2Route('products',{productId:item.id,refNo:item.productNo,status:'all'})}>去产品库处理</a>
         </div>}

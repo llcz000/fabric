@@ -2,13 +2,14 @@ import {ActionIcon} from './ActionIcon';
 import {CatalogExportButton} from './CatalogExportButton';
 import {useV2LeaveProtection} from './useV2LeaveProtection';
 import {readV2Route,v2Route} from './v2Navigation';
-import React,{useEffect,useRef,useState,useCallback} from 'react';
+import React,{useEffect,useRef,useState,useCallback,useContext} from 'react';
+import {V2DocumentLookupContext} from './useV2Identity';
 import {Image as ImageIcon,Plus,Search,X,Images,RotateCcw} from 'lucide-react';
 import {LibraryPagination} from './LibraryPagination';
 import {ProductImageTabs,type CatalogImageResolver} from './ProductImageTabs';
 import {ProductTryOnDialog} from './ProductTryOnDialog';
 import {SampleCardPatternsDialog} from './SampleCardPatternsDialog';
-import type {CatalogFilters,CatalogOrderStatus,CatalogPage,CatalogProduct} from './catalogModel';
+import type {CatalogFilters,CatalogPage,CatalogProduct} from './catalogModel';
 import {
  emptyCatalogFilters,reduceCatalogFilters,fetchCatalogPage,buildCatalogUrl,
  resolveImageUrls,getCatalogProductImages,createLatestRequestGuard
@@ -18,13 +19,12 @@ import {buildColumnVisibility,nextSortState,readColumnVisibility,sortRows,toggle
 import {ColumnSettingsMenu,SortableHeader} from './LibraryTableChrome';
 
 /** 逐列列宽（px）。仅品名自适应；成分与备注固定宽度，避免长成分遮挡克重。 */
-const columnWidths=[72,120,88,0,210,110,88,140,112,110,176] as const;
+const columnWidths=[72,120,0,210,110,88,140,112,110,176] as const;
 
 /** P1-8 列定义：顺序与 columnWidths 下标一一对应。 */
 const productColumns:LibraryColumn<CatalogProduct>[]=[
  {key:'image',label:'花型图',locked:true},
  {key:'productNo',label:'货号',sortable:true,value:row=>row.productNo},
- {key:'orderStatus',label:'开单状态'},
  {key:'fabricName',label:'品名',sortable:true,value:row=>row.fabricName??''},
  {key:'composition',label:'成分',sortable:true,value:row=>row.composition??''},
  {key:'weight',label:'克重',sortable:true,value:row=>row.weightValue},
@@ -56,6 +56,7 @@ export interface CatalogV2TableProps{
 export function CatalogV2Table({
   page,patternUrls,onPatternPreview,onProductImages,onPage,canManage=false,onEdit,onDeleteRequest,onRemark,onShare,onCard,onTryOn,updating=false,numberSort,onNumberSort
 }:CatalogV2TableProps){
+ const canQueryDocuments=useContext(V2DocumentLookupContext);
  const [sort,setSort]=useState<SortState|null>(null);
  const [visibility,setVisibility]=useState(()=>readColumnVisibility(productColumns,PRODUCT_COLUMN_KEY));
  const shown=visibleColumns(productColumns,visibility);
@@ -63,7 +64,7 @@ export function CatalogV2Table({
  const headerSort=sort??(numberSort?{key:'productNo',direction:numberSort==='numberAsc'?'asc' as const:'desc' as const}:null);
  const widthOf=(key:string)=>{
   const index=productColumns.findIndex(c=>c.key===key);
-  const width=index>=0?columnWidths[index]:0;
+  const width=key==='card'&&canQueryDocuments?198:index>=0?columnWidths[index]:0;
   return width?{width:width+'px'}:undefined;
  };
  const toggleSort=(key:string)=>{
@@ -94,12 +95,6 @@ export function CatalogV2Table({
       aria-label={product.patternImageAssetId?'图片暂不可用':'待上传花型图'}>{product.patternImageAssetId?'图片不可用':'待上传'}</span>}
    </td>;
    case 'productNo':return <td className="px-3 py-2 font-semibold text-[#003ea7]">{product.productNo}</td>;
-   case 'orderStatus':return <td className="whitespace-nowrap px-3 py-2 text-center">
-    {product.hasOrderReference===true
-     ?<a href={v2Route('documents',{productId:product.id,refNo:product.productNo})} target="_blank" rel="noopener"
-       title="查看关联单据" className="rounded bg-amber-50 px-2 py-1 text-amber-800 underline">已开单</a>
-     :<span className="text-slate-600">{product.hasOrderReference===false?'未开单':'待查询'}</span>}
-   </td>;
    case 'fabricName':return <td className="px-3 py-2">{display(product.fabricName)}</td>;
    case 'composition':return <td className="min-w-0 px-3 py-2">
     <span className="block min-w-0 truncate" title={product.composition??undefined}>{display(product.composition)}</span>
@@ -116,14 +111,20 @@ export function CatalogV2Table({
      product.remark.trim()?<span title={product.remark} className="block min-w-0 max-w-full truncate">{product.remark}</span>:
      <span className="text-slate-400">—</span>}
    </td>;
-   case 'card':return <td className="whitespace-nowrap px-3 py-2">
-    {product.sampleCard?<>
-     {onCard?<button type="button" disabled={updating} className="text-[#0053da] underline" onClick={()=>onCard(product)} aria-label={'查看关联色卡 '+product.sampleCard.cardNo}>{product.sampleCard.cardNo}</button>:<span>{product.sampleCard.cardNo}</span>}
-     
-     {product.sampleCard.needsReprint&&<span className="mt-1 block text-[11px] text-amber-700">需重新打印</span>}
-    </>:product.sampleCard===null?<>
-     <span className="text-slate-500">色卡待补齐</span>
-    </>:<span className="text-slate-500">关联待读取</span>}
+   case 'card':return <td className="px-3 py-2">
+    <div className="flex items-center justify-between gap-2 whitespace-nowrap">
+     <div className="min-w-0">
+      {product.sampleCard?<>
+       {onCard?<button type="button" disabled={updating} className="block max-w-full truncate text-left text-[#0053da] underline"
+        title={product.sampleCard.cardNo} onClick={()=>onCard(product)} aria-label={'查看关联色卡 '+product.sampleCard.cardNo}>{product.sampleCard.cardNo}</button>:
+        <span className="block truncate" title={product.sampleCard.cardNo}>{product.sampleCard.cardNo}</span>}
+       {product.sampleCard.needsReprint&&<span className="mt-1 block text-[11px] text-amber-700">需重新打印</span>}
+      </>:<span className="text-slate-500">{product.sampleCard===null?'色卡待补齐':'关联待读取'}</span>}
+     </div>
+     {canQueryDocuments&&<a href={v2Route('documents',{productId:product.id,refNo:product.productNo})} target="_blank" rel="noopener"
+      aria-label={'查询关联单据 '+product.productNo}
+      className="inline-flex shrink-0 items-center rounded text-slate-600 underline underline-offset-2 hover:text-[#0053da] focus-visible:outline-2 focus-visible:outline-[#346ef6] max-md:min-h-11">查询关联单据</a>}
+    </div>
    </td>;
    case 'actions':return <td className="col-actions px-3 py-2 text-center"><div className="inline-flex items-center gap-2 whitespace-nowrap">
     <button type="button" disabled={updating} className="v2-icon-button" title="查看产品图"
@@ -153,7 +154,7 @@ export function CatalogV2Table({
     <colgroup>{shown.map(column=><col key={column.key} style={widthOf(column.key)}/>)}</colgroup>
     <thead><tr className="border-b border-[#c3c6d7] bg-[#f3f4fa] text-[#434655]">
      {shown.map(column=><SortableHeader key={column.key} column={column} sort={headerSort} onSort={toggleSort}
-      className={'px-3 py-3 font-medium '+(['image','images','orderStatus'].includes(column.key)?'text-center ':'')+(column.key==='actions'?'col-actions':'')}/>)}
+      className={'px-3 py-3 font-medium '+(['image','images'].includes(column.key)?'text-center ':'')+(column.key==='actions'?'col-actions':'')}/>)}
     </tr></thead>
      <tbody>
     {rows.map(product=>
@@ -201,6 +202,7 @@ function ImageDialog({
 export function CatalogDeleteConfirmation({product,onCancel,onConfirm,busy=false,error='',orderBlocked=false}:{
  product:CatalogProduct;onCancel():void;onConfirm():void;busy?:boolean;error?:string;orderBlocked?:boolean;
 }){
+ const canQueryDocuments=useContext(V2DocumentLookupContext);
  const cancel=useRef<HTMLButtonElement>(null),dialog=useRef<HTMLDialogElement>(null),latest=useRef({busy,onCancel});
  latest.current={busy,onCancel};
  useEffect(()=>{
@@ -228,8 +230,9 @@ export function CatalogDeleteConfirmation({product,onCancel,onConfirm,busy=false
    {error&&<p role="alert" className="mt-3 text-sm text-rose-700">{error}</p>}
    {orderBlocked&&<>
     {!error&&<p className="mt-3 text-sm text-slate-700">该产品仍被已保存单据引用。</p>}
-    <a href={v2Route('documents',{productId:product.id,refNo:product.productNo})}
-     target="_blank" rel="noopener" className="mt-3 inline-block text-sm text-[#0053da] underline">查看关联单据</a>
+    {canQueryDocuments?<a href={v2Route('documents',{productId:product.id,refNo:product.productNo})}
+     target="_blank" rel="noopener" className="mt-3 inline-block text-sm text-[#0053da] underline">查看关联单据</a>:
+     <p className="mt-3 text-sm text-slate-700">请联系管理员核对关联单据。</p>}
    </>}
    <div className="mt-5 flex justify-end gap-2">
     <button ref={cancel} type="button" disabled={busy} onClick={onCancel} className="rounded border border-slate-300 px-4 py-2 text-sm"><ActionIcon name="close"/>{orderBlocked?'关闭':'取消'}</button>
@@ -257,10 +260,9 @@ export function ProductCatalogV2({apiFetch,canManage=false,allowExport=true,onCr
   const offset=Number(q.get('offset')??0),limit=Number(q.get('limit')??50);
    const association=q.get('cardAssociation');
    const sort=q.get('sort');
-   const orderStatus=q.get('orderStatus');
    const id=q.get('productId')??'';
    const productId=/^[1-9]\d{0,19}$/.test(id)&&BigInt(id)<=18446744073709551615n?id:undefined;
-   return {...emptyCatalogFilters,productId,sort:sort==='numberAsc'||sort==='numberDesc'?sort:undefined,productNo:q.get('productNo')??'',fabricName:q.get('fabricName')??'',cardAssociation:association==='linked'||association==='unlinked'?association:'all',orderStatus:orderStatus==='ordered'||orderStatus==='unordered'?orderStatus:'all',status:q.get('status')==='all'?'all':'active',offset:Number.isSafeInteger(offset)&&offset>=0?offset:0,limit:Number.isInteger(limit)&&limit>0&&limit<=100?limit:50};
+   return {...emptyCatalogFilters,productId,sort:sort==='numberAsc'||sort==='numberDesc'?sort:undefined,productNo:q.get('productNo')??'',fabricName:q.get('fabricName')??'',cardAssociation:association==='linked'||association==='unlinked'?association:'all',status:q.get('status')==='all'?'all':'active',offset:Number.isSafeInteger(offset)&&offset>=0?offset:0,limit:Number.isInteger(limit)&&limit>0&&limit<=100?limit:50};
  });
  useEffect(()=>{if(typeof window!=='undefined'&&readV2Route(window.location.hash).view==='products'){
   const query=buildCatalogUrl('/api/v2/products',filters).split('?')[1];
@@ -269,6 +271,7 @@ export function ProductCatalogV2({apiFetch,canManage=false,allowExport=true,onCr
  const [page,setPage]=useState<CatalogPage|null>(null),[busy,setBusy]=useState(false);
  const [failure,setFailure]=useState(''),[retry,setRetry]=useState(0);
  useEffect(()=>{
+  if(typeof window==='undefined')return;
   const reload=()=>setRetry(n=>n+1);
   window.addEventListener('focus',reload);
   return()=>window.removeEventListener('focus',reload);
@@ -372,12 +375,6 @@ export function ProductCatalogV2({apiFetch,canManage=false,allowExport=true,onCr
       <option value="all">全部</option><option value="linked">已关联</option><option value="unlinked">未关联</option>
      </select>
     </label>
-    <label className="inline-flex items-center gap-1.5 whitespace-nowrap">开单状态
-     <select aria-label="开单状态" value={filters.orderStatus??'all'} onChange={e=>dispatch({type:'orderStatus',value:e.target.value as CatalogOrderStatus})} className="h-8 rounded-lg border border-[#c3c6d7] bg-white px-2">
-      <option value="all">全部</option><option value="ordered">已开单</option><option value="unordered">未开单</option>
-     </select>
-    </label>
-    
    <button type="button" onClick={()=>dispatch({type:'reset'})}
     className="inline-flex items-center gap-1 rounded px-2 py-1.5 text-[#0053da] hover:bg-[#eef1fd]"><RotateCcw size={13}/>清空筛选</button>
 

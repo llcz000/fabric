@@ -131,7 +131,7 @@ test('P4-4 image access request uses real asset IDs and short-lived signed URLs 
  assert.equal((await resolveImageUrls(fetcher,[],'original')).size,0);
  await assert.rejects(resolveImageUrls(fetcher,['not-valid'],'original'));
 });
-test('P4-4 product table shows order status alongside product-owned remark, name and specs',()=>{
+test('P4-4 product table keeps product-owned remark, name and specs without an order status column',()=>{
  const html=renderToStaticMarkup(React.createElement(CatalogV2Table,{
   page:{items:[fake,{...fake,id:'54',patternImageAssetId:null,remark:'',weightValue:null,
    weightUnit:null,widthCm:null,composition:null}],total:2,limit:50,offset:0},
@@ -139,7 +139,7 @@ test('P4-4 product table shows order status alongside product-owned remark, name
   onPatternPreview:()=>{},onProductImages:()=>{},onRemark:()=>{},onPage:()=>{},canManage:true,onEdit:()=>{}
  }));
  const headers=Array.from(html.matchAll(/<th\b[^>]*>([\s\S]*?)<\/th>/g)).map(x=>x[1].replace(/<[^>]+>/g,'').trim());
- assert.deepEqual(headers,['花型图','货号','开单状态','品名','成分','克重','门幅 / cm',
+ assert.deepEqual(headers,['花型图','货号','品名','成分','克重','门幅 / cm',
   '图片数量','备注','关联色卡','操作']);
  assert(html.includes('100% 真丝')&&html.includes('16.5 mm')&&html.includes('145'));
  assert(html.includes('G017-2-F018')&&html.includes('轻柔雪纺'));
@@ -168,6 +168,7 @@ test('P4-4 isolated React page: filters two inputs, status, no tag filters, load
  assert(!html.includes('包含停用')&&html.includes('清空筛选'));
  assert(html.includes('产品库')&&html.includes('新增产品'));assert(html.includes('导出筛选结果'));
  assert(!html.includes('审核状态')&&!html.includes('克重筛选'));
+ assert(!html.includes('aria-label="开单状态"'));
  const readOnly=renderToStaticMarkup(React.createElement(ProductCatalogV2,{apiFetch:fetch,canManage:false}));
  assert(!readOnly.includes('新增产品')&&!readOnly.includes('删除产品'));
 });

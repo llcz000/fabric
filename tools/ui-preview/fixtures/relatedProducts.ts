@@ -27,7 +27,8 @@ export async function relatedProductsPreview(url:URL,init?:RequestInit):Promise<
    isActive:true,isAvailableForSampling:true,masterActive:true,colorwayActive:true,fabricActive:true,isSelectable:true,
    rowVersion:'1',patternImageAssetId:location.search.includes('linkedImages=1')&&i!==4?relatedImageId(masterId):null,topicTags:[],colorTags:[],
    imageCounts:{fabricDisplay:0,detail:0,aiEffect:0},totalImages:0,
-   hasOrderReference:previewOrderReferences.has(String(i+1))};
+   hasOrderReference:previewOrderReferences.has(String(i+1)),
+   ...(location.search.includes('orderStatusReview=1')?{sampleCard:i===0?{id:'76',cardNo:'G0076-F018',isActive:true,needsReprint:true}:null}:{})};
  });
  if(location.search.includes('sorting=1')){
   const template=items[0];

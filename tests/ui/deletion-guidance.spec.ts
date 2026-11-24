@@ -3,6 +3,18 @@ import {test,expect} from '@playwright/test';
 
 const path='/tools/ui-preview/entries/ui-ux-internal-patterns.html?deletion-review=1';
 const proof='artifacts/deletion-guidance/';
+test('sales can check deletion blockers without opening related documents',async({page})=>{
+ await page.goto(path+'&sales=1');
+ await page.getByRole('button',{name:'删除花型 G0076',exact:true}).click();
+ const decision=page.getByRole('alertdialog',{name:'删除花型确认'});
+ await expect(decision).toContainText('请联系管理员核对关联单据。');
+ await decision.getByRole('button',{name:'查看关联产品'}).click();
+ const products=page.getByRole('dialog',{name:'花型关联产品 G0076'});
+ await expect(products.getByText('请联系管理员核对关联单据',{exact:true})).toBeVisible();
+ await expect(products.getByRole('link',{name:'查看关联单据'})).toHaveCount(0);
+ await expect(products.getByRole('link',{name:'去产品库处理'}).first()).toBeVisible();
+ await page.screenshot({path:'artifacts/product-document-query/pattern-sales.png'});
+});
 test('blocked pattern deletion leads to the exact product and its documents',async({page})=>{
  page.on('pageerror',error=>{throw error;});
  await page.goto(path);
