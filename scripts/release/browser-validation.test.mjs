@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import {selectBrowserValidation,executeBrowserValidation} from './browser-validation.mjs';
+import {selectBrowserValidation,executeBrowserValidation,deletionGuidanceReviewedFiles} from './browser-validation.mjs';
 
 const gallery='src/components/product-master-v2/ModelGalleryV2.tsx';
 const fabric='src/components/product-master-v2/FabricLibraryV2.tsx';
@@ -162,6 +162,40 @@ test('the document print scope registration can ship with the exact reviewed fix
 test('duplicate manifests fail closed instead of hiding changed ownership',()=>{
  const ctx=context([gallery]);ctx.current.files.push({...ctx.current.files[0]});
  assert.throws(()=>selectBrowserValidation(ctx),/duplicate/);
+});
+test('deletion guidance registration is bound to the reviewed production baseline and bytes',()=>{
+ const files=Object.keys(deletionGuidanceReviewedFiles);
+ const tools=['scripts/release/browser-validation.mjs','scripts/release/browser-validation.test.mjs'];
+ const required=['tests/ui/deletion-guidance.spec.ts','tests/ui/catalog-number-sort.spec.ts',
+  'tests/ui/related-products.spec.ts','tests/ui/document-delete.spec.ts',...smoke];
+ const units=['server/product-master/catalogExport.test.ts','server/product-master/productsV2.test.ts','server/product-master/productProtection.test.ts',
+  'server/product-master/patternDeletion.test.ts','server/product-master/colorwayIdentity.test.ts',
+  'server/product-master/v2CatalogAssembly.test.ts','src/components/product-master-v2/PatternLibraryV2.test.ts',
+  'src/components/product-master-v2/patternBulkImportModel.test.ts','src/components/document-product-selector/documentSearchModel.test.ts',
+  'src/components/document-product-selector/V2DocumentBrowser.test.ts'];
+ const options={quickUi:true,baselineReleaseId:'20261117t142934116-1e66c997'};
+ const candidate=(extra={})=>{
+  const ctx=context([...files,...tools],{...options,...extra});
+  for(const file of ctx.current.files)if(deletionGuidanceReviewedFiles[file.path])file.sha256=deletionGuidanceReviewedFiles[file.path];
+  ctx.previous.files=ctx.previous.files.filter(f=>f.path!=='tests/ui/deletion-guidance.spec.ts');
+  for(const p of units)if(!ctx.current.files.some(f=>f.path===p))for(const side of ['current','previous'])ctx[side].files.push({path:p,sha256:'old'});
+  return ctx;
+ };
+ const result=selectBrowserValidation(candidate());
+ assert.equal(result.mode,'scoped');
+ assert.equal(result.reason,'reviewed-deletion-guidance-registration');
+ assert.deepEqual(result.specs,required.sort());
+ for(const p of ['server/order-v2/orderQueries.test.ts','server/product-master/p7MediaOrderLifecycle.test.ts'])assert(result.unitFiles.includes(p));
+ for(const extra of [{baselineReleaseId:'other-baseline'},{migrations:['product-auto-cards']},{fullUi:true}]){
+  assert.throws(()=>selectBrowserValidation(candidate(extra)),/quick-ui/);
+ }
+ assert.equal(selectBrowserValidation(candidate({quickUi:false})).mode,'full');
+ const changed=candidate();changed.current.files.find(f=>f.path==='scripts/release/remote.py').sha256='another-executor';
+ assert.throws(()=>selectBrowserValidation(changed),/quick-ui/);
+ const missing=candidate();missing.current.files=missing.current.files.filter(f=>f.path!=='tests/ui/mobile-library-actions.spec.ts');
+ assert.throws(()=>selectBrowserValidation(missing),/quick-ui/);
+ const unknown=candidate();unknown.current.files.push({path:'server/unknown.ts',sha256:'new'});
+ assert.throws(()=>selectBrowserValidation(unknown),/quick-ui/);
 });
 
 function reportFor(specs,root){return JSON.stringify({config:{rootDir:path.join(root,'tests/ui')},errors:[],
