@@ -118,3 +118,18 @@ test('product image category reuse requires its registered schema migration befo
  assert.throws(()=>requireProductImageCategoryReuseMigration(['server/product-master/productsV2.ts'],[]),/requires/);
  assert.doesNotThrow(()=>requireProductImageCategoryReuseMigration(['server/product-master/productsV2.ts'],['product-image-category-reuse']));
 });
+
+test('read-only plan accepts the migration and quick-check options used by preparation',()=>{
+ const options=['--quick-ui','--migrations','product-auto-cards,product-image-category-reuse','--rehearse'];
+ assert.deepEqual(parseArgs(['plan',...options]).migrations,parseArgs(['prepare',...options]).migrations);
+ assert.equal(parseArgs(['plan',...options]).quickUi,true);
+ assert.equal(parseArgs(['plan',...options]).rehearse,true);
+ assert.throws(()=>parseArgs(['plan','--from-release','old.json']));
+});
+
+test('a stopped preparation with no frozen run is shown as interrupted',()=>fixture(dir=>{
+ const id='interrupted';
+ fs.writeFileSync(path.join(dir,'prepare-progress.json'),JSON.stringify({id,stage:'uiBrowserTests',status:'running',
+  ownerPid:2147483647,startedAt:new Date(1000).toISOString()}));
+ assert.equal(releaseCore.readReleaseProgress(dir,id,5000).status,'interrupted');
+}));

@@ -7,8 +7,11 @@ import path from 'node:path';
 
 const root=process.cwd();
 const isTest=process.env.FABRIC_UI_UX_MODE==='test';
-const port=isTest?52992:52991;
-const site=path.join(root,'artifacts','ui-ux-pilot',isTest?'site-test':'site');
+const runId=isTest?process.env.FABRIC_UI_UX_RUN_ID:undefined;
+if(runId&&!/^[a-z0-9][a-z0-9_-]{0,63}$/.test(runId))throw Error('Invalid local browser preview run ID');
+const port=Number(isTest?process.env.FABRIC_UI_UX_PORT??52992:52991);
+if(!Number.isInteger(port)||port<1024||port>65535)throw Error('Invalid local browser preview port');
+const site=path.join(root,'artifacts','ui-ux-pilot',isTest?runId?'site-test-'+runId:'site-test':'site');
 const origin='http://127.0.0.1:'+port;
 await build({configFile:path.join(root,'vite.config.ts'),base:'/',
  build:{outDir:site,emptyOutDir:true,copyPublicDir:false,

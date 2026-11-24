@@ -1,6 +1,8 @@
 import {relatedProductsPreview,relatedProductImagesPreview,markPreviewProductOrdered} from './fixtures/relatedProducts';
 import {FabricProductsDialog} from '../../src/components/product-master-v2/FabricProductsDialog';
 import {ProductCatalogV2} from '../../src/components/product-master-v2/ProductCatalogV2';
+import {ProductEditorV2} from '../../src/components/product-master-v2/ProductEditorV2';
+import {uploadImageAsset} from '../../src/lib/imageAssets';
 import {FabricImportV2} from '../../src/components/product-master-v2/FabricImportV2';
 import importPreview from './fixtures/fabricImportReview.json';
 import React,{useState} from 'react';
@@ -48,7 +50,9 @@ function Screen(){
  const [message,setMessage]=useState('');
  const [linked,setLinked]=useState<FabricCatalogItem|null>(null);
  return <div className="v2-shell"><ConfirmProvider>
-  {location.search.includes('products=1')?<ProductCatalogV2 apiFetch={apiFetch} canManage allowExport={false} onEdit={item=>setMessage('编辑 '+item.productNo)}
+  {new URLSearchParams(location.search).has('imageUpload')?<ProductEditorV2 mode="edit" productId="1" apiFetch={fetch} canManage
+   onCancel={()=>{}} onSaved={()=>setMessage('产品图片已保存')}
+   onUploadImage={async file=>(await uploadImageAsset(file,'product_image',{apiFetch:fetch})).id}/>:location.search.includes('products=1')?<ProductCatalogV2 apiFetch={apiFetch} canManage allowExport={false} onEdit={item=>setMessage('编辑 '+item.productNo)}
    onDeleteRequest={location.search.includes('orderStatusReview=1')?async item=>{
     markPreviewProductOrdered(item.id);
     throw Object.assign(Error('该产品仍被已保存单据引用，无法删除。'),{status:409,code:'ORDER_REFERENCE'});

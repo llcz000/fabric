@@ -8,7 +8,7 @@ import {randomBytes,pbkdf2Sync,createDecipheriv,createHash} from 'node:crypto';
 import {migrationIds,parseArgs,validateProfile,hash,collectBrowserFiles,verifyFiles,assertWritable,runPhases,phasePlan,assertPublishedEvidence,releaseTimingReport,readReleaseProgress,recordRollbackReceipt,requireBusinessSimplificationMigration,requireProductCardsMigration,requireModelGalleryMigration,requireProductImageCategoryReuseMigration} from './core.mjs';
 import {reviewContext} from './ui-quality-gate.mjs';
 import {seal as sealUiWorkflow,verify as verifyUiWorkflow} from '../ui-workflow-gate.mjs';
-import {syncVerifiedPointer} from './source-automation.mjs';
+import {reviewedSourceDiff,syncVerifiedPointer} from './source-automation.mjs';
 import {selectBrowserValidation,executeBrowserValidation,runBrowserWithProgress} from './browser-validation.mjs';
 import {verifyPublishedWorkspace} from '../fabric-workspace.mjs';
 
@@ -58,14 +58,27 @@ function checkHttpContract(dir){
  processRun(process.execPath,['--input-type=module','-e',"import {build} from 'esbuild';await build({entryPoints:['scripts/release/http-contract-check.ts'],outfile:process.argv[1],bundle:true,platform:'node',format:'cjs',target:'node20'});",checker],{log:path.join(dir,'http-contract-build.log')});
  return JSON.parse(processRun(process.execPath,[checker,'--run-release-http-contract'],{log:path.join(dir,'http-contract-check.log')}));
 }
+const candidateMigrationGuards=[requireBusinessSimplificationMigration,requireProductCardsMigration,
+ requireProductImageCategoryReuseMigration,requireModelGalleryMigration,requireSampleCardReviewMigration,
+ requireSampleContactMigration,requireSampleContactIdentityMigration];
+function migrationRequirements(changed,migrations){
+ return candidateMigrationGuards.flatMap(check=>{try{check(changed,migrations);return [];}catch(e){return [e.message];}});
+}
 function prepare(){
  const sourceGit=verifyPublishedWorkspace(root);
  if(!fs.existsSync(baselinePath))throw Error('Initialize a verified baseline first: baseline --evidence <release-result.json>');
+ const baseline=json(baselinePath),pointer=json('docs/project/fabric-v2-active-workspace.json');
+ const candidate=args.fromRelease?null:reviewContext({pointer,baseline});
+ const missingMigrations=candidate?migrationRequirements(candidate.changed,args.migrations):[];
+ if(missingMigrations.length)throw Error(missingMigrations.join(' | '));
+ const plannedBrowser=candidate&&!args.reusePrintReview?selectBrowserValidation({...candidate,...args}):null;
+ if(plannedBrowser?.mode==='full'&&!args.fullUi)
+  throw Error('Browser scope requires confirmation before preparation. Register impact or explicitly pass --full-ui: '+JSON.stringify(plannedBrowser));
  const id=args.id??new Date().toISOString().replace(/[-:.]/g,'').toLowerCase().replace('z','')+'-'+randomBytes(4).toString('hex');
  const dir=path.join(root,'artifacts/releases',id);if(fs.existsSync(dir))throw Error('Release ID already exists; use status/run/resume');fs.mkdirSync(dir,{recursive:true});
  const start=Date.now(),releaseStartedAt=new Date(start).toISOString();
  let stage='prepare',stageStarted=start;
- const progress=(status,extra={})=>write(path.join(dir,'prepare-progress.json'),{id,stage,status,startedAt:new Date(stageStarted).toISOString(),releaseStartedAt,...extra});
+ const progress=(status,extra={})=>write(path.join(dir,'prepare-progress.json'),{id,stage,status,ownerPid:process.pid,startedAt:new Date(stageStarted).toISOString(),releaseStartedAt,...extra});
  progress('running');console.log(JSON.stringify({id,stage,status:'running',progressCommand:'node scripts/release/cli.mjs progress '+id}));
  try{
  let sourcePath=json('docs/project/fabric-v2-active-workspace.json').sourceManifest;if(typeof sourcePath!=='string'||sourcePath.includes('..')||path.isAbsolute(sourcePath))throw Error('Unsafe source manifest pointer');
@@ -74,12 +87,14 @@ function prepare(){
   const result=run(),durationMs=Date.now()-stageStarted;preparation[name]=(preparation[name]??0)+durationMs;
   progress('passed',{durationMs});return result;
  };
- const baseline=json(baselinePath),reuse=args.fromRelease?publishedSource(args.fromRelease,baseline):null;let before,source,localHttpContract,uiReport,uiQualityGate={required:false},browserValidation={mode:'reused',reason:'verified-published-artifact-reuse'};
+ const reuse=args.fromRelease?publishedSource(args.fromRelease,baseline):null;let before,source,localHttpContract,uiReport,uiQualityGate={required:false},browserValidation={mode:'reused',reason:'verified-published-artifact-reuse'};
  if(!reuse)timed('uiStandards',()=>processRun(process.execPath,['scripts/ui-workflow-gate.mjs','preflight'],{log:path.join(dir,'ui-standards.log')}));
  if(reuse){if(args.quickUi)throw Error('Quick UI verification is only available for a reviewed new source build');sourcePath=reuse.sourcePath;source=json(sourcePath);before=toolInputs();timed('source',()=>migrationSource(source,['server','src']));localHttpContract=timed('httpContract',()=>checkHttpContract(dir));write(path.join(dir,'source.log.json'),{application:'verified-published-artifact',evidenceSha256:reuse.evidenceSha256,businessWorkingTreeValidated:true,toolInputs:before});}
  else{timed('source',()=>processRun(process.execPath,['scripts/check-fabric-v2-development-source.mjs'],{log:path.join(dir,'source.log')}));source=json(sourcePath);const sourceSha=hash(fs.readFileSync(sourcePath));before=snapshot(source);
-  const pointer=json('docs/project/fabric-v2-active-workspace.json');
-  const candidate=reviewContext({pointer,baseline});
+  const checkSource=name=>timed(name,()=>{
+   processRun(process.execPath,['scripts/check-fabric-v2-development-source.mjs'],{log:path.join(dir,name+'.log')});
+   if(hash(fs.readFileSync(sourcePath))!==sourceSha||JSON.stringify(snapshot(source))!==JSON.stringify(before))throw Error('Candidate source changed during preparation');
+  });
   const uiOptions={root,active:root,pointer};
   const reviewed=timed('uiWorkflow',()=>sealUiWorkflow(uiOptions));
   if(reviewed.sourceManifestSha256!==sourceSha)throw Error('Candidate source changed during UI review');
@@ -89,15 +104,6 @@ function prepare(){
    uiQualityGate={required:true,page:reviewed.page,reviewer:reviewed.reviewer,uiFiles:reviewed.changedUiFiles,
     sourceSha256:sourceSha,baselineReleaseId:candidate.baselineReleaseId,screenshots:reviewed.screenshots,reportSha256:reviewed.reportSha256};
   }
-  requireBusinessSimplificationMigration(candidate.changed,args.migrations);
-  requireProductCardsMigration(candidate.changed,args.migrations);
-  requireProductImageCategoryReuseMigration(candidate.changed,args.migrations);
-  requireModelGalleryMigration(candidate.changed,args.migrations);
-  requireSampleCardReviewMigration(candidate.changed,args.migrations);
-  requireSampleContactMigration(candidate.changed,args.migrations);
-  requireSampleContactIdentityMigration(candidate.changed,args.migrations);
-  if(!args.reuseImageReview&&candidate.changed.some(name=>/^(?:server\/product-master\/(?:schema|fabrics|fabricExcelImport|fabricExcelPreview|fabricNumberSchema)\.ts)$/.test(name)))
-   timed('fabricValidation',()=>processRun(process.execPath,['scripts/run-ts-tests.mjs','server/product-master/fabricNumberSchema.test.ts','server/product-master/fabrics.test.ts','server/product-master/fabricExcelPreview.test.ts','server/product-master/fabricExcelImport.test.ts'],{log:path.join(dir,'fabric-validation.log')}));
   if(args.reusePrintReview){
    const reviewedCommit='d70a4d6abfe88a05b95046557cac014aa6ee52b7';
    const releaseChanges=new Set(['scripts/release/cli.mjs','scripts/release/core.mjs','docs/operations/统一发布工具.md']);
@@ -109,29 +115,18 @@ function prepare(){
    browserValidation={version:1,baselineReleaseId:candidate.baselineReleaseId,candidateManifestSha256:sourceSha,
     changedFiles:candidate.changed,mode:'none',reason:'reuse-verified-print-review',profiles:['document-print'],
     specs:[],unitFiles:[],postBuildScripts:[],reviewedCommit,reviewSha256:reviewed.reportSha256,reusedChecks:reviewed.browserChecks};
-  }else if(args.reuseImageReview){
-   const reviewedCommit='1ac53b1243b7016006e79858d732b279385fb413';
-   const releaseChanges=new Set(['scripts/release/cli.mjs','scripts/release/core.mjs']);
-   processRun('git',['merge-base','--is-ancestor',reviewedCommit,sourceGit.commit]);
-   const subsequentChanges=processRun('git',['diff','--name-only',reviewedCommit,sourceGit.commit,'--']).trim().split(/\r?\n/).filter(Boolean);
-   const previousRun='20261124t103521581-dc4cacb0';
-   const fabricEvidence=path.join('artifacts/releases',previousRun,'fabric-validation.log');
-   const fabricEvidenceSha256=hash(fs.readFileSync(fabricEvidence));
-   if(candidate.baselineReleaseId!=='20261124t090248784-4849a0f1'||subsequentChanges.some(file=>!releaseChanges.has(file))||
-      reviewed.status!=='pass'||reviewed.changedUiFiles!==3||reviewed.browserChecks!==3||
-      fabricEvidenceSha256!=='e1230f778d3b9fdf41d9ec1064bebc80598c20624e51b9b067b0bf8d1cd39bb3')
-    throw Error('Image review reuse requires the exact reviewed image candidate and completed focused evidence');
-   fs.copyFileSync(fabricEvidence,path.join(dir,'fabric-validation.log'));
-   browserValidation={version:1,baselineReleaseId:candidate.baselineReleaseId,candidateManifestSha256:sourceSha,
-    changedFiles:candidate.changed,mode:'none',reason:'reuse-verified-image-review',profiles:['product-image-upload'],
-    specs:[],unitFiles:[],postBuildScripts:[],reviewedCommit,reviewSha256:reviewed.reportSha256,reusedChecks:reviewed.browserChecks,
-    previousRun,fabricEvidenceSha256};
-  }else{
-   browserValidation=selectBrowserValidation({...candidate,migrations:args.migrations,fullUi:args.fullUi,quickUi:args.quickUi,customerHistoryHotfix:args.customerHistoryHotfix});
-  }
+  }else browserValidation=plannedBrowser;
   write(path.join(dir,'browser-validation-plan.json'),browserValidation);
   console.log(JSON.stringify({stage:'browser-validation',mode:browserValidation.mode,reason:browserValidation.reason,profiles:browserValidation.profiles,specs:browserValidation.specs,unmappedFiles:browserValidation.unmappedFiles}));
-  const browserResult=executeBrowserValidation(browserValidation,{root,dir,run:(exe,argv,{label,...options})=>timed(label,()=>options.liveLog?runBrowserWithProgress(exe,argv,{root,...options}):processRun(exe,argv,options))});
+  const browserResult=executeBrowserValidation(browserValidation,{root,dir,
+   run:(exe,argv,{label,...options})=>timed(label,()=>options.liveLog?runBrowserWithProgress(exe,argv,{root,...options}):processRun(exe,argv,options)),
+   buildCandidate:()=>{
+    localHttpContract=timed('httpContract',()=>checkHttpContract(dir));
+    timed('build',()=>processRun(process.platform==='win32'?(process.env.ComSpec??'cmd.exe'):'npm',
+     process.platform==='win32'?['/d','/s','/c','npm run build']:['run','build'],{log:path.join(dir,'build.log')}));
+    checkSource('source-after-build');
+   }
+  });
   browserValidation={...browserValidation,result:browserResult};
   write(path.join(dir,'browser-validation-result.json'),browserResult);
   if(uiReport)timed('uiEvidenceAfterBrowser',()=>{
@@ -141,7 +136,6 @@ function prepare(){
   });
   if(args.customerHistoryHotfix)timed('customerHistoryDate',()=>processRun(process.execPath,
    ['--import','tsx','--test','--test-name-pattern','activity uses the selection creation instant','server/customers/v12.test.ts'],{log:path.join(dir,'customer-history-date.log')}));
-  localHttpContract=timed('httpContract',()=>checkHttpContract(dir));timed('build',()=>processRun(process.platform==='win32'?(process.env.ComSpec??'cmd.exe'):'npm',process.platform==='win32'?['/d','/s','/c','npm run build']:['run','build'],{log:path.join(dir,'build.log')}));
   if(args.customerHistoryHotfix)timed('browserAssetIdentity',()=>{
    const published=json(path.join(root,'artifacts/releases',candidate.baselineReleaseId,'package/manifest.json'));
    const fresh=collectBrowserFiles(path.join(root,'dist')).map(file=>'dist/'+file).sort();
@@ -150,7 +144,7 @@ function prepare(){
     fresh.some(file=>hash(fs.readFileSync(file))!==published.files[file].sha256))throw Error('Customer history date hotfix changed browser assets');
   });
   for(const script of browserValidation.postBuildScripts)timed('uiFocusedBrowser',()=>processRun(process.execPath,[script],{log:path.join(dir,'ui-focused-browser.log'),timeout:60000}));
-  processRun(process.execPath,['scripts/check-fabric-v2-development-source.mjs'],{log:path.join(dir,'source-after-build.log')});if(hash(fs.readFileSync(sourcePath))!==sourceSha||JSON.stringify(snapshot(source))!==JSON.stringify(before))throw Error('Source changed during build');}
+  checkSource('source-after-validation');}
  const appRoot=reuse?reuse.pkg:root;
  const pkg=path.join(dir,'package');fs.mkdirSync(pkg);const files={};const browserFiles=collectBrowserFiles(path.join(appRoot,'dist')).map(x=>'dist/'+x);
  const add=(name,source,expectedSha256)=>{
@@ -242,7 +236,7 @@ async function phases(run,last){
  return run;
 }
 async function main(){
- if(args.command==='help'){console.log('npm run release -- plan | test | baseline --evidence <release-result.json> | prepare [--full-ui] [--migrations IDs] [--rehearse] | preflight|rehearse|deploy|verify|rollback|status|report|resume <id> | progress [id] | run [id] | prune [--apply]\nprepare builds once; run/deploy publish; rehearse restores in an isolated DB without deploying; progress/verify/status/report never deploy. Browser validation is selected automatically; --full-ui forces full browser regression. No full business unit suite is run.');return;}
+ if(args.command==='help'){console.log('npm run release -- plan [--migrations IDs] [--quick-ui|--full-ui] | test | baseline --evidence <release-result.json> | prepare [--full-ui] [--migrations IDs] [--rehearse] | preflight|rehearse|deploy|verify|rollback|status|report|resume <id> | progress [id] | run [id] | prune [--apply]\nprepare builds once; run/deploy publish; rehearse restores in an isolated DB without deploying; progress/verify/status/report never deploy. Browser validation is selected automatically; --full-ui forces full browser regression. No full business unit suite is run.');return;}
  if(args.command==='progress'){
   const releases=path.join(root,'artifacts/releases');
   const id=args.id??(fs.existsSync(releases)?fs.readdirSync(releases,{withFileTypes:true}).filter(entry=>entry.isDirectory()&&/^\d{8}t\d{9}-[a-f0-9]{8}$/.test(entry.name)).map(entry=>entry.name).sort().findLast(name=>['prepare-progress.json','run.json'].some(file=>fs.existsSync(path.join(releases,name,file)))):undefined);
@@ -253,11 +247,19 @@ async function main(){
  if(args.command==='plan'){
   let browserValidation=null;
   if(fs.existsSync(baselinePath)){
-   processRun(process.execPath,['scripts/check-fabric-v2-development-source.mjs']);
-   browserValidation=selectBrowserValidation({...reviewContext({pointer:json('docs/project/fabric-v2-active-workspace.json'),baseline:json(baselinePath)}),fullUi:args.fullUi});
+   const head=processRun('git',['rev-parse','HEAD']).trim();
+   const draft=reviewedSourceDiff({root,head});
+   const context=reviewContext({pointer:draft.pointer,baseline:json(baselinePath)});
+   if(draft.changed.length){
+    context.current={...context.current,files:[...draft.actual].map(([path,sha256])=>({path,sha256}))};
+    context.sourceSha256=null; // A draft plan is never release evidence.
+   }
+   const plan=selectBrowserValidation({...context,...args});
+   browserValidation={...plan,sourceReviewPending:draft.changed,missingMigrations:migrationRequirements(plan.changedFiles,args.migrations),
+    explicitFullUiRequired:!args.fullUi&&plan.mode==='full',restoreRehearsalRequired:args.rehearse||args.migrations.length>0};
   }
   console.log(JSON.stringify({profile:profile.name,production:profile.production,process:profile.process,recoveryProcess:profile.recoveryProcess,url:profile.url,baselineInitialized:fs.existsSync(baselinePath),browserValidation,
-   flow:['source identity','source-bound visual evidence if UI changed','automatic scoped/full browser validation','complete production HTTP contract check','build once','freeze artifact and browser references','preflight','consistent backup','encrypted offsite readback','restore rehearsal if migrations','registered migrations','atomic deploy','server and independent public verify','guarded code rollback on verification failure','Ego read-only production UI check after successful verification if UI changed'],
+   flow:['source and impact review','source-bound visual evidence if UI changed','focused engineering and release-tool checks','complete production HTTP contract check','build once and verify candidate source','scoped or explicitly authorized full browser validation','freeze artifact and browser references','preflight','consistent backup','encrypted offsite readback','restore rehearsal if migrations','registered migrations','atomic deploy','server and independent public verify','guarded code rollback on verification failure','Ego read-only production UI check after successful verification if UI changed'],
    migrationsAvailable:migrationIds,fullSuiteRun:false}));return;
  }
  if(args.command==='prune')return prune();

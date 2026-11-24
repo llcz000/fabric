@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {spawnSync} from 'node:child_process';
+import {createHash} from 'node:crypto';
 
 const smoke=['tests/ui/internal-table-chrome.spec.ts','tests/ui/mobile-library-actions.spec.ts'];
 const customerHistoryBaseline='20261110t020116583-0e0eb9e3';
@@ -106,7 +107,36 @@ const reviewedDeletionScopes=[
  {baseline:adminDocumentLookupBaseline,files:adminDocumentLookupReviewedFiles,reason:'reviewed-admin-document-lookup',profile:'admin-document-lookup',
   unitFiles:[...deletionGuidanceUnits,'src/components/product-master-v2/productCardAssociation.test.ts']},
 ];
+const imageAssetPaths=[
+ 'policy.ts','policy.test.ts','processor.ts','routes.ts','routes.test.ts','service.test.ts','validator.ts',
+].map(file=>'server/image-assets/'+file);
+const imageAssetChecks=['server/image-assets/policy.test.ts','server/image-assets/routes.test.ts',
+ 'server/image-assets/service.test.ts','server/image-assets/companyImages.test.ts','src/lib/imageAssets.test.ts'];
+const imageScopeMigrations=['product-image-category-reuse','product-auto-cards'];
+const sharedImageSchema=['server/product-master/schema.ts','server/product-master/schemaContract.ts',
+ 'server/product-master/schemaContract.test.ts','server/product-master/v2ProductionMigration.ts'];
+const fabricSchemaUnits=['server/product-master/fabricNumberSchema.test.ts','server/product-master/fabrics.test.ts',
+ 'server/product-master/fabricExcelPreview.test.ts','server/product-master/fabricExcelImport.test.ts'];
+const releaseToolPaths=['scripts/release/cli.mjs','scripts/release/core.mjs','scripts/release/release.test.mjs',
+ 'scripts/release/browser-validation.mjs','scripts/release/browser-validation.test.mjs',
+ 'scripts/serve-ui-ux-pilot.mjs','playwright.ui.config.ts'];
+const migrationToolPaths=['scripts/release/migrations.ts','scripts/release/remote.py','scripts/release/remote_test.py'];
+const productImageSpec='tests/ui/product-image-upload.spec.ts';
+const productImageSpecs=[productImageSpec,'tests/ui/pattern-dimensions.spec.ts','tests/ui/automatic-product-cards.spec.ts',
+ 'tests/ui/catalog-number-sort.spec.ts'];
+const productImageUnits=['server/product-master/productsV2.test.ts','server/product-master/schemaContract.test.ts',
+ 'server/product-master/v2ProductionMigration.test.ts','server/product-master/productImageCategoryReuseSchema.test.ts',
+ 'server/product-master/p7MediaOrderLifecycle.test.ts','src/components/product-master-v2/ProductEditorV2.test.ts',
+ 'src/components/product-master-v2/PatternLibraryV2.test.ts'];
+const productImagePaths=['server/product-master/productsV2.ts','server/product-master/productImageCategoryReuseSchema.ts',
+ 'scripts/check-v2-p7-media-order-readonly.mjs','src/components/product-master-v2/PatternColorwayEditor.tsx',
+ 'src/components/product-master-v2/PatternLibraryV2.tsx','src/components/product-master-v2/ProductEditorV2.tsx',
+ 'src/components/product-master-v2/productEditorModel.ts',...productImageSpecs,...productImageUnits];
 const profiles=[{
+ id:'product-image-upload',paths:productImagePaths,
+ specs:productImageSpecs,
+ unitFiles:productImageUnits,postBuildScripts:[],
+},{
  id:'model-gallery',paths:['src/components/product-master-v2/ModelGalleryV2.tsx',
   'tests/ui/model-gallery.spec.ts','tools/ui-preview/modelGalleryReview.tsx',
   'tools/ui-preview/entries/ui-ux-model-gallery.html'],
@@ -165,16 +195,19 @@ export function selectBrowserValidation({previous,current,baselineReleaseId,sour
  const old=manifestFiles(previous),next=manifestFiles(current);
  const changedFiles=sortedUnique([...old.keys(),...next.keys()]).filter(p=>old.get(p)!==next.get(p));
  const code=changedFiles.filter(p=>!p.startsWith('docs/'));
- // Exact server-only exemption: product image ingestion/normalization has no browser UI surface.
- // Focused image-asset tests have already run; any mixed source, migration, or explicit UI override fails closed.
- const imageAssetOnly=code.some(p=>p.startsWith('server/image-assets/'))&&code.every(p=>
-  p.startsWith('server/image-assets/')||p==='scripts/release/browser-validation.mjs'||p==='scripts/release/browser-validation.test.mjs');
- if(imageAssetOnly&&!migrations.length&&!fullUi&&!quickUi)
-  return {version:1,rulesVersion:'fabric-browser-scope-v1',baselineReleaseId,candidateManifestSha256:sourceSha256,
-   changedFiles,profiles:[],specs:[],unitFiles:[],postBuildScripts:[],mode:'none',reason:'server-image-assets-only-no-ui-impact'};
  const selected=profiles.filter(profile=>code.some(p=>profile.paths.includes(p)));
- const base={version:1,rulesVersion:'fabric-browser-scope-v1',baselineReleaseId,candidateManifestSha256:sourceSha256,
-  changedFiles,profiles:[],specs:[],unitFiles:[],postBuildScripts:[]};
+ const productImages=selected.some(profile=>profile.id==='product-image-upload');
+ const imageAssets=code.some(p=>imageAssetPaths.includes(p));
+ const imageMigration=productImages&&migrations.includes('product-image-category-reuse');
+ const unmappedMigrations=migrations.filter(id=>!imageMigration||!imageScopeMigrations.includes(id));
+ const hasSharedImageSchema=code.some(p=>sharedImageSchema.includes(p));
+ const fabricChecks=code.some(p=>/^(?:server\/product-master\/(?:schema|fabrics|fabricExcelImport|fabricExcelPreview|fabricNumberSchema)\.ts)$/.test(p))?fabricSchemaUnits:[];
+ const tooling=code.filter(p=>releaseToolPaths.includes(p)||migrationToolPaths.includes(p));
+ const toolingOnly=tooling.length===code.length;
+ const useToolChecks=productImages||imageAssets||toolingOnly;
+ const releaseChecks=[...(tooling.length?['node']:[]),...(tooling.some(p=>migrationToolPaths.includes(p))?['python']:[])];
+ const base={version:1,rulesVersion:'fabric-browser-scope-v2',baselineReleaseId,candidateManifestSha256:sourceSha256,
+  changedFiles,migrations,profiles:[],specs:[],unitFiles:fabricChecks,postBuildScripts:[],releaseChecks};
  if(customerHistoryHotfix){
   if(baselineReleaseId!==customerHistoryBaseline||migrations.length||fullUi||quickUi||
    customerHistoryFiles.some(p=>!code.includes(p))||
@@ -199,23 +232,35 @@ export function selectBrowserValidation({previous,current,baselineReleaseId,sour
  const printRegistration=[printView,printQa,...scopeRegistrationTools];
  const registeringPrintScope=quickUi&&baselineReleaseId===printRegistrationBaseline&&
   code.length===printRegistration.length&&printRegistration.every(p=>code.includes(p));
- const unmappedFiles=code.filter(p=>!selected.some(profile=>profile.paths.includes(p))&&
-  !(registeringPrintScope&&scopeRegistrationTools.includes(p)));
+ const impact=code.map(file=>({file,areas:sortedUnique([
+  ...selected.filter(profile=>profile.paths.includes(file)).map(profile=>profile.id),
+  ...(imageAssetPaths.includes(file)?['image-asset-ingestion']:[]),
+  ...(useToolChecks&&tooling.includes(file)?['release-tooling']:[]),
+  ...(imageMigration&&(sharedImageSchema.includes(file)||fabricSchemaUnits.includes(file))?['product-image-schema']:[]),
+  ...(registeringPrintScope&&scopeRegistrationTools.includes(file)?['document-print']:[]),
+ ])}));
+ const unmappedFiles=impact.filter(entry=>!entry.areas.length).map(entry=>entry.file);
+ base.impact=impact;
+ const unscopedChanges=code.filter(p=>!next.has(p)||!old.has(p)&&!productImagePaths.includes(p));
+ const specs=selected.length?sortedUnique([...smoke,...selected.flatMap(p=>p.specs)]):[];
+ const unitFiles=sortedUnique([...selected.flatMap(p=>p.unitFiles),...(imageAssets?imageAssetChecks:[]),
+  ...fabricChecks]);
+ const postBuildScripts=sortedUnique(selected.flatMap(p=>p.postBuildScripts));
+ const required=[...specs,...unitFiles,...postBuildScripts];
+ const missingChecks=required.filter(p=>!next.has(p)||!old.has(p)&&!productImagePaths.includes(p));
  let result;
  if(fullUi)result={...base,mode:'full',reason:'explicit-full-ui'};
- else if(migrations.length)result={...base,mode:'full',reason:'database-migrations'};
+ else if(unmappedMigrations.length)result={...base,mode:'full',reason:'unmapped-migrations',unmappedMigrations,unmappedFiles};
  else if(!code.length)result={...base,mode:'none',reason:'no-code-changes'};
- else if(code.some(p=>!old.has(p)||!next.has(p)))result={...base,mode:'full',reason:'added-or-removed-code'};
- else if(unmappedFiles.length)result={...base,mode:'full',reason:'unmapped-or-shared-code',unmappedFiles};
- else{
-  const specs=sortedUnique([...smoke,...selected.flatMap(p=>p.specs)]);
-  const unitFiles=sortedUnique(selected.flatMap(p=>p.unitFiles));
-  const postBuildScripts=sortedUnique(selected.flatMap(p=>p.postBuildScripts));
-  const required=[...specs,...unitFiles,...postBuildScripts];
-  result=required.some(p=>!old.has(p)||!next.has(p))?{...base,mode:'full',reason:'missing-required-check'}:
-   {...base,mode:'scoped',reason:'exact-registered-page-scope',profiles:selected.map(p=>p.id).sort(),specs,unitFiles,postBuildScripts};
- }
- if(quickUi&&result.mode!=='scoped')throw Error('--quick-ui requires an exact registered page scope without migrations; use automatic/full validation');
+ else if(unscopedChanges.length)result={...base,mode:'full',reason:'added-or-removed-code',unscopedChanges,unmappedFiles};
+ else if(unmappedFiles.length||hasSharedImageSchema&&!imageMigration)result={...base,mode:'full',reason:'unmapped-or-shared-code',unmappedFiles};
+ else if(missingChecks.length)result={...base,mode:'full',reason:'missing-required-check',missingChecks};
+ else if(!selected.length)result={...base,mode:'none',reason:imageAssets?'server-image-assets-only-no-ui-impact':'release-tooling-only',
+  profiles:imageAssets?['image-asset-ingestion']:[],unitFiles};
+ else result={...base,mode:'scoped',reason:'exact-registered-page-scope',profiles:selected.map(p=>p.id).sort(),
+  specs,unitFiles,postBuildScripts};
+ if(quickUi&&(result.mode==='full'||!code.length))throw Error('--quick-ui requires a registered impact scope: '+JSON.stringify(result));
+
  return result;
 }
 
@@ -227,16 +272,25 @@ export function runBrowserWithProgress(executable,args,{root,log,liveLog,env,tim
  return fs.readFileSync(log,'utf8');
 }
 
-export function executeBrowserValidation(plan,{root,dir,execPath=process.execPath,run}){
- if(plan.mode==='none')return {mode:'none',passed:0,skipped:0,executed:false};
- if(!['full','scoped'].includes(plan.mode))throw Error('Browser validation: invalid mode');
+export function executeBrowserValidation(plan,{root,dir,execPath=process.execPath,run,buildCandidate=()=>{}}){
+ if(!['full','scoped','none'].includes(plan.mode))throw Error('Browser validation: invalid mode');
+ if(plan.releaseChecks?.includes('node'))run(execPath,['--test','scripts/release/release.test.mjs','scripts/release/browser-validation.test.mjs'],
+  {log:path.join(dir,'release-scope-check.log'),label:'releaseScopeCheck'});
+ if(plan.releaseChecks?.includes('python'))run('python',['scripts/release/remote_test.py'],
+  {log:path.join(dir,'release-remote-check.log'),label:'releaseRemoteCheck'});
  if(plan.unitFiles.length)run(execPath,['scripts/run-ts-tests.mjs',...plan.unitFiles],
   {log:path.join(dir,'ui-focused-unit.log'),label:'uiFocusedUnit'});
- const args=['node_modules/@playwright/test/cli.js','test','--config=playwright.ui.config.ts','--reporter=line,json',...plan.specs];
+ buildCandidate();
+ const completed={unitFiles:plan.unitFiles,releaseChecks:plan.releaseChecks??[]};
+ if(plan.mode==='none')return {mode:'none',passed:0,skipped:0,executed:false,...completed};
+ const runId=path.basename(dir);
+ const port=54000+createHash('sha256').update(runId).digest().readUInt16BE(0)%8000;
+ const args=['node_modules/@playwright/test/cli.js','test','--config=playwright.ui.config.ts',
+  '--output',path.join(dir,'ui-browser-output'),'--max-failures=1','--reporter=line,json',...plan.specs];
  const log=path.join(dir,'ui-browser-tests.log');
  const timeout=(plan.mode==='full'?45:10)*60_000;
  const output=run(execPath,args,{log,liveLog:path.join(dir,'ui-browser-progress.log'),
-  env:{PLAYWRIGHT_JSON_OUTPUT_FILE:log},timeout,label:'uiBrowserTests'});
+  env:{PLAYWRIGHT_JSON_OUTPUT_FILE:log,FABRIC_UI_UX_RUN_ID:runId,FABRIC_UI_UX_PORT:String(port)},timeout,label:'uiBrowserTests'});
  let report;try{report=JSON.parse(output);}catch{throw Error('Browser validation: malformed Playwright JSON report');}
  if(!report.stats||!Number.isInteger(report.stats.expected)||report.stats.expected<=0||
     !Number.isInteger(report.stats.skipped)||report.stats.skipped<0||report.stats.unexpected!==0||report.stats.flaky!==0||
@@ -253,6 +307,6 @@ export function executeBrowserValidation(plan,{root,dir,execPath=process.execPat
  }};visit(report.suites);
  if(!passedFiles.size||plan.specs.some(p=>!passedFiles.has(path.resolve(root,p))))
   throw Error('Browser validation: required spec omitted or has no passing test');
- return {mode:plan.mode,executed:true,passed:report.stats.expected,skipped:report.stats.skipped,
+ return {mode:plan.mode,executed:true,passed:report.stats.expected,skipped:report.stats.skipped,...completed,
   command:{executable:execPath,args},passedFiles:[...passedFiles].map(p=>path.relative(root,p).replaceAll('\\','/')).sort()};
 }

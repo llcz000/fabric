@@ -1,6 +1,8 @@
 import {defineConfig, devices} from '@playwright/test';
 
-const origin='http://127.0.0.1:52992';
+const port=Number(process.env.FABRIC_UI_UX_PORT??52992);
+if(!Number.isInteger(port)||port<1024||port>65535)throw Error('Invalid local browser preview port');
+const origin='http://127.0.0.1:'+port;
 export default defineConfig({
  testDir:'./tests/ui',
  testMatch:'**/*.spec.ts',

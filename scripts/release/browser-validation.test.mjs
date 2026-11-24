@@ -29,7 +29,9 @@ const printSpec='tests/ui/document-delete.spec.ts';
 const printUnits=['src/components/document-product-selector/V2DocumentPrintView.test.ts',
  'src/lib/documentPrintModel.test.ts','server/documentExcel.test.ts','server/order-v2/print.test.ts'];
 const printRegistration=[printView,printQa,'scripts/release/browser-validation.mjs','scripts/release/browser-validation.test.mjs'];
-const files=[gallery,fabric,gallerySpec,...smoke,'src/components/product-master-v2/FabricLibraryV2.test.ts',
+const imageIngressUnits=['server/image-assets/policy.test.ts','server/image-assets/routes.test.ts',
+ 'server/image-assets/service.test.ts','server/image-assets/companyImages.test.ts','src/lib/imageAssets.test.ts'];
+const files=[gallery,fabric,gallerySpec,...smoke,...imageIngressUnits,'src/components/product-master-v2/FabricLibraryV2.test.ts',
  'tests/ui/internal-fabric-design.spec.ts','tests/ui/internal-fabric-weight-unit.spec.ts','tests/ui/related-products.spec.ts',
  'scripts/release/targeted-fabric-ui.mjs','tools/ui-preview/modelGalleryReview.tsx',
  'tools/ui-preview/entries/ui-ux-model-gallery.html','tools/ui-preview/internalFabricReview.tsx',
@@ -238,12 +240,13 @@ test('image asset backend-only fixes skip browser acceptance while unrelated cha
   'scripts/release/browser-validation.mjs','scripts/release/browser-validation.test.mjs'];
  const result=selectBrowserValidation(context(files));
  assert.equal(result.mode,'none');assert.equal(result.reason,'server-image-assets-only-no-ui-impact');
- assert.deepEqual(result.specs,[]);assert.deepEqual(result.unitFiles,[]);
+ assert.deepEqual(result.specs,[]);assert.deepEqual(result.unitFiles,[...imageIngressUnits].sort());
+ assert.deepEqual(result.releaseChecks,['node']);
  assert.equal(selectBrowserValidation(context([...files,'src/components/product-master-v2/PatternLibraryV2.tsx'])).mode,'full');
  assert.equal(selectBrowserValidation(context([...files,'server/auth.ts'])).mode,'full');
  assert.equal(selectBrowserValidation(context(files,{migrations:['image-assets']})).mode,'full');
  assert.equal(selectBrowserValidation(context(files,{fullUi:true})).mode,'full');
- assert.throws(()=>selectBrowserValidation(context(files,{quickUi:true})),/quick-ui/);
+ assert.equal(selectBrowserValidation(context(files,{quickUi:true})).mode,'none');
 });
 
 function reportFor(specs,root){return JSON.stringify({config:{rootDir:path.join(root,'tests/ui')},errors:[],
@@ -260,6 +263,9 @@ test('execution streams browser progress separately from the machine-readable re
  assert(calls[0].args.includes('--reporter=line,json'));assert.deepEqual(calls[0].args.slice(-3),plan.specs);
  assert.equal(calls[0].options.liveLog,path.join(dir,'ui-browser-progress.log'));
  assert.equal(calls[0].options.env.PLAYWRIGHT_JSON_OUTPUT_FILE,path.join(dir,'ui-browser-tests.log'));
+ assert.equal(calls[0].options.env.FABRIC_UI_UX_RUN_ID,'run');
+ assert(calls[0].args.includes(path.join(dir,'ui-browser-output')));
+ assert(calls[0].args.includes('--max-failures=1'));
  assert.equal(calls[0].options.timeout,10*60_000);
  assert.equal(result.passed,3);assert.equal(result.mode,'scoped');
 });
@@ -285,4 +291,54 @@ test('fabric unit failures stop before browser execution and no-change plans exe
  assert.throws(()=>executeBrowserValidation(selectBrowserValidation(context([fabric])),{root,dir:root,run(_exe,args){calls.push(args);throw Error('unit failure');}}),/unit failure/);
  assert.equal(calls.length,1);assert(calls[0].includes('scripts/run-ts-tests.mjs'));
  executeBrowserValidation(selectBrowserValidation(context([])),{root,dir:root,run(){assert.fail('must not execute');}});
+});
+
+test('registered image migration selects the actual image upload flow when new checks ship with the fix',()=>{
+ const spec='tests/ui/product-image-upload.spec.ts';
+ const files=['server/product-master/productsV2.ts','server/product-master/schema.ts',
+  'server/product-master/schemaContract.ts','server/product-master/productImageCategoryReuseSchema.ts',
+  'src/components/product-master-v2/PatternColorwayEditor.tsx','src/components/product-master-v2/productEditorModel.ts',
+  'scripts/release/cli.mjs','scripts/release/core.mjs','scripts/release/migrations.ts',
+  'scripts/release/remote.py','scripts/release/remote_test.py','scripts/release/browser-validation.mjs',
+  'scripts/release/browser-validation.test.mjs','tests/ui/pattern-dimensions.spec.ts','tests/ui/automatic-product-cards.spec.ts',
+  'tests/ui/catalog-number-sort.spec.ts', spec,'server/product-master/productsV2.test.ts','server/product-master/schemaContract.test.ts',
+  'server/product-master/productImageCategoryReuseSchema.test.ts','server/product-master/v2ProductionMigration.test.ts',
+  'server/product-master/p7MediaOrderLifecycle.test.ts','src/components/product-master-v2/ProductEditorV2.test.ts',
+  'src/components/product-master-v2/PatternLibraryV2.test.ts','scripts/release/release.test.mjs',
+  'server/product-master/fabricNumberSchema.test.ts','server/product-master/fabrics.test.ts',
+  'server/product-master/fabricExcelPreview.test.ts','server/product-master/fabricExcelImport.test.ts'];
+ const ctx=context(files,{quickUi:true,migrations:['product-auto-cards','product-image-category-reuse']});
+ ctx.previous.files=ctx.previous.files.filter(file=>![spec,'server/product-master/productImageCategoryReuseSchema.ts'].includes(file.path));
+ const result=selectBrowserValidation(ctx);
+ assert.equal(result.mode,'scoped');
+ assert(result.specs.includes(spec));
+ assert(result.unitFiles.includes('server/product-master/productImageCategoryReuseSchema.test.ts'));
+ assert(result.unitFiles.includes('server/product-master/fabricExcelImport.test.ts'));
+ assert.deepEqual(result.migrations,ctx.migrations);
+ assert.deepEqual(result.releaseChecks,['node','python']);
+ for(const migrations of [['product-image-category-reuse','sample-contact'],['product-auto-cards']]){
+  const plan=selectBrowserValidation({...ctx,migrations,quickUi:false});
+  assert.equal(plan.mode,'full');assert(plan.unmappedMigrations.length>0);
+ }
+ const unknown=selectBrowserValidation({...ctx,quickUi:false,current:{files:[...ctx.current.files,{path:'server/other.ts',sha256:'new'}]}});
+ assert.deepEqual(unknown.unmappedFiles,['server/other.ts']);
+});
+
+test('the release runs short checks and verifies the build before starting browser tests',()=>{
+ const plan=selectBrowserValidation(context([fabric])),root=path.resolve('fixture-root'),steps=[];
+ executeBrowserValidation(plan,{root,dir:root,buildCandidate(){steps.push('build');},run(_exe,args,options){
+  steps.push(options.label);
+  if(options.label==='uiBrowserTests')return reportFor(plan.specs,root);
+ }});
+ assert.deepEqual(steps,['uiFocusedUnit','build','uiBrowserTests']);
+ assert.throws(()=>executeBrowserValidation(plan,{root,dir:root,buildCandidate(){throw Error('source drift after build');},
+  run(_exe,_args,options){assert.equal(options.label,'uiFocusedUnit');}}),/source drift after build/);
+});
+test('backend-only impact still executes its focused tests and the build',()=>{
+ const ctx=context(['server/image-assets/processor.ts','scripts/release/core.mjs']);
+ const plan=selectBrowserValidation(ctx),steps=[],root=path.resolve('fixture-root');
+ const result=executeBrowserValidation(plan,{root,dir:root,buildCandidate(){steps.push('build');},run(_exe,_args,options){steps.push(options.label);}});
+ assert.deepEqual(steps,['releaseScopeCheck','uiFocusedUnit','build']);
+ assert.equal(result.executed,false);
+ assert.deepEqual(result.unitFiles,plan.unitFiles);
 });
