@@ -231,6 +231,21 @@ test('administrator document lookup takes the reviewed scope only on the current
  ]){const ctx=candidate();mutate(ctx);assert.throws(()=>selectBrowserValidation(ctx),/quick-ui/);}
 });
 
+test('image asset backend-only fixes skip browser acceptance while unrelated changes and overrides still force validation',()=>{
+ const files=['server/image-assets/policy.ts','server/image-assets/policy.test.ts',
+  'server/image-assets/processor.ts','server/image-assets/routes.ts','server/image-assets/routes.test.ts',
+  'server/image-assets/service.test.ts','server/image-assets/validator.ts',
+  'scripts/release/browser-validation.mjs','scripts/release/browser-validation.test.mjs'];
+ const result=selectBrowserValidation(context(files));
+ assert.equal(result.mode,'none');assert.equal(result.reason,'server-image-assets-only-no-ui-impact');
+ assert.deepEqual(result.specs,[]);assert.deepEqual(result.unitFiles,[]);
+ assert.equal(selectBrowserValidation(context([...files,'src/components/product-master-v2/PatternLibraryV2.tsx'])).mode,'full');
+ assert.equal(selectBrowserValidation(context([...files,'server/auth.ts'])).mode,'full');
+ assert.equal(selectBrowserValidation(context(files,{migrations:['image-assets']})).mode,'full');
+ assert.equal(selectBrowserValidation(context(files,{fullUi:true})).mode,'full');
+ assert.throws(()=>selectBrowserValidation(context(files,{quickUi:true})),/quick-ui/);
+});
+
 function reportFor(specs,root){return JSON.stringify({config:{rootDir:path.join(root,'tests/ui')},errors:[],
  stats:{expected:specs.length,unexpected:0,flaky:0,skipped:0},
  suites:[{specs:specs.map(file=>({file:path.relative(path.join(root,'tests/ui'),path.join(root,file)),

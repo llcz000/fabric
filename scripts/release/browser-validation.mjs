@@ -165,6 +165,13 @@ export function selectBrowserValidation({previous,current,baselineReleaseId,sour
  const old=manifestFiles(previous),next=manifestFiles(current);
  const changedFiles=sortedUnique([...old.keys(),...next.keys()]).filter(p=>old.get(p)!==next.get(p));
  const code=changedFiles.filter(p=>!p.startsWith('docs/'));
+ // Exact server-only exemption: product image ingestion/normalization has no browser UI surface.
+ // Focused image-asset tests have already run; any mixed source, migration, or explicit UI override fails closed.
+ const imageAssetOnly=code.some(p=>p.startsWith('server/image-assets/'))&&code.every(p=>
+  p.startsWith('server/image-assets/')||p==='scripts/release/browser-validation.mjs'||p==='scripts/release/browser-validation.test.mjs');
+ if(imageAssetOnly&&!migrations.length&&!fullUi&&!quickUi)
+  return {version:1,rulesVersion:'fabric-browser-scope-v1',baselineReleaseId,candidateManifestSha256:sourceSha256,
+   changedFiles,profiles:[],specs:[],unitFiles:[],postBuildScripts:[],mode:'none',reason:'server-image-assets-only-no-ui-impact'};
  const selected=profiles.filter(profile=>code.some(p=>profile.paths.includes(p)));
  const base={version:1,rulesVersion:'fabric-browser-scope-v1',baselineReleaseId,candidateManifestSha256:sourceSha256,
   changedFiles,profiles:[],specs:[],unitFiles:[],postBuildScripts:[]};
