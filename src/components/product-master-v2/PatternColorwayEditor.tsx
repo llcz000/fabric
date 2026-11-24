@@ -1,4 +1,5 @@
 import {useConfirm} from '../ui/ConfirmDialog';
+import {PatternDeleteDialog} from './PatternDeleteDialog';
 import {patternBox as box,formatPatternTags as asTags} from './patternPresentation';
 import { ActionIcon } from './ActionIcon';
 import { useState, useEffect, useRef } from 'react';
@@ -193,14 +194,9 @@ export function PatternColorwayEditor({
      </tbody>
     </table>
    </div>
-   {confirmRemove?<div role="alertdialog" aria-modal="true" aria-label="删除配色确认"
-     className="m-3 rounded border border-rose-200 bg-rose-50 p-3 text-xs">
-    <p>确认删除 {confirmRemove.patternNo} 及其花型图？已关联产品的配色不能删除；删除后该配色序号永久不复用。</p>
-    <div className="mt-2 flex gap-2">
-     <button type="button" className="rounded bg-rose-700 px-2 py-1 text-white"
-      disabled={working} onClick={()=>call(()=>onDeleteVersion(confirmRemove),()=>setConfirmRemove(null))}><ActionIcon name="delete"/>确认删除</button>
-     <button type="button" onClick={()=>setConfirmRemove(null)}><ActionIcon name="close"/>取消</button>
-    </div></div>:null}
+   {confirmRemove&&<PatternDeleteDialog key={confirmRemove.id} apiFetch={apiFetch} kind="colorway"
+    id={confirmRemove.id} label={confirmRemove.patternNo} onClose={()=>setConfirmRemove(null)}
+    onDelete={()=>onDeleteVersion(confirmRemove)}/>}
    <footer className="border-t px-4 py-2 text-[11px] text-slate-500">题材标签由花型统一维护。每个配色保留独立花型图；上传、删除图片与备注一起保存，取消不改变原关联。配色序号保存后永久只读。</footer>
   </div>
  </div>;

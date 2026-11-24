@@ -3,6 +3,7 @@ import type {Pool} from '../order-v2/lines';
 import {requireV2Principal,requireV2Action,type AccessDatabase} from '../access/middleware';
 import type {AppPrincipal} from '../access/types';
 import {createColorway,listColorways,updateColorway,deleteColorway,ColorwayIdentityError} from './colorwayIdentity';
+import {readPatternDeletionImpact,PatternCatalogError} from './patternCatalog';
 
 /** Independent P3-2a router. NOT attached to server.ts. Mount at /api/v2 only
  * after integration review. POST has no automatic retry or idempotency key.
@@ -17,7 +18,7 @@ export function createColorwayIdentityRouter(database:AccessDatabase,pool:Pool):
  router.use((_req,res,next)=>{res.setHeader('Cache-Control','no-store');next();});
  const principal=requireV2Principal(database),manage=requireV2Action('products.manage');
  const errorResponse=(res:Response,error:unknown)=>{
-  if(error instanceof ColorwayIdentityError){res.status(error.status).json({error:error.message});return;}
+  if(error instanceof ColorwayIdentityError||error instanceof PatternCatalogError){res.status(error.status).json({error:error.message});return;}
   res.status(503).json({error:'Colorway service temporarily unavailable'});
  };
  router.get('/pattern-masters/:masterId/colorways',principal,requireV2Action('products.read'),async(req,res)=>{
@@ -29,6 +30,10 @@ export function createColorwayIdentityRouter(database:AccessDatabase,pool:Pool):
  });
  router.patch('/pattern-colorways/:id',principal,manage,requireJson,parser,async(req,res)=>{
   try{res.json(await updateColorway(pool,res.locals.principal as AppPrincipal,String(req.params.id),req.body));}
+  catch(error){errorResponse(res,error);}
+ });
+ router.get('/pattern-colorways/:id/deletion-impact',principal,manage,async(req,res)=>{
+  try{res.json(await readPatternDeletionImpact(database,'colorway',String(req.params.id)));}
   catch(error){errorResponse(res,error);}
  });
  router.delete('/pattern-colorways/:id',principal,manage,async(req,res)=>{

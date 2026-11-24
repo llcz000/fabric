@@ -8,7 +8,7 @@ import {LibraryPagination} from './LibraryPagination';
 import {ProductImageTabs,type CatalogImageResolver} from './ProductImageTabs';
 import {ProductTryOnDialog} from './ProductTryOnDialog';
 import {SampleCardPatternsDialog} from './SampleCardPatternsDialog';
-import type {CatalogFilters,CatalogPage,CatalogProduct} from './catalogModel';
+import type {CatalogFilters,CatalogOrderStatus,CatalogPage,CatalogProduct} from './catalogModel';
 import {
  emptyCatalogFilters,reduceCatalogFilters,fetchCatalogPage,buildCatalogUrl,
  resolveImageUrls,getCatalogProductImages,createLatestRequestGuard
@@ -18,12 +18,13 @@ import {buildColumnVisibility,nextSortState,readColumnVisibility,sortRows,toggle
 import {ColumnSettingsMenu,SortableHeader} from './LibraryTableChrome';
 
 /** 逐列列宽（px）。仅品名自适应；成分与备注固定宽度，避免长成分遮挡克重。 */
-const columnWidths=[72,120,0,210,110,88,140,112,110,176] as const;
+const columnWidths=[72,120,88,0,210,110,88,140,112,110,176] as const;
 
 /** P1-8 列定义：顺序与 columnWidths 下标一一对应。 */
 const productColumns:LibraryColumn<CatalogProduct>[]=[
  {key:'image',label:'花型图',locked:true},
  {key:'productNo',label:'货号',sortable:true,value:row=>row.productNo},
+ {key:'orderStatus',label:'开单状态'},
  {key:'fabricName',label:'品名',sortable:true,value:row=>row.fabricName??''},
  {key:'composition',label:'成分',sortable:true,value:row=>row.composition??''},
  {key:'weight',label:'克重',sortable:true,value:row=>row.weightValue},
@@ -93,6 +94,12 @@ export function CatalogV2Table({
       aria-label={product.patternImageAssetId?'图片暂不可用':'待上传花型图'}>{product.patternImageAssetId?'图片不可用':'待上传'}</span>}
    </td>;
    case 'productNo':return <td className="px-3 py-2 font-semibold text-[#003ea7]">{product.productNo}</td>;
+   case 'orderStatus':return <td className="whitespace-nowrap px-3 py-2 text-center">
+    {product.hasOrderReference===true
+     ?<a href={v2Route('documents',{productId:product.id,refNo:product.productNo})} target="_blank" rel="noopener"
+       title="查看关联单据" className="rounded bg-amber-50 px-2 py-1 text-amber-800 underline">已开单</a>
+     :<span className="text-slate-600">{product.hasOrderReference===false?'未开单':'待查询'}</span>}
+   </td>;
    case 'fabricName':return <td className="px-3 py-2">{display(product.fabricName)}</td>;
    case 'composition':return <td className="min-w-0 px-3 py-2">
     <span className="block min-w-0 truncate" title={product.composition??undefined}>{display(product.composition)}</span>
@@ -126,7 +133,9 @@ export function CatalogV2Table({
     {canManage&&onEdit?<button type="button" disabled={updating} onClick={()=>onEdit(product)}
      className="v2-icon-button" aria-label="编辑" title="编辑产品"><ActionIcon name="edit"/></button>:null}
     {canManage&&onDeleteRequest?<button type="button" disabled={updating} onClick={()=>onDeleteRequest(product)}
-     className="v2-icon-button v2-icon-danger" aria-label="删除" title="删除产品"><ActionIcon name="delete"/></button>:null}
+     className={'v2-icon-button'+(product.hasOrderReference?' text-slate-500':' v2-icon-danger')}
+     aria-label={product.hasOrderReference?'查看删除限制':'删除'}
+     title={product.hasOrderReference?'已开单，查看删除限制':'删除产品'}><ActionIcon name="delete"/></button>:null}
    </div></td>;
    default:return null;
   }
@@ -144,7 +153,7 @@ export function CatalogV2Table({
     <colgroup>{shown.map(column=><col key={column.key} style={widthOf(column.key)}/>)}</colgroup>
     <thead><tr className="border-b border-[#c3c6d7] bg-[#f3f4fa] text-[#434655]">
      {shown.map(column=><SortableHeader key={column.key} column={column} sort={headerSort} onSort={toggleSort}
-      className={'px-3 py-3 font-medium '+(['image','images','status'].includes(column.key)?'text-center ':'')+(column.key==='actions'?'col-actions':'')}/>)}
+      className={'px-3 py-3 font-medium '+(['image','images','orderStatus'].includes(column.key)?'text-center ':'')+(column.key==='actions'?'col-actions':'')}/>)}
     </tr></thead>
      <tbody>
     {rows.map(product=>
@@ -189,8 +198,8 @@ function ImageDialog({
   </div>
  </div>;
 }
-export function CatalogDeleteConfirmation({product,onCancel,onConfirm,busy=false,error=''}:{
- product:CatalogProduct;onCancel():void;onConfirm():void;busy?:boolean;error?:string;
+export function CatalogDeleteConfirmation({product,onCancel,onConfirm,busy=false,error='',orderBlocked=false}:{
+ product:CatalogProduct;onCancel():void;onConfirm():void;busy?:boolean;error?:string;orderBlocked?:boolean;
 }){
  const cancel=useRef<HTMLButtonElement>(null),dialog=useRef<HTMLDialogElement>(null),latest=useRef({busy,onCancel});
  latest.current={busy,onCancel};
@@ -200,7 +209,7 @@ export function CatalogDeleteConfirmation({product,onCancel,onConfirm,busy=false
   const keydown=(event:KeyboardEvent)=>{
    if(event.key==='Escape'){event.preventDefault();if(!latest.current.busy)latest.current.onCancel();}
    if(event.key==='Tab'){
-    const buttons=Array.from(dialog.current?.querySelectorAll<HTMLButtonElement>('button:not([disabled])')??[]);
+    const buttons=Array.from(dialog.current?.querySelectorAll<HTMLElement>('button:not([disabled]),a[href]')??[]);
     if(!buttons.length){event.preventDefault();dialog.current?.focus();}
     else if(event.shiftKey&&document.activeElement===buttons[0]){event.preventDefault();buttons.at(-1)?.focus();}
     else if(!event.shiftKey&&document.activeElement===buttons.at(-1)){event.preventDefault();buttons[0]?.focus();}
@@ -210,16 +219,21 @@ export function CatalogDeleteConfirmation({product,onCancel,onConfirm,busy=false
   return ()=>{document.removeEventListener('keydown',keydown);dialog.current?.close();before?.focus();};
  },[]);
  useEffect(()=>{if(busy)dialog.current?.focus();else cancel.current?.focus();},[busy]);
- return <dialog ref={dialog} tabIndex={-1} data-v2-delete-dialog role="alertdialog" aria-modal="true" aria-label="确认删除产品"
+ return <dialog ref={dialog} tabIndex={-1} data-v2-delete-dialog role="alertdialog" aria-modal="true" aria-label={orderBlocked?'产品删除限制':'确认删除产品'}
   onCancel={event=>{event.preventDefault();if(!busy)onCancel();}}
   className="fixed inset-0 m-auto w-[calc(100%-24px)] max-w-md rounded-xl bg-white p-5 text-[#191b24] shadow-2xl">
-   <h2 className="mb-3 text-lg font-semibold">确认删除产品？</h2>
+   <h2 className="mb-3 text-lg font-semibold">{orderBlocked?'产品无法删除':'确认删除产品？'}</h2>
    <p className="break-words text-sm">货号：<strong>{product.productNo}</strong></p>
-   <p className="my-3 text-xs text-slate-600">删除仅移除该产品及图片关联，不影响花型、面料或共享图片。已开单产品不能删除。</p>
+   {!orderBlocked&&<p className="my-3 text-xs text-slate-600">删除仅移除该产品及图片关联，不影响花型、面料或共享图片。</p>}
    {error&&<p role="alert" className="mt-3 text-sm text-rose-700">{error}</p>}
+   {orderBlocked&&<>
+    {!error&&<p className="mt-3 text-sm text-slate-700">该产品仍被已保存单据引用。</p>}
+    <a href={v2Route('documents',{productId:product.id,refNo:product.productNo})}
+     target="_blank" rel="noopener" className="mt-3 inline-block text-sm text-[#0053da] underline">查看关联单据</a>
+   </>}
    <div className="mt-5 flex justify-end gap-2">
-    <button ref={cancel} type="button" disabled={busy} onClick={onCancel} className="rounded border border-slate-300 px-4 py-2 text-sm"><ActionIcon name="close"/>取消</button>
-    <button type="button" disabled={busy} onClick={onConfirm} className="rounded bg-rose-700 px-4 py-2 text-sm text-white"><ActionIcon name="delete"/>{busy?'正在删除…':'确认删除'}</button>
+    <button ref={cancel} type="button" disabled={busy} onClick={onCancel} className="rounded border border-slate-300 px-4 py-2 text-sm"><ActionIcon name="close"/>{orderBlocked?'关闭':'取消'}</button>
+    {!orderBlocked&&<button type="button" disabled={busy} onClick={onConfirm} className="rounded bg-rose-700 px-4 py-2 text-sm text-white"><ActionIcon name="delete"/>{busy?'正在删除…':'确认删除'}</button>}
    </div>
  </dialog>;
 }
@@ -236,19 +250,29 @@ export interface ProductCatalogV2Props{
 /** P4 isolated component: deliberately not mounted over legacy ProductLibrary. */
 export function ProductCatalogV2({apiFetch,canManage=false,allowExport=true,onCreate,onEdit,onDeleteRequest,onShare,onTryOn,resolveImages}:ProductCatalogV2Props){
  const imageResolver=useCallback<CatalogImageResolver>((ids,variant,signal)=>resolveImages?resolveImages(ids,variant,signal):resolveImageUrls(apiFetch,ids,variant,signal),[apiFetch,resolveImages]);
+ const [referenceNo]=useState(()=>typeof window==='undefined'?'':readV2Route(window.location.hash).params.get('refNo')?.slice(0,160)??'');
  const [filters,setFilters]=useState<CatalogFilters>(()=>{
   const route=readV2Route(typeof window==='undefined'?'':window.location.hash),q=route.params;
   if(route.view!=='products')return {...emptyCatalogFilters};
   const offset=Number(q.get('offset')??0),limit=Number(q.get('limit')??50);
    const association=q.get('cardAssociation');
    const sort=q.get('sort');
-   return {...emptyCatalogFilters,sort:sort==='numberAsc'||sort==='numberDesc'?sort:undefined,productNo:q.get('productNo')??'',fabricName:q.get('fabricName')??'',cardAssociation:association==='linked'||association==='unlinked'?association:'all',status:q.get('status')==='all'?'all':'active',offset:Number.isSafeInteger(offset)&&offset>=0?offset:0,limit:Number.isInteger(limit)&&limit>0&&limit<=100?limit:50};
+   const orderStatus=q.get('orderStatus');
+   const id=q.get('productId')??'';
+   const productId=/^[1-9]\d{0,19}$/.test(id)&&BigInt(id)<=18446744073709551615n?id:undefined;
+   return {...emptyCatalogFilters,productId,sort:sort==='numberAsc'||sort==='numberDesc'?sort:undefined,productNo:q.get('productNo')??'',fabricName:q.get('fabricName')??'',cardAssociation:association==='linked'||association==='unlinked'?association:'all',orderStatus:orderStatus==='ordered'||orderStatus==='unordered'?orderStatus:'all',status:q.get('status')==='all'?'all':'active',offset:Number.isSafeInteger(offset)&&offset>=0?offset:0,limit:Number.isInteger(limit)&&limit>0&&limit<=100?limit:50};
  });
  useEffect(()=>{if(typeof window!=='undefined'&&readV2Route(window.location.hash).view==='products'){
-  const query=buildCatalogUrl('/api/v2/products',filters).split('?')[1];window.history.replaceState(window.history.state,'',v2Route('products',Object.fromEntries(new URLSearchParams(query))));
- }},[filters]);
+  const query=buildCatalogUrl('/api/v2/products',filters).split('?')[1];
+  window.history.replaceState(window.history.state,'',v2Route('products',{...Object.fromEntries(new URLSearchParams(query)),refNo:filters.productId?referenceNo:''}));
+ }},[filters,referenceNo]);
  const [page,setPage]=useState<CatalogPage|null>(null),[busy,setBusy]=useState(false);
  const [failure,setFailure]=useState(''),[retry,setRetry]=useState(0);
+ useEffect(()=>{
+  const reload=()=>setRetry(n=>n+1);
+  window.addEventListener('focus',reload);
+  return()=>window.removeEventListener('focus',reload);
+ },[]);
  const [thumbnailUrls,setThumbnailUrls]=useState<Map<string,string>>(new Map());
  const [viewer,setViewer]=useState<ViewerState|null>(null),[viewerError,setViewerError]=useState('');
  const [viewerUrls,setViewerUrls]=useState<Map<string,string>>(new Map());
@@ -258,12 +282,17 @@ export function ProductCatalogV2({apiFetch,canManage=false,allowExport=true,onCr
  const [pendingDelete,setPendingDelete]=useState<CatalogProduct|null>(null);
  const [tryOn,setTryOn]=useState<CatalogProduct|null>(null);
  const [deleteBusy,setDeleteBusy]=useState(false),[deleteError,setDeleteError]=useState('');
+ const [orderBlocked,setOrderBlocked]=useState(false);
  const deleting=useRef(false);useV2LeaveProtection(false,deleteBusy);
  const confirmDelete=async()=>{
-  if(!pendingDelete||!onDeleteRequest||deleting.current)return;
+  if(!pendingDelete||!onDeleteRequest||orderBlocked||deleting.current)return;
   deleting.current=true;setDeleteBusy(true);setDeleteError('');
   try{await onDeleteRequest(pendingDelete);setPendingDelete(null);}
-  catch(e){setDeleteError(e instanceof Error?e.message:'产品删除失败，请重试');}
+  catch(e){
+   setDeleteError(e instanceof Error?e.message:'产品删除失败，请重试');
+   if(e instanceof Error&&'code' in e&&e.code==='ORDER_REFERENCE')setOrderBlocked(true);
+   if(e instanceof Error&&'status' in e&&e.status===409)setRetry(n=>n+1);
+  }
   finally{deleting.current=false;setDeleteBusy(false);}
  };
  const listGuard=useRef(createLatestRequestGuard());
@@ -329,6 +358,7 @@ export function ProductCatalogV2({apiFetch,canManage=false,allowExport=true,onCr
     <Plus size={16}/>新增产品</button>:null}
    </div>
   </div>
+  {filters.productId&&<p className="text-sm text-slate-600">正在查看关联产品{referenceNo?' '+referenceNo:''}</p>}
   <div className="v2-catalog-filters v2-library-filters flex flex-wrap items-center gap-2 rounded-lg border border-[#c3c6d7] bg-white p-2.5 text-xs">
    <label className="relative"><span className="sr-only">货号</span>
     <Search className="absolute left-2 top-2 text-[#737686]" size={14}/>
@@ -340,6 +370,11 @@ export function ProductCatalogV2({apiFetch,canManage=false,allowExport=true,onCr
     <label className="inline-flex items-center gap-1.5 whitespace-nowrap">色卡关联
      <select aria-label="色卡关联" value={filters.cardAssociation??'all'} onChange={e=>dispatch({type:'cardAssociation',value:e.target.value as 'all'|'linked'|'unlinked'})} className="h-8 rounded-lg border border-[#c3c6d7] bg-white px-2">
       <option value="all">全部</option><option value="linked">已关联</option><option value="unlinked">未关联</option>
+     </select>
+    </label>
+    <label className="inline-flex items-center gap-1.5 whitespace-nowrap">开单状态
+     <select aria-label="开单状态" value={filters.orderStatus??'all'} onChange={e=>dispatch({type:'orderStatus',value:e.target.value as CatalogOrderStatus})} className="h-8 rounded-lg border border-[#c3c6d7] bg-white px-2">
+      <option value="all">全部</option><option value="ordered">已开单</option><option value="unordered">未开单</option>
      </select>
     </label>
     
@@ -357,11 +392,11 @@ export function ProductCatalogV2({apiFetch,canManage=false,allowExport=true,onCr
    onProductImages={item=>setViewer({type:'product',item})}
    onPage={offset=>dispatch({type:'page',offset})} onRemark={setRemark}
      onCard={item=>setViewingCard(item)}
-    canManage={canManage} onShare={onShare} onTryOn={onTryOn??setTryOn} onEdit={onEdit} onDeleteRequest={onDeleteRequest?item=>{setDeleteError('');setPendingDelete(item);}:undefined}/>:<div className="v2-catalog-skeleton" aria-hidden="true"/>}
+    canManage={canManage} onShare={onShare} onTryOn={onTryOn??setTryOn} onEdit={onEdit} onDeleteRequest={onDeleteRequest?item=>{setDeleteError('');setOrderBlocked(item.hasOrderReference===true);setPendingDelete(item);}:undefined}/>:<div className="v2-catalog-skeleton" aria-hidden="true"/>}
    </div>
   {tryOn&&<ProductTryOnDialog product={tryOn} apiFetch={apiFetch} onClose={()=>setTryOn(null)} onSaved={()=>setRetry(n=>n+1)}/>}
   {pendingDelete&&onDeleteRequest?<CatalogDeleteConfirmation product={pendingDelete}
-    busy={deleteBusy} error={deleteError} onCancel={()=>{if(!deleting.current)setPendingDelete(null);}}
+    busy={deleteBusy} error={deleteError} orderBlocked={orderBlocked} onCancel={()=>{if(!deleting.current)setPendingDelete(null);}}
     onConfirm={()=>void confirmDelete()}/>:null}
   {remark?<ImageDialog title={'产品备注 · '+remark.productNo} onClose={()=>setRemark(null)}>
    <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{remark.remark}</p>

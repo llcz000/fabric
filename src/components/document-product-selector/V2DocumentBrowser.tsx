@@ -83,7 +83,7 @@ function MatchingDetails({apiFetch,orderId,filters,onDenied}:{apiFetch:typeof fe
   {page.total>20&&<div className="mt-3 flex items-center gap-3 text-xs"><button className={button} disabled={offset===0} onClick={()=>setOffset(v=>v-20)}><ActionIcon name="back"/>上一页明细</button><span>第 {offset/20+1} 页</span><button className={button} disabled={offset+20>=page.total} onClick={()=>setOffset(v=>v+20)}><ActionIcon name="next"/>下一页明细</button></div>}
  </section>;
 }
-export function V2DocumentBrowser({apiFetch,role,companyProfile,initialFilters}:{apiFetch:typeof fetch;role:'admin'|'sales';companyProfile:CompanyProfile;initialFilters?:Partial<DocumentSearchFilters>}){
+export function V2DocumentBrowser({apiFetch,role,companyProfile,initialFilters,referenceNo}:{apiFetch:typeof fetch;role:'admin'|'sales';companyProfile:CompanyProfile;initialFilters?:Partial<DocumentSearchFilters>;referenceNo?:string}){
  const [filters,setFilters]=useState<DocumentSearchFilters>(()=>({...emptySearchFilters(),...initialFilters})),[applied,setApplied]=useState<DocumentSearchFilters>(()=>({...emptySearchFilters(),...initialFilters}));
  const [showExtraFilters,setShowExtraFilters]=useState(false);
  const [state,setState]=useState<DocumentSearchState>({loading:true,error:'',page:null,totals:null});
@@ -135,7 +135,7 @@ export function V2DocumentBrowser({apiFetch,role,companyProfile,initialFilters}:
   const initial={...emptySearchFilters(),...initialFilters};setFilters(initial);setApplied(initial);setOffset(0);setLimit(20);setExpanded(null);setSelected(null);
   setAction(null);setActionError('');setActionBusy(false);setExporting(false);activeAction.current?.abort();activeAction.current=null;
   void next.search(initial);return ()=>{next.dispose();activeAction.current?.abort();};
- },[apiFetch,role,initialFilters?.customer,initialFilters?.productName,initialFilters?.productNo,initialFilters?.colorNo,initialFilters?.type,initialFilters?.from,initialFilters?.to,initialFilters?.settled]);
+ },[apiFetch,role,initialFilters?.customer,initialFilters?.productName,initialFilters?.productNo,initialFilters?.productId,initialFilters?.colorNo,initialFilters?.type,initialFilters?.from,initialFilters?.to,initialFilters?.settled]);
  const search=(next:DocumentSearchFilters,nextOffset=0,nextLimit=limit)=>{
   setApplied(next);setOffset(nextOffset);setLimit(nextLimit);setExpanded(null);void controller.current?.search(next,nextOffset,nextLimit);
  };
@@ -148,6 +148,10 @@ export function V2DocumentBrowser({apiFetch,role,companyProfile,initialFilters}:
  if(selected?.mode==='preview')return <V2DocumentPrintView apiFetch={apiFetch} documentId={selected.id} onBack={()=>setSelected(null)} backLabel="返回查询"/>;
  return <section aria-label="V2单据查询工作区" className="space-y-4 p-3 text-[#191b24] sm:p-6">
   <header className="flex flex-wrap justify-between gap-3"><div><h2 className="text-xl font-semibold">单据查询</h2><p className="mt-1 text-xs text-slate-500">{role==='admin'?'查看全公司单据':'仅查看本人单据'} · 按开单日期倒序</p></div><button className={button} disabled={exporting} onClick={()=>void exportDocuments()}><ActionIcon name="download"/>{exporting?'正在导出…':role==='admin'?'导出全公司单据 JSON':'导出全部本人单据 JSON'}</button></header>
+  {applied.productId&&<div className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm">
+   <strong>关联单据{referenceNo?' · '+referenceNo:''}</strong>
+   {role==='sales'&&<p className="mt-1 text-xs text-slate-600">仅显示本人有权查看的单据。若产品仍被锁定，请由管理员核对其他单据。</p>}
+  </div>}
   <form className="rounded-xl border border-[#c3c6d7] bg-white p-4" onSubmit={event=>{event.preventDefault();search(filters);}}>
    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
     {([['customer','客户'],['productNo','货号'],['colorNo','色号'],['productName','品名']] as const).map(([key,label])=><label key={key} className={'text-xs font-medium'+(key==='customer'?'':extraFilterClass)}>{label}<input name={key} className={input} maxLength={100} value={filters[key]} onChange={e=>setFilters(v=>({...v,[key]:e.target.value}))}/></label>)}
@@ -158,7 +162,7 @@ export function V2DocumentBrowser({apiFetch,role,companyProfile,initialFilters}:
      <option value="">全部状态</option><option value="false">未结清</option><option value="true">已结清</option></select></label>
    </div>
    <div className="mt-4 flex flex-wrap items-center gap-2 md:gap-3"><button type="submit" className="min-h-10 rounded-lg bg-[#0053da] px-4 py-2 text-sm font-semibold text-white max-md:min-h-11"><ActionIcon name="search"/>查询</button>
-    <button type="button" className={button} onClick={()=>{const next=emptySearchFilters();setFilters(next);search(next);}}><ActionIcon name="reset"/>清除筛选</button>
+    <button type="button" className={button} onClick={()=>{const next={...emptySearchFilters(),productId:initialFilters?.productId};setFilters(next);search(next);}}><ActionIcon name="reset"/>清除筛选</button>
     <button type="button" aria-expanded={showExtraFilters} aria-description={extraFilterStatus?'其他筛选'+extraFilterStatus:undefined}
      className="min-h-11 rounded px-1.5 text-xs font-medium text-[#0053da] md:hidden" onClick={()=>setShowExtraFilters(value=>!value)}>
      更多筛选{!showExtraFilters&&extraFilterStatus&&<span aria-hidden="true"> · {extraFilterStatus}</span>}

@@ -4,7 +4,7 @@ import type {Pool} from '../order-v2/lines';
 import {requireV2Principal,requireV2Action,type AccessDatabase} from '../access/middleware';
 import type {AppPrincipal} from '../access/types';
 import {createPatternMaster,listPatternMasters,updatePatternMaster,deletePatternMaster,PatternMasterError} from './patternMasters';
-import {searchPatternCatalog,parsePatternCatalogQuery,loadPatternEditor,PatternCatalogError} from './patternCatalog';
+import {searchPatternCatalog,parsePatternCatalogQuery,loadPatternEditor,readPatternDeletionImpact,PatternCatalogError} from './patternCatalog';
 import {importPatternImageAsColorway} from './patternImageImport';
 
 /** Isolated P3-1a HTTP router; no server.ts/production mounting. */
@@ -34,6 +34,10 @@ export function createPatternMasterRouter(database:AccessDatabase,pool:Pool):Rou
  });
  router.get('/pattern-masters/:id/colorway-details',principal,read,async(req,res)=>{
   try{res.json(await loadPatternEditor(database,String(req.params.id)));}
+  catch(e){errorResponse(res,e);}
+ });
+ router.get('/pattern-masters/:id/deletion-impact',principal,write,async(req,res)=>{
+  try{res.json(await readPatternDeletionImpact(database,'master',String(req.params.id)));}
   catch(e){errorResponse(res,e);}
  });
  router.get('/pattern-masters',principal,read,async(req,res)=>{

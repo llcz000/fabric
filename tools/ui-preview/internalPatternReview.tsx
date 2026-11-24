@@ -12,10 +12,33 @@ const all=Array.from({length:76},(_,i)=>{
 }).reverse();
 let shrunk=false,failDimensionSave=location.search.includes('fail-dimensions'),catalogReads=0;
 const dimensionMode=location.search.includes('dimensions');
+const deletionReview=location.search.includes('deletion-review');
+let deletionRaced=false,deletionReadFailed=false;
 const dimensionValues=new Map<string,{widthCm:number|null;heightCm:number|null}>([['76',{widthCm:48,heightCm:32}]]);
 const apiFetch=(async(input:RequestInfo|URL,init?:RequestInit)=>{
  const u=new URL(String(input),location.href);
- if(dimensionMode){
+ if(deletionReview){
+  const impact=/^\/api\/v2\/pattern-(masters|colorways)\/(\d+)\/deletion-impact$/.exec(u.pathname);
+  if(impact){
+   if(impact[2]==='73'&&!deletionReadFailed){deletionReadFailed=true;return Response.json({}, {status:503});}
+   const colorway=impact[1]==='colorways',id=colorway?impact[2].slice(0,-2):impact[2];
+   const master=all.find(item=>item.id===id);
+   if(!master)return Response.json({}, {status:404});
+   const productCount=id==='74'&&deletionRaced?1:master.productCount;
+   return Response.json({colorwayCount:colorway?1:master.versions.length,productCount,
+    orderedProductCount:productCount?1:0,independentCardCount:!colorway&&id==='72'?1:0});
+  }
+  const removal=/^\/api\/v2\/pattern-(masters|colorways)\/(\d+)$/.exec(u.pathname);
+  if(removal&&init?.method==='DELETE'){
+   const id=removal[2];
+   if(id==='74'){deletionRaced=true;return Response.json({}, {status:409});}
+   const index=all.findIndex(item=>item.id===id&&item.productCount===0);
+   if(index<0)return Response.json({}, {status:409});
+   all.splice(index,1);
+   return Response.json({id,deleted:true});
+  }
+ }
+ if(dimensionMode||deletionReview){
   const editor=/^\/api\/v2\/pattern-masters\/(\d+)\/colorway-details$/.exec(u.pathname);
   if(editor){const m=all.find(x=>x.id===editor[1])!;return Response.json({items:m.versions.map(v=>({...v,masterNo:m.masterNo})),nextColorwayNo:m.nextColorwayNo,...(dimensionValues.get(m.id)??{widthCm:null,heightCm:null})});}
   const patch=/^\/api\/v2\/pattern-masters\/(\d+)$/.exec(u.pathname);

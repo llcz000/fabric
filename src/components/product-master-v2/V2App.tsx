@@ -36,6 +36,9 @@ export default function V2App(){
  const {token,apiFetch,resetVersion,username,setUsername,password,setPassword,busy,error:loginError,login,logout,expire}=useV2Identity();
  const {actor,company,shareEnabled,error:companyError,reload,reloadActor,saveCompany}=useV2Company(apiFetch,token);
  const {view,productName,previewId,routeRevision,protectedEditors,pendingLeave,notice,navigate,requestLeave,cancelLeave,discardLeave,registerSampleLeaveGuard,scannedCardToken}=useV2Navigation(actor,resetVersion);
+ const routeParams=readV2Route(typeof window==='undefined'?'':window.location.hash).params;
+ const referenceProductId=routeParams.get('productId')??undefined;
+ const referenceNo=routeParams.get('refNo')?.slice(0,160);
  const error=token?companyError:loginError;
  const resolveImages=useCallback((ids:string[],variant:'thumbnail'|'display'|'original',signal?:AbortSignal)=>resolveImageUrls(apiFetch,ids,variant,signal),[apiFetch]);
  if(!token)return <main className="v2-login">
@@ -54,14 +57,22 @@ export default function V2App(){
   {notice&&<p role="status" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{notice}</p>}
   <V2ViewBoundary key={view} label={VIEW_LABELS[view]??'页面'} onBack={()=>requestLeave(()=>navigate('stats'))}>
   {view==='stats'&&<V2DocumentStats apiFetch={apiFetch} onProduct={name=>requestLeave(()=>navigate('documents',{productName:name}))} onDocument={id=>requestLeave(()=>navigate('preview',{id}))}/>}
-  {view==='documents'&&<V2DocumentBrowser key={productName+':'+routeRevision} apiFetch={apiFetch} role={actor.role} companyProfile={company} initialFilters={productName?{productName}:undefined}/>}
+  {view==='documents'&&<V2DocumentBrowser key={productName+':'+routeRevision} apiFetch={apiFetch} role={actor.role} companyProfile={company}
+   initialFilters={referenceProductId?{productId:referenceProductId}:productName?{productName}:undefined} referenceNo={referenceNo}/>}
   {view==='create'&&<V2DocumentWorkspace apiFetch={apiFetch} role={actor.role} companyProfile={company} onSaved={doc=>navigate('preview',{id:doc.id})} onCancel={()=>navigate('documents')}/>}
   {view==='preview'&&<V2DocumentPrintView apiFetch={apiFetch} documentId={previewId} backLabel="返回单据列表" onBack={()=>requestLeave(()=>navigate('documents'))}/>}
   {view==='pattern'&&<PatternWorkspaceV2 apiFetch={apiFetch} canManage resolvePatternImages={resolveImages} onCreateProduct={master=>requestLeave(()=>navigate('products',{batchMasterId:master.id}))}/>}
   {view==='fabric'&&<FabricWorkspaceV2 apiFetch={apiFetch} canManage/>}
-  {view==='products'&&<ProductCatalogWorkspaceV2 key={routeRevision} apiFetch={apiFetch} canManage resolveImages={resolveImages} initialPatternId={readV2Route(window.location.hash).params.get('patternId')??undefined} initialPatternNo={readV2Route(window.location.hash).params.get('createPattern')??undefined} initialBatchMasterId={readV2Route(window.location.hash).params.get('batchMasterId')??undefined} onExitPrefill={()=>navigate('products')} onUploadImage={async file=>(await uploadImageAsset(file,'product_image',{apiFetch})).id} onDeleteProduct={async product=>{const response=await apiFetch('/api/v2/products/'+product.id,{method:'DELETE'});if(!response.ok)throw Error(response.status===409?'产品已被引用，请改为停用':'产品删除失败');}} onPatternLibrary={()=>requestLeave(()=>navigate('pattern'))} onFabricLibrary={()=>requestLeave(()=>navigate('fabric'))}/>}
+  {view==='products'&&<ProductCatalogWorkspaceV2 key={routeRevision} apiFetch={apiFetch} canManage resolveImages={resolveImages} initialPatternId={readV2Route(window.location.hash).params.get('patternId')??undefined} initialPatternNo={readV2Route(window.location.hash).params.get('createPattern')??undefined} initialBatchMasterId={readV2Route(window.location.hash).params.get('batchMasterId')??undefined} onExitPrefill={()=>navigate('products')} onUploadImage={async file=>(await uploadImageAsset(file,'product_image',{apiFetch})).id} onDeleteProduct={async product=>{
+   const response=await apiFetch('/api/v2/products/'+product.id,{method:'DELETE'});
+   if(response.ok)return;
+   const details=response.status===409?await response.json().catch(()=>null):null;
+   const ordered=details?.code==='ORDER_REFERENCE';
+   throw Object.assign(Error(ordered?'该产品仍被已保存单据引用，无法删除。':
+    response.status===409?'产品存在关联或状态已变化，无法删除。':'产品删除失败'),{status:response.status,code:details?.code});
+  }} onPatternLibrary={()=>requestLeave(()=>navigate('pattern'))} onFabricLibrary={()=>requestLeave(()=>navigate('fabric'))}/>}
    {view==='models'&&<ModelGalleryV2 apiFetch={apiFetch} canManage/>}
-   {view==='cards'&&<SampleCardLibraryV2 apiFetch={apiFetch} shareEnabled={shareEnabled}/>}
+   {view==='cards'&&<SampleCardLibraryV2 key={routeRevision} apiFetch={apiFetch} shareEnabled={shareEnabled} initialQuery={routeParams.get('query')?.slice(0,100)}/>}
    {view==='samples'&&<SampleBusinessWorkspaceV2 apiFetch={apiFetch} resolveImages={resolveImages} initialCardToken={scannedCardToken??undefined} sessionId={readV2Route(window.location.hash).params.get('sessionId')??undefined} onSessionRouteChange={sessionId=>navigate('samples',sessionId?{sessionId}:{})} onRegisterLeaveGuard={registerSampleLeaveGuard}/>}
    {view==='customers'&&<CustomerRoute apiFetch={apiFetch} onRegisterLeaveGuard={registerSampleLeaveGuard} onOpenDocument={id=>requestLeave(()=>navigate('preview',{id}))}/>}
   {view==='settings'&&<CompanyProfileEditor profile={company} onSave={saveCompany} apiFetch={apiFetch}/>}

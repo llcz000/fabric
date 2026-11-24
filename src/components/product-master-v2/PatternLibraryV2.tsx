@@ -15,6 +15,7 @@ import {PatternMasterRows} from './PatternMasterRows';
 import {PatternTopicQuickEdit} from './PatternTopicQuickEdit';
 import {PatternOriginalViewer} from './PatternOriginalViewer';
 import {PatternColorwayEditor} from './PatternColorwayEditor';
+import {PatternDeleteDialog} from './PatternDeleteDialog';
 import {PatternBulkImportDialog} from './PatternBulkImportDialog';
 import {deleteWholePatternMaster} from './patternBulkImportModel';
 import {useConfirm} from '../ui/ConfirmDialog';
@@ -50,8 +51,8 @@ export function PatternLibraryV2({apiFetch,canManage=false,onCreateMaster,onEdit
  const [editorThumbs,setEditorThumbs]=useState<Map<string,string>>(new Map());
  const [next,setNext]=useState(1),[editorLoading,setEditorLoading]=useState(false);
  const [editorError,setEditorError]=useState('');
- const [importOpen,setImportOpen]=useState(false),[deletePending,setDeletePending]=useState('');
- const [operationNotice,setOperationNotice]=useState(''),[operationError,setOperationError]=useState('');
+ const [importOpen,setImportOpen]=useState(false),[masterToDelete,setMasterToDelete]=useState<PatternMasterItem|null>(null);
+ const [operationNotice,setOperationNotice]=useState('');
  const [preview,setPreview]=useState<PatternVersionItem|null>(null);
  const [original,setOriginal]=useState<string|null>(null),[previewError,setPreviewError]=useState('');
  const listGuard=useRef(createLatestRequestGuard()),previewGuard=useRef(createLatestRequestGuard());
@@ -177,7 +178,7 @@ export function PatternLibraryV2({apiFetch,canManage=false,onCreateMaster,onEdit
   setTopics(current=>[...current.filter(tag=>!added.some(item=>item.id===tag.id)),...added]);
   setPage(current=>current?{...current,items:current.items.map(item=>item.id===master.id?{...item,topicTags:updated}:item)}:current);
   setQuickTopicMaster(null);
-  setOperationError('');setOperationNotice('');
+  setOperationNotice('');
   setRetry(v=>v+1);
  };
  const masterTagsSave=async(ids:string[])=>{
@@ -193,25 +194,17 @@ export function PatternLibraryV2({apiFetch,canManage=false,onCreateMaster,onEdit
   await deleteUnreferencedColorway(apiFetch,item.id);await refreshEdit(selected);
  };
  const deleteMaster=async(master:PatternMasterItem)=>{
-  if(deletePending||!canManage)return;
-  const ok=await confirm({title:'删除整个花型？',
-   message:'将同时删除 '+master.masterNo+' 及其 '+master.versions.length+' 个配色版本。已关联产品或色卡时系统会拒绝删除；删除后不能恢复。',
-   confirmText:'确认删除',danger:true});
-  if(!ok)return;
-  setDeletePending(master.id);setOperationError('');setOperationNotice('');
-  try{
-   await deleteWholePatternMaster(apiFetch,master.id);
-   setOperationNotice('整个花型 '+master.masterNo+' 及全部配色已删除。');
-   if(page?.items.length===1&&page.offset>0)dispatch({type:'page',offset:Math.max(0,page.offset-page.limit)});
-   else setRetry(x=>x+1);
-  }catch(cause){setOperationError(cause instanceof Error?cause.message:'删除失败，请刷新重试');}
-  finally{setDeletePending('');}
+  setOperationNotice('');
+  await deleteWholePatternMaster(apiFetch,master.id);
+  setOperationNotice('整个花型 '+master.masterNo+' 及全部配色已删除。');
+  if(page?.items.length===1&&page.offset>0)dispatch({type:'page',offset:Math.max(0,page.offset-page.limit)});
+  else setRetry(x=>x+1);
  };
  return <section aria-label="V2 花型库" className="v2-pattern flex min-h-[520px] flex-col gap-3 bg-[#faf8ff] p-3 text-[#191b24] sm:p-5">
   <header className="flex flex-wrap items-center justify-between gap-3">
    <div><h1 className="text-xl font-semibold">花型库</h1><p className="mt-1 text-xs text-slate-500">花型、配色与标签统一管理</p></div>
    {canManage?<div className="flex flex-wrap gap-2">
-    <button type="button" onClick={()=>{setImportOpen(true);setOperationNotice('');setOperationError('');}}
+    <button type="button" onClick={()=>{setImportOpen(true);setOperationNotice('');}}
      className="rounded-lg border border-[#346ef6] bg-white px-3 py-2 text-sm text-[#0053da]">导入花型库</button>
     {onCreateMaster?<button onClick={onCreateMaster} type="button"
      className="rounded-lg bg-[#346ef6] px-3 py-2 text-sm text-white"><ActionIcon name="add"/>新增花型</button>:null}
@@ -234,7 +227,6 @@ export function PatternLibraryV2({apiFetch,canManage=false,onCreateMaster,onEdit
    </div>
   </div>
   {tagsError?<p role="status" className="text-xs text-amber-700">{tagsError}</p>:null}
-  {operationError?<p role="alert" className="rounded bg-rose-50 p-2 text-sm text-rose-700">{operationError}</p>:null}
   {operationNotice?<p role="status" className="rounded bg-emerald-50 p-2 text-sm text-emerald-800">{operationNotice}</p>:null}
   {loading?<p role="status" className="p-3 text-sm text-slate-500">正在加载花型…</p>:null}
   {error?<p role="alert" className="p-3 text-sm text-rose-700">{error}
@@ -243,13 +235,16 @@ export function PatternLibraryV2({apiFetch,canManage=false,onCreateMaster,onEdit
    <PatternPagination label="花型列表顶部分页" page={page} onPage={offset=>dispatch({type:'page',offset})}/>
    <p className="v2-table-scroll-hint">左右滑动查看全部字段</p>
    <PatternMasterRows items={page.items} thumbnailUrls={thumbs} onShare={onShareMaster}
-   onPreview={setPreview} onEdit={openEdit} onDelete={canManage?deleteMaster:undefined}
+   onPreview={setPreview} onEdit={openEdit} onDelete={canManage?setMasterToDelete:undefined}
    onQuickTopicEdit={canManage?setQuickTopicMaster:undefined} onViewProducts={setLinkedMaster}
    sort={filters.sort} onSort={()=>dispatch({type:'sort',value:filters.sort==='numberAsc'?'numberDesc':'numberAsc'})}
    onCreateProduct={canManage?onCreateProduct:undefined} canManage={canManage}/>
    <PatternPagination page={page} onPage={offset=>dispatch({type:'page',offset})}/></>:null}
   {linkedMaster?<RelatedProductsDialog key={linkedMaster.id} apiFetch={apiFetch}
    source={{kind:'pattern',id:linkedMaster.id,label:linkedMaster.masterNo}} onClose={()=>setLinkedMaster(null)}/>:null}
+  {masterToDelete&&<PatternDeleteDialog key={masterToDelete.id} apiFetch={apiFetch} kind="pattern"
+   id={masterToDelete.id} label={masterToDelete.masterNo} onClose={()=>setMasterToDelete(null)}
+   onDelete={()=>deleteMaster(masterToDelete)}/>}
   {quickTopicMaster&&canManage?<PatternTopicQuickEdit key={quickTopicMaster.id} master={quickTopicMaster}
    topics={topics} apiFetch={apiFetch} onCancel={()=>setQuickTopicMaster(null)} onSaved={saveQuickMasterTopics}/>:null}
   {selected?<>{editorLoading?<div role="status" className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 text-white">正在加载配色…</div>:

@@ -75,7 +75,7 @@ export async function deleteWholePatternMaster(apiFetch:typeof fetch,masterId:Pa
  if(!id.test(masterId)||BigInt(masterId)>MAX_ID)throw Error('无效花型ID');
  const response=await apiFetch('/api/v2/pattern-masters/'+masterId,{method:'DELETE'});
  if(!response.ok){
-  if(response.status===409)throw Error('花型仍关联产品、色卡或其他业务资料，请先处理关联关系，或停用该花型');
+  if(response.status===409)throw Error('花型仍有关联资料，已重新检查产品与色卡。');
   if(response.status===404)throw Error('花型已不存在，请刷新列表');
   throw Error('删除失败（HTTP '+response.status+'），花型记录未确认删除');
  }

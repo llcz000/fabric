@@ -36,7 +36,7 @@ test('linked product details include the current fabric remark separately from p
    product_no:'G0004-2-F003',fabric_no:'F003',fabric_name:'轻薄雪纺',composition:'涤纶 100%',
    weight_value:'80',weight_unit:'gsm',width_value:'145',fabric_remark:'透感面料，适合连衣裙',
    remark:'产品内部备注',is_active:1,is_available_for_sampling:1,master_active:1,colorway_active:1,
-   fabric_active:1,row_version:'1',pattern_image_asset_id:null
+   fabric_active:1,row_version:'1',pattern_image_asset_id:null,has_order_reference:0
   }],[]];
   return [[],[]];
  }};

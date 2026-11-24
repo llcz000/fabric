@@ -1,9 +1,12 @@
 /** P4-4 Fabric V2 product list API/interaction model; never use legacy product endpoints. */
 export type CatalogStatus='active'|'inactive'|'all';
 export type CardAssociation='all'|'linked'|'unlinked';
+export type CatalogOrderStatus='all'|'ordered'|'unordered';
 export interface CatalogFilters{
  productNo:string;fabricName:string;topicTagIds:string[];colorTagIds:string[];
  status:CatalogStatus;limit:number;offset:number;cardAssociation?:CardAssociation;sort?:'numberAsc'|'numberDesc';
+ orderStatus?:CatalogOrderStatus;
+ productId?:string;
 }
 export interface CatalogTag{id:string;name:string;isArchived:boolean}
 export interface CatalogProduct{
@@ -15,6 +18,8 @@ export interface CatalogProduct{
  colorwayActive:boolean;fabricActive:boolean;isSelectable:boolean;rowVersion:string;
  patternImageAssetId:string|null;topicTags:CatalogTag[];colorTags:CatalogTag[];
  imageCounts:{fabricDisplay:number;detail:number;aiEffect:number};totalImages:number;
+ /** Older list responses may omit the reference status. */
+ hasOrderReference?:boolean;
  /** Missing only for an older response; never interpret unread metadata as unlinked. */
  sampleCard?:{id:string;cardNo:string;isActive:boolean;needsReprint:boolean}|null;
 }
@@ -24,6 +29,7 @@ export type CatalogAction=
  |{type:'topic'|'color';id:string}
  |{type:'status';value:CatalogStatus}
   |{type:'cardAssociation';value:CardAssociation}
+ |{type:'orderStatus';value:CatalogOrderStatus}
  |{type:'sort';value:CatalogFilters['sort']}
  |{type:'page';offset:number}
  |{type:'reset'};
@@ -38,6 +44,7 @@ export function reduceCatalogFilters(value:CatalogFilters,action:CatalogAction):
   return {...value,[action.type]:action.value,offset:0};
  if(action.type==='status')return {...value,status:action.value,offset:0};
  if(action.type==='cardAssociation')return {...value,cardAssociation:action.value,offset:0};
+ if(action.type==='orderStatus')return {...value,orderStatus:action.value,offset:0};
  if(action.type==='topic'||action.type==='color'){
   const key=action.type==='topic'?'topicTagIds':'colorTagIds';
   const old=value[key];
@@ -49,6 +56,7 @@ export function reduceCatalogFilters(value:CatalogFilters,action:CatalogAction):
 }
 export function buildCatalogUrl(endpoint:string,value:CatalogFilters):string{
  const params=new URLSearchParams();
+ if(value.productId)params.set('productId',value.productId);
  if(value.productNo.trim())params.set('productNo',value.productNo.trim());
  if(value.fabricName.trim())params.set('fabricName',value.fabricName.trim());
  if(value.topicTagIds.length)params.set('topicTagIds',value.topicTagIds.join(','));
@@ -56,6 +64,7 @@ export function buildCatalogUrl(endpoint:string,value:CatalogFilters):string{
  params.set('status',value.status);
  if(value.sort)params.set('sort',value.sort);
  if(value.cardAssociation&&value.cardAssociation!=='all')params.set('cardAssociation',value.cardAssociation);
+ if(value.orderStatus&&value.orderStatus!=='all')params.set('orderStatus',value.orderStatus);
  params.set('limit',String(value.limit));params.set('offset',String(value.offset));
  return endpoint+'?'+params.toString();
 }
@@ -89,6 +98,7 @@ export function parseCatalogPage(raw:unknown):CatalogPage{
    !(x.weightValue===null&&x.weightUnit===null||safeNumber(x.weightValue)&&['gsm','mm'].includes(String(x.weightUnit)))||
    !(x.widthCm===null||safeNumber(x.widthCm))||
    !['isActive','isAvailableForSampling','masterActive','colorwayActive','fabricActive','isSelectable'].every(k=>typeof x[k]==='boolean')||
+   !(x.hasOrderReference===undefined||typeof x.hasOrderReference==='boolean')||
    !(x.patternImageAssetId===null||typeof x.patternImageAssetId==='string')||
    !Array.isArray(x.topicTags)||!(x.topicTags as unknown[]).every(isTag)||
    !Array.isArray(x.colorTags)||!(x.colorTags as unknown[]).every(isTag)||

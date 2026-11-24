@@ -52,6 +52,20 @@ test('QUERY-02 count and page use one correlated EXISTS across ALL item criteria
  assert(!sql.includes('JOIN order_items i ON'),'count cannot be inflated by multiple lines');
  assert.deepEqual(args,['200','%客\\_户\\%%',0,'%货\\_号%','%红\\%%','%棉\\\\\\_%']);
 });
+test('deletion guidance matches saved product IDs within the existing document permissions',async()=>{
+ const db=new Fake();
+ const filters=parseScopedOrderFilters({productId:'18446744073709551615',colorNo:'12'});
+ await listScopedOrders(db,actor,filters);
+ for(const {sql,args} of db.sql){
+  assert.match(sql,/o\.created_by_user_id = \?/);
+  assert.match(sql,/i\.v2_product_id=\? AND i\.color_no LIKE/);
+  assert.deepEqual(args.slice(0,3),['200','18446744073709551615','%12%']);
+  assert.doesNotMatch(sql,/i\.product_no LIKE/);
+ }
+ for(const productId of [5,'0','18446744073709551616','5 OR 1=1', ['5']]){
+  assert.throws(()=>parseScopedOrderFilters({productId}),OrderSearchError);
+ }
+});
 test('QUERY-03 matching totals aggregate only qualified lines, exclude deposit and prepayment, preserve owner scope',async()=>{
  const calls:{sql:string;args:unknown[]}[]=[];
  const db={async query(sql:string,args:unknown[]=[]):Promise<[unknown,unknown]>{

@@ -211,7 +211,9 @@ export async function saveMasterTopicTags(apiFetch:typeof fetch,masterId:string,
 }
 export async function deleteUnreferencedColorway(apiFetch:typeof fetch,id:string):Promise<void>{
  if(!goodId(id))throw Error('无效配色');
- await responseJson(await apiFetch('/api/v2/pattern-colorways/'+id,{method:'DELETE'}));
+ const response=await apiFetch('/api/v2/pattern-colorways/'+id,{method:'DELETE'});
+ if(response.status===409)throw Error('配色仍有关联资料，已重新检查关联产品。');
+ await responseJson(response);
 }
 export async function patchMasterStatus(apiFetch:typeof fetch,masterId:string,isActive:boolean):Promise<void>{
  if(!goodId(masterId))throw Error('无效母版');

@@ -4,12 +4,13 @@ import {DatabaseSync} from 'node:sqlite';
 import ExcelJS from 'exceljs';
 import {parseProductSearchQuery,searchProductCatalog} from './productSearch';
 import {exportCatalog} from './catalogExport';
+import {readPatternDeletionImpact} from './patternCatalog';
 
 /** Real local SQL evaluation of the emitted joins/filters; target MySQL is a separate gate. */
 function fixture(t:{after(fn:()=>void):void}){
  const sql=new DatabaseSync(':memory:');t.after(()=>sql.close());
  sql.exec(`
- CREATE TABLE pattern_masters(id TEXT,master_no TEXT,is_active INTEGER);
+ CREATE TABLE pattern_masters(id TEXT,master_no TEXT,is_active INTEGER,deleted_at TEXT);
  CREATE TABLE pattern_colorways(id TEXT,master_id TEXT,colorway_no INTEGER,pattern_image_asset_id TEXT,is_active INTEGER);
  CREATE TABLE v2_fabrics(id TEXT,fabric_no TEXT,fabric_name TEXT,composition TEXT,weight_value TEXT,weight_unit TEXT,width_value TEXT,is_active INTEGER,remark TEXT);
  CREATE TABLE v2_products(id TEXT,pattern_colorway_id TEXT,fabric_id TEXT,product_no TEXT,remark TEXT,is_active INTEGER,is_available_for_sampling INTEGER,row_version TEXT);
@@ -17,7 +18,8 @@ function fixture(t:{after(fn:()=>void):void}){
  CREATE TABLE pattern_master_tag_links(master_id TEXT,tag_id TEXT);
  CREATE TABLE shared_tags(id TEXT,name TEXT,dimension TEXT,is_archived INTEGER);
  CREATE TABLE v2_product_image_assets(product_id TEXT,role TEXT,deleted_at TEXT);
- INSERT INTO pattern_masters VALUES ('7','G01',1),('9','G02',1);
+ CREATE TABLE order_items(order_id INTEGER,v2_product_id TEXT,product_no TEXT);
+ INSERT INTO pattern_masters VALUES ('7','G01',1,NULL),('9','G02',1,NULL);
  INSERT INTO pattern_colorways VALUES ('11','7',1,NULL,1),('12','7',2,NULL,1),('13','9',1,NULL,1);
  INSERT INTO v2_fabrics VALUES ('8','F01','Silk',NULL,'19.99','mm','145.01',1,'面料备注'),('10','F02','Cotton',NULL,NULL,NULL,NULL,1,NULL);
  INSERT INTO v2_products VALUES ('1','11','8','G01-1-F01','产品备注',1,1,'1'),('2','12','8','G01-2-F01','',1,0,'1'),('3','13','8','G02-1-F01','',1,1,'1'),('4','11','10','G01-1-F02','',0,1,'1');
@@ -60,4 +62,45 @@ test('filtered product export uses the same association predicate and preserves 
  const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(bytes as never);
  const sheet=workbook.worksheets[0],values=JSON.stringify(sheet.getSheetValues());
  assert.equal(sheet.rowCount,2);assert.match(values,/G02-1-F01/);assert.doesNotMatch(values,/G01-1-F01|G01-2-F01|G01-1-F02/);
+});
+
+// AC-64
+test('document status follows persisted product IDs, filters before paging and clears after the last reference is removed',async t=>{
+ const {db,sql}=fixture(t);
+ sql.exec("INSERT INTO order_items VALUES (1,'1','旧货号'),(2,'1','另一个旧货号'),(3,'3','G02-1-F01'),(4,NULL,'G01-2-F01')");
+ const search=(filters:Record<string,string>={})=>searchProductCatalog(db,parseProductSearchQuery({status:'all',...filters}));
+ const all=await search();
+ assert.deepEqual(all.items.map(p=>[p.id,p.hasOrderReference]),[['1',true],['4',false],['2',false],['3',true]]);
+ const linked=await search({orderStatus:'ordered',limit:'1',offset:'1'});
+ assert.equal(linked.total,2);
+ assert.deepEqual(linked.items.map(p=>p.id),['3']);
+ const unlinked=await search({orderStatus:'unordered',productNo:'G01',cardAssociation:'linked'});
+ assert.deepEqual(unlinked.items.map(p=>p.id),['4','2']);
+ sql.exec('DELETE FROM order_items WHERE order_id=1');
+ assert.equal((await search({productNo:'G01-1-F01'})).items[0].hasOrderReference,true);
+ sql.exec('DELETE FROM order_items WHERE order_id=2');
+ assert.equal((await search({productNo:'G01-1-F01'})).items[0].hasOrderReference,false);
+ const bytes=await exportCatalog(db,'products',{orderStatus:'ordered',status:'all'});
+ const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(bytes as never);
+ const sheet=workbook.worksheets[0];
+ assert.equal(sheet.rowCount,2);
+ assert.equal(sheet.getCell('A2').value,'G02-1-F01');
+ assert.equal(sheet.getCell('I1').value,'开单状态');
+ assert.equal(sheet.getCell('I2').value,'已开单');
+ for(const value of ['yes','ordered OR 1=1',[],null])assert.throws(()=>parseProductSearchQuery({orderStatus:value}));
+});
+// AC-12, AC-58
+test('deletion impact scopes master versus colorway and distinguishes standalone active cards',async t=>{
+ const {db,sql}=fixture(t);
+ sql.exec(`INSERT INTO order_items VALUES (1,'1','旧号'),(2,'1','旧号'),(3,NULL,'G01-2-F01');
+  INSERT INTO sample_cards VALUES ('22','7','99','G01-F99',1,NULL,'0','0');`);
+ const master=await readPatternDeletionImpact(db,'master','7');
+ assert.deepEqual(master,{colorwayCount:2,productCount:3,orderedProductCount:1,independentCardCount:1});
+ const colorway=await readPatternDeletionImpact(db,'colorway','12');
+ assert.deepEqual(colorway,{colorwayCount:1,productCount:1,orderedProductCount:0,independentCardCount:0});
+ const exact=await searchProductCatalog(db,parseProductSearchQuery({colorwayId:'12',status:'all'}));
+ assert.deepEqual(exact.items.map(p=>p.id),['2']);
+ const product=await searchProductCatalog(db,parseProductSearchQuery({productId:'1'}));
+ assert.deepEqual(product.items.map(p=>p.id),['1']);
+ await assert.rejects(readPatternDeletionImpact(db,'master','999'),{status:404});
 });

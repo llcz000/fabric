@@ -16,7 +16,9 @@ export function createV2ProductsRouter(db:AccessDatabase,pool:Pool):Router{
   next();
  };
  const error=(res:Response,e:unknown)=>{
-  if(e instanceof V2ProductError||e instanceof ProductSearchError){res.status(e.status).json({error:e.message});return;}
+  if(e instanceof V2ProductError||e instanceof ProductSearchError){
+   res.status(e.status).json({error:e.message,...(e instanceof V2ProductError&&e.code?{code:e.code}:{})});return;
+  }
   res.status(503).json({error:'V2 product service temporarily unavailable'});
  };
  router.use((_req,res,next)=>{res.setHeader('Cache-Control','no-store');next();});

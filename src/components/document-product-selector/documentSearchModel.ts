@@ -1,5 +1,6 @@
 export interface DocumentSearchFilters{
  customer:string;productNo:string;colorNo:string;productName:string;
+ productId?:string;
  type:''|'sample'|'bulk'|'deposit';from:string;to:string;settled:''|'true'|'false';
 }
 export const emptySearchFilters=():DocumentSearchFilters=>({customer:'',productNo:'',colorNo:'',productName:'',type:'',from:'',to:'',settled:''});
@@ -20,6 +21,10 @@ export function documentResourceUrl(documentId?:string):string{
 export function documentSearchParams(filters:DocumentSearchFilters,offset=0,limit=20):URLSearchParams{
  if(!Number.isSafeInteger(offset)||offset<0||offset>1000000||![20,50].includes(limit))throw Error('分页参数不正确');
  const params=new URLSearchParams();
+ if(filters.productId){
+  if(!id(filters.productId)||BigInt(filters.productId)>18446744073709551615n)throw Error('产品标识不正确');
+  params.set('productId',filters.productId);
+ }
  for(const key of ['customer','productNo','colorNo','productName'] as const){
   const value=filters[key].trim();
   if([...value].length>100||/[\p{Cc}\p{Cf}]/u.test(value))throw Error('筛选内容过长或含非法字符');

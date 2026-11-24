@@ -10,9 +10,9 @@ export class OrderSearchError extends Error {
 export interface ScopedOrderFilters{
  limit:number;offset:number;orderNo?:string;type?:'sample'|'deposit'|'bulk';
  from?:string;to?:string;customer?:string;productNo?:string;colorNo?:string;
- productName?:string;settled?:boolean;
+ productName?:string;productId?:string;settled?:boolean;
 }
-const only=['limit','offset','orderNo','type','from','to','customer','productNo','colorNo','productName','settled'];
+const only=['limit','offset','orderNo','type','from','to','customer','productNo','productId','colorNo','productName','settled'];
 const escapeLike=(value:string)=>'%'+value.replace(/[\\%_]/g,c=>'\\'+c)+'%';
 const itemFields={productNo:'product_no',colorNo:'color_no',productName:'product_name'} as const;
 const linePieces="CASE WHEN o.template_type='sample' THEN 1 WHEN o.template_type='bulk' THEN COALESCE(JSON_LENGTH(i.piece_meters),0) ELSE 0 END";
@@ -35,6 +35,11 @@ export function parseScopedOrderFilters(input:Record<string,unknown>):ScopedOrde
   throw new OrderSearchError('Invalid order search');
  const limit=int(input.limit,'limit',20,1,50),offset=int(input.offset,'offset',0,0,1000000);
  const filters:ScopedOrderFilters={limit,offset};
+ if(input.productId!==undefined){
+  if(typeof input.productId!=='string'||!/^[1-9]\d{0,19}$/.test(input.productId)||BigInt(input.productId)>18446744073709551615n)
+   throw new OrderSearchError('Invalid product identity');
+  filters.productId=input.productId;
+ }
  if(input.orderNo!==undefined){
   if(typeof input.orderNo!=='string'||input.orderNo.length>100)
    throw new OrderSearchError('Invalid orderNo');
@@ -79,11 +84,13 @@ function where(actor:AppPrincipal|null|undefined,filters:Partial<ScopedOrderFilt
  }
  const fields=(Object.keys(itemFields) as (keyof typeof itemFields)[])
   .filter(field=>Boolean(filters[field]));
- if(fields.length){
-  const conditions=fields.map(field=>{
-   args.push(escapeLike(filters[field]!));
-   return "i."+itemFields[field]+" LIKE ? ESCAPE '\\\\'";
-  });
+ const conditions:string[]=[];
+ if(filters.productId){conditions.push('i.v2_product_id=?');args.push(filters.productId);}
+ for(const field of fields){
+  args.push(escapeLike(filters[field]!));
+  conditions.push("i."+itemFields[field]+" LIKE ? ESCAPE '\\\\'");
+ }
+ if(conditions.length){
   if(itemAlias==='i')parts.push(...conditions);
   else parts.push('EXISTS (SELECT 1 FROM order_items i WHERE i.order_id=o.id AND '+conditions.join(' AND ')+')');
  }

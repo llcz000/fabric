@@ -66,6 +66,8 @@ PRD-08 / AC-161：`pattern-catalog` 的 `productCount` 由服务端按母版全�
 
 - 选样目录按创建时间及ID倒序，返回现有createdOn和新增createdAt（UTC ISO，界面按上海时区显示日期）、selectedCardCount（当前有选配色的来源卡数）和 selectedProductCount（当前未移除的产品款数）；以 created_at、id 倒序分页，默认20单/页，客户搜索在服务端全量授权范围内筛选；新增选样单日均5～10条、年约1800～3650条，不向前端一次返回历史全量，排序与用户授权访问通过索引优化；无数据迁移。同一客户重复新建始终为独立单。
 - GET /api/v2/products 新增可选sort=numberAsc|numberDesc，缺省保留原默认顺序；按母版数字、配色数字、产品ID排序后LIMIT/OFFSET，不用面料后缀作排序键。GET /api/v2/sample-cards 接受sort=newest|numberAsc|numberDesc，按母版数字及卡ID排序，缺省仍新增时间倒序；花型原numberAsc/numberDesc沿用。排序值严格白名单、重复/未知值拒绝，不影响导出字段或现有编号。
+- 内部 GET /api/v2/products 返回 `hasOrderReference`，通过既有 `order_items.v2_product_id` 索引与删除保护使用同一引用条件。可选 `orderStatus=all|ordered|unordered` 在计数和分页前过滤，导出复用该查询并包含开单状态。接口只返回引用是否存在，单据详情仍按原权限查询。无需数据库迁移。
+- 花型母版与配色的删除前检查分别使用 `GET /api/v2/pattern-masters/:id/deletion-impact` 和 `GET /api/v2/pattern-colorways/:id/deletion-impact`。仅返回配色数、产品数、被单据引用的产品数以及无对应产品的有效色卡数。有效色卡仍按原约束处理，最后一款关联产品删除时同事务退役对应色卡。产品列表使用 `colorwayId` 或 `productId` 精确定位；单据列表、命中明细与汇总统一通过 `productId` 匹配明细引用并按原权限查询。产品删除因已保存单据阻塞时返回 409、`code: ORDER_REFERENCE`。执行删除仍复核实时关联。
 - DELETE /api/v2/customers/:id 在客户FOR UPDATE及版本检查后重新统计未删除选样；有记录返回409 {code:"customer_has_selections",selectionCount:N,error:先删选样提示}，审计/客户/选样均不写入。创建选样同样取得客户更新锁，与删除串行；GET deletion-info仍提供确认前数量，不替代DELETE实时校验。所有选样已逻辑删除时才可删客户，保留已存三类单据及所有原始历史。
 - 客户profile.region字段和100字符上限保留，仅表单/详情文案改为“详细地址”；旧值读写不转换、不清空，无新增DB列或迁移。
 - 已授权的选样列表与单单读取通过 `customerReference` 返回展示名称，列表在服务端按同一口径筛选后分页。关联的有效档案用当前名称，未关联及已删除/旧归档档案回退到 `customer_sample_sessions.customer_reference`。客户档案业务历史中的选样摘要沿用同一名称口径；选样日期从创建时间戳换算为北京时间，再与原反馈日期和单据日期合并排序分页。原始快照与受控关联的版本比较字段保留。

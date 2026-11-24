@@ -1,3 +1,5 @@
+import {productOrderReferenceSource} from '../order-v2/lines';
+
 /** P3-5 V2 catalog searching: all filters in MySQL before paging.
  * Deliberately separate from legacy product and order-picking paths.
  * The future UI must discard stale requests; that is not a server-side capability.
@@ -8,10 +10,12 @@ export class ProductSearchError extends Error {
 }
 export type ProductStatus='active'|'inactive'|'all';
 export type ProductCardAssociation='all'|'linked'|'unlinked';
+type ProductOrderStatus='all'|'ordered'|'unordered';
 export interface ProductSearchFilters{
- fabricId?:string;masterId?:string;
+ fabricId?:string;masterId?:string;colorwayId?:string;productId?:string;
  productNo:string;fabricName:string;topicTagIds:string[];colorTagIds:string[];
  status:ProductStatus;limit:number;offset:number;cardAssociation?:ProductCardAssociation;sort?:'numberAsc'|'numberDesc';
+ orderStatus?:ProductOrderStatus;
 }
 export interface ProductTagLabel{id:string;name:string;isArchived:boolean}
 export interface ProductImageCounts{
@@ -26,6 +30,7 @@ export interface CatalogProduct{
  fabricActive:boolean;isSelectable:boolean;rowVersion:string;
  patternImageAssetId:string|null;topicTags:ProductTagLabel[];colorTags:ProductTagLabel[];
  imageCounts:ProductImageCounts;totalImages:number;
+ hasOrderReference:boolean;
  sampleCard?:{id:string;cardNo:string;isActive:boolean;needsReprint:boolean}|null;
 }
 export interface CatalogPage{items:CatalogProduct[];total:number;limit:number;offset:number}
@@ -33,7 +38,7 @@ type Query={query(sql:string,params?:unknown[]):Promise<[unknown,unknown]>};
 type Row=Record<string,unknown>;
 const MAX_ID=18446744073709551615n;
 const FILTER_KEYS=new Set(['productNo','fabricName','topicTagIds','colorTagIds',
- 'status','includeInactive','limit','offset','fabricId','masterId','cardAssociation','sort']);
+ 'status','includeInactive','limit','offset','fabricId','masterId','colorwayId','productId','cardAssociation','sort','orderStatus']);
 const inspect=(text:unknown,key:string,max:number):string=>{
  if(text===undefined)return '';
  if(typeof text!=='string'||[...text].length>max||/[\p{Cc}\p{Cf}]/u.test(text))
@@ -74,6 +79,8 @@ export function parseProductSearchQuery(input:unknown):ProductSearchFilters{
  const raw=input as Record<string,unknown>;
  if(raw.fabricId!==undefined&&typeof raw.fabricId!=='string')throw new ProductSearchError('Invalid fabric identity');
  if(raw.masterId!==undefined&&typeof raw.masterId!=='string')throw new ProductSearchError('Invalid master identity');
+ if(raw.colorwayId!==undefined&&typeof raw.colorwayId!=='string')throw new ProductSearchError('Invalid colorway identity');
+ if(raw.productId!==undefined&&typeof raw.productId!=='string')throw new ProductSearchError('Invalid product identity');
  if(raw.includeInactive!==undefined&&raw.includeInactive!=='true')
   throw new ProductSearchError('Invalid includeInactive');
  if(raw.includeInactive!==undefined&&raw.status!==undefined)
@@ -85,10 +92,16 @@ export function parseProductSearchQuery(input:unknown):ProductSearchFilters{
  const cardAssociation=raw.cardAssociation===undefined?'all':raw.cardAssociation;
  if(cardAssociation!=='all'&&cardAssociation!=='linked'&&cardAssociation!=='unlinked')
   throw new ProductSearchError('Invalid card association filter');
+ const orderStatus=raw.orderStatus;
+ if(orderStatus!==undefined&&orderStatus!=='all'&&orderStatus!=='ordered'&&orderStatus!=='unordered')
+  throw new ProductSearchError('Invalid order status filter');
  return {
+  ...(orderStatus===undefined?{}:{orderStatus:orderStatus as ProductOrderStatus}),
   ...(raw.sort===undefined?{}:{sort:raw.sort as 'numberAsc'|'numberDesc'}),
   ...(raw.fabricId===undefined?{}:{fabricId:positiveId(raw.fabricId)}),
   ...(raw.masterId===undefined?{}:{masterId:positiveId(raw.masterId)}),
+  ...(raw.colorwayId===undefined?{}:{colorwayId:positiveId(raw.colorwayId)}),
+  ...(raw.productId===undefined?{}:{productId:positiveId(raw.productId)}),
   productNo:inspect(raw.productNo,'productNo',160),
   fabricName:inspect(raw.fabricName,'fabricName',255),
   topicTagIds:selectedTags(raw.topicTagIds,'topicTagIds'),
@@ -114,12 +127,17 @@ const distinct=(values:unknown[]):string[]=>[...new Set(values.map(positiveId))]
 function escapeLike(text:string):string{
  return '%'+text.replace(/[!%_]/g,ch=>'!'+ch)+'%';
 }
+const HAS_ORDER_REFERENCE='EXISTS (SELECT 1 '+productOrderReferenceSource('p.id')+')';
 function queryConditions(filter:ProductSearchFilters):{sql:string;params:unknown[]}{
  const conditions:string[]=[];const params:unknown[]=[];
  if(filter.cardAssociation==='linked')conditions.push('sc.id IS NOT NULL');
  if(filter.cardAssociation==='unlinked')conditions.push('sc.id IS NULL');
+ if(filter.orderStatus==='ordered')conditions.push(HAS_ORDER_REFERENCE);
+ if(filter.orderStatus==='unordered')conditions.push('NOT '+HAS_ORDER_REFERENCE);
  if(filter.fabricId){conditions.push('p.fabric_id=?');params.push(filter.fabricId);}
  if(filter.masterId){conditions.push('m.id=?');params.push(filter.masterId);}
+ if(filter.colorwayId){conditions.push('p.pattern_colorway_id=?');params.push(filter.colorwayId);}
+ if(filter.productId){conditions.push('p.id=?');params.push(filter.productId);}
  if(filter.status!=='all'){
   conditions.push('p.is_active=?');params.push(filter.status==='active'?1:0);
  }
@@ -153,7 +171,8 @@ const FIELDS='p.id,p.pattern_colorway_id,p.fabric_id,p.product_no,p.remark,p.is_
  'f.fabric_no,f.fabric_name,f.composition,f.weight_value,f.weight_unit,f.width_value,f.remark AS fabric_remark,'+
  'm.is_active AS master_active,c.is_active AS colorway_active,f.is_active AS fabric_active,'+
  'sc.id AS sample_card_id,sc.card_no AS sample_card_no,sc.is_active AS sample_card_active,'+
- 'sc.reprint_revision AS sample_card_reprint_revision,sc.printed_revision AS sample_card_printed_revision';
+ 'sc.reprint_revision AS sample_card_reprint_revision,sc.printed_revision AS sample_card_printed_revision,'+
+ HAS_ORDER_REFERENCE+' AS has_order_reference';
 function currentCard(row:Row):CatalogProduct['sampleCard']{
  if(row.sample_card_id==null)return null;
  const revision=String(row.sample_card_reprint_revision),printed=String(row.sample_card_printed_revision);
@@ -255,7 +274,7 @@ export async function searchProductCatalog(db:Query,filter:ProductSearchFilters)
    topicTags:topic.get(positiveId(row.master_id))??[],
    colorTags:color.get(positiveId(row.master_id))??[],
     imageCounts,totalImages:imageCounts.fabricDisplay+imageCounts.detail+imageCounts.aiEffect,
-    sampleCard:currentCard(row)
+    sampleCard:currentCard(row),hasOrderReference:boolean(row.has_order_reference)
   };
  });
  return {items,total,limit:filter.limit,offset:filter.offset};

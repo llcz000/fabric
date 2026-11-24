@@ -1,4 +1,4 @@
-import {relatedProductsPreview,relatedProductImagesPreview} from './fixtures/relatedProducts';
+import {relatedProductsPreview,relatedProductImagesPreview,markPreviewProductOrdered} from './fixtures/relatedProducts';
 import {FabricProductsDialog} from '../../src/components/product-master-v2/FabricProductsDialog';
 import {ProductCatalogV2} from '../../src/components/product-master-v2/ProductCatalogV2';
 import {FabricImportV2} from '../../src/components/product-master-v2/FabricImportV2';
@@ -47,7 +47,11 @@ function Screen(){
  const [message,setMessage]=useState('');
  const [linked,setLinked]=useState<FabricCatalogItem|null>(null);
  return <div className="v2-shell"><ConfirmProvider>
-  {location.search.includes('products=1')?<ProductCatalogV2 apiFetch={apiFetch} canManage allowExport={false} onEdit={item=>setMessage('编辑 '+item.productNo)}/>:location.search.includes('import=1')?<FabricImportV2 apiFetch={apiFetch} canManage onCancel={()=>{location.href='/tools/ui-preview/entries/ui-ux-internal-fabrics.html';}}/>:<FabricLibraryV2 apiFetch={apiFetch} canManage allowExport onImport={()=>setMessage('本机演示：不会读取 Excel')}
+  {location.search.includes('products=1')?<ProductCatalogV2 apiFetch={apiFetch} canManage allowExport={false} onEdit={item=>setMessage('编辑 '+item.productNo)}
+   onDeleteRequest={location.search.includes('orderStatusReview=1')?async item=>{
+    markPreviewProductOrdered(item.id);
+    throw Object.assign(Error('该产品仍被已保存单据引用，无法删除。'),{status:409,code:'ORDER_REFERENCE'});
+   }:undefined}/>:location.search.includes('import=1')?<FabricImportV2 apiFetch={apiFetch} canManage onCancel={()=>{location.href='/tools/ui-preview/entries/ui-ux-internal-fabrics.html';}}/>:<FabricLibraryV2 apiFetch={apiFetch} canManage allowExport onImport={()=>setMessage('本机演示：不会读取 Excel')}
    onViewProducts={setLinked}/>}
   {linked?<FabricProductsDialog key={linked.id} apiFetch={apiFetch} fabric={linked} onClose={()=>setLinked(null)}/>:null}
   {message?<p role="status" className="mx-5 text-sm text-slate-500">{message}</p>:null}

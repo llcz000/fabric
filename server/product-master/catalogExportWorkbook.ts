@@ -7,7 +7,7 @@ export type CatalogExportItem=PatternMasterPageItem|FabricCatalogItem|CatalogPro
 export const catalogExportHeaders={
  patterns:['花型','题材标签','颜色标签','配色版本'],
  fabrics:['品号','品名','成分','克重','门幅 / cm','备注','启用状态','关联产品'],
- products:['货号','品名','成分','克重','门幅 / cm','图片数量','备注','启用状态']
+ products:['货号','品名','成分','克重','门幅 / cm','图片数量','备注','启用状态','开单状态']
 } as const;
 const status=(active:boolean)=>active?'已启用':'已停用';
 const weight=(value:number|null,unit:string|null)=>value===null?'':String(value)+(unit?' '+unit:'');
@@ -28,7 +28,7 @@ export async function buildCatalogWorkbook(kind:CatalogExportKind,items:readonly
    const row=item as CatalogProduct;
    values=[row.productNo,row.fabricName,row.composition??'',weight(row.weightValue,row.weightUnit),row.widthCm??'',
     '大图 '+row.imageCounts.fabricDisplay+' · 细节 '+row.imageCounts.detail+' · 效果 '+row.imageCounts.aiEffect,row.remark,
-    status(row.isActive)+(row.isAvailableForSampling?'':' / 暂不供样')];
+    status(row.isActive)+(row.isAvailableForSampling?'':' / 暂不供样'),row.hasOrderReference?'已开单':'未开单'];
   }
   sheet.addRow(values);
  }

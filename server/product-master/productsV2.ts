@@ -2,11 +2,11 @@ import {ensureProductSampleCard,retireEmptyProductSampleCard,SampleCardError} fr
 import {recordDeletion} from '../audit/deletionAudit';
 import type {AppPrincipal} from '../access/types';
 import {withCatalogTransaction} from '../access/catalogTransaction';
-import type {Pool} from '../order-v2/lines';
+import {productOrderReferenceSource,type Pool} from '../order-v2/lines';
 
 /** P3-4 standalone V2 product catalog. Deliberately not mounted on server.ts. */
 export class V2ProductError extends Error {
- constructor(message:string,readonly status:400|401|403|404|409=400){super(message);}
+ constructor(message:string,readonly status:400|401|403|404|409=400,readonly code?:'ORDER_REFERENCE'){super(message);}
 }
 type Row=Record<string,unknown>;
 type Query={query(sql:string,params?:unknown[]):Promise<[unknown,unknown]>};
@@ -231,7 +231,7 @@ async function locateIdentity(db:Query,productId:string):Promise<Row>{
  const current=rows(raw)[0];if(!current)throw new V2ProductError('Product not found',404);return current;
 }
 async function used(db:Query,productId:string):Promise<boolean>{
- const [raw]=await db.query('SELECT COUNT(*) AS total FROM order_items WHERE v2_product_id=?',[productId]);
+ const [raw]=await db.query('SELECT COUNT(*) AS total '+productOrderReferenceSource('?'),[productId]);
  const count=Number(rows(raw)[0]?.total);
  if(!Number.isSafeInteger(count)||count<0)throw Error('Invalid order reference count');
  return count>0;
@@ -377,7 +377,7 @@ export async function deleteV2Product(pool:Pool,actor:AppPrincipal,productId:str
   const located=await locateIdentity(db,productId);
   const masters=await lockProductIdentities(db,[{colorwayId:sqlId(located.pattern_colorway_id),fabricId:sqlId(located.fabric_id)}]);
   const current=await locked(db,productId);sameIdentity(current,located);
-  if(await used(db,productId))throw new V2ProductError('Ordered product cannot be deleted',409);
+  if(await used(db,productId))throw new V2ProductError('Ordered product cannot be deleted',409,'ORDER_REFERENCE');
   await recordDeletion(db,actor,{type:'product',id:productId,label:String(current.product_no)});
   await applyImages(db,productId,emptyImages(),true);
   const [deleted]=await db.query('DELETE FROM v2_products WHERE id=?',[productId]);

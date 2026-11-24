@@ -14,6 +14,10 @@ export interface TxConn {
  query(sql:string,params?:unknown[]):Promise<[unknown,unknown]>;
 }
 export interface Pool{customerProfilesEnabled?:boolean;customerProfilesRequired?:boolean;getConnection():Promise<TxConn>}
+/** Only saved catalog lines hold an authoritative reference to a product. */
+export function productOrderReferenceSource(productIdSql:'?'|'p.id'):string{
+ return 'FROM order_items WHERE v2_product_id='+productIdSql;
+}
 type Business={meters?:number;unitPrice?:number;remark?:string;deductionMeters?:number;pieceMeters?:number[]|null};
 type Manual={productNo:string;productName:string;composition?:string;weight?:number;width?:number;colorNo?:string};
 type Line={id?:string;fields:Business;selection?:{productId:string};manual?:Manual};

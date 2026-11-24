@@ -1,7 +1,8 @@
 import React,{useEffect,useRef,useState} from 'react';
 import {X} from 'lucide-react';
 import {parseCatalogPage,resolveImageUrls,type CatalogPage} from './catalogModel';
-export type RelatedProductSource={kind:'pattern'|'fabric';id:string;label:string};
+import {v2Route} from './v2Navigation';
+export type RelatedProductSource={kind:'pattern'|'fabric'|'colorway';id:string;label:string};
 const text=(value:string|null|undefined)=>value?.trim()||'未填写';
 function RelatedPatternThumbnail({url,number,pending,hasImage,onError}:{url?:string;number:string;pending:boolean;hasImage:boolean;onError():void}){
  const [failed,setFailed]=useState(false);
@@ -14,21 +15,27 @@ function RelatedPatternThumbnail({url,number,pending,hasImage,onError}:{url?:str
   </span>;
 }
 
-export function RelatedProductsDialog({apiFetch,source,onClose}:{apiFetch:typeof fetch;source:RelatedProductSource;onClose():void}){
+export function RelatedProductsDialog({apiFetch,source,onClose,showActions=false}:{apiFetch:typeof fetch;source:RelatedProductSource;onClose():void;showActions?:boolean}){
  const dialog=useRef<HTMLDialogElement>(null);
  const [offset,setOffset]=useState(0),[retry,setRetry]=useState(0);
  const [data,setData]=useState<CatalogPage|null>(null),[error,setError]=useState('');
  const [imageUrls,setImageUrls]=useState(new Map<string,string>()),[imagePending,setImagePending]=useState(false),[imageError,setImageError]=useState(false),[imageRetry,setImageRetry]=useState(0);
- const field=source.kind==='pattern'?'masterId':'fabricId';
+ const field=source.kind==='pattern'?'masterId':source.kind==='colorway'?'patternColorwayId':'fabricId';
  useEffect(()=>{
   const previous=document.activeElement instanceof HTMLElement?document.activeElement:null;
   const element=dialog.current;element?.showModal();
   return()=>{element?.close();previous?.focus();};
  },[]);
  useEffect(()=>{
+  if(!showActions)return;
+  const refresh=()=>setRetry(n=>n+1);
+  window.addEventListener('focus',refresh);
+  return()=>window.removeEventListener('focus',refresh);
+ },[showActions]);
+ useEffect(()=>{
   const controller=new AbortController();setData(null);setError('');
   void (async()=>{try{
-   const params=new URLSearchParams({[field]:source.id,status:'all',limit:'20',offset:String(offset)});
+   const params=new URLSearchParams({[field==='patternColorwayId'?'colorwayId':field]:source.id,status:'all',limit:'20',offset:String(offset)});
    const response=await apiFetch('/api/v2/products?'+params,{signal:controller.signal});
    if(!response.ok)throw Error('关联产品读取失败，请重试。');
    const page=parseCatalogPage(await response.json());
@@ -50,11 +57,11 @@ export function RelatedProductsDialog({apiFetch,source,onClose}:{apiFetch:typeof
    .finally(()=>{if(!controller.signal.aborted)setImagePending(false);});
   return()=>controller.abort();
  },[apiFetch,data,imageRetry]);
- const kind=source.kind==='pattern'?'花型':'面料';
- return <dialog ref={dialog} aria-label={kind+'关联产品 '+source.label} onCancel={event=>{event.preventDefault();onClose();}}
+ const kind=source.kind==='pattern'?'花型':source.kind==='colorway'?'配色':'面料';
+ return <dialog ref={dialog} aria-label={kind+'关联产品 '+source.label} onCancel={event=>{event.preventDefault();event.stopPropagation();onClose();}}
   onKeyDown={event=>{
    if(event.key!=='Tab')return;
-   const controls=Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled),[tabindex="0"]'));
+   const controls=Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled),a[href],[tabindex="0"]'));
    const first=controls[0],last=controls.at(-1);
    if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}
    else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}
@@ -89,6 +96,13 @@ export function RelatedProductsDialog({apiFetch,source,onClose}:{apiFetch:typeof
        <td className="col-start-2 block min-w-0 px-3 pb-2 pt-1 sm:table-cell sm:py-2">
         <div tabIndex={0} aria-label="面料信息，可左右滚动" title={fabricInfo}
          className="overflow-x-auto whitespace-nowrap text-xs leading-5 [scrollbar-width:thin] focus-visible:outline-2 focus-visible:outline-[#346ef6]">{fabricInfo}</div>
+        {showActions&&<div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+         {item.hasOrderReference?<a target="_blank" rel="noopener" className="font-medium text-[#0053da] underline"
+          href={v2Route('documents',{productId:item.id,refNo:item.productNo})}>查看关联单据</a>:
+          <span className="text-slate-600">{item.hasOrderReference===false?'未被单据引用':'单据关联待确认'}</span>}
+         <a target="_blank" rel="noopener" className="text-[#0053da] underline"
+          href={v2Route('products',{productId:item.id,refNo:item.productNo,status:'all'})}>去产品库处理</a>
+        </div>}
        </td>
       </tr>;
      })}</tbody>

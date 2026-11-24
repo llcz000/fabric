@@ -20,17 +20,16 @@ const fake:CatalogProduct={
  colorTags:[{id:'9',name:'蓝色',isArchived:false}],
  imageCounts:{fabricDisplay:2,detail:1,aiEffect:3},totalImages:6
 };
-test('product row has an opt-in share current product action with the current ten columns',()=>{
+test('product row has an opt-in share current product action',()=>{
  const props={page:{items:[fake],total:1,limit:50,offset:0},patternUrls:new Map<string,string>(),onPatternPreview:()=>{},onProductImages:()=>{},onPage:()=>{}};
  const html=renderToStaticMarkup(React.createElement(CatalogV2Table,{...props,onShare:()=>{}}));
- assert(html.includes('分享花型产品 '+fake.productNo));assert.equal((html.match(/<th /g)||[]).length,10);
+ assert(html.includes('分享花型产品 '+fake.productNo));
  assert(!renderToStaticMarkup(React.createElement(CatalogV2Table,props)).includes('分享花型产品'));
 });
-test('AC-97 legacy sampling flags do not reintroduce status badges into the ten-column list',()=>{
+test('AC-97 legacy sampling flags do not reintroduce sampling or activation badges',()=>{
  const noSamples={...fake,isAvailableForSampling:false,isSelectable:true,isActive:true};
  const html=renderToStaticMarkup(React.createElement(CatalogV2Table,{page:{items:[noSamples],total:1,limit:50,offset:0},patternUrls:new Map(),onPatternPreview:()=>{},onProductImages:()=>{},onPage:()=>{}}));
  assert(!html.includes('暂不供样'));assert(!html.includes('已启用'));
- assert.equal((html.match(/<th /g)||[]).length,10);
  assert.throws(()=>parseCatalogPage({items:[{...fake,isAvailableForSampling:'false'}],total:1,limit:50,offset:0}));
 });
 test('product composition column is wider, clips long text, preserves weight and short fixed remark',()=>{
@@ -132,7 +131,7 @@ test('P4-4 image access request uses real asset IDs and short-lived signed URLs 
  assert.equal((await resolveImageUrls(fetcher,[],'original')).size,0);
  await assert.rejects(resolveImageUrls(fetcher,['not-valid'],'original'));
 });
-test('P4-4 product table has exactly 10 columns with product-owned remark, name and specs',()=>{
+test('P4-4 product table shows order status alongside product-owned remark, name and specs',()=>{
  const html=renderToStaticMarkup(React.createElement(CatalogV2Table,{
   page:{items:[fake,{...fake,id:'54',patternImageAssetId:null,remark:'',weightValue:null,
    weightUnit:null,widthCm:null,composition:null}],total:2,limit:50,offset:0},
@@ -140,7 +139,7 @@ test('P4-4 product table has exactly 10 columns with product-owned remark, name 
   onPatternPreview:()=>{},onProductImages:()=>{},onRemark:()=>{},onPage:()=>{},canManage:true,onEdit:()=>{}
  }));
  const headers=Array.from(html.matchAll(/<th\b[^>]*>([\s\S]*?)<\/th>/g)).map(x=>x[1].replace(/<[^>]+>/g,'').trim());
- assert.deepEqual(headers,['花型图','货号','品名','成分','克重','门幅 / cm',
+ assert.deepEqual(headers,['花型图','货号','开单状态','品名','成分','克重','门幅 / cm',
   '图片数量','备注','关联色卡','操作']);
  assert(html.includes('100% 真丝')&&html.includes('16.5 mm')&&html.includes('145'));
  assert(html.includes('G017-2-F018')&&html.includes('轻柔雪纺'));

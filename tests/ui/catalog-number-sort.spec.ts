@@ -8,6 +8,63 @@ test.beforeEach(async({page})=>{
  page.on('pageerror',error=>{throw error;});
 });
 
+// AC-64
+test('order status is visible beside the product number and protects deletion',async({page})=>{
+ const url='/tools/ui-preview/entries/ui-ux-internal-fabrics.html?products=1&orderStatusReview=1';
+ await page.goto(url+'#/products');
+ const rows=page.locator('tbody tr');
+ const ordered=rows.filter({hasText:'G0076-1-F018'});
+ const unordered=rows.filter({hasText:'G0075-1-F018'});
+ const deleteButton=(row:typeof ordered)=>row.getByRole('button',{name:'删除',exact:true});
+ const status=page.getByRole('combobox',{name:'开单状态',exact:true});
+ await expect(ordered.getByRole('cell',{name:'已开单',exact:true})).toBeVisible();
+ await expect(unordered.getByRole('cell',{name:'未开单',exact:true})).toBeVisible();
+ await expect(deleteButton(ordered)).toHaveCount(0);
+ await ordered.getByRole('button',{name:'查看删除限制'}).click();
+ const blocked=page.getByRole('alertdialog',{name:'产品删除限制'});
+ await expect(blocked.getByRole('link',{name:'查看关联单据'})).toHaveAttribute('href',/#\/documents\?productId=1&refNo=/);
+ await expect(blocked.getByRole('button',{name:'确认删除'})).toHaveCount(0);
+ await blocked.getByRole('button',{name:'关闭'}).click();
+ await expect(deleteButton(unordered)).toBeEnabled();
+ await page.screenshot({path:'artifacts/product-order-status/desktop.png'});
+ await status.selectOption('ordered');
+ await expect(rows).toHaveCount(1);
+ await page.reload();
+ await expect(status).toHaveValue('ordered');
+ await expect(rows).toHaveCount(1);
+ await status.selectOption('unordered');
+ await expect(rows).toHaveCount(4);
+ await deleteButton(unordered).click();
+ const dialog=page.getByRole('alertdialog',{name:'确认删除产品'});
+ const cancel=dialog.getByRole('button',{name:'取消',exact:true});
+ await expect(dialog).toContainText('G0075-1-F018');
+ await expect(cancel).toBeFocused();
+ await page.screenshot({path:'artifacts/product-order-status/delete-desktop.png'});
+ await page.keyboard.press('Escape');
+ await expect(dialog).toHaveCount(0);
+ await expect(deleteButton(unordered)).toBeFocused();
+ await deleteButton(unordered).click();
+ await cancel.click();
+ await expect(dialog).toHaveCount(0);
+ await expect(deleteButton(unordered)).toBeFocused();
+ await page.setViewportSize({width:360,height:900});
+ await status.selectOption('all');
+ await expect(rows).toHaveCount(5);
+ await expect(ordered.getByRole('cell',{name:'已开单',exact:true})).toBeInViewport();
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
+ await page.screenshot({path:'artifacts/product-order-status/mobile.png'});
+ await deleteButton(unordered).click();
+ await expect(dialog).toBeInViewport();
+ await page.screenshot({path:'artifacts/product-order-status/delete-mobile.png'});
+ await dialog.getByRole('button',{name:'确认删除',exact:true}).click();
+ await expect(blocked.getByRole('alert')).toContainText('无法删除');
+ await expect(blocked.getByRole('link',{name:'查看关联单据'})).toHaveAttribute('href',/#\/documents\?productId=2&refNo=/);
+ await blocked.getByRole('button',{name:'关闭'}).click();
+ await expect(unordered.getByRole('cell',{name:'已开单',exact:true})).toBeAttached();
+ await expect(deleteButton(unordered)).toHaveCount(0);
+ await expect(unordered.getByRole('button',{name:'查看删除限制'})).toBeEnabled();
+});
+
 test('product number sorts globally by master and numeric colorway, skips fabrics, resets pagination and clears',async({page})=>{
  await page.goto(products);
  const rows=page.locator('tbody tr'),numbers=rows.locator('td:nth-child(2)');

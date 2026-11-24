@@ -1,3 +1,5 @@
+import {productOrderReferenceSource} from '../order-v2/lines';
+
 /** P4-2 read-only server-side grouped pattern matrix for ~2000 colorways.
  * No image reassignment or colorway identity mutation. Unmounted until app integration.
  */
@@ -37,6 +39,28 @@ const integer=(x:unknown,name:string):number=>{
  if(!Number.isSafeInteger(n)||n<0)throw Error('Invalid MySQL '+name);
  return n;
 };
+/** Read-only summary. The delete transactions still recheck the live references. */
+export async function readPatternDeletionImpact(db:Query,kind:'master'|'colorway',identity:string){
+ if(!/^[1-9]\d{0,19}$/.test(identity)||BigInt(identity)>MAX)throw new PatternCatalogError('Invalid pattern identity');
+ const forMaster=kind==='master';
+ const [targetRows]=await db.query(forMaster?
+  'SELECT (SELECT COUNT(*) FROM pattern_colorways c WHERE c.master_id=m.id) AS colorway_count,'+
+  ' (SELECT COUNT(*) FROM sample_cards sc WHERE sc.master_id=m.id AND sc.deleted_at IS NULL'+
+  ' AND NOT EXISTS (SELECT 1 FROM v2_products p JOIN pattern_colorways c ON c.id=p.pattern_colorway_id'+
+  ' WHERE c.master_id=m.id AND p.fabric_id=sc.fabric_id)) AS independent_card_count'+
+  ' FROM pattern_masters m WHERE m.id=? AND m.deleted_at IS NULL':
+  'SELECT 1 AS colorway_count,0 AS independent_card_count FROM pattern_colorways c'+
+  ' JOIN pattern_masters m ON m.id=c.master_id WHERE c.id=? AND m.deleted_at IS NULL',[identity]);
+ const target=rows(targetRows)[0];
+ if(!target)throw new PatternCatalogError('Pattern not found',404);
+ const [productRows]=await db.query(
+  'SELECT COUNT(*) AS product_count,COALESCE(SUM(EXISTS (SELECT 1 '+productOrderReferenceSource('p.id')+')),0) AS ordered_product_count'+
+  ' FROM v2_products p JOIN pattern_colorways c ON c.id=p.pattern_colorway_id WHERE '+(forMaster?'c.master_id':'c.id')+'=?',[identity]);
+ const products=rows(productRows)[0];
+ return {colorwayCount:integer(target.colorway_count,'colorway count'),productCount:integer(products?.product_count,'product count'),
+  orderedProductCount:integer(products?.ordered_product_count,'ordered product count'),
+  independentCardCount:integer(target.independent_card_count,'independent card count')};
+}
 const parseIntParam=(value:unknown,name:string,defaultValue:number,min:number,max:number):number=>{
  if(value===undefined)return defaultValue;
  if(typeof value!=='string'||!/^(0|[1-9]\d*)$/.test(value)||value.length>10||

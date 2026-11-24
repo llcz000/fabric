@@ -17,7 +17,7 @@ test('linked products filter uses exact fabric identity before count and paging'
 type P={id:string;pattern_colorway_id:string;fabric_id:string;master_id:string;master_no:string;colorway_no:number;
  product_no:string;row_version:string;fabric_name:string;fabric_no:string;composition:string|null;weight_value:string|null;
  weight_unit:'gsm'|'mm'|null;width_value:string|null;pattern_image_asset_id:string|null;
- remark:string;is_active:number;is_available_for_sampling:number;master_active:number;colorway_active:number;fabric_active:number;
+ remark:string;is_active:number;is_available_for_sampling:number;master_active:number;colorway_active:number;fabric_active:number;has_order_reference:number;
  topicIds:string[];colorIds:string[];nDisplay:number;nDetail:number;nEffect:number};
 const TEXTS=['雪纺','高端棉布','花式真丝','轻纱面料','素色亚麻','温柔雪纺','缎面丝绸'];
 function fixtures():P[]{
@@ -33,7 +33,7 @@ function fixtures():P[]{
    weight_unit:fabric%4===0?null:'gsm',width_value:fabric%4===0?null:'145.00',
    pattern_image_asset_id:colorway===2?'a1111111-1111-4111-8111-111111111111':null,
    remark:i%17===0?'样品备注':'',is_active:i%13===0?0:1,is_available_for_sampling:i%19===0?0:1,
-   master_active:m%17===0?0:1,colorway_active:colorway===3?0:1,fabric_active:fabric===7?0:1,
+   master_active:m%17===0?0:1,colorway_active:colorway===3?0:1,fabric_active:fabric===7?0:1,has_order_reference:0,
    topicIds:[m%2===0?'1':'2', ...(m%5===0?['3']:[])],
    colorIds:m%3===1?['10']:m%3===2?['11','12']:['13'],
    nDisplay:i%3,nDetail:i%2,nEffect:i%5===0?1:0

@@ -98,6 +98,22 @@ test('UI-03 product route and filters restore on reload; internal browser back c
   assert.equal(r.root.findAllByType('input').find(n=>n.props['aria-label']==='货号')?.props.value,'G017');
  }finally{if(r)await act(async()=>r.unmount());env.cleanup();}
 });
+test('deletion links open product and document views by stable product ID',async()=>{
+ const productScope=environment('#/products?productId=53&refNo=G017-2-F018&status=all');let r:ReactTestRenderer|undefined;
+ try{
+  r=await app(productScope);
+  assert(productScope.requests.some(x=>x.url.startsWith('/api/v2/products?')&&x.url.includes('productId=53')&&!x.url.includes('productNo=')));
+  assert(productScope.host.location.hash.includes('refNo=G017-2-F018'));
+ }finally{if(r)await act(async()=>r!.unmount());productScope.cleanup();}
+ const documentScope=environment('#/documents?productId=53&refNo=G017-2-F018');r=undefined;
+ try{
+  r=await app(documentScope);
+  for(const path of ['/api/v2/documents?','/api/v2/documents/matching-totals?']){
+   assert(documentScope.requests.some(x=>x.url.startsWith(path)&&x.url.includes('productId=53')&&!x.url.includes('productNo=')));
+  }
+  assert(r.root.findAllByType('strong').some(node=>text(node)==='关联单据 · G017-2-F018'));
+ }finally{if(r)await act(async()=>r!.unmount());documentScope.cleanup();}
+});
 test('UI-06 product search retains table while old rows cannot be acted on',async()=>{
  const env=environment();let r!:ReactTestRenderer;
  try{await act(async()=>{r=create(React.createElement(ProductCatalogV2,{apiFetch:fetch,canManage:true,onEdit(){}}));});await tick(30);
@@ -118,7 +134,7 @@ test('UI-07 one deletion confirmation stays open during request and preserves fa
   assert(text(r.root).includes('正在保存或上传'));
   assert.equal(r.root.findAll(n=>n.props['aria-label']==='V2 产品库').length,1);
   await act(async()=>env.resolveDelete(409));await tick();
-  assert(text(r.root).includes('产品已被引用'));assert.equal(button(r,'确认删除').props.disabled,false);
+  assert(text(r.root).includes('产品存在关联或状态已变化，无法删除。'));assert.equal(button(r,'确认删除').props.disabled,false);
   assert.equal(env.requests.filter(x=>x.method==='DELETE').length,1);
  }finally{if(r)await act(async()=>r.unmount());env.cleanup();}
 });

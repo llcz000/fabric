@@ -18,6 +18,7 @@ const border='rounded-lg border border-[#c3c6d7] bg-white';
 
 export interface SampleCardLibraryV2Props{
  shareEnabled?:boolean;
+ initialQuery?:string;
  resolveThumbnails?:(ids:string[],signal?:AbortSignal)=>Promise<Map<string,string>>;
  apiFetch:typeof fetch;QrRenderer?:SampleCardQrRenderer;
  onDownload?(blob:Blob,filename:string):void;
@@ -28,11 +29,11 @@ function download(blob:Blob,filename:string){
 }
 
 /** Standalone page. Assembly must supply the existing authenticated fetch; server still authorizes every call. */
-export function SampleCardLibraryV2({apiFetch,QrRenderer=SampleCardQr,onDownload=download,shareEnabled=false,resolveThumbnails}:SampleCardLibraryV2Props){
+export function SampleCardLibraryV2({apiFetch,QrRenderer=SampleCardQr,onDownload=download,shareEnabled=false,resolveThumbnails,initialQuery=''}:SampleCardLibraryV2Props){
  const confirm=useConfirm();
  const [sharingCard,setSharingCard]=useState<SampleCard|null>(null);
  const [thumbnailUrls,setThumbnailUrls]=useState(new Map<string,string>()),[imageRetry,setImageRetry]=useState(0),[imagesPending,setImagesPending]=useState(false),[imagesFailed,setImagesFailed]=useState(false);
- const [query,setQuery]=useState(''),[offset,setOffset]=useState(0),[refresh,setRefresh]=useState(0);
+ const [query,setQuery]=useState(initialQuery),[offset,setOffset]=useState(0),[refresh,setRefresh]=useState(0);
  const [sort,setSort]=useState<'newest'|'numberAsc'|'numberDesc'>('newest');
  const [needsReprint,setNeedsReprint]=useState(false),[acting,setActing]=useState(false);
  const [page,setPage]=useState<SampleCardPage>({items:[],total:0,limit:50,offset:0});
