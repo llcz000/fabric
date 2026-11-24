@@ -7,10 +7,18 @@ export const migrationIds=['sample-contact-identity','sample-contact','sample-ca
 export function parseArgs(argv){
  const [first='help',...rest]=argv;const command=['--help','-h'].includes(first)?'help':first;if(!commands.has(command))throw Error('Unknown release command');
  const result={command,id:undefined,migrations:[],rehearse:false};
+ const retryFlag=rest.indexOf('--retry-prepared');
+ if(retryFlag>=0){
+  const [,id]=rest.splice(retryFlag,2);
+  if(!['prepare','run'].includes(command)||!/^\d{8}t\d{9}-[a-f0-9]{8}$/.test(id??''))throw Error('A prepared release ID is required for retry');
+  result.retryPrepared=id;
+ }
  for(let i=0;i<rest.length;i++){const v=rest[i];if(v==='--apply'&&command==='prune'&&!result.apply)result.apply=true;else if(v==='--full-ui'&&['plan','prepare','run'].includes(command))result.fullUi=true;else if(v==='--quick-ui'&&['plan','prepare','run'].includes(command))result.quickUi=true;else if(v==='--reuse-print-review'&&['prepare','run'].includes(command))result.reusePrintReview=true;else if(v==='--customer-history-hotfix'&&['prepare','run'].includes(command))result.customerHistoryHotfix=true;else if(v==='--rehearse')result.rehearse=true;else if(v==='--from-release'&&['prepare','run'].includes(command)){result.fromRelease=rest[++i];if(!result.fromRelease||result.fromRelease.startsWith('-'))throw Error('Published release evidence required');}else if(v==='--evidence'&&command==='baseline'){result.evidence=rest[++i];if(!result.evidence||result.evidence.startsWith('-'))throw Error('Evidence path required');}else if(v==='--migrations'){if(!rest[i+1])throw Error('Missing migration IDs');result.migrations=rest[++i].split(',');if(!result.migrations.length||new Set(result.migrations).size!==result.migrations.length||result.migrations.some(x=>!migrationIds.includes(x)))throw Error('Unknown/duplicate migration');}else if(!v.startsWith('-')&&!result.id&&/^[a-z0-9][a-z0-9_-]{0,63}$/.test(v))result.id=v;else throw Error('Unknown/unsafe argument');}
  if(result.reusePrintReview&&(result.id||result.migrations.length||result.rehearse||result.fromRelease||result.quickUi||result.fullUi||result.customerHistoryHotfix))
   throw Error('Print review reuse requires a new build without migrations or other browser options');
  if(result.customerHistoryHotfix&&(result.id||result.migrations.length||result.rehearse||result.fromRelease||result.quickUi||result.fullUi))throw Error('Customer history date hotfix requires a new build without migration or other browser options');
+ if(result.retryPrepared&&(result.id||result.fromRelease||result.reusePrintReview||result.customerHistoryHotfix||result.quickUi||result.fullUi||
+   result.migrations.join(',')!=='active-sample-product-reference'))throw Error('Prepared retry is limited to the active sample product reference migration');
  if(command==='prune'&&(result.id||result.rehearse))throw Error('Prune accepts only --apply');
  if(!['help','test','plan','prepare','run','baseline','progress','prune'].includes(command)&&!result.id)throw Error('Release ID required');
  if((!['plan','prepare','run'].includes(command)||command==='run'&&result.id)&&(result.migrations.length||result.rehearse||result.fromRelease||result.quickUi||result.fullUi&&command!=='plan'))throw Error('Preparation flags require a new prepare/run');if(command==='plan'&&result.id)throw Error('Plan accepts options only');if(result.fullUi&&(result.quickUi||result.fromRelease))throw Error('--full-ui cannot combine with --quick-ui or artifact reuse');return result;
@@ -51,6 +59,25 @@ export function phasePlan(command,rehearse=false){
 }
 export function assertPublishedEvidence(e,a,b){
  if(e.state!=='released'||e.artifactSha256!==a.sha256||e.artifactSha256!==b.archiveSha256||e.indexSha256!==b.index||e.backendSha256!==b.backend||a.manifest.files['dist/index.html']?.sha256!==b.index||a.manifest.files['dist/server.cjs']?.sha256!==b.backend)throw Error('Reuse is limited to the currently verified published version');
+}
+
+export function assertPreparedSampleReferenceRetry(run,baseline,original,current){
+ const m=run.manifest,report=m.browserValidation?.result;
+ if(run.rolledBack!==true||run.automaticRollback?.state!=='code-rolled-back'||
+   run.phases.deploy?.error!=='Migration changed existing columns'||run.phases.rehearse?.status!=='passed'||
+   m.migrations.join(',')!=='active-sample-product-reference'||m.browserValidation?.mode!=='scoped'||
+   report?.executed!==true||report.passedByPriority?.p0!==2||!Number.isInteger(report.passedByPriority?.p1)||
+   report.passedByPriority.p1<1||report.passed!==2+report.passedByPriority.p1||
+   !m.files['ui-review.json']||!m.files['browser-validation-result.json']||
+   ['releaseId','index','backend','starter','nginx','serverUuid'].some(k=>!baseline[k]||m.baseline[k]!==baseline[k]))
+  throw Error('Prepared product reference evidence cannot be reused');
+ const allowed=new Set(['scripts/release/cli.mjs','scripts/release/core.mjs','scripts/release/release.test.mjs',
+  'scripts/release/remote.py','scripts/release/remote_test.py']);
+ const oldFiles=new Map(original.files.map(f=>[f.path,f.sha256])),newFiles=new Map(current.files.map(f=>[f.path,f.sha256]));
+ const changed=[...new Set([...oldFiles.keys(),...newFiles.keys()])].filter(p=>oldFiles.get(p)!==newFiles.get(p));
+ if(JSON.stringify(original.requirements)!==JSON.stringify(current.requirements)||!changed.includes('scripts/release/remote.py')||
+   changed.some(p=>!allowed.has(p)||!oldFiles.has(p)||!newFiles.has(p)))
+  throw Error('Prepared retry requires unchanged application and browser test inputs');
 }
 
 export function releaseTimingReport(run){

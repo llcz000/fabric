@@ -1,4 +1,4 @@
-import {requireSampleCardReviewMigration,requireSampleContactMigration,requireSampleContactIdentityMigration} from './core.mjs';
+import {assertPreparedSampleReferenceRetry,requireSampleCardReviewMigration,requireSampleContactMigration,requireSampleContactIdentityMigration} from './core.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import https from 'node:https';
@@ -74,7 +74,7 @@ function prepare(){
  const candidate=args.fromRelease?null:reviewContext({pointer,baseline});
  const missingMigrations=candidate?migrationRequirements(candidate.changed,args.migrations):[];
  if(missingMigrations.length)throw Error(missingMigrations.join(' | '));
- const plannedBrowser=candidate&&!args.reusePrintReview?selectBrowserValidation({...candidate,...args}):null;
+ const plannedBrowser=candidate&&!args.reusePrintReview&&!args.retryPrepared?selectBrowserValidation({...candidate,...args}):null;
  if(plannedBrowser?.mode==='full'&&!args.fullUi)
   throw Error('Browser scope requires confirmation before preparation. Register impact or explicitly pass --full-ui: '+JSON.stringify(plannedBrowser));
  const id=args.id??new Date().toISOString().replace(/[-:.]/g,'').toLowerCase().replace('z','')+'-'+randomBytes(4).toString('hex');
@@ -90,9 +90,24 @@ function prepare(){
   const result=run(),durationMs=Date.now()-stageStarted;preparation[name]=(preparation[name]??0)+durationMs;
   progress('passed',{durationMs});return result;
  };
- const reuse=args.fromRelease?publishedSource(args.fromRelease,baseline):null;let before,source,localHttpContract,uiReport,uiQualityGate={required:false},browserValidation={mode:'reused',reason:'verified-published-artifact-reuse'};
+ const retry=args.retryPrepared?loadRun(args.retryPrepared,true):null;
+ const reuse=retry?{pkg:path.join(retry.dir,'package')}:args.fromRelease?publishedSource(args.fromRelease,baseline):null;
+ let before,source,localHttpContract,uiReport,uiQualityGate={required:false},browserValidation={mode:'reused',reason:'verified-published-artifact-reuse'};
  if(!reuse)timed('uiStandards',()=>processRun(process.execPath,['scripts/ui-workflow-gate.mjs','preflight'],{log:path.join(dir,'ui-standards.log')}));
- if(reuse){if(args.quickUi)throw Error('Quick UI verification is only available for a reviewed new source build');sourcePath=reuse.sourcePath;source=json(sourcePath);before=toolInputs();timed('source',()=>migrationSource(source,['server','src']));localHttpContract=timed('httpContract',()=>checkHttpContract(dir));write(path.join(dir,'source.log.json'),{application:'verified-published-artifact',evidenceSha256:reuse.evidenceSha256,businessWorkingTreeValidated:true,toolInputs:before});}
+ if(retry){
+  timed('source',()=>processRun(process.execPath,['scripts/check-fabric-v2-development-source.mjs'],{log:path.join(dir,'source.log')}));
+  source=json(sourcePath);before=toolInputs();
+  assertPreparedSampleReferenceRetry(retry,baseline,json(path.join(reuse.pkg,'source-manifest.json')),source);
+  if(JSON.stringify(retry.manifest.profile)!==JSON.stringify(profile))throw Error('Prepared retry target drift');
+  const sourceSha=hash(fs.readFileSync(sourcePath));
+  localHttpContract=retry.manifest.localHttpContract;
+  uiQualityGate={...retry.manifest.uiQualityGate,reusedFromRelease:retry.id};
+  browserValidation={...retry.manifest.browserValidation,candidateManifestSha256:sourceSha,reusedFromRelease:retry.id};
+  write(path.join(dir,'browser-validation-plan.json'),browserValidation);
+  write(path.join(dir,'browser-validation-result.json'),browserValidation.result);
+  console.log(JSON.stringify({stage:'browser-validation',result:'reused',id:retry.id,passed:browserValidation.result.passed}));
+  timed('releaseGuard',()=>processRun('python',['scripts/release/remote_test.py'],{log:path.join(dir,'release-remote-check.log')}));
+ }else if(reuse){if(args.quickUi)throw Error('Quick UI verification is only available for a reviewed new source build');sourcePath=reuse.sourcePath;source=json(sourcePath);before=toolInputs();timed('source',()=>migrationSource(source,['server','src']));localHttpContract=timed('httpContract',()=>checkHttpContract(dir));write(path.join(dir,'source.log.json'),{application:'verified-published-artifact',evidenceSha256:reuse.evidenceSha256,businessWorkingTreeValidated:true,toolInputs:before});}
  else{timed('source',()=>processRun(process.execPath,['scripts/check-fabric-v2-development-source.mjs'],{log:path.join(dir,'source.log')}));source=json(sourcePath);const sourceSha=hash(fs.readFileSync(sourcePath));before=snapshot(source);
   const checkSource=name=>timed(name,()=>{
    processRun(process.execPath,['scripts/check-fabric-v2-development-source.mjs'],{log:path.join(dir,name+'.log')});
@@ -150,20 +165,24 @@ function prepare(){
   checkSource('source-after-validation');}
  const appRoot=reuse?reuse.pkg:root;
  const pkg=path.join(dir,'package');fs.mkdirSync(pkg);const files={};const browserFiles=collectBrowserFiles(path.join(appRoot,'dist')).map(x=>'dist/'+x);
+ if(retry&&JSON.stringify([...browserFiles].sort())!==JSON.stringify([...retry.manifest.browserFiles].sort()))
+  throw Error('Prepared retry browser asset inventory drift');
  const add=(name,source,expectedSha256)=>{
   const dest=path.join(pkg,name),data=fs.readFileSync(source),sha256=hash(data);
   if(expectedSha256&&sha256!==expectedSha256)throw Error('Verified evidence changed before freezing: '+name);
   fs.mkdirSync(path.dirname(dest),{recursive:true});fs.writeFileSync(dest,data);files[name]={sha256,size:data.length};
  };
- for(const n of [...browserFiles,'dist/server.cjs'])add(n,path.join(appRoot,n));add('remote.py','scripts/release/remote.py');add('source-manifest.json',sourcePath);add('http-contract.json','scripts/release/http-contract.json');
+ for(const n of [...browserFiles,'dist/server.cjs'])add(n,path.join(appRoot,n),retry?.manifest.files[n]?.sha256);add('remote.py','scripts/release/remote.py');add('source-manifest.json',sourcePath);add('http-contract.json','scripts/release/http-contract.json');
  if(uiReport)add('ui-review.json',path.join(root,uiReport.report),uiReport.reportSha256);
- if(!reuse)for(const name of ['browser-validation-plan.json','browser-validation-result.json'])add(name,path.join(dir,name));
+ if(retry)add('ui-review.json',path.join(reuse.pkg,'ui-review.json'),retry.manifest.files['ui-review.json'].sha256);
+ if(!reuse||retry)for(const name of ['browser-validation-plan.json','browser-validation-result.json'])add(name,path.join(dir,name));
  let migrationPlans={};if(args.migrations.length){timed('migrationBundle',()=>awaitlessBuildMigration(pkg));migrationPlans=JSON.parse(processRun(process.execPath,[path.join(pkg,'operator.cjs'),'plans','-','-','-',args.migrations.join(',')]));add('operator.cjs',path.join(pkg,'operator.cjs'));}
  if(reuse&&JSON.stringify(toolInputs())!==JSON.stringify(before))throw Error('Release tool changed during preparation');
  if(reuse&&args.migrations.length)migrationSource(source);
+ if(retry&&hash(fs.readFileSync(sourcePath))!==browserValidation.candidateManifestSha256)throw Error('Prepared retry source changed before freezing');
  if(!reuse&&JSON.stringify(snapshot(source))!==JSON.stringify(before))throw Error('Source changed while bundling registered migrations');
  verifyPublishedWorkspace(root,{expectedCommit:sourceGit.commit});
- const manifest={sourceGit,localHttpContract,kind:'fabric-release-v1',id,createdAt:new Date().toISOString(),profile,baseline,files,browserFiles,migrations:args.migrations,migrationPlans,rehearse:args.rehearse||args.migrations.length>0,sourceManifestSha256:hash(fs.readFileSync(sourcePath)),sourceFiles:source.files.length,applicationSource:reuse?'verified-published-artifact':'validated-working-tree',buildReused:Boolean(reuse),toolInputSha256:hash(JSON.stringify(toolInputs())),inputSha256:hash(JSON.stringify(before)),executorSha256:files['remote.py'].sha256,fullSuiteRun:false,uiQualityGate,uiBrowserScope:browserValidation.mode,browserFullSuiteRun:browserValidation.mode==='full',browserValidation};
+ const manifest={sourceGit,localHttpContract,kind:'fabric-release-v1',id,createdAt:new Date().toISOString(),profile,baseline,files,browserFiles,migrations:args.migrations,migrationPlans,rehearse:args.rehearse||args.migrations.length>0,sourceManifestSha256:hash(fs.readFileSync(sourcePath)),sourceFiles:source.files.length,applicationSource:retry?'verified-prepared-artifact':reuse?'verified-published-artifact':'validated-working-tree',buildReused:Boolean(reuse),toolInputSha256:hash(JSON.stringify(toolInputs())),inputSha256:hash(JSON.stringify(before)),executorSha256:files['remote.py'].sha256,fullSuiteRun:false,uiQualityGate,uiBrowserScope:browserValidation.mode,browserFullSuiteRun:browserValidation.mode==='full',browserValidation};
  write(path.join(pkg,'manifest.json'),manifest);fs.copyFileSync(sourcePath,path.join(pkg,'source-manifest.json'));verifyFiles(pkg,files);
  const archive=path.join(dir,'release.tar.gz');timed('archive',()=>processRun('tar',['-czf',archive,'-C',pkg,'.'],{log:path.join(dir,'archive.log')}));
  const run={id,dir,archive,archiveSha256:hash(fs.readFileSync(archive)),manifestSha256:hash(fs.readFileSync(path.join(pkg,'manifest.json'))),manifest,phases:{},preparation,preparedMs:Date.now()-start};write(path.join(dir,'run.json'),run);
@@ -176,7 +195,7 @@ function awaitlessBuildMigration(pkg){
  // Run esbuild in a separate native process so the prepared bundle is fully flushed before hashing.
  processRun(process.execPath,['--input-type=module','-e',"import {build} from 'esbuild'; await build({entryPoints:['scripts/release/migrations.ts'],outfile:process.argv[1],bundle:true,platform:'node',format:'cjs',target:'node20'});",path.join(pkg,'operator.cjs')],{log:path.join(path.dirname(pkg),'migration-build.log')});
 }
-function loadRun(id){const dir=path.join(root,'artifacts/releases',id),run=json(path.join(dir,'run.json'));if(run.id!==id||run.dir!==dir||run.archive!==path.join(dir,'release.tar.gz'))throw Error('Release state identity drift');const manifestFile=path.join(dir,'package/manifest.json');if(hash(fs.readFileSync(manifestFile))!==run.manifestSha256||JSON.stringify(json(manifestFile))!==JSON.stringify(run.manifest))throw Error('Frozen manifest drift');verifyFiles(path.join(dir,'package'),run.manifest.files);if(hash(fs.readFileSync(run.archive))!==run.archiveSha256)throw Error('Frozen archive drift');if(run.rolledBack&&!['status','report','help'].includes(args.command))throw Error('Release was rolled back; prepare a new immutable release');return run;}
+function loadRun(id,forRetry=false){const dir=path.join(root,'artifacts/releases',id),run=json(path.join(dir,'run.json'));if(run.id!==id||run.dir!==dir||run.archive!==path.join(dir,'release.tar.gz'))throw Error('Release state identity drift');const manifestFile=path.join(dir,'package/manifest.json');if(hash(fs.readFileSync(manifestFile))!==run.manifestSha256||JSON.stringify(json(manifestFile))!==JSON.stringify(run.manifest))throw Error('Frozen manifest drift');verifyFiles(path.join(dir,'package'),run.manifest.files);if(hash(fs.readFileSync(run.archive))!==run.archiveSha256)throw Error('Frozen archive drift');if(run.rolledBack&&!forRetry&&!['status','report','help'].includes(args.command))throw Error('Release was rolled back; prepare a new immutable release');return run;}
 async function offsiteProof(encrypted,key){
  const fd=fs.openSync(encrypted,'r'),header=Buffer.alloc(16);try{fs.readSync(fd,header,0,16,0);}finally{fs.closeSync(fd);}if(header.subarray(0,8).toString()!=='Salted__')throw Error('Encrypted backup header mismatch');
  const material=pbkdf2Sync(fs.readFileSync(key,'utf8').trim(),header.subarray(8,16),10000,48,'sha256'),decipher=createDecipheriv('aes-256-cbc',material.subarray(0,32),material.subarray(32));

@@ -26,6 +26,16 @@ def failure_response(error,state=None):
 
 def preserved_columns(before,after,migrations):
     if before==after:return True
+    if 'active-sample-product-reference' in migrations:
+        old=set(before.splitlines());new=after.splitlines()
+        expected={
+            ('customer_sample_items','active_product_id'):['bigint unsigned','YES','NULL','STORED GENERATED'],
+            ('customer_sample_items','session_deleted'):['tinyint(1)','NO','0',''],
+        }
+        additions=[line for line in new if line not in old and tuple(line.split('\t')[:2]) in expected]
+        if len(set(additions))!=len(additions) or any(line.split('\t')[2:]!=expected[tuple(line.split('\t')[:2])] for line in additions):return False
+        after='\n'.join(line for line in new if line not in additions)
+        if before==after:return True
     if 'pattern-number-reuse' in migrations:
         old=before.splitlines();new=after.splitlines()
         key=['pattern_masters','active_master_no']
@@ -173,9 +183,9 @@ class Release:
         return m
     def unpack(self):
         self.stage.mkdir(mode=0o700,parents=True,exist_ok=True);safe_extract(self.stage/'release.tar.gz',self.stage,self.archive_sha);m=self.load();return {'archiveSha256':self.archive_sha,'files':len(m['files'])}
-    def columns(self,tables):
+    def columns(self,tables,database=None):
         must(all(re.fullmatch(r'[A-Za-z0-9_]+',t) for t in tables),'Unsafe table inventory')
-        return self.sql("SELECT TABLE_NAME,COLUMN_NAME,COLUMN_TYPE,IS_NULLABLE,COLUMN_DEFAULT,EXTRA FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ("+','.join("'"+t+"'" for t in tables)+") ORDER BY TABLE_NAME,ORDINAL_POSITION")
+        return self.sql("SELECT TABLE_NAME,COLUMN_NAME,COLUMN_TYPE,IS_NULLABLE,COLUMN_DEFAULT,EXTRA FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ("+','.join("'"+t+"'" for t in tables)+") ORDER BY TABLE_NAME,ORDINAL_POSITION",database)
     def backup(self):
         self.load();self.baseline();folder=pathlib.Path(self.p['backupRoot'])/('release-'+self.id);must(not folder.exists(),'Backup directory already exists without receipt; inspect status')
         folder.mkdir(mode=0o700,parents=True);tables=self.sql('SHOW TABLES').splitlines();columns=self.columns(tables);(self.stage/'old-columns.txt').write_text(columns)
@@ -220,6 +230,9 @@ class Release:
             tables=self.sql('SHOW TABLES',db).splitlines();must(tables==b['tables'],'Restored table set mismatch')
             checked=self.sql('CHECK TABLE '+','.join('`'+t+'`' for t in tables),db);must(all(x.endswith('\tstatus\tOK') for x in checked.splitlines()),'Restored table check failed')
             migration=self.operator('rehearse',db,b,m) if m['migrations'] else None
+            if 'active-sample-product-reference' in m['migrations']:
+                must(preserved_columns((self.stage/'old-columns.txt').read_text(),self.columns(tables,db),
+                    m['migrations']),'Rehearsed migration changed existing columns')
             return {'database':db,'restoredTables':len(tables),'migration':migration,'backupSha256':b['sqlSha256'],'isolated':True}
         finally:
             must(db.startswith('fabric_release_check_') and re.fullmatch(r'fabric_release_check_[a-f0-9]{16}',db) is not None and db!=self.p['database'],'Unsafe rehearsal cleanup')

@@ -7,6 +7,22 @@ import path from 'node:path';
 import {validateProfile,assertWritable,collectBrowserFiles,verifyFiles,runPhases,parseArgs,hash,phasePlan,assertPublishedEvidence,releaseTimingReport,recordRollbackReceipt} from './core.mjs';
 import * as releaseCore from './core.mjs';
 
+test('prepared product reference retry keeps the same app, tests and production baseline',()=>{
+ const id='20261124t115321046-335ed7d5',migration='active-sample-product-reference';
+ assert.equal(parseArgs(['run','--migrations',migration,'--retry-prepared',id]).retryPrepared,id);
+ assert.throws(()=>parseArgs(['run','--retry-prepared',id,'--migrations','sample-contact']));
+ assert.throws(()=>parseArgs(['run','--retry-prepared',id,'--migrations',migration,'--full-ui']));
+ const baseline=Object.fromEntries(['releaseId','index','backend','starter','nginx','serverUuid'].map(k=>[k,k]));
+ const run={rolledBack:true,automaticRollback:{state:'code-rolled-back'},phases:{deploy:{error:'Migration changed existing columns'},rehearse:{status:'passed'}},
+  manifest:{baseline,migrations:[migration],files:{'ui-review.json':{},'browser-validation-result.json':{}},
+   browserValidation:{mode:'scoped',result:{executed:true,passed:7,passedByPriority:{p0:2,p1:5}}}}};
+ const original={requirements:{sha256:'requirements'},files:[{path:'scripts/release/remote.py',sha256:'old'},{path:'tests/ui/catalog-number-sort.spec.ts',sha256:'verified'}]};
+ const current=structuredClone(original);current.files[0].sha256='fixed';
+ releaseCore.assertPreparedSampleReferenceRetry(run,baseline,original,current);
+ assert.throws(()=>releaseCore.assertPreparedSampleReferenceRetry(run,{...baseline,index:'different'},original,current));
+ current.files[1].sha256='changed';assert.throws(()=>releaseCore.assertPreparedSampleReferenceRetry(run,baseline,original,current));
+});
+
 test('full UI override works for read-only plan and fresh preparation but cannot alter immutable/reused runs',()=>{
  for(const command of ['plan','prepare','run'])assert.equal(parseArgs([command,'--full-ui']).fullUi,true);
  assert.throws(()=>parseArgs(['run','existing','--full-ui']));

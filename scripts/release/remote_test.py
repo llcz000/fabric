@@ -14,6 +14,17 @@ def fixture_directory():
         shutil.rmtree(target)
 
 class ReleaseTests(unittest.TestCase):
+    def test_sample_reference_migration_allows_only_exact_new_columns(self):
+        before='customer_sample_items\tid\tbigint unsigned\tNO\tNULL\tauto_increment'
+        after='customer_sample_items\tactive_product_id\tbigint unsigned\tYES\tNULL\tSTORED GENERATED\n'+before+'\ncustomer_sample_items\tsession_deleted\ttinyint(1)\tNO\t0\t'
+        migrations=['active-sample-product-reference']
+        self.assertTrue(remote.preserved_columns(before,after,migrations))
+        self.assertTrue(remote.preserved_columns(after,after,migrations))
+        self.assertFalse(remote.preserved_columns(before,after,[]))
+        self.assertFalse(remote.preserved_columns(before,after.replace('STORED GENERATED',''),migrations))
+        self.assertFalse(remote.preserved_columns(before,after.replace('\tNO\t0\t','\tNO\t1\t'),migrations))
+        self.assertFalse(remote.preserved_columns(before,after.replace('auto_increment',''),migrations))
+
     def test_product_card_supplement_repeats_after_restart_before_new_index(self):
         with fixture_directory() as directory:
             stage=pathlib.Path(directory);(stage/'old-columns.txt').write_text('cols');(stage/'dist').mkdir();(stage/'dist/server.cjs').write_bytes(b'new');(stage/'dist/index.html').write_bytes(b'html')
