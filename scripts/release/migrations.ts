@@ -1,4 +1,5 @@
 import {migrateSampleContactIdentity,SAMPLE_CONTACT_IDENTITY_PLAN_SHA256,verifySampleContactIdentitySchema} from '../../server/customer-samples/sessionContactIdentitySchema';
+import {migrateActiveSampleProductReference,ACTIVE_SAMPLE_PRODUCT_PLAN_SHA256} from '../../server/customer-samples/activeProductReferenceSchema';
 import {migrateSampleContact,SAMPLE_CONTACT_PLAN_SHA256,verifySampleContactSchema} from '../../server/customer-samples/sessionContactSchema';
 import {migrateSampleCardReview,SAMPLE_CARD_REVIEW_PLAN_SHA256,verifySampleCardReviewSchema} from '../../server/customer-samples/sessionCardReviewSchema';
 import {inventoryProductCards,migrateProductCards,PRODUCT_CARDS_PLAN_SHA256} from '../../server/customer-samples/productCardBackfill';
@@ -24,6 +25,7 @@ import {migrateCustomers,CUSTOMER_PLAN_SHA256} from '../../server/customers/sche
 import {migrateCardShareLinks,CARD_SHARE_PLAN_SHA256} from '../../server/customer-share/cardShareMigration';
 import {rehearseCustomers} from './customer-rehearsal';
 const registry={
+ 'active-sample-product-reference':{sha256:ACTIVE_SAMPLE_PRODUCT_PLAN_SHA256,apply:migrateActiveSampleProductReference},
  'sample-contact-identity':{sha256:SAMPLE_CONTACT_IDENTITY_PLAN_SHA256,apply:(p:any,t:any,b:string)=>migrateSampleContactIdentity(p,t,b)},
  'sample-contact':{sha256:SAMPLE_CONTACT_PLAN_SHA256,apply:(p:any,t:any,b:string)=>migrateSampleContact(p,t,b)},
  'sample-card-review':{sha256:SAMPLE_CARD_REVIEW_PLAN_SHA256,apply:(p:any,t:any,b:string)=>migrateSampleCardReview(p,t,b)},
@@ -42,7 +44,7 @@ const registry={
 };
 async function main(){
  const [mode,database,serverUuid,backupSha,rawIds]=process.argv.slice(2);
- assert(['migrate','rehearse','plans','inventory','restore-product-image-index'].includes(mode));
+ assert(['migrate','rehearse','plans','inventory','restore-product-image-index','restore-sample-product-reference'].includes(mode));
  const ids=rawIds?.split(',')??[];assert(ids.length&&new Set(ids).size===ids.length&&ids.every(x=>Object.hasOwn(registry,x)));
  const plans=Object.fromEntries(ids.map(id=>[id,registry[id as keyof typeof registry].sha256]));
  if(mode==='plans'){console.log(JSON.stringify(plans));return;}
@@ -57,11 +59,24 @@ async function main(){
    const restored=await migrateProductImageCategoryReuse(pool,target,backupSha,'restore');
    console.log(JSON.stringify({mode,database,restored}));return;
   }
+  if(mode==='restore-sample-product-reference'){
+   assert.deepEqual(ids,['active-sample-product-reference']);
+   console.log(JSON.stringify({mode,database,restored:await migrateActiveSampleProductReference(pool,target,backupSha,true)}));return;
+  }
   for(const id of ids){const migration=registry[id as keyof typeof registry];const result=await migration.apply(pool,target,backupSha);assert.equal(result.planSha256,migration.sha256);results[id]=result;}
   let checks:string[]=[];
   if(mode==='rehearse'){
    for(const id of ids)assert((await registry[id as keyof typeof registry].apply(pool,target,backupSha)).alreadyApplied);
    checks.push('registered migration repeat idempotency');
+   if(ids.includes('active-sample-product-reference')){
+    const [stale]=await pool.query("SELECT COUNT(*) AS total FROM customer_sample_items i JOIN customer_sample_sessions s ON s.id=i.session_id WHERE i.active_product_id IS NOT NULL AND s.deleted_at IS NOT NULL");
+    assert.equal(Number((stale as {total:unknown}[])[0]?.total),0);
+    if(!(results['active-sample-product-reference'] as {alreadyApplied:boolean}).alreadyApplied){
+     assert(!(await migrateActiveSampleProductReference(pool,target,backupSha,true)).alreadyApplied);
+     assert(!(await migrateActiveSampleProductReference(pool,target,backupSha)).alreadyApplied);
+    }
+    checks.push('deleted sample sessions release product references; old FK restore rehearse before historical product deletion');
+   }
    if(ids.includes('sample-contact-identity')){await verifySampleContactIdentitySchema(pool);checks.push('sample contact identity column verified');}
    if(ids.includes('sample-contact')){await verifySampleContactSchema(pool);checks.push('sample contact nullable snapshot verified; repeat migration idempotent');}
    if(ids.includes('sample-card-review')){await verifySampleCardReviewSchema(pool);checks.push('sample card review nullable JSON verified; migration repeat idempotent');}

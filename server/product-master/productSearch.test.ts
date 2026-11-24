@@ -50,6 +50,7 @@ const tagNames:Record<string,{name:string;isArchived:boolean}>={
 const likeNeedle=(value:unknown):string=>String(value).slice(1,-1).replace(/!(.)/g,'$1').toLowerCase();
 class Db {
  readonly all=fixtures(); statements:{sql:string;params:unknown[]}[]=[];failure=false;readable=true;
+ selectionRefs:{id:string|null;customerReference:string|null}[]=[];hasOrder=false;
  async query(sql:string,params:unknown[]=[]):Promise<[unknown,unknown]>{
   this.statements.push({sql,params});
   if(this.failure)throw Error('PRODUCTION_CREDENTIALS_MUST_NOT_LEAK');
@@ -57,6 +58,14 @@ class Db {
    if(!this.readable||params[0]!==hashSessionToken('a'.repeat(64)))return [[],[]];
    return [[{user_id:'2',role:'sales',username:'sales',display_name:'Sales',can_manage_products:1,
     can_manage_own_orders:0,session_id:'9'}],[]];
+  }
+  if(sql.includes(' AS ordered FROM v2_products p WHERE p.id=?'))
+   return [this.all.some(p=>p.id===String(params[0]))?[{ordered:this.hasOrder?1:0}]:[],[]];
+  if(sql.includes('FROM customer_sample_items i JOIN customer_sample_sessions s')){
+   assert(sql.includes('i.removed_at IS NULL AND s.deleted_at IS NULL'));
+   assert(sql.includes('a.user_id=? AND a.can_manage=1'));
+   assert.deepEqual(params,['2','2','1']);
+   return [this.selectionRefs,[]];
   }
   if(sql.includes('FROM v2_products p JOIN pattern_colorways c ON c.id=p.pattern_colorway_id')){
    assert(sql.includes('JOIN pattern_masters m ON m.id=c.master_id'));
@@ -228,6 +237,17 @@ async function serve(db:Db,callback:(root:string)=>Promise<void>){
  try{const addr=server.address();assert(addr&&typeof addr!=='string');await callback('http://127.0.0.1:'+addr.port+'/api/v2');}
  finally{await new Promise<void>((resolve,reject)=>server.close(e=>e?reject(e):resolve()));}
 }
+test('AC-64 deletion impact reports active samples with details limited by selection permission',async()=>{
+ const db=new Db(),path='/products/1/deletion-impact',options={headers:{authorization:'Bearer '+'a'.repeat(64)}};
+ await serve(db,async base=>{
+  assert.equal((await fetch(base+path)).status,401);
+  assert.equal((await fetch(base+'/products/9000/deletion-impact',options)).status,404);
+  db.selectionRefs=[{id:'29',customerReference:'选样客户'},{id:null,customerReference:null}];
+  assert.deepEqual(await (await fetch(base+path,options)).json(),{orderBlocked:false,sampleCount:2,sessions:[{id:'29',customerReference:'选样客户'}]});
+  db.selectionRefs=[];db.hasOrder=true;
+  assert.deepEqual(await (await fetch(base+path,options)).json(),{orderBlocked:true,sampleCount:0,sessions:[]});
+ });
+});
 test('P3-5 HTTP GET /api/v2/products authenticates, combines filters, returns total and pagination',async()=>{
  const db=new Db();
  await serve(db,async base=>{

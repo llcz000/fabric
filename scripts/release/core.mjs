@@ -3,7 +3,7 @@ import path from 'node:path';
 import {createHash} from 'node:crypto';
 export const hash=b=>createHash('sha256').update(b).digest('hex');
 export const commands=new Set(['help','test','plan','prepare','preflight','rehearse','deploy','verify','rollback','status','progress','report','run','resume','baseline','prune']);
-export const migrationIds=['sample-contact-identity','sample-contact','sample-card-review','product-auto-cards','business-simplification','card-share','light-customers','customer-v12','fabric-deletion','pattern-deletion','pattern-number-reuse','pattern-dimensions','fabric-number-nonempty','model-gallery','product-image-category-reuse'];
+export const migrationIds=['sample-contact-identity','sample-contact','sample-card-review','product-auto-cards','business-simplification','card-share','light-customers','customer-v12','fabric-deletion','pattern-deletion','pattern-number-reuse','pattern-dimensions','fabric-number-nonempty','model-gallery','product-image-category-reuse','active-sample-product-reference'];
 export function parseArgs(argv){
  const [first='help',...rest]=argv;const command=['--help','-h'].includes(first)?'help':first;if(!commands.has(command))throw Error('Unknown release command');
  const result={command,id:undefined,migrations:[],rehearse:false};

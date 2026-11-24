@@ -16,7 +16,7 @@ const stats={orderCount:0,metersTotal:0,amountTotal:0,byType:{sample:{count:0,me
 const text=(node:ReactTestInstance):string=>node.children.map(c=>typeof c==='string'?c:text(c)).join('');
 const button=(r:ReactTestRenderer,label:string)=>r.root.findAllByType('button').find(b=>text(b)===label||b.props['aria-label']===label)!;
 const tick=async(ms=0)=>{await act(async()=>{await new Promise(r=>setTimeout(r,ms));});};
-function environment(hash='',role:'admin'|'sales'='admin'){
+function environment(hash='',role:'admin'|'sales'='admin',orderBlocked=false){
  const old=new Map<string,PropertyDescriptor|undefined>();
  const set=(name:string,value:unknown)=>{old.set(name,Object.getOwnPropertyDescriptor(globalThis,name));Object.defineProperty(globalThis,name,{value,configurable:true,writable:true});};
  const storage=new Map([[V2_LOGIN_KEY,JSON.stringify({token:'a'.repeat(64),expiresAt:Date.now()+60000})]]);
@@ -32,6 +32,7 @@ function environment(hash='',role:'admin'|'sales'='admin'){
  const transport=async(input:RequestInfo|URL,init?:RequestInit)=>{
   const url=String(input),method=init?.method??'GET';requests.push({url,method});
   if(method==='DELETE')return new Promise<Response>(resolve=>{pendingDelete=resolve;});
+  if(url.endsWith('/deletion-impact'))return Response.json({orderBlocked,sampleCount:0,sessions:[]});
   const payload=url==='/api/v2/access/login'?{token:'b'.repeat(64),expiresIn:3600}:url==='/api/v2/access/me'?{id:'1',username:'demo',displayName:'演示账号',role}:url==='/api/company'?{company_name:'演示公司',images:{}}:url==='/api/v2/pattern-sharing'?{enabled:false}:url.includes('/fabrics/catalog?')?{items:[],total:0,limit:50,offset:0}:url.includes('/products?')?page:url.includes('/stats')?stats:url.includes('/reserve-number')?{orderNo:'DEMO-001'}:url.includes('/customers?')?{items:[]}:{};
   return Response.json(payload);
  };
@@ -99,12 +100,14 @@ test('UI-03 product route and filters restore on reload; internal browser back c
  }finally{if(r)await act(async()=>r.unmount());env.cleanup();}
 });
 test('deletion links open product and document views by stable product ID',async()=>{
- const productScope=environment('#/products?productId=53&refNo=G017-2-F018&status=all');let r:ReactTestRenderer|undefined;
+ const productScope=environment('#/products?productId=53&refNo=G017-2-F018&status=all','admin',true);let r:ReactTestRenderer|undefined;
  try{
   r=await app(productScope);
   assert(productScope.requests.some(x=>x.url.startsWith('/api/v2/products?')&&x.url.includes('productId=53')&&!x.url.includes('productNo=')));
   assert(productScope.host.location.hash.includes('refNo=G017-2-F018'));
   assert(productScope.host.location.hash.includes('productId=53'));
+  assert(!r.root.findAllByType('a').some(node=>node.props.href==='#/documents?productId=53&refNo=G017-2-F018'));
+  await act(async()=>button(r!,'删除').props.onClick());
   assert(r.root.findAllByType('a').some(node=>node.props.href==='#/documents?productId=53&refNo=G017-2-F018'));
  }finally{if(r)await act(async()=>r!.unmount());productScope.cleanup();}
  const documentScope=environment('#/documents?productId=53&refNo=G017-2-F018');r=undefined;

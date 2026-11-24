@@ -2,6 +2,7 @@ import type {CatalogProduct} from '../../../src/components/product-master-v2/cat
 let failed=false,imageFailed=false;
 const previewOrderReferences=new Set(['1']);
 export function markPreviewProductOrdered(id:string){previewOrderReferences.add(id);}
+export function hasPreviewProductOrder(id:string){return previewOrderReferences.has(id);}
 export const relatedImageId=(masterId:string)=>'a1111111-1111-4111-8111-'+masterId.padStart(12,'0');
 export async function relatedProductImagesPreview(init?:RequestInit):Promise<Response>{
  if(location.search.includes('linkedImageError')&&!imageFailed){imageFailed=true;return new Response('',{status:503});}

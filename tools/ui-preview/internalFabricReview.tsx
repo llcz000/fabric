@@ -1,4 +1,4 @@
-import {relatedProductsPreview,relatedProductImagesPreview,markPreviewProductOrdered} from './fixtures/relatedProducts';
+import {relatedProductsPreview,relatedProductImagesPreview,markPreviewProductOrdered,hasPreviewProductOrder} from './fixtures/relatedProducts';
 import {FabricProductsDialog} from '../../src/components/product-master-v2/FabricProductsDialog';
 import {ProductCatalogV2} from '../../src/components/product-master-v2/ProductCatalogV2';
 import {ProductEditorV2} from '../../src/components/product-master-v2/ProductEditorV2';
@@ -24,6 +24,11 @@ if(new URLSearchParams(location.search).has('pagination'))samples.push(...Array.
 })));
 const apiFetch=(async(input:RequestInfo|URL,init?:RequestInit)=>{
  const url=new URL(String(input),location.href);
+ const impact=/^\/api\/v2\/products\/(\d+)\/deletion-impact$/.exec(url.pathname);
+ if(impact){
+  const sessions=impact[1]==='3'?[{id:'29',customerReference:'样例选样客户'}]:[];
+  return Response.json({orderBlocked:hasPreviewProductOrder(impact[1]),sampleCount:sessions.length,sessions});
+ }
  if(url.pathname==='/api/image-assets/access-urls')return relatedProductImagesPreview(init);
  if(url.pathname==='/api/v2/products'){
   if(location.search.includes('products=1')&&!url.searchParams.has('fabricId'))url.searchParams.set('fabricId','1');

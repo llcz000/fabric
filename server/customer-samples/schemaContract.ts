@@ -4,6 +4,7 @@
  * Main product-domain checks are performed by verifyV2SchemaContract separately.
  */
 import type {SampleCardDb} from './cardLibrary';
+import {verifyActiveSampleProductColumn} from './activeProductReferenceSchema';
 
 type Row=Record<string,unknown>;
 const TABLES=['sample_cards','sample_card_tokens','customer_sample_sessions',
@@ -141,8 +142,12 @@ export async function verifyB25SampleSchemaContract(db:SampleCardDb):Promise<voi
  const sourceApprovedUnique=new Set(['PRIMARY','uq_sample_item_card_source']);
  if(sourceIndexes.some(x=>Number(x.NON_UNIQUE)===0&&!sourceApprovedUnique.has(String(x.INDEX_NAME))))
   throw Error('B2-5 unexpected source unique index blocks multiple card provenance');
- checkReference(await fks('customer_sample_items'),'customer_sample_items','fk_sample_item_product','v2_products',[['product_id','id']]);
- checkReference(await fks('customer_sample_items'),'customer_sample_items','fk_sample_item_removed_actor','v2_access_users',[['removed_by_user_id','id']]);
+ const itemRefs=await fks('customer_sample_items');
+ if(itemRefs.some(row=>row.CONSTRAINT_NAME==='fk_sample_item_active_product')){
+  verifyActiveSampleProductColumn(itemCols.find(row=>row.COLUMN_NAME==='active_product_id'));
+  checkReference(itemRefs,'customer_sample_items','fk_sample_item_active_product','v2_products',[['active_product_id','id']]);
+ }else checkReference(itemRefs,'customer_sample_items','fk_sample_item_product','v2_products',[['product_id','id']]);
+ checkReference(itemRefs,'customer_sample_items','fk_sample_item_removed_actor','v2_access_users',[['removed_by_user_id','id']]);
  const sources=await fks('customer_sample_item_sources');
  checkReference(sources,'customer_sample_item_sources','fk_sample_source_item','customer_sample_items',
   [['session_id','session_id'],['product_id','product_id']]);

@@ -22,6 +22,9 @@ export interface CatalogProduct{
  sampleCard?:{id:string;cardNo:string;isActive:boolean;needsReprint:boolean}|null;
 }
 export interface CatalogPage{items:CatalogProduct[];total:number;limit:number;offset:number}
+export interface CatalogDeletionImpact{
+ orderBlocked:boolean;sampleCount:number;sessions:{id:string;customerReference:string}[];
+}
 export type CatalogAction=
  |{type:'productNo'|'fabricName';value:string}
  |{type:'topic'|'color';id:string}
@@ -110,6 +113,14 @@ async function json(response:Response):Promise<unknown>{
 }
 export async function fetchCatalogPage(apiFetch:typeof fetch,filter:CatalogFilters,signal?:AbortSignal,endpoint='/api/v2/products'){
  return parseCatalogPage(await json(await apiFetch(buildCatalogUrl(endpoint,filter),{signal})));
+}
+export async function fetchCatalogDeletionImpact(apiFetch:typeof fetch,id:string,signal:AbortSignal):Promise<CatalogDeletionImpact>{
+ if(!bigint(id))throw Error('无效产品编号');
+ const raw=await json(await apiFetch('/api/v2/products/'+id+'/deletion-impact',{signal})) as CatalogDeletionImpact;
+ if(!raw||typeof raw.orderBlocked!=='boolean'||!Number.isSafeInteger(raw.sampleCount)||!Array.isArray(raw.sessions)||
+  raw.sampleCount<raw.sessions.length||raw.sessions.some(row=>!row||!bigint(row.id)||typeof row.customerReference!=='string'))
+  throw Error('删除限制数据错误');
+ return raw;
 }
 export async function loadCatalogTags(apiFetch:typeof fetch,dimension:'topic'|'color',signal?:AbortSignal,linkedArchivedOnly=false):Promise<CatalogTag[]>{
  const suffix=linkedArchivedOnly&&dimension==='topic'?'&includeArchived=true&linkedArchivedOnly=true':'';

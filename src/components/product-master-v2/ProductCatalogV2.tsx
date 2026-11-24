@@ -9,9 +9,9 @@ import {LibraryPagination} from './LibraryPagination';
 import {ProductImageTabs,type CatalogImageResolver} from './ProductImageTabs';
 import {ProductTryOnDialog} from './ProductTryOnDialog';
 import {SampleCardPatternsDialog} from './SampleCardPatternsDialog';
-import type {CatalogFilters,CatalogPage,CatalogProduct} from './catalogModel';
+import type {CatalogDeletionImpact,CatalogFilters,CatalogPage,CatalogProduct} from './catalogModel';
 import {
- emptyCatalogFilters,reduceCatalogFilters,fetchCatalogPage,buildCatalogUrl,
+ emptyCatalogFilters,reduceCatalogFilters,fetchCatalogPage,fetchCatalogDeletionImpact,buildCatalogUrl,
  resolveImageUrls,getCatalogProductImages,createLatestRequestGuard
 } from './catalogModel';
 import {buildColumnVisibility,nextSortState,readColumnVisibility,sortRows,toggleColumnVisibility,
@@ -56,7 +56,6 @@ export interface CatalogV2TableProps{
 export function CatalogV2Table({
   page,patternUrls,onPatternPreview,onProductImages,onPage,canManage=false,onEdit,onDeleteRequest,onRemark,onShare,onCard,onTryOn,updating=false,numberSort,onNumberSort
 }:CatalogV2TableProps){
- const canQueryDocuments=useContext(V2DocumentLookupContext);
  const [sort,setSort]=useState<SortState|null>(null);
  const [visibility,setVisibility]=useState(()=>readColumnVisibility(productColumns,PRODUCT_COLUMN_KEY));
  const shown=visibleColumns(productColumns,visibility);
@@ -64,7 +63,7 @@ export function CatalogV2Table({
  const headerSort=sort??(numberSort?{key:'productNo',direction:numberSort==='numberAsc'?'asc' as const:'desc' as const}:null);
  const widthOf=(key:string)=>{
   const index=productColumns.findIndex(c=>c.key===key);
-  const width=key==='card'&&canQueryDocuments?198:index>=0?columnWidths[index]:0;
+  const width=index>=0?columnWidths[index]:0;
   return width?{width:width+'px'}:undefined;
  };
  const toggleSort=(key:string)=>{
@@ -112,18 +111,13 @@ export function CatalogV2Table({
      <span className="text-slate-400">—</span>}
    </td>;
    case 'card':return <td className="px-3 py-2">
-    <div className="flex items-center justify-between gap-2 whitespace-nowrap">
-     <div className="min-w-0">
+    <div className="min-w-0 whitespace-nowrap">
       {product.sampleCard?<>
        {onCard?<button type="button" disabled={updating} className="block max-w-full truncate text-left text-[#0053da] underline"
         title={product.sampleCard.cardNo} onClick={()=>onCard(product)} aria-label={'查看关联色卡 '+product.sampleCard.cardNo}>{product.sampleCard.cardNo}</button>:
         <span className="block truncate" title={product.sampleCard.cardNo}>{product.sampleCard.cardNo}</span>}
        {product.sampleCard.needsReprint&&<span className="mt-1 block text-[11px] text-amber-700">需重新打印</span>}
       </>:<span className="text-slate-500">{product.sampleCard===null?'色卡待补齐':'关联待读取'}</span>}
-     </div>
-     {canQueryDocuments&&<a href={v2Route('documents',{productId:product.id,refNo:product.productNo})} target="_blank" rel="noopener"
-      aria-label={'查询关联单据 '+product.productNo}
-      className="inline-flex shrink-0 items-center rounded text-slate-600 underline underline-offset-2 hover:text-[#0053da] focus-visible:outline-2 focus-visible:outline-[#346ef6] max-md:min-h-11">查询关联单据</a>}
     </div>
    </td>;
    case 'actions':return <td className="col-actions px-3 py-2 text-center"><div className="inline-flex items-center gap-2 whitespace-nowrap">
@@ -199,10 +193,13 @@ function ImageDialog({
   </div>
  </div>;
 }
-export function CatalogDeleteConfirmation({product,onCancel,onConfirm,busy=false,error='',orderBlocked=false}:{
- product:CatalogProduct;onCancel():void;onConfirm():void;busy?:boolean;error?:string;orderBlocked?:boolean;
+export function CatalogDeleteConfirmation({product,onCancel,onConfirm,busy=false,error='',impact,checking=false,checkFailed=false,onRecheck}:{
+ product:CatalogProduct;onCancel():void;onConfirm():void;busy?:boolean;error?:string;impact?:CatalogDeletionImpact;
+ checking?:boolean;checkFailed?:boolean;onRecheck?():void;
 }){
  const canQueryDocuments=useContext(V2DocumentLookupContext);
+ const orderBlocked=impact?.orderBlocked===true,sampleCount=impact?.sampleCount??0;
+ const blocked=orderBlocked||sampleCount>0,canConfirm=!blocked&&!checking&&!checkFailed;
  const cancel=useRef<HTMLButtonElement>(null),dialog=useRef<HTMLDialogElement>(null),latest=useRef({busy,onCancel});
  latest.current={busy,onCancel};
  useEffect(()=>{
@@ -221,22 +218,33 @@ export function CatalogDeleteConfirmation({product,onCancel,onConfirm,busy=false
   return ()=>{document.removeEventListener('keydown',keydown);dialog.current?.close();before?.focus();};
  },[]);
  useEffect(()=>{if(busy)dialog.current?.focus();else cancel.current?.focus();},[busy]);
- return <dialog ref={dialog} tabIndex={-1} data-v2-delete-dialog role="alertdialog" aria-modal="true" aria-label={orderBlocked?'产品删除限制':'确认删除产品'}
+ return <dialog ref={dialog} tabIndex={-1} data-v2-delete-dialog role="alertdialog" aria-modal="true" aria-label={blocked?'产品删除限制':'确认删除产品'}
   onCancel={event=>{event.preventDefault();if(!busy)onCancel();}}
   className="fixed inset-0 m-auto w-[calc(100%-24px)] max-w-md rounded-xl bg-white p-5 text-[#191b24] shadow-2xl">
-   <h2 className="mb-3 text-lg font-semibold">{orderBlocked?'产品无法删除':'确认删除产品？'}</h2>
+   <h2 className="mb-3 text-lg font-semibold">{blocked?'产品无法删除':'确认删除产品？'}</h2>
    <p className="break-words text-sm">货号：<strong>{product.productNo}</strong></p>
-   {!orderBlocked&&<p className="my-3 text-xs text-slate-600">删除仅移除该产品及图片关联，不影响花型、面料或共享图片。</p>}
+   {canConfirm&&<p className="my-3 text-xs text-slate-600">删除仅移除该产品及图片关联，不影响花型、面料或共享图片。</p>}
+   {checking&&<p role="status" className="mt-3 text-sm text-slate-700">正在核对删除限制…</p>}
+   {checkFailed&&<p role="alert" className="mt-3 text-sm text-rose-700">删除限制读取失败。 <button type="button" className="underline" onClick={onRecheck}>重试</button></p>}
    {error&&<p role="alert" className="mt-3 text-sm text-rose-700">{error}</p>}
    {orderBlocked&&<>
-    {!error&&<p className="mt-3 text-sm text-slate-700">该产品仍被已保存单据引用。</p>}
+    <p className="mt-3 text-sm text-slate-700">该产品仍被已保存单据引用。</p>
     {canQueryDocuments?<a href={v2Route('documents',{productId:product.id,refNo:product.productNo})}
      target="_blank" rel="noopener" className="mt-3 inline-block text-sm text-[#0053da] underline">查看关联单据</a>:
      <p className="mt-3 text-sm text-slate-700">请联系管理员核对关联单据。</p>}
    </>}
+   {sampleCount>0&&<div className="mt-3 space-y-2 text-sm text-slate-700">
+    <p>该产品仍在 {sampleCount} 张选样单中。请先从关联选样中移除该产品。</p>
+    {impact?.sessions.length?<ul className="max-h-48 list-disc space-y-1 overflow-auto pl-5">
+     {impact.sessions.map(session=><li key={session.id}><a href={v2Route('samples',{sessionId:session.id})} target="_blank" rel="noopener"
+      className="inline-flex break-words text-[#0053da] underline max-md:min-h-11 max-md:items-center">{session.customerReference}（选样 {session.id}）</a></li>)}
+    </ul>:null}
+    {sampleCount>(impact?.sessions.length??0)&&<p>请联系有权限的同事处理其余关联选样。</p>}
+   </div>}
    <div className="mt-5 flex justify-end gap-2">
-    <button ref={cancel} type="button" disabled={busy} onClick={onCancel} className="rounded border border-slate-300 px-4 py-2 text-sm"><ActionIcon name="close"/>{orderBlocked?'关闭':'取消'}</button>
-    {!orderBlocked&&<button type="button" disabled={busy} onClick={onConfirm} className="rounded bg-rose-700 px-4 py-2 text-sm text-white"><ActionIcon name="delete"/>{busy?'正在删除…':'确认删除'}</button>}
+    {blocked&&<button type="button" className="rounded border border-slate-300 px-4 py-2 text-sm max-md:min-h-11" onClick={onRecheck}>重新核对</button>}
+    <button ref={cancel} type="button" disabled={busy} onClick={onCancel} className="rounded border border-slate-300 px-4 py-2 text-sm max-md:min-h-11"><ActionIcon name="close"/>{blocked?'关闭':'取消'}</button>
+    {canConfirm&&<button type="button" disabled={busy} onClick={onConfirm} className="rounded bg-rose-700 px-4 py-2 text-sm text-white"><ActionIcon name="delete"/>{busy?'正在删除…':'确认删除'}</button>}
    </div>
  </dialog>;
 }
@@ -285,16 +293,25 @@ export function ProductCatalogV2({apiFetch,canManage=false,allowExport=true,onCr
  const [pendingDelete,setPendingDelete]=useState<CatalogProduct|null>(null);
  const [tryOn,setTryOn]=useState<CatalogProduct|null>(null);
  const [deleteBusy,setDeleteBusy]=useState(false),[deleteError,setDeleteError]=useState('');
- const [orderBlocked,setOrderBlocked]=useState(false);
+ const [impact,setImpact]=useState<CatalogDeletionImpact>();
+ const [checkFailed,setCheckFailed]=useState(false),[checkRevision,setCheckRevision]=useState(0);
+ const recheck=()=>{setImpact(undefined);setCheckFailed(false);setCheckRevision(n=>n+1);};
+ useEffect(()=>{
+  if(!pendingDelete)return;
+  const controller=new AbortController();
+  fetchCatalogDeletionImpact(apiFetch,pendingDelete.id,controller.signal).then(value=>{
+   if(!controller.signal.aborted)setImpact(value);
+  }).catch(()=>{if(!controller.signal.aborted)setCheckFailed(true);});
+  return ()=>controller.abort();
+ },[apiFetch,pendingDelete,checkRevision]);
  const deleting=useRef(false);useV2LeaveProtection(false,deleteBusy);
  const confirmDelete=async()=>{
-  if(!pendingDelete||!onDeleteRequest||orderBlocked||deleting.current)return;
+  if(!pendingDelete||!onDeleteRequest||!impact||impact.orderBlocked||impact.sampleCount>0||deleting.current)return;
   deleting.current=true;setDeleteBusy(true);setDeleteError('');
   try{await onDeleteRequest(pendingDelete);setPendingDelete(null);}
   catch(e){
    setDeleteError(e instanceof Error?e.message:'产品删除失败，请重试');
-   if(e instanceof Error&&'code' in e&&e.code==='ORDER_REFERENCE')setOrderBlocked(true);
-   if(e instanceof Error&&'status' in e&&e.status===409)setRetry(n=>n+1);
+   if(e instanceof Error&&'status' in e&&e.status===409){recheck();setRetry(n=>n+1);}
   }
   finally{deleting.current=false;setDeleteBusy(false);}
  };
@@ -389,11 +406,11 @@ export function ProductCatalogV2({apiFetch,canManage=false,allowExport=true,onCr
    onProductImages={item=>setViewer({type:'product',item})}
    onPage={offset=>dispatch({type:'page',offset})} onRemark={setRemark}
      onCard={item=>setViewingCard(item)}
-    canManage={canManage} onShare={onShare} onTryOn={onTryOn??setTryOn} onEdit={onEdit} onDeleteRequest={onDeleteRequest?item=>{setDeleteError('');setOrderBlocked(item.hasOrderReference===true);setPendingDelete(item);}:undefined}/>:<div className="v2-catalog-skeleton" aria-hidden="true"/>}
+    canManage={canManage} onShare={onShare} onTryOn={onTryOn??setTryOn} onEdit={onEdit} onDeleteRequest={onDeleteRequest?item=>{setDeleteError('');setImpact(undefined);setCheckFailed(false);setPendingDelete(item);}:undefined}/>:<div className="v2-catalog-skeleton" aria-hidden="true"/>}
    </div>
   {tryOn&&<ProductTryOnDialog product={tryOn} apiFetch={apiFetch} onClose={()=>setTryOn(null)} onSaved={()=>setRetry(n=>n+1)}/>}
   {pendingDelete&&onDeleteRequest?<CatalogDeleteConfirmation product={pendingDelete}
-    busy={deleteBusy} error={deleteError} orderBlocked={orderBlocked} onCancel={()=>{if(!deleting.current)setPendingDelete(null);}}
+    busy={deleteBusy} error={deleteError} impact={impact} checking={!impact&&!checkFailed} checkFailed={checkFailed} onRecheck={()=>{setDeleteError('');recheck();}} onCancel={()=>{if(!deleting.current)setPendingDelete(null);}}
     onConfirm={()=>void confirmDelete()}/>:null}
   {remark?<ImageDialog title={'产品备注 · '+remark.productNo} onClose={()=>setRemark(null)}>
    <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{remark.remark}</p>

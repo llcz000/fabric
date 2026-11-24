@@ -45,6 +45,21 @@ function context(changes,options={}){
  return {previous,current,baselineReleaseId:'verified-release',sourceSha256:'candidate-sha',...options};
 }
 
+test('active sample product reference scope includes only product browser checks and permits the registered migration file',()=>{
+ const spec='tests/ui/catalog-number-sort.spec.ts',schema='server/customer-samples/activeProductReferenceSchema.ts';
+ const candidate=context([spec,schema,'scripts/release/browser-validation.mjs','scripts/release/migrations.ts',
+  gallerySpec,'tools/ui-preview/internalFabricReview.tsx','tests/ui/dual-qr.spec.ts',
+  'server/customer-samples/schemaContract.test.ts','server/product-master/productSearch.test.ts',
+  'src/components/product-master-v2/ProductCatalogV2.test.ts','src/components/product-master-v2/productCardAssociation.test.ts',
+  'src/components/product-master-v2/uiExperience.test.ts'],{migrations:['active-sample-product-reference']});
+ candidate.previous.files=candidate.previous.files.filter(file=>file.path!==schema);
+ const result=selectBrowserValidation(candidate);
+ assert.equal(result.mode,'scoped');
+ assert.deepEqual(result.profiles,['product-deletion']);
+ assert.deepEqual(result.specs,[spec,...smoke].sort());
+ assert.deepEqual(result.releaseChecks,['node','python']);
+});
+
 test('gallery changes and their exact fixture/spec select module checks plus shared smoke from manifest differences',()=>{
  const ctx=context([gallery,gallerySpec,'tools/ui-preview/modelGalleryReview.tsx','docs/project/项目需求总览.md']);
  const result=selectBrowserValidation(ctx);

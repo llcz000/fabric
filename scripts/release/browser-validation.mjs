@@ -142,7 +142,20 @@ const productImagePaths=['server/product-master/productsV2.ts','server/product-m
  'scripts/check-v2-p7-media-order-readonly.mjs','src/components/product-master-v2/PatternColorwayEditor.tsx',
  'src/components/product-master-v2/PatternLibraryV2.tsx','src/components/product-master-v2/ProductEditorV2.tsx',
  'src/components/product-master-v2/productEditorModel.ts',...productImageSpecs,...productImageUnits];
+const productDeletionSchema='server/customer-samples/activeProductReferenceSchema.ts';
+const productDeletionMigration='active-sample-product-reference';
+const productCatalogSpec='tests/ui/catalog-number-sort.spec.ts';
+const productDeletionSpecs=[productCatalogSpec];
+const productDeletionUnits=['server/customer-samples/schemaContract.test.ts','server/product-master/productSearch.test.ts',
+ 'src/components/product-master-v2/ProductCatalogV2.test.ts','src/components/product-master-v2/productCardAssociation.test.ts',
+ 'src/components/product-master-v2/uiExperience.test.ts'];
+const productDeletionPaths=[productDeletionSchema,'server/customer-samples/schemaContract.ts','server/product-master/productsV2Routes.ts',
+ 'src/components/product-master-v2/ProductCatalogV2.tsx','src/components/product-master-v2/catalogModel.ts',
+ 'src/business-ui-review.tsx','tools/ui-preview/internalFabricReview.tsx','tools/ui-preview/fixtures/relatedProducts.ts',...productDeletionSpecs,...productDeletionUnits];
 const profiles=[{
+ id:'product-deletion',
+ paths:productDeletionPaths,specs:productDeletionSpecs,unitFiles:productDeletionUnits,postBuildScripts:[],
+},{
  id:'public-card-browser',paths:['tests/ui/wechat-card-api.spec.ts','tests/ui/wechat-card-real.spec.ts','tests/ui/dual-qr.spec.ts'],
  specs:['tests/ui/wechat-card-api.spec.ts','tests/ui/wechat-card-real.spec.ts','tests/ui/dual-qr.spec.ts'],
  unitFiles:[],postBuildScripts:[],
@@ -215,16 +228,24 @@ export function selectBrowserValidation({previous,current,baselineReleaseId,sour
  const changedFiles=sortedUnique([...old.keys(),...next.keys()]).filter(p=>old.get(p)!==next.get(p));
  const specialistChanges=changedFiles.filter(p=>specialistSpecs.includes(p));
  const code=changedFiles.filter(p=>!p.startsWith('docs/')&&!specialistSpecs.includes(p));
- const selected=profiles.filter(profile=>code.some(p=>profile.paths.includes(p)));
+ const businessChange=code.some(p=>/^(src|server)\//.test(p)&&!p.includes('.test.'));
+ const deletionChange=code.some(p=>productDeletionPaths.includes(p)&&/^(src|server)\//.test(p)&&!p.includes('.test.'));
+ const browserSpecs=code.filter(p=>p.startsWith('tests/ui/')&&profiles.some(profile=>profile.paths.includes(p)));
+ // A reviewed test edit can ship alongside application code without expanding its affected pages.
+ const selected=profiles.filter(profile=>code.some(p=>profile.paths.includes(p)&&
+  !(businessChange&&browserSpecs.includes(p))&&
+  !(deletionChange&&profile.id==='fabric-library'&&p==='tools/ui-preview/internalFabricReview.tsx')));
  const productImages=selected.some(profile=>profile.id==='product-image-upload');
  const imageAssets=code.some(p=>imageAssetPaths.includes(p));
  const imageMigration=productImages&&migrations.includes('product-image-category-reuse');
- const unmappedMigrations=migrations.filter(id=>!imageMigration||!imageScopeMigrations.includes(id));
+ const productDeletion=selected.some(profile=>profile.id==='product-deletion');
+ const unmappedMigrations=migrations.filter(id=>
+  !(imageMigration&&imageScopeMigrations.includes(id))&&!(productDeletion&&id===productDeletionMigration));
  const hasSharedImageSchema=code.some(p=>sharedImageSchema.includes(p));
  const fabricChecks=code.some(p=>/^(?:server\/product-master\/(?:schema|fabrics|fabricExcelImport|fabricExcelPreview|fabricNumberSchema)\.ts)$/.test(p))?fabricSchemaUnits:[];
  const tooling=code.filter(p=>releaseToolPaths.includes(p)||migrationToolPaths.includes(p));
  const toolingOnly=tooling.length===code.length;
- const useToolChecks=productImages||imageAssets||toolingOnly;
+ const useToolChecks=productImages||productDeletion||imageAssets||toolingOnly;
  const releaseChecks=[...(tooling.length?['node']:[]),...(tooling.some(p=>migrationToolPaths.includes(p))?['python']:[])];
  const base={version:1,rulesVersion:'fabric-browser-scope-v3',baselineReleaseId,candidateManifestSha256:sourceSha256,
   changedFiles,migrations,profiles:[],specs:[],unitFiles:fabricChecks,postBuildScripts:[],releaseChecks,
@@ -255,6 +276,7 @@ export function selectBrowserValidation({previous,current,baselineReleaseId,sour
   code.length===printRegistration.length&&printRegistration.every(p=>code.includes(p));
  const impact=code.map(file=>({file,areas:sortedUnique([
   ...selected.filter(profile=>profile.paths.includes(file)).map(profile=>profile.id),
+  ...(businessChange&&browserSpecs.includes(file)?['browser-coverage']:[]),
   ...(imageAssetPaths.includes(file)?['image-asset-ingestion']:[]),
   ...(useToolChecks&&tooling.includes(file)?['release-tooling']:[]),
   ...(imageMigration&&(sharedImageSchema.includes(file)||fabricSchemaUnits.includes(file))?['product-image-schema']:[]),
@@ -262,7 +284,7 @@ export function selectBrowserValidation({previous,current,baselineReleaseId,sour
  ])}));
  const unmappedFiles=impact.filter(entry=>!entry.areas.length).map(entry=>entry.file);
  base.impact=impact;
- const unscopedChanges=code.filter(p=>!next.has(p)||!old.has(p)&&!productImagePaths.includes(p));
+ const unscopedChanges=code.filter(p=>!next.has(p)||!old.has(p)&&!productImagePaths.includes(p)&&p!==productDeletionSchema);
  const imageNeighbors=productImages?[
   ...productImageSpecs.filter(file=>code.includes(file)),
   ...(code.includes('src/components/product-master-v2/PatternColorwayEditor.tsx')?[patternDimensionsSpec]:[]),

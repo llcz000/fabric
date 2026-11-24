@@ -18,6 +18,7 @@ const apiFetch=(async(input:RequestInfo|URL,init?:RequestInit)=>{const u=new URL
  if(u.pathname==='/api/v2/products/batch/preview')return Response.json({items:[{patternColorwayId:'3',productNo:product.productNo,existing:false}]});
  if(u.pathname==='/api/v2/products/batch')return Response.json({created:[{patternColorwayId:'3',productNo:product.productNo,id:'54'}],skipped:[]});
  if(u.pathname==='/api/v2/products')return page([product]);
+ if(u.pathname==='/api/v2/products/53/deletion-impact')return Response.json({orderBlocked:false,sampleCount:0,sessions:[]});
  if(u.pathname==='/api/v2/products/53'){if(method==='PATCH'){if('isActive' in body||'isAvailableForSampling' in body)throw Error('Obsolete state payload');Object.assign(product,body);product.rowVersion=String(Number(product.rowVersion)+1);}return Response.json(product);}
  if(u.pathname.endsWith('/share'))return Response.json({url:location.origin+'/c/'+'a'.repeat(43)});
  if(u.pathname==='/api/v2/image-assets/resolve')return Response.json({items:[]});

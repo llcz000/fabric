@@ -243,6 +243,13 @@ class Release:
             must(isinstance(before,bool),'Original product image index is unverified; cannot roll back')
             if not before:
                 self.operator('restore-product-image-index',self.p['database'],b,{**m,'migrations':[image_migration],'migrationPlans':{image_migration:m['migrationPlans'][image_migration]}})
+        sample_migration='active-sample-product-reference'
+        if sample_migration in m.get('migrations',[]):
+            rehearsal=self.state['phases'].get('rehearse',{}).get('result',{}).get('migration') or {}
+            before=rehearsal.get('results',{}).get(sample_migration,{}).get('alreadyApplied')
+            must(isinstance(before,bool),'Original sample product reference is unverified; cannot roll back')
+            if not before:
+                self.operator('restore-sample-product-reference',self.p['database'],b,{**m,'migrations':[sample_migration],'migrationPlans':{sample_migration:m['migrationPlans'][sample_migration]}})
         self.atomic(folder/'index.html',self.prod/'dist/index.html');self.atomic(folder/'server.cjs',self.prod/'dist/server.cjs');self.restart();self.baseline()
         code,body=self.request(self.p['url'],'/index.html');must(code==200 and hashlib.sha256(body).hexdigest()==self.b['index'],'Public rollback index verification failed')
         return {'state':'code-rolled-back','databaseRestored':False,'newTablesAndBusinessWritesPreserved':True}
@@ -270,6 +277,7 @@ class Release:
         migration=None;changed=False
         try:
             if m['migrations']:
+                if 'active-sample-product-reference' in m['migrations']:changed=True
                 migration=self.operator('migrate',self.p['database'],b,m)
                 if migration.get('results',{}).get('product-image-category-reuse',{}).get('alreadyApplied') is False:changed=True
             must(preserved_columns((self.stage/'old-columns.txt').read_text(),self.columns(b['tables']),m['migrations']),'Migration changed existing columns')

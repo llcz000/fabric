@@ -17,6 +17,15 @@ const fk=(name:string,source:string,target:string):Row=>({
  CONSTRAINT_NAME:name,COLUMN_NAME:source,REFERENCED_TABLE_NAME:target,
  REFERENCED_COLUMN_NAME:'id',DELETE_RULE:'RESTRICT'
 });
+test('AC-64 product FK permits historical rows only through the active generated reference',async()=>{
+ const schema=fixture();
+ const active=col('active_product_id','bigint unsigned','YES','STORED GENERATED','case when ((removed_at is null) and (session_deleted = 0)) then product_id else NULL end');
+ schema.columns.customer_sample_items.push(active);
+ schema.refs.customer_sample_items[0]=fk('fk_sample_item_active_product','active_product_id','v2_products');
+ await verifyB25SampleSchemaContract(schema);
+ active.GENERATION_EXPRESSION='product_id';
+ await assert.rejects(verifyB25SampleSchemaContract(schema),/Active sample product reference column drift/);
+});
 function fixture(){
  const columns:Record<string,Row[]>={
   sample_cards:[

@@ -62,7 +62,10 @@ const candidateMigrationGuards=[requireBusinessSimplificationMigration,requirePr
  requireProductImageCategoryReuseMigration,requireModelGalleryMigration,requireSampleCardReviewMigration,
  requireSampleContactMigration,requireSampleContactIdentityMigration];
 function migrationRequirements(changed,migrations){
- return candidateMigrationGuards.flatMap(check=>{try{check(changed,migrations);return [];}catch(e){return [e.message];}});
+ const requirements=candidateMigrationGuards.flatMap(check=>{try{check(changed,migrations);return [];}catch(e){return [e.message];}});
+ if(changed.includes('server/customer-samples/activeProductReferenceSchema.ts')&&!migrations.includes('active-sample-product-reference'))
+  requirements.push('This candidate requires --migrations active-sample-product-reference and isolated restore rehearsal');
+ return requirements;
 }
 function prepare(){
  const sourceGit=verifyPublishedWorkspace(root);
