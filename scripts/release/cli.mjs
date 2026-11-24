@@ -96,7 +96,7 @@ function prepare(){
   requireSampleCardReviewMigration(candidate.changed,args.migrations);
   requireSampleContactMigration(candidate.changed,args.migrations);
   requireSampleContactIdentityMigration(candidate.changed,args.migrations);
-  if(candidate.changed.some(name=>/^(?:server\/product-master\/(?:schema|fabrics|fabricExcelImport|fabricExcelPreview|fabricNumberSchema)\.ts)$/.test(name)))
+  if(!args.reuseImageReview&&candidate.changed.some(name=>/^(?:server\/product-master\/(?:schema|fabrics|fabricExcelImport|fabricExcelPreview|fabricNumberSchema)\.ts)$/.test(name)))
    timed('fabricValidation',()=>processRun(process.execPath,['scripts/run-ts-tests.mjs','server/product-master/fabricNumberSchema.test.ts','server/product-master/fabrics.test.ts','server/product-master/fabricExcelPreview.test.ts','server/product-master/fabricExcelImport.test.ts'],{log:path.join(dir,'fabric-validation.log')}));
   if(args.reusePrintReview){
    const reviewedCommit='d70a4d6abfe88a05b95046557cac014aa6ee52b7';
@@ -109,6 +109,23 @@ function prepare(){
    browserValidation={version:1,baselineReleaseId:candidate.baselineReleaseId,candidateManifestSha256:sourceSha,
     changedFiles:candidate.changed,mode:'none',reason:'reuse-verified-print-review',profiles:['document-print'],
     specs:[],unitFiles:[],postBuildScripts:[],reviewedCommit,reviewSha256:reviewed.reportSha256,reusedChecks:reviewed.browserChecks};
+  }else if(args.reuseImageReview){
+   const reviewedCommit='1ac53b1243b7016006e79858d732b279385fb413';
+   const releaseChanges=new Set(['scripts/release/cli.mjs','scripts/release/core.mjs']);
+   processRun('git',['merge-base','--is-ancestor',reviewedCommit,sourceGit.commit]);
+   const subsequentChanges=processRun('git',['diff','--name-only',reviewedCommit,sourceGit.commit,'--']).trim().split(/\r?\n/).filter(Boolean);
+   const previousRun='20261124t103521581-dc4cacb0';
+   const fabricEvidence=path.join('artifacts/releases',previousRun,'fabric-validation.log');
+   const fabricEvidenceSha256=hash(fs.readFileSync(fabricEvidence));
+   if(candidate.baselineReleaseId!=='20261124t090248784-4849a0f1'||subsequentChanges.some(file=>!releaseChanges.has(file))||
+      reviewed.status!=='pass'||reviewed.changedUiFiles!==3||reviewed.browserChecks!==3||
+      fabricEvidenceSha256!=='e1230f778d3b9fdf41d9ec1064bebc80598c20624e51b9b067b0bf8d1cd39bb3')
+    throw Error('Image review reuse requires the exact reviewed image candidate and completed focused evidence');
+   fs.copyFileSync(fabricEvidence,path.join(dir,'fabric-validation.log'));
+   browserValidation={version:1,baselineReleaseId:candidate.baselineReleaseId,candidateManifestSha256:sourceSha,
+    changedFiles:candidate.changed,mode:'none',reason:'reuse-verified-image-review',profiles:['product-image-upload'],
+    specs:[],unitFiles:[],postBuildScripts:[],reviewedCommit,reviewSha256:reviewed.reportSha256,reusedChecks:reviewed.browserChecks,
+    previousRun,fabricEvidenceSha256};
   }else{
    browserValidation=selectBrowserValidation({...candidate,migrations:args.migrations,fullUi:args.fullUi,quickUi:args.quickUi,customerHistoryHotfix:args.customerHistoryHotfix});
   }
