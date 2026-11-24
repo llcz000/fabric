@@ -49,14 +49,16 @@ export function validateImages(value:EditorImages):EditorImages{
  if(!value||typeof value!=='object'||Array.isArray(value)||
   Object.keys(value).some(x=>!IMAGE_ROLES.includes(x as ImageRole)))
   throw Error('图片分类无效');
- const seen=new Set<string>(),out=clean();
+ const out=clean();
  for(const role of IMAGE_ROLES){
   const items=value[role];
   if(!Array.isArray(items)||items.length>10)throw Error('每类图片最多10张');
+  const seenInRole=new Set<string>();
   for(const asset of items){
    if(typeof asset!=='string'||!UUID.test(asset))throw Error('图片资产编号无效');
-   if(seen.has(asset.toLowerCase()))throw Error('图片重复：不得跨分类复用同一图片资产');
-   seen.add(asset.toLowerCase());out[role].push(asset.toLowerCase());
+   const normalized=asset.toLowerCase();
+   if(seenInRole.has(normalized))throw Error('当前分类内图片重复');
+   seenInRole.add(normalized);out[role].push(normalized);
   }
  }
  return out;
@@ -65,7 +67,7 @@ export function addDraftAsset(state:ProductEditorDraft,role:ImageRole,assetId:st
  const draft=validateImages(state.images);
  if(!UUID.test(assetId))throw Error('图片资产编号无效');
  const normalized=assetId.toLowerCase();
- if(IMAGE_ROLES.some(x=>draft[x].includes(normalized)))throw Error('图片重复');
+ if(draft[role].includes(normalized))throw Error('当前分类内图片重复');
  if(draft[role].length>=10)throw Error('每类图片最多10张');
  draft[role].push(normalized);
  return {...state,images:draft};
@@ -78,7 +80,7 @@ export function replaceDraftAsset(
   throw Error('图片或位置无效');
  const replacement=assetId.toLowerCase(),previous=images[role][index];
  if(replacement===previous)return {...state,images};
- if(IMAGE_ROLES.some(key=>images[key].includes(replacement)))throw Error('图片重复');
+ if(images[role].includes(replacement))throw Error('当前分类内图片重复');
  images[role][index]=replacement;
  return {...state,images};
 }

@@ -112,3 +112,9 @@ test('automatic product cards require their registered supplement before release
  assert.throws(()=>requireProductCardsMigration(['server/product-master/productsV2.ts'],[]),/requires/);
  assert.doesNotThrow(()=>requireProductCardsMigration(['server/product-master/productsV2.ts'],['product-auto-cards']));
 });
+test('product image category reuse requires its registered schema migration before release',async()=>{
+ const {requireProductImageCategoryReuseMigration}=await import('./core.mjs');
+ assert.deepEqual(parseArgs(['prepare','--migrations','product-image-category-reuse']).migrations,['product-image-category-reuse']);
+ assert.throws(()=>requireProductImageCategoryReuseMigration(['server/product-master/productsV2.ts'],[]),/requires/);
+ assert.doesNotThrow(()=>requireProductImageCategoryReuseMigration(['server/product-master/productsV2.ts'],['product-image-category-reuse']));
+});

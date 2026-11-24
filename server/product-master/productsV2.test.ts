@@ -89,9 +89,9 @@ class DB {
    return [{affectedRows:old-this.products.length},[]];
   }
   if(sql.startsWith('SELECT')&&sql.includes('FROM v2_product_image_assets WHERE product_id IN'))
-   return [this.images.filter(x=>params.map(String).includes(x.product_id)&&x.deleted_at===null),[]];
+   return [this.images.filter(x=>params.map(String).includes(x.product_id)&&x.deleted_at===null).sort((a,b)=>a.sort_order-b.sort_order),[]];
   if(sql.startsWith('SELECT')&&sql.includes('FROM v2_product_image_assets WHERE product_id=?'))
-   return [this.images.filter(x=>x.product_id===String(params[0])&&(!sql.includes('deleted_at IS NULL')||x.deleted_at===null)),[]];
+   return [this.images.filter(x=>x.product_id===String(params[0])&&(!sql.includes('deleted_at IS NULL')||x.deleted_at===null)).sort((a,b)=>a.sort_order-b.sort_order),[]];
   if(sql.startsWith('SELECT')&&sql.includes('FROM image_assets WHERE id IN')){
    return [params.map(id=>this.assets.get(String(id))?{id:String(id),...this.assets.get(String(id))}:null).filter(Boolean),[]];
   }
@@ -264,23 +264,38 @@ test('P3-4 ordered product with attached assets cannot be hard deleted or detach
  assert.equal(db.assets.get(a)?.ref_count,1);
  assert(!db.queries.slice(before).some(sql=>sql.startsWith('DELETE FROM v2_product_image_assets')));
 });
-test('P3-4 image layouts 3 categories <=10, no duplicate assets, transactional lifecycle and reuse',async()=>{
+test('P3-4 image layouts allow one asset in multiple categories and count each category reference',async()=>{
  const db=new DB();
  const asset='a1111111-1111-4111-8111-111111111111';
  const asset2='a2222222-2222-4222-8222-222222222222';
  db.assets.set(asset,{status:'ready',ref_count:0});db.assets.set(asset2,{status:'ready',ref_count:1});
- const item=await createV2Product(db,sales,{...newInput,images:{fabricDisplay:[asset],detail:[asset2],aiEffect:[]}});
+ const item=await createV2Product(db,sales,{...newInput,images:{fabricDisplay:[asset],detail:[asset,asset2],aiEffect:[]}});
  assert.deepEqual(item.images.fabricDisplay,[asset]);
- assert.equal(db.assets.get(asset)?.ref_count,1);assert.equal(db.assets.get(asset2)?.ref_count,2);
- assert.equal((await getV2Product(db,item.id)).images.detail[0],asset2);
+ assert.deepEqual(item.images.detail,[asset,asset2]);
+ assert.equal(db.assets.get(asset)?.ref_count,2);assert.equal(db.assets.get(asset2)?.ref_count,2);
+ assert.deepEqual((await getV2Product(db,item.id)).images.detail,[asset,asset2]);
  const replaced=await updateV2Product(db,sales,item.id,{expectedRowVersion:'1',
-  images:{fabricDisplay:[],detail:[asset2],aiEffect:[]}});
+  images:{fabricDisplay:[],detail:[asset,asset2],aiEffect:[]}});
  assert.deepEqual(replaced.images.fabricDisplay,[]);
- assert.equal(db.assets.get(asset)?.ref_count,0);assert.equal(db.assets.get(asset)?.status,'recycled');
+ assert.equal(db.assets.get(asset)?.ref_count,1);assert.equal(db.assets.get(asset)?.status,'ready');
  assert.equal(db.assets.get(asset2)?.ref_count,2);
  assert(!db.queries.some(sql=>sql.startsWith('DELETE FROM image_assets')));
  await assert.rejects(updateV2Product(db,sales,item.id,{expectedRowVersion:'2',
-  images:{fabricDisplay:[asset2],detail:[asset2],aiEffect:[]}}),status(400));
+  images:{fabricDisplay:[],detail:[asset2,asset2],aiEffect:[]}}),status(400));
+ const reordered=await updateV2Product(db,sales,item.id,{expectedRowVersion:'2',
+  images:{fabricDisplay:[],detail:[asset2,asset],aiEffect:[]}});
+ assert.deepEqual(reordered.images.detail,[asset2,asset]);
+ assert.equal(db.assets.get(asset)?.ref_count,1);assert.equal(db.assets.get(asset2)?.ref_count,2);
+ await updateV2Product(db,sales,item.id,{expectedRowVersion:'3',images:{fabricDisplay:[],detail:[asset2],aiEffect:[]}});
+ assert.equal(db.assets.get(asset)?.ref_count,0);assert.equal(db.assets.get(asset)?.status,'recycled');
+});
+test('P3-4 moving an image between categories preserves its reference count',async()=>{
+ const db=new DB(),asset='b2222222-2222-4222-8222-222222222222';db.assets.set(asset,{status:'ready',ref_count:0});
+ const item=await createV2Product(db,sales,{...newInput,images:{fabricDisplay:[asset],detail:[],aiEffect:[]}});
+ const moved=await updateV2Product(db,sales,item.id,{expectedRowVersion:'1',images:{fabricDisplay:[],detail:[asset],aiEffect:[]}});
+ assert.deepEqual(moved.images,{fabricDisplay:[],detail:[asset],aiEffect:[]});
+ assert.equal(db.assets.get(asset)?.ref_count,1);assert.equal(db.assets.get(asset)?.status,'ready');
+ assert.equal(db.images.filter(row=>row.product_id===item.id&&row.deleted_at===null).length,1);
 });
 test('P3-4 image invalid/oversized/recycled and mid-batch failure roll everything back',async()=>{
  const db=new DB();const a='a1111111-1111-4111-8111-111111111111';

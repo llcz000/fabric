@@ -68,12 +68,19 @@ test('P4-5 preview is read-only derived from selected live reference, not arbitr
  assert.equal(buildProductNumberPreview(null,fabric),'待选花型');
  assert.equal(buildProductNumberPreview(chosen,{...fabric,fabricNo:'F-018'}),'G017-2-F-018');
 });
-test('P4-5 ready asset adds once, respects max 10/category and no cross-category duplicate',()=>{
+test('P4-5 existing product can load the same image in multiple categories',()=>{
+ const reused=parseProductDetails({...existing,images:{fabricDisplay:[imageB],detail:[imageB],aiEffect:[]}});
+ assert.deepEqual(reused.images,{fabricDisplay:[imageB],detail:[imageB],aiEffect:[]});
+});
+test('P4-5 ready asset can be reused across categories but not duplicated within one category',()=>{
  const begin=emptyProductDraft();
  const one=addDraftAsset(begin,'fabricDisplay',imageA);
  assert.deepEqual(one.images.fabricDisplay,[imageA]);
- assert.throws(()=>addDraftAsset(one,'detail',imageA),/重复/);
- assert.throws(()=>addDraftAsset(one,'fabricDisplay',imageA),/重复/);
+ const reused=addDraftAsset(one,'detail',imageA);
+ assert.deepEqual(reused.images.detail,[imageA]);
+ assert.deepEqual(reused.images.fabricDisplay,[imageA]);
+ assert.throws(()=>addDraftAsset(reused,'detail',imageA),/重复/);
+ assert.throws(()=>addDraftAsset(reused,'fabricDisplay',imageA),/重复/);
  assert.deepEqual(begin.images,EMPTY_IMAGES);
  let next=one;
  for(let i=1;i<10;i++){
@@ -90,7 +97,8 @@ test('P4-5 replace one ready asset in place without changing category/order or m
  assert.deepEqual(changed.images.fabricDisplay,[imageD,imageB]);
  assert.deepEqual(changed.images.detail,[imageC]);
  assert.deepEqual(original.images.fabricDisplay,[imageA,imageB]);
- assert.throws(()=>replaceDraftAsset(original,'fabricDisplay',0,imageC),/重复/);
+ assert.deepEqual(replaceDraftAsset(original,'fabricDisplay',0,imageC).images.fabricDisplay,[imageC,imageB]);
+ assert.throws(()=>replaceDraftAsset(original,'fabricDisplay',0,imageB),/重复/);
  assert.throws(()=>replaceDraftAsset(original,'fabricDisplay',99,imageD),/图片/);
  assert.deepEqual(replaceDraftAsset(original,'fabricDisplay',1,imageB).images.fabricDisplay,[imageA,imageB]);
 });
@@ -132,7 +140,7 @@ test('P4-5 invalid duplicates, too many images, remarks and identity reject befo
  for(const x of [
   {...draft,patternColorwayId:'0'},
   {...draft,remark:'a'.repeat(5001)},
-  {...draft,images:{fabricDisplay:[imageA],detail:[imageA],aiEffect:[]}},
+  {...draft,images:{fabricDisplay:[imageA,imageA],detail:[],aiEffect:[]}},
   {...draft,images:{fabricDisplay:Array(11).fill(imageA),detail:[],aiEffect:[]}},
   {...draft,rowVersion:'0'},
  ])assert.throws(()=>productEditorPayload(x,'edit'));

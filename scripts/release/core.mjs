@@ -3,7 +3,7 @@ import path from 'node:path';
 import {createHash} from 'node:crypto';
 export const hash=b=>createHash('sha256').update(b).digest('hex');
 export const commands=new Set(['help','test','plan','prepare','preflight','rehearse','deploy','verify','rollback','status','progress','report','run','resume','baseline','prune']);
-export const migrationIds=['sample-contact-identity','sample-contact','sample-card-review','product-auto-cards','business-simplification','card-share','light-customers','customer-v12','fabric-deletion','pattern-deletion','pattern-number-reuse','pattern-dimensions','fabric-number-nonempty','model-gallery'];
+export const migrationIds=['sample-contact-identity','sample-contact','sample-card-review','product-auto-cards','business-simplification','card-share','light-customers','customer-v12','fabric-deletion','pattern-deletion','pattern-number-reuse','pattern-dimensions','fabric-number-nonempty','model-gallery','product-image-category-reuse'];
 export function parseArgs(argv){
  const [first='help',...rest]=argv;const command=['--help','-h'].includes(first)?'help':first;if(!commands.has(command))throw Error('Unknown release command');
  const result={command,id:undefined,migrations:[],rehearse:false};
@@ -101,6 +101,9 @@ export function requireModelGalleryMigration(changed,migrations){
 }
 export function requireProductCardsMigration(changed,migrations){
  if(changed.some(p=>['server/product-master/productsV2.ts','server/customer-samples/productCardBackfill.ts'].includes(p))&&!migrations.includes('product-auto-cards'))throw Error('This candidate requires --migrations product-auto-cards and isolated restore rehearsal');
+}
+export function requireProductImageCategoryReuseMigration(changed,migrations){
+ if(changed.some(p=>['server/product-master/productsV2.ts','server/product-master/schema.ts','server/product-master/schemaContract.ts','server/product-master/productImageCategoryReuseSchema.ts'].includes(p))&&!migrations.includes('product-image-category-reuse'))throw Error('This candidate requires --migrations product-image-category-reuse and isolated restore rehearsal');
 }
 
 export function requireSampleCardReviewMigration(changed,migrations){

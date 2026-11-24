@@ -75,7 +75,7 @@ export async function auditP7MediaAndOrderContracts(executeSql){
    throw Error('P7 media/order foreign key RESTRICT contract drift: '+expected[1]);
  const indexes=await rows(executeSql,indexSql,4);
  if(JSON.stringify(indexFields(indexes,'uq_v2_product_active_asset',0))!==
-    JSON.stringify(['product_id','active_asset_id']))
+    JSON.stringify(['product_id','role','active_asset_id']))
   throw Error('P7 active image unique index wrong columns/order');
  if(JSON.stringify(indexFields(indexes,'idx_v2_product_images_order',1))!==
     JSON.stringify(['product_id','role','deleted_at','sort_order']))

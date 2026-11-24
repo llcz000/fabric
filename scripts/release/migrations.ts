@@ -3,6 +3,7 @@ import {migrateSampleContact,SAMPLE_CONTACT_PLAN_SHA256,verifySampleContactSchem
 import {migrateSampleCardReview,SAMPLE_CARD_REVIEW_PLAN_SHA256,verifySampleCardReviewSchema} from '../../server/customer-samples/sessionCardReviewSchema';
 import {inventoryProductCards,migrateProductCards,PRODUCT_CARDS_PLAN_SHA256} from '../../server/customer-samples/productCardBackfill';
 import {migrateModelGallery,MODEL_GALLERY_PLAN_SHA256,verifyModelGallerySchema} from '../../server/product-master/modelGallerySchema';
+import {migrateProductImageCategoryReuse,PRODUCT_IMAGE_CATEGORY_REUSE_PLAN_SHA256,verifyProductImageCategoryReuseSchema} from '../../server/product-master/productImageCategoryReuseSchema';
 import {migratePatternDimensions,PATTERN_DIMENSIONS_PLAN_SHA256} from '../../server/product-master/patternDimensionsSchema';
 import {migrateBusinessSimplification,BUSINESS_SIMPLIFICATION_PLAN_SHA256} from '../../server/audit/businessSimplificationSchema';
 import {rehearseBusinessSimplification} from './business-simplification-rehearsal';
@@ -16,7 +17,7 @@ import {rehearseFabricDeletion} from './fabric-deletion-rehearsal';
 import {migrateFabricDeletion,FABRIC_DELETION_PLAN_SHA256} from '../../server/product-master/fabricDeletionSchema';
 import {rehearseCustomerV12} from './customer-v12-rehearsal';
 import {migrateCustomerOrders,CUSTOMER_ORDER_PLAN_SHA256} from '../../server/customers/orderLinkSchema';
-/** Registered additive migrations only. Never imported by application startup. */
+/** Registered migrations only. Never imported by application startup. */
 import mysql from 'mysql2/promise';
 import assert from 'node:assert/strict';
 import {migrateCustomers,CUSTOMER_PLAN_SHA256} from '../../server/customers/schema';
@@ -27,6 +28,7 @@ const registry={
  'sample-contact':{sha256:SAMPLE_CONTACT_PLAN_SHA256,apply:(p:any,t:any,b:string)=>migrateSampleContact(p,t,b)},
  'sample-card-review':{sha256:SAMPLE_CARD_REVIEW_PLAN_SHA256,apply:(p:any,t:any,b:string)=>migrateSampleCardReview(p,t,b)},
  'model-gallery':{sha256:MODEL_GALLERY_PLAN_SHA256,apply:(p:any,t:any,b:string)=>migrateModelGallery(p,t,b)},
+ 'product-image-category-reuse':{sha256:PRODUCT_IMAGE_CATEGORY_REUSE_PLAN_SHA256,apply:(p:any,t:any,b:string)=>migrateProductImageCategoryReuse(p,t,b)},
  'pattern-dimensions':{sha256:PATTERN_DIMENSIONS_PLAN_SHA256,apply:(p:any,t:any,b:string)=>migratePatternDimensions(p,t,b)},
  'product-auto-cards':{sha256:PRODUCT_CARDS_PLAN_SHA256,apply:(p:any,t:any,b:string)=>migrateProductCards(p,t,b)},
  'business-simplification':{sha256:BUSINESS_SIMPLIFICATION_PLAN_SHA256,apply:(p:any,t:any,b:string)=>migrateBusinessSimplification(p,t,b)},
@@ -40,7 +42,7 @@ const registry={
 };
 async function main(){
  const [mode,database,serverUuid,backupSha,rawIds]=process.argv.slice(2);
- assert(['migrate','rehearse','plans','inventory'].includes(mode));
+ assert(['migrate','rehearse','plans','inventory','restore-product-image-index'].includes(mode));
  const ids=rawIds?.split(',')??[];assert(ids.length&&new Set(ids).size===ids.length&&ids.every(x=>Object.hasOwn(registry,x)));
  const plans=Object.fromEntries(ids.map(id=>[id,registry[id as keyof typeof registry].sha256]));
  if(mode==='plans'){console.log(JSON.stringify(plans));return;}
@@ -50,6 +52,11 @@ async function main(){
  try{
   const target={database,serverUuid},results:Record<string,unknown>={};
   if(mode==='inventory'){assert.deepEqual(ids,['product-auto-cards']);const [identity]:any=await pool.query('SELECT DATABASE() AS database_name,@@server_uuid AS server_uuid');assert.equal(identity[0]?.database_name,database);assert.equal(identity[0]?.server_uuid,serverUuid);console.log(JSON.stringify(await inventoryProductCards(pool)));return;}
+  if(mode==='restore-product-image-index'){
+   assert.deepEqual(ids,['product-image-category-reuse']);
+   const restored=await migrateProductImageCategoryReuse(pool,target,backupSha,'restore');
+   console.log(JSON.stringify({mode,database,restored}));return;
+  }
   for(const id of ids){const migration=registry[id as keyof typeof registry];const result=await migration.apply(pool,target,backupSha);assert.equal(result.planSha256,migration.sha256);results[id]=result;}
   let checks:string[]=[];
   if(mode==='rehearse'){
@@ -59,6 +66,15 @@ async function main(){
    if(ids.includes('sample-contact')){await verifySampleContactSchema(pool);checks.push('sample contact nullable snapshot verified; repeat migration idempotent');}
    if(ids.includes('sample-card-review')){await verifySampleCardReviewSchema(pool);checks.push('sample card review nullable JSON verified; migration repeat idempotent');}
    if(ids.includes('model-gallery')){await verifyModelGallerySchema(pool);checks.push('model gallery columns, unique asset, index contract verified; migration idempotent');}
+   if(ids.includes('product-image-category-reuse')){
+    const first=results['product-image-category-reuse'] as {alreadyApplied:boolean};
+    if(!first.alreadyApplied){
+     assert(!(await migrateProductImageCategoryReuse(pool,target,backupSha,'restore')).alreadyApplied);
+     assert(!(await migrateProductImageCategoryReuse(pool,target,backupSha)).alreadyApplied);
+     checks.push('previous product image index restored and migration reapplied');
+    }
+    await verifyProductImageCategoryReuseSchema(pool);checks.push('product image asset uniqueness is scoped by category; migration idempotent');
+   }
    if(ids.includes('pattern-dimensions')){
     const conn=await pool.getConnection();
     try{await conn.beginTransaction();const [before]:any=await conn.query('SELECT id,width_cm,height_cm FROM pattern_masters ORDER BY id LIMIT 1 FOR UPDATE');

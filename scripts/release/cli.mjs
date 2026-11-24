@@ -5,7 +5,7 @@ import https from 'node:https';
 import {fileURLToPath} from 'node:url';
 import {spawnSync} from 'node:child_process';
 import {randomBytes,pbkdf2Sync,createDecipheriv,createHash} from 'node:crypto';
-import {migrationIds,parseArgs,validateProfile,hash,collectBrowserFiles,verifyFiles,assertWritable,runPhases,phasePlan,assertPublishedEvidence,releaseTimingReport,readReleaseProgress,recordRollbackReceipt,requireBusinessSimplificationMigration,requireProductCardsMigration,requireModelGalleryMigration} from './core.mjs';
+import {migrationIds,parseArgs,validateProfile,hash,collectBrowserFiles,verifyFiles,assertWritable,runPhases,phasePlan,assertPublishedEvidence,releaseTimingReport,readReleaseProgress,recordRollbackReceipt,requireBusinessSimplificationMigration,requireProductCardsMigration,requireModelGalleryMigration,requireProductImageCategoryReuseMigration} from './core.mjs';
 import {reviewContext} from './ui-quality-gate.mjs';
 import {seal as sealUiWorkflow,verify as verifyUiWorkflow} from '../ui-workflow-gate.mjs';
 import {syncVerifiedPointer} from './source-automation.mjs';
@@ -91,6 +91,7 @@ function prepare(){
   }
   requireBusinessSimplificationMigration(candidate.changed,args.migrations);
   requireProductCardsMigration(candidate.changed,args.migrations);
+  requireProductImageCategoryReuseMigration(candidate.changed,args.migrations);
   requireModelGalleryMigration(candidate.changed,args.migrations);
   requireSampleCardReviewMigration(candidate.changed,args.migrations);
   requireSampleContactMigration(candidate.changed,args.migrations);

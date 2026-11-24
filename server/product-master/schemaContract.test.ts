@@ -37,7 +37,7 @@ class Metadata {
         fk:[['fk_v2_products_colorway','pattern_colorway_id','pattern_colorways','id','RESTRICT'],['fk_v2_products_fabric','fabric_id','v2_fabrics','id','RESTRICT']],check:['ck_v2_product_sampling']},
       v2_product_image_assets: {
         col:[['id','bigint unsigned','NO'],['product_id','bigint unsigned','NO'],['asset_id','varchar(36)','NO'],['role',"enum('fabric_display','detail','ai_effect')",'NO'],['active_asset_id','varchar(36)','YES']],
-        idx:[['PRIMARY',0,'id',1],['uq_v2_product_active_asset',0,'product_id',1],['uq_v2_product_active_asset',0,'active_asset_id',2]],
+        idx:[['PRIMARY',0,'id',1],['uq_v2_product_active_asset',0,'product_id',1],['uq_v2_product_active_asset',0,'role',2],['uq_v2_product_active_asset',0,'active_asset_id',3]],
         fk:[['fk_v2_product_image_product','product_id','v2_products','id','RESTRICT'],['fk_v2_product_image_asset','asset_id','image_assets','id','RESTRICT']],check:[]
       }
     };
@@ -81,6 +81,15 @@ test('P1-C2 refuses non-unique or reordered composite indexes',async()=>{
   const swap=new Metadata();
   swap.mutate('pattern_colorways','S',rows=>rows.map(x=>x.INDEX_NAME==='uq_v2_master_colorway'?{...x,SEQ_IN_INDEX:3-Number(x.SEQ_IN_INDEX)}:x));
   await assert.rejects(verifyV2SchemaContract(swap),/pattern_colorways.*uq_v2_master_colorway/i);
+});
+test('P1-C2 product image asset uniqueness is scoped by product and category',async()=>{
+ const legacy=new Metadata();
+ legacy.mutate('v2_product_image_assets','S',rows=>rows.filter(x=>x.INDEX_NAME!=='uq_v2_product_active_asset').concat([
+  {INDEX_NAME:'uq_v2_product_active_asset',NON_UNIQUE:0,COLUMN_NAME:'product_id',SEQ_IN_INDEX:1},
+  {INDEX_NAME:'uq_v2_product_active_asset',NON_UNIQUE:0,COLUMN_NAME:'active_asset_id',SEQ_IN_INDEX:2}
+ ]));
+ await assert.rejects(verifyV2SchemaContract(legacy),/v2_product_image_assets.*uq_v2_product_active_asset/i);
+ await verifyV2SchemaContract(legacy,{allowLegacyProductImageIndex:true});
 });
 test('P1-C2 refuses broken product FK, missing CHECK or unsafe cascade',async()=>{
   const db=new Metadata();

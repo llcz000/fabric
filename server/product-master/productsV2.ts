@@ -54,14 +54,15 @@ function layout(value:unknown):ProductImages{
  const raw=value as Record<string,unknown>;
  if(Object.keys(raw).some(k=>!roleKeys.some(r=>r.key===k))||
     roleKeys.some(r=>!Array.isArray(raw[r.key])))throw new V2ProductError('Invalid image categories');
- const seen=new Set<string>();const result=emptyImages();
+ const result=emptyImages();
  for(const {key} of roleKeys){
+  const seenInRole=new Set<string>();
   const ids=raw[key] as unknown[];
   if(ids.length>10)throw new V2ProductError('At most ten images per category');
   for(const asset of ids){
-   if(typeof asset!=='string'||!UUID.test(asset)||seen.has(asset.toLowerCase()))
-    throw new V2ProductError('Invalid or duplicate image identity');
-   seen.add(asset.toLowerCase());result[key].push(asset.toLowerCase());
+   if(typeof asset!=='string'||!UUID.test(asset)||seenInRole.has(asset.toLowerCase()))
+    throw new V2ProductError('Invalid or duplicate image identity within category');
+   seenInRole.add(asset.toLowerCase());result[key].push(asset.toLowerCase());
   }
  }
  return result;
@@ -245,43 +246,64 @@ async function assetState(db:Query,ids:string[]):Promise<Map<string,Row>>{
 }
 async function applyImages(db:Query,productId:string,next:ProductImages,hardDelete=false):Promise<void>{
  const prev=await imageRows(db,productId);
- const desired=new Map<string,{role:V2ImageRole;order:number}>();
- for(const {key,role} of roleKeys)next[key].forEach((assetId,order)=>desired.set(assetId,{role,order}));
- const previous=new Map(prev.map(row=>[String(row.asset_id).toLowerCase(),row]));
- const additions=[...desired.keys()].filter(x=>!previous.has(x));
- const removals=[...previous.keys()].filter(x=>!desired.has(x));
- const assets=await assetState(db,[...additions,...removals]);
- for(const assetId of additions){
-  if(assets.get(assetId)?.status!=='ready')throw new V2ProductError('Image asset is missing or not ready',409);
- }
- for(const assetId of removals){
-  const current=assets.get(assetId);
-  if(!current||!Number.isSafeInteger(Number(current.ref_count))||Number(current.ref_count)<1)
-   throw new V2ProductError('Image reference ledger is inconsistent',409);
- }
- for(const [assetId,item] of previous){
-  if(!desired.has(assetId)){
-   if(!hardDelete)await db.query('UPDATE v2_product_image_assets SET deleted_at=NOW() WHERE id=?',[sqlId(item.id)]);
-   const [decremented]=await db.query(
-    "UPDATE image_assets SET status=IF(ref_count=1,'recycled',status),"+
-    'recycled_at=IF(ref_count=1,NOW(),recycled_at),'+
-    'purge_after=IF(ref_count=1,DATE_ADD(NOW(), INTERVAL 30 DAY),purge_after),'+
-    'ref_count=ref_count-1 WHERE id=? AND ref_count>0',[assetId]);
-   if(Number((decremented as {affectedRows?:number}).affectedRows)!==1)
-    throw new V2ProductError('Image reference ledger is inconsistent',409);
+ const desired=new Map<string,Map<V2ImageRole,number>>();
+ for(const {key,role} of roleKeys)next[key].forEach((assetId,order)=>{
+  const roles=desired.get(assetId)??new Map<V2ImageRole,number>();
+  roles.set(role,order);desired.set(assetId,roles);
+ });
+ const unmatched=new Map<string,Row[]>();
+ const updates:Array<{row:Row;role:V2ImageRole;order:number}>=[];
+ for(const row of prev){
+  const assetId=String(row.asset_id).toLowerCase(),role=row.role as V2ImageRole;
+  const roles=desired.get(assetId),order=roles?.get(role);
+  if(order!==undefined){
+   roles!.delete(role);
+   if(Number(row.sort_order)!==order)updates.push({row,role,order});
   }else{
-   const target=desired.get(assetId)!;
-   if(item.role!==target.role||Number(item.sort_order)!==target.order)
-    await db.query('UPDATE v2_product_image_assets SET role=?,sort_order=? WHERE id=?',
-     [target.role,target.order,sqlId(item.id)]);
+   const rows=unmatched.get(assetId)??[];
+   rows.push(row);unmatched.set(assetId,rows);
   }
  }
- for(const [assetId,target] of desired){
-  if(previous.has(assetId))continue;
+ const additions:Array<{assetId:string;role:V2ImageRole;order:number}>=[];
+ for(const [assetId,roles] of desired)for(const [role,order] of roles){
+  // Reuse an unmatched row for a role change, preserving its reference count.
+  const row=unmatched.get(assetId)?.shift();
+  if(row)updates.push({row,role,order});
+  else additions.push({assetId,role,order});
+ }
+ const removals=[...unmatched.values()].flat();
+ const removalCounts=new Map<string,number>();
+ for(const row of removals){
+  const assetId=String(row.asset_id).toLowerCase();
+  removalCounts.set(assetId,(removalCounts.get(assetId)??0)+1);
+ }
+ const assets=await assetState(db,[...removalCounts.keys(),...additions.map(item=>item.assetId)]);
+ for(const {assetId} of additions){
+  if(assets.get(assetId)?.status!=='ready')throw new V2ProductError('Image asset is missing or not ready',409);
+ }
+ for(const [assetId,count] of removalCounts){
+  const current=assets.get(assetId);
+  if(!current||!Number.isSafeInteger(Number(current.ref_count))||Number(current.ref_count)<count)
+   throw new V2ProductError('Image reference ledger is inconsistent',409);
+ }
+ for(const {row,role,order} of updates)await db.query('UPDATE v2_product_image_assets SET role=?,sort_order=? WHERE id=?',
+  [role,order,sqlId(row.id)]);
+ for(const row of removals){
+  const assetId=String(row.asset_id).toLowerCase();
+  if(!hardDelete)await db.query('UPDATE v2_product_image_assets SET deleted_at=NOW() WHERE id=?',[sqlId(row.id)]);
+  const [decremented]=await db.query(
+   "UPDATE image_assets SET status=IF(ref_count=1,'recycled',status),"+
+   'recycled_at=IF(ref_count=1,NOW(),recycled_at),'+
+   'purge_after=IF(ref_count=1,DATE_ADD(NOW(), INTERVAL 30 DAY),purge_after),'+
+   'ref_count=ref_count-1 WHERE id=? AND ref_count>0',[assetId]);
+  if(Number((decremented as {affectedRows?:number}).affectedRows)!==1)
+   throw new V2ProductError('Image reference ledger is inconsistent',409);
+ }
+ for(const target of additions){
   await db.query('INSERT INTO v2_product_image_assets(product_id,asset_id,role,sort_order) VALUES (?,?,?,?)',
-   [productId,assetId,target.role,target.order]);
+   [productId,target.assetId,target.role,target.order]);
   const [incremented]=await db.query('UPDATE image_assets SET ref_count=ref_count+1 WHERE id=? AND status=\'ready\'',
-   [assetId]);
+   [target.assetId]);
   if(Number((incremented as {affectedRows?:number}).affectedRows)!==1)
    throw new V2ProductError('Image asset is missing or not ready',409);
  }

@@ -70,7 +70,7 @@ const contract:Readonly<Record<string,TableSpec>>={
   },
   v2_product_image_assets:{
     cols:{id:col('bigint unsigned'),product_id:col('bigint unsigned'),asset_id:col('varchar(36)'),role:col("enum('fabric_display','detail','ai_effect')"),active_asset_id:col('varchar(36)','YES')},
-    unique:{PRIMARY:{columns:['id']},uq_v2_product_active_asset:{columns:['product_id','active_asset_id']}},
+    unique:{PRIMARY:{columns:['id']},uq_v2_product_active_asset:{columns:['product_id','role','active_asset_id']}},
     fks:{
       fk_v2_product_image_product:{column:'product_id',refTable:'v2_products',refColumn:'id',deleteRule:'RESTRICT'},
       fk_v2_product_image_asset:{column:'asset_id',refTable:'image_assets',refColumn:'id',deleteRule:'RESTRICT'}
@@ -91,7 +91,7 @@ function readIndex(rows:SqlRow[],name:string):{unique:boolean;columns:string[]}|
   if (!hits.length) return undefined;
   return {unique:hits.every(row=>Number(row.NON_UNIQUE)===0),columns:hits.map(row=>String(row.COLUMN_NAME))};
 }
-export async function verifyV2SchemaContract(connection:V2SchemaConnection):Promise<void>{
+export async function verifyV2SchemaContract(connection:V2SchemaConnection,{allowLegacyProductImageIndex=false}={}):Promise<void>{
   for (const [table,spec] of Object.entries(contract)) {
     const [columnRows]=await connection.query(
       'SELECT COLUMN_NAME,COLUMN_TYPE,IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=?',
@@ -116,7 +116,9 @@ export async function verifyV2SchemaContract(connection:V2SchemaConnection):Prom
         actual?.columns.length===1&&actual.columns[0]==='active_master_no'&&
         columns.some(c=>c.COLUMN_NAME==='active_master_no'&&norm(c.COLUMN_TYPE)==='varchar(64)'&&c.IS_NULLABLE==='YES');
       const expectedColumns=activeMasterNumber?['active_master_no']:specification.columns;
-      if(!actual || !actual.unique || JSON.stringify(actual.columns)!==JSON.stringify(expectedColumns))
+      const legacyProductImageIndex=allowLegacyProductImageIndex&&table==='v2_product_image_assets'&&
+        index==='uq_v2_product_active_asset'&&JSON.stringify(actual?.columns)===JSON.stringify(['product_id','active_asset_id']);
+      if(!actual || !actual.unique || (!legacyProductImageIndex&&JSON.stringify(actual.columns)!==JSON.stringify(expectedColumns)))
         throw Error(`V2 schema drift ${table}.${index}: missing, nonunique or wrong order`);
     }
     const [foreignRows]=await connection.query(

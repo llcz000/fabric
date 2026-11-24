@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import test,{after} from 'node:test';
 import React from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
+import {act,create,type ReactTestRenderer} from 'react-test-renderer';
+const NativeChannel=globalThis.MessageChannel,channels:MessageChannel[]=[];
+globalThis.MessageChannel=class extends NativeChannel{constructor(){super();channels.push(this);}};
+after(()=>{channels.forEach(channel=>{channel.port1.close();channel.port2.close();});globalThis.MessageChannel=NativeChannel;});
 import {buildPatternUrl,parsePatternPage,initialPatternFilters,reducePatternFilters,
  fetchPatternPage,fetchMasterColorways,createNextColorway,saveColorwayProperties,saveVersionTags,addColorTagChoice} from './patternModel';
 import {PatternMasterRows,PatternColorwayEditor,PatternLibraryV2} from './PatternLibraryV2';
@@ -248,6 +252,43 @@ test('P4-2 list has search state, per-dimension tags and no fake approved contro
  assert(!html.includes('配色序号筛选'));
  assert(!html.includes('新增母版')&&!html.includes('删除母版'));
 });
+test('uploaded TIFF renamed as WebP previews the processed server thumbnail, never the raw file blob',async()=>{
+ const prior=Object.getOwnPropertyDescriptor(globalThis,'IS_REACT_ACT_ENVIRONMENT');Object.defineProperty(globalThis,'IS_REACT_ACT_ENVIRONMENT',{value:true,configurable:true});
+ const priorDocument=Object.getOwnPropertyDescriptor(globalThis,'document');
+ const priorElement=Object.getOwnPropertyDescriptor(globalThis,'HTMLElement');
+ Object.defineProperty(globalThis,'document',{value:{activeElement:null,addEventListener(){},removeEventListener(){}},configurable:true});
+ Object.defineProperty(globalThis,'HTMLElement',{value:class {},configurable:true});
+ const createUrl=URL.createObjectURL;let createUrlCalls=0,renderer!:ReactTestRenderer;
+ URL.createObjectURL=(()=>{createUrlCalls++;throw Error('raw TIFF object URL must not be used');}) as typeof URL.createObjectURL;
+ const assetId='b2222222-2222-4222-8222-222222222222',thumbnail='https://signed.example/processed-thumbnail.webp';
+ let thumbnailFailed=false,savedAssetId:string|null|undefined;
+ const file=new File([new Uint8Array([0x49,0x49,0x2a,0x00])],'G0736-2.webp',{type:'image/webp'});
+ try{
+  await act(async()=>{renderer=create(React.createElement(PatternColorwayEditor,{
+   master,items:master.versions,topics:[],apiFetch:fetch,nextColorwayNo:6,canManage:true,
+   onClose:()=>{},onSaveVersion:async()=>{},onAdd:async value=>{savedAssetId=value.patternImageAssetId;},onSaveMasterTags:async()=>{},onDeleteVersion:async()=>{},
+   onUploadPatternImage:async()=>assetId,onResolveThumbnail:async id=>{assert.equal(id,assetId);if(thumbnailFailed)throw Error('Unavailable');return thumbnail;}
+  }));});
+  const add=renderer.root.findAllByType('button').find(node=>node.children.includes('添加配色'))!;
+  await act(async()=>add.props.onClick());
+  const input=renderer.root.findAllByType('input').find(node=>node.props['aria-label']==='新配色花型图')!;
+  await act(async()=>input.props.onChange({target:{files:[file],value:'G0736-2.webp'}}));
+  const image=renderer.root.findAllByType('img').find(node=>node.props.alt==='新配色花型图');
+  assert(image);assert.equal(image.props.src,thumbnail);assert.equal(createUrlCalls,0);
+  thumbnailFailed=true;
+  await act(async()=>input.props.onChange({target:{files:[file],value:'G0736-2.webp'}}));
+  assert.match(renderer.root.findByProps({role:'alert'}).children.join(''),/仍可保存配色/);
+  const save=renderer.root.findAllByType('button').find(node=>node.children.includes('保存新配色'))!;
+  await act(async()=>save.props.onClick());
+  assert.equal(savedAssetId,assetId);
+ }finally{
+  if(renderer)await act(async()=>renderer.unmount());URL.createObjectURL=createUrl;
+  if(priorDocument)Object.defineProperty(globalThis,'document',priorDocument);else Reflect.deleteProperty(globalThis,'document');
+  if(priorElement)Object.defineProperty(globalThis,'HTMLElement',priorElement);else Reflect.deleteProperty(globalThis,'HTMLElement');
+  if(prior)Object.defineProperty(globalThis,'IS_REACT_ACT_ENVIRONMENT',prior);else Reflect.deleteProperty(globalThis,'IS_REACT_ACT_ENVIRONMENT');
+ }
+});
+
 test('pattern library has shared catalog filters and omits the export action',()=>{
  const html=renderToStaticMarkup(React.createElement(PatternLibraryV2,{apiFetch:fetch,canManage:true,onCreateMaster(){}}));
  assert(!html.includes('导出筛选结果'));

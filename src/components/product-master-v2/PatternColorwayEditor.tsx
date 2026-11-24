@@ -14,6 +14,7 @@ export interface PatternColorwayEditorProps{
  master:PatternMasterItem;items:PatternVersionItem[];
  topics:CatalogTag[];apiFetch:typeof fetch;nextColorwayNo:number;canManage?:boolean;onTopicCreated?(tag:CatalogTag):void;
  thumbnailUrls?:Map<string,string>;onPreview?(item:PatternVersionItem):void;
+ onResolveThumbnail?(assetId:string):Promise<string|undefined>;
  onClose():void;onSaveVersion(item:PatternVersionItem,value:{remark:string;isActive:boolean;patternImageAssetId?:string|null}):Promise<void>;
  onAdd(value:{remark:string;isActive:boolean;patternImageAssetId?:string|null}):Promise<void>;
  onSaveMasterTags(ids:string[]):Promise<void>;
@@ -26,15 +27,13 @@ export interface PatternColorwayEditorProps{
 
 export function PatternColorwayEditor({
  master,items,topics,apiFetch,nextColorwayNo,canManage=false,onClose,onSaveVersion,onAdd,onTopicCreated,
- thumbnailUrls=new Map(),onPreview,
+ thumbnailUrls=new Map(),onPreview,onResolveThumbnail,
  onSaveMasterTags,onUploadPatternImage,onDeleteVersion,onToggleMaster,onSaveDimensions
 }:PatternColorwayEditorProps){
  const confirm=useConfirm();
  const [editing,setEditing]=useState<string|null>(null);
  const [draft,setDraft]=useState({remark:'',isActive:true,patternImageAssetId:null as string|null});
  const [stagedThumbs,setStagedThumbs]=useState(new Map<string,string>());
- const stagedUrls=useRef<string[]>([]);
- useEffect(()=>()=>{stagedUrls.current.forEach(url=>URL.revokeObjectURL(url));},[]);
  const [topicDraft,setTopicDraft]=useState(master.topicTags.map(t=>t.id));
  const [topicEditing,setTopicEditing]=useState(false);
  const [sizeEditing,setSizeEditing]=useState(false);
@@ -76,6 +75,11 @@ export function PatternColorwayEditor({
   try{await fn();after?.();}catch(e){
    setError(e instanceof Error?e.message:'保存失败，请核对权限或引用后重试。');
   }finally{workRef.current=false;setWorking(false);}
+ };
+ const stageThumbnail=async(assetId:string)=>{
+  const url=await onResolveThumbnail?.(assetId).catch(()=>undefined);
+  if(!url)throw Error('图片已上传，缩略图暂不可用，仍可保存配色。');
+  setStagedThumbs(before=>new Map(before).set(assetId,url));
  };
  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-2 sm:p-4" role="presentation">
   <div data-pattern-editor role="dialog" aria-modal="true" aria-label={'编辑花型 '+master.masterNo}
@@ -140,8 +144,8 @@ export function PatternColorwayEditor({
              if(!['image/jpeg','image/png','image/webp','image/gif'].includes(file.type)||file.size===0||file.size>20*1024*1024)throw Error('请选择20MB以内的JPG、PNG、WebP或GIF图片');
              const assetId=await onUploadPatternImage(file);
              if(!/^[0-9a-f-]{36}$/.test(assetId))throw Error('上传未返回有效图片标识');
-             const url=URL.createObjectURL(file);stagedUrls.current.push(url);setStagedThumbs(before=>new Map(before).set(assetId,url));
              setDraft(before=>({...before,patternImageAssetId:assetId}));
+             await stageThumbnail(assetId);
             });
            }}/></label>:<span className="text-slate-500">上传服务未连接</span>}
          {imageId?<button type="button" disabled={working} aria-label={'删除花型图 '+version.patternNo} className="text-rose-700"
@@ -175,7 +179,9 @@ export function PatternColorwayEditor({
         {onUploadPatternImage&&<label className="cursor-pointer text-blue-700">{newDraft.patternImageAssetId?'更换图片':'上传花型图'}<input type="file" aria-label="新配色花型图" className="sr-only" disabled={working} accept="image/jpeg,image/png,image/webp,image/gif" onChange={event=>{
          const file=event.target.files?.[0];event.target.value='';if(!file)return;
          void call(async()=>{if(!['image/jpeg','image/png','image/webp','image/gif'].includes(file.type)||!file.size||file.size>20*1024*1024)throw Error('请选择20MB以内的图片');
-          const id=await onUploadPatternImage(file);const url=URL.createObjectURL(file);stagedUrls.current.push(url);setStagedThumbs(before=>new Map(before).set(id,url));setNewDraft(before=>({...before,patternImageAssetId:id}));});
+          const id=await onUploadPatternImage(file);
+          if(!/^[0-9a-f-]{36}$/.test(id))throw Error('上传未返回有效图片标识');
+          setNewDraft(before=>({...before,patternImageAssetId:id}));await stageThumbnail(id);});
         }}/></label>}
         {newDraft.patternImageAssetId&&<button disabled={working} className="ml-2 text-rose-700" onClick={()=>setNewDraft(before=>({...before,patternImageAssetId:null}))}><ActionIcon name="delete"/>移除图片</button>}
        </td>

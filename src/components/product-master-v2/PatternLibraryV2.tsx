@@ -189,7 +189,11 @@ export function PatternLibraryV2({apiFetch,canManage=false,onCreateMaster,onEdit
   setRetry(x=>x+1);
  };
  const uploadPatternImage=async(file:File)=>onUploadPatternImage?onUploadPatternImage(file):(await uploadImageAsset(file,'product_image',{apiFetch})).id;
- const deleteVersion=async(item:PatternVersionItem)=>{
+ const resolveUploadedThumbnail=async(assetId:string)=>{
+   const urls=await imageResolver([assetId],'thumbnail');
+   return urls.get(assetId);
+  };
+  const deleteVersion=async(item:PatternVersionItem)=>{
   if(!selected)throw Error('Missing master');
   await deleteUnreferencedColorway(apiFetch,item.id);await refreshEdit(selected);
  };
@@ -255,7 +259,7 @@ export function PatternLibraryV2({apiFetch,canManage=false,onCreateMaster,onEdit
     </div></div>:
    <PatternColorwayEditor key={selected.id} master={selected} items={editingItems}
     nextColorwayNo={next} topics={topics} apiFetch={apiFetch} canManage={canManage} onTopicCreated={tag=>setTopics(items=>[...items.filter(item=>item.id!==tag.id),tag])}
-    thumbnailUrls={editorThumbs} onPreview={setPreview}
+    thumbnailUrls={editorThumbs} onPreview={setPreview} onResolveThumbnail={resolveUploadedThumbnail}
     onClose={()=>{editGuard.current.cancel();setSelected(null);onEditorStateChange?.(false);}} onSaveVersion={selectedVersionSave}
     onAdd={add} onSaveMasterTags={masterTagsSave} onSaveDimensions={async dimensions=>{
      const saved=await saveMasterDimensions(apiFetch,selected.id,dimensions);

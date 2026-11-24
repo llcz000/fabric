@@ -236,6 +236,13 @@ class Release:
         m=self.load();b=self.verified_backup();folder=pathlib.Path(b['folder']);backend=sha(self.prod/'dist/server.cjs');index=sha(self.prod/'dist/index.html')
         must(backend in [m['files']['dist/server.cjs']['sha256'],self.b['backend']] and index in [m['files']['dist/index.html']['sha256'],self.b['index']],'Refuse rollback over another release')
         must(sha(folder/'server.cjs')==self.b['backend'] and sha(folder/'index.html')==self.b['index'],'Rollback program backup changed')
+        image_migration='product-image-category-reuse'
+        if image_migration in m.get('migrations',[]):
+            rehearsal=self.state['phases'].get('rehearse',{}).get('result',{}).get('migration') or {}
+            before=rehearsal.get('results',{}).get(image_migration,{}).get('alreadyApplied')
+            must(isinstance(before,bool),'Original product image index is unverified; cannot roll back')
+            if not before:
+                self.operator('restore-product-image-index',self.p['database'],b,{**m,'migrations':[image_migration],'migrationPlans':{image_migration:m['migrationPlans'][image_migration]}})
         self.atomic(folder/'index.html',self.prod/'dist/index.html');self.atomic(folder/'server.cjs',self.prod/'dist/server.cjs');self.restart();self.baseline()
         code,body=self.request(self.p['url'],'/index.html');must(code==200 and hashlib.sha256(body).hexdigest()==self.b['index'],'Public rollback index verification failed')
         return {'state':'code-rolled-back','databaseRestored':False,'newTablesAndBusinessWritesPreserved':True}
@@ -262,7 +269,9 @@ class Release:
         if m['migrations'] or m['rehearse']:must(self.state['phases'].get('rehearse',{}).get('status')=='passed','Actual restore rehearsal required')
         migration=None;changed=False
         try:
-            if m['migrations']:migration=self.operator('migrate',self.p['database'],b,m)
+            if m['migrations']:
+                migration=self.operator('migrate',self.p['database'],b,m)
+                if migration.get('results',{}).get('product-image-category-reuse',{}).get('alreadyApplied') is False:changed=True
             must(preserved_columns((self.stage/'old-columns.txt').read_text(),self.columns(b['tables']),m['migrations']),'Migration changed existing columns')
             for n in m['browserFiles']:
                 if n=='dist/index.html':continue

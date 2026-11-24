@@ -149,6 +149,27 @@ class ReleaseTests(unittest.TestCase):
             r=remote.Release.__new__(remote.Release);r.prod=prod;r.b={'backend':h(b'old'),'index':h(b'old-html')};r.load=Mock(return_value={'files':{'dist/server.cjs':{'sha256':h(b'new')},'dist/index.html':{'sha256':h(b'new-html')}}});r.verified_backup=Mock(return_value={'folder':str(backup)});r.restart=Mock();r.baseline=Mock();r.sql=Mock()
             r.p={'url':'https://example.test'};r.request=Mock(return_value=(200,b'old-html'))
             result=r.rollback();self.assertEqual((prod/'dist/server.cjs').read_bytes(),b'old');self.assertFalse(result['databaseRestored']);r.sql.assert_not_called()
+    def test_product_image_index_must_restore_before_installing_the_old_backend(self):
+        with fixture_directory() as directory:
+            root=pathlib.Path(directory);prod=root/'prod';backup=root/'backup';(prod/'dist').mkdir(parents=True);backup.mkdir()
+            for name,new,old in [('server.cjs',b'new',b'old'),('index.html',b'new-html',b'old-html')]:
+                (prod/'dist'/name).write_bytes(new);(backup/name).write_bytes(old)
+            migration='product-image-category-reuse'
+            r=remote.Release.__new__(remote.Release);r.prod=prod;r.p={'database':'fabric_db','url':'https://example.test'}
+            r.b={'backend':h(b'old'),'index':h(b'old-html')}
+            r.load=Mock(return_value={'migrations':[migration],'migrationPlans':{migration:'plan'},'files':{'dist/server.cjs':{'sha256':h(b'new')},'dist/index.html':{'sha256':h(b'new-html')}}})
+            r.state={'phases':{'rehearse':{'result':{'migration':{'results':{migration:{'alreadyApplied':False}}}}}}}
+            verified={'folder':str(backup)}
+            r.verified_backup=Mock(return_value=verified);r.restart=Mock();r.baseline=Mock();r.request=Mock(return_value=(200,b'old-html'))
+            r.operator=Mock(side_effect=RuntimeError('Cross-category references exist'))
+            with self.assertRaisesRegex(RuntimeError,'Cross-category references'):r.rollback()
+            self.assertEqual((prod/'dist/server.cjs').read_bytes(),b'new')
+            r.restart.assert_not_called()
+            r.operator=Mock(return_value={})
+            r.rollback()
+            self.assertEqual(r.operator.call_args.args[:3],('restore-product-image-index','fabric_db',verified))
+            self.assertEqual((prod/'dist/server.cjs').read_bytes(),b'old')
+
     def test_historical_manifest_may_only_operate_on_fixed_root_for_status_verify_or_rollback(self):
         profile=json.loads(pathlib.Path(__file__).with_name('production.json').read_text())
         legacy_storage={**profile,'stageRoot':'/opt/fabric-releases','backupRoot':'/var/backups/fabric'}

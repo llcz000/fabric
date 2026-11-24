@@ -168,7 +168,7 @@ const tables: readonly SchemaTable[] = [
       ) STORED,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      UNIQUE KEY uq_v2_product_active_asset (product_id, active_asset_id),
+      UNIQUE KEY uq_v2_product_active_asset (product_id, role, active_asset_id),
       KEY idx_v2_product_images_order (product_id, role, deleted_at, sort_order),
       KEY idx_v2_product_images_asset (asset_id),
       CONSTRAINT fk_v2_product_image_product FOREIGN KEY (product_id) REFERENCES v2_products(id) ON DELETE RESTRICT,
@@ -190,8 +190,13 @@ const tables: readonly SchemaTable[] = [
 ];
 
 /** Read-only DDL manifest for isolated MySQL 8 integration tests and migration review. */
-export function getV2ProductMasterCreateStatements(): ReadonlyArray<Readonly<{ name: string; sql: string }>> {
-  return tables.map(table => Object.freeze({ name: table.name, sql: table.ddl }));
+export function getV2ProductMasterCreateStatements({legacyProductImageIndex=false}={}): ReadonlyArray<Readonly<{ name: string; sql: string }>> {
+  return tables.map(table => Object.freeze({
+    name: table.name,
+    sql: legacyProductImageIndex && table.name === 'v2_product_image_assets'
+      ? table.ddl.replace('uq_v2_product_active_asset (product_id, role, active_asset_id)', 'uq_v2_product_active_asset (product_id, active_asset_id)')
+      : table.ddl,
+  }));
 }
 
 function strings(rows: unknown, name: 'COLUMN_NAME' | 'INDEX_NAME'): Set<string> {
