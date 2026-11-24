@@ -27,10 +27,14 @@ const setup=async(page:Page,fn?:(request:{url:string;headers:Record<string,strin
   await route.fulfill({status:200,contentType:'image/svg+xml',body:svg,headers:{'Cache-Control':'no-store'}});
  });
 };
-test('live frontend /c/ fetch path renders whitelisted DTO and authorized image paths without sending session cookies',async({browser})=>{
+test('live frontend /c/ fetch path renders whitelisted DTO and authorized image paths without sending session cookies',async({browser,baseURL})=>{
  const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,deviceScaleFactor:2,
   userAgent:'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.50'});
- await context.addCookies([{name:'internal_session',value:'test-only-do-not-use',url:'http://127.0.0.1:52992'}]);
+ const origin=new URL('/',baseURL).origin;
+ await context.addCookies([{name:'internal_session',value:'test-only-do-not-use',url:origin}]);
+ expect(await context.cookies(origin)).toEqual(expect.arrayContaining([
+  expect.objectContaining({name:'internal_session',value:'test-only-do-not-use'}),
+ ]));
  const page=await context.newPage();
  const observed:Array<{url:string;headers:Record<string,string>}>=[];
  await setup(page,v=>observed.push(v));
@@ -105,7 +109,7 @@ test('failed image can retry exact authorized preview URL without losing colorwa
  await expect(page.locator('img').first()).toHaveJSProperty('naturalWidth',440);
  expect(tries).toBe(2);
 });
-test('whitelist parser blocks unapproved extra fields instead of exposing internal data',async({page})=>{
+test('whitelist parser blocks unapproved extra fields instead of exposing internal data',{tag:'@p0'},async({page})=>{
  await page.route('**/api/public/cards/'+token,route=>route.fulfill({status:200,json:{
   available:true,card:{...fixture.card,internalCost:1337,customerPhone:'PRIVATE'}
  }}));

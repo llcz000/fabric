@@ -4,7 +4,7 @@ const entries=[
  {name:'cards',url:'/tools/ui-preview/entries/ui-ux-internal-cards.html',region:'色卡列表，可横向滚动'}
 ];
 for(const entry of entries){
- test(entry.name+' action column scrolls with the table on mobile and stays sticky on desktop',async({page})=>{
+ test(entry.name+' action column scrolls with the table on mobile and stays sticky on desktop',{tag:'@p1'},async({page})=>{
   for(const width of [360,767,1440]){
    await page.setViewportSize({width,height:900});
    await page.goto(entry.url);

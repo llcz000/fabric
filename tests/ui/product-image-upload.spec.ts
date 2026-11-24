@@ -4,7 +4,7 @@ import sharp from 'sharp';
 const asset='a1111111-1111-4111-8111-111111111111';
 const imageHost='https://fabric-image-upload-fixture.invalid';
 
-test('AC-06 and AC-07: same file survives upload, save and reopening in both product categories',async({page})=>{
+test('AC-06 and AC-07: same file survives upload, save and reopening in both product categories',{tag:'@p1'},async({page})=>{
  const buffer=await sharp({create:{width:8,height:8,channels:3,background:'#2261a7'}}).png().toBuffer();
  const file={name:'same-fabric.png',mimeType:'image/png',buffer};
  const product={id:'1',patternColorwayId:'3',fabricId:'8',masterNo:'G017',colorwayNo:2,
@@ -73,7 +73,7 @@ test('AC-06 and AC-07: same file survives upload, save and reopening in both pro
  expect(product.images).toEqual({fabricDisplay:[asset],detail:[],aiEffect:[]});
 });
 
-test('AC-05: a TIFF named WebP displays the decoded server thumbnail in the colorway editor',async({page})=>{
+test('AC-05: a TIFF named WebP displays the decoded server thumbnail in the colorway editor',{tag:'@p1'},async({page})=>{
  const source=sharp({create:{width:17,height:12,channels:3,background:'#346ef6'}});
  const file=await source.clone().tiff().toBuffer();
  const thumbnail=await source.clone().resize(320,320,{fit:'cover'}).webp().toBuffer();

@@ -1,5 +1,5 @@
 import {test,expect} from '@playwright/test';
-test('automatic cards remove duplicate creation and retain QR, preview, sharing and guarded deletion',async({page})=>{
+test('product and card lists omit manual creation and block deletion of a linked card',async({page})=>{
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
  for(const width of [1440,360]){
   await page.setViewportSize({width,height:900});

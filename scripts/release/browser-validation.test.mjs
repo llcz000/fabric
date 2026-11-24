@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import {selectBrowserValidation,executeBrowserValidation,deletionGuidanceReviewedFiles,adminDocumentLookupReviewedFiles} from './browser-validation.mjs';
+import {selectBrowserValidation,executeBrowserValidation,deletionGuidanceReviewedFiles,adminDocumentLookupReviewedFiles,releaseBasics} from './browser-validation.mjs';
 
 const gallery='src/components/product-master-v2/ModelGalleryV2.tsx';
 const fabric='src/components/product-master-v2/FabricLibraryV2.tsx';
 const gallerySpec='tests/ui/model-gallery.spec.ts';
-const smoke=['tests/ui/internal-table-chrome.spec.ts','tests/ui/mobile-library-actions.spec.ts'];
+const smoke=releaseBasics.map(test=>test.file);
 const customerRenamePaths=['server/customer-samples/sessionDirectory.test.ts','server/customer-samples/sessionDirectory.ts',
  'server/customer-samples/sessionRead.ts','server/customers/model.ts','server/customers/routes.test.ts','server/customers/routes.ts',
  'server/customers/service.test.ts','server/customers/service.ts','server/customers/sessionBridge.ts',
@@ -99,7 +99,7 @@ test('shared code, server, runner, config and unknown scope force full browser r
  for(const p of ['src/components/ui/Toast.tsx','src/components/product-master-v2/modelGalleryClient.ts',
   'src/components/product-master-v2/ProductTryOnDialog.tsx','src/components/product-master-v2/v2Experience.css',
   'src/App.tsx','server/auth.ts','scripts/release/cli.mjs','package-lock.json','vite.config.ts',
-  'playwright.ui.config.ts',smoke[0],'tests/ui/unknown.spec.ts','tools/ui-preview/unknown.tsx']){
+  'playwright.ui.config.ts','tests/ui/acceptance-layout.spec.ts','tests/ui/unknown.spec.ts','tools/ui-preview/unknown.tsx']){
   const result=selectBrowserValidation(context([gallery,p]));
   assert.equal(result.mode,'full',p);assert.deepEqual(result.specs,[]);assert.match(result.reason,/unmapped/);
  }
@@ -194,7 +194,7 @@ test('deletion guidance registration is bound to the reviewed production baselin
  assert.equal(selectBrowserValidation(candidate({quickUi:false})).mode,'full');
  const changed=candidate();changed.current.files.find(f=>f.path==='scripts/release/remote.py').sha256='another-executor';
  assert.throws(()=>selectBrowserValidation(changed),/quick-ui/);
- const missing=candidate();missing.current.files=missing.current.files.filter(f=>f.path!=='tests/ui/mobile-library-actions.spec.ts');
+ const missing=candidate();missing.current.files=missing.current.files.filter(f=>f.path!==smoke[1]);
  assert.throws(()=>selectBrowserValidation(missing),/quick-ui/);
  const unknown=candidate();unknown.current.files.push({path:'server/unknown.ts',sha256:'new'});
  assert.throws(()=>selectBrowserValidation(unknown),/quick-ui/);
@@ -251,8 +251,11 @@ test('image asset backend-only fixes skip browser acceptance while unrelated cha
 
 function reportFor(specs,root){return JSON.stringify({config:{rootDir:path.join(root,'tests/ui')},errors:[],
  stats:{expected:specs.length,unexpected:0,flaky:0,skipped:0},
- suites:[{specs:specs.map(file=>({file:path.relative(path.join(root,'tests/ui'),path.join(root,file)),
-  tests:[{status:'expected',results:[{status:'passed'}]}]}))}]});}
+ suites:[{specs:specs.map(file=>{
+  const basic=releaseBasics.find(test=>test.file===file);
+  return {file:path.relative(path.join(root,'tests/ui'),path.join(root,file)),title:basic?.title??'affected test',
+   tags:basic?['p0']:[],tests:[{status:'expected',results:[{status:'passed'}]}]};
+ })}]});}
 test('execution streams browser progress separately from the machine-readable release report',()=>{
  const plan=selectBrowserValidation(context([gallery])),root=path.resolve('fixture-root'),calls=[];
  const dir=path.join(root,'artifacts/run');
@@ -274,9 +277,10 @@ test('full browser regression uses the longer time budget and runs the entire su
  const result=executeBrowserValidation(plan,{root,dir:root,run(_exe,args,options){
   assert.equal(options.timeout,45*60_000);
   assert.equal(args.at(-1),'--reporter=line,json');
-  return reportFor([gallerySpec],root);
+  return reportFor([gallerySpec,...smoke],root);
  }});
- assert.equal(result.mode,'full');assert.equal(result.passed,1);
+ assert.equal(result.mode,'full');assert.equal(result.passed,3);
+ assert.deepEqual(result.passedByPriority,{p0:2,p1:1});
 });
 test('zero tests, omitted required specs, malformed reports and browser failures block release',()=>{
  const plan=selectBrowserValidation(context([gallery])),root=path.resolve('fixture-root');
@@ -341,4 +345,62 @@ test('backend-only impact still executes its focused tests and the build',()=>{
  assert.deepEqual(steps,['releaseScopeCheck','uiFocusedUnit','build']);
  assert.equal(result.executed,false);
  assert.deepEqual(result.unitFiles,plan.unitFiles);
+});
+
+test('scoped releases select two basic cases and affected coverage, not unrelated or specialist cases',()=>{
+ const plan=selectBrowserValidation(context([gallery]));
+ assert.deepEqual(plan.priorities.p0.map(test=>test.file),[
+  'tests/ui/internal-table-chrome.spec.ts','tests/ui/wechat-card-api.spec.ts']);
+ assert.deepEqual(plan.priorities.p1,[gallerySpec]);
+ const root=path.resolve('fixture-root'),dir=path.join(root,'artifacts/priority');
+ const calls=[];
+ executeBrowserValidation(plan,{root,dir,run(_exe,args){calls.push(args);return reportFor(plan.specs,root);}});
+ const args=calls[0];
+ assert.match(args[args.indexOf('--grep')+1],/@p0/);
+ assert.match(args[args.indexOf('--grep-invert')+1],/@p2/);
+ const pattern=new RegExp(args[args.indexOf('--grep')+1]);
+ assert(pattern.test('model-gallery.spec.ts covered model case'));
+ assert(!pattern.test('internal-table-chrome.spec.ts sortable headers'));
+});
+test('release evidence refuses a report where one required P0 test was skipped',()=>{
+ const plan=selectBrowserValidation(context([gallery])),root=path.resolve('fixture-root');
+ const report=JSON.parse(reportFor(plan.specs,root));
+ const p0=report.suites[0].specs.find(spec=>spec.tags?.includes('p0'));
+ assert(p0);
+ p0.tests=[{status:'skipped',results:[{status:'skipped'}]}];
+ assert.throws(()=>executeBrowserValidation(plan,{root,dir:root,run(){return JSON.stringify(report);}}),/P0/);
+});
+test('a local-only Excel or demo-only test update does not turn into release browser testing',()=>{
+ const plan=selectBrowserValidation(context(['tests/ui/fabric-import.spec.ts','tests/ui/sample-card-ux.spec.ts']));
+ assert.equal(plan.mode,'none');
+ assert.equal(plan.reason,'browser-specialist-only');
+});
+
+test('image-editor-only release opens the upload fixture without unrelated catalog or dimensions specs',()=>{
+ const file='tests/ui/product-image-upload.spec.ts';
+ const ctx=context(['src/components/product-master-v2/productEditorModel.ts',file]);
+ const units=['server/product-master/productsV2.test.ts','server/product-master/schemaContract.test.ts',
+  'server/product-master/v2ProductionMigration.test.ts','server/product-master/productImageCategoryReuseSchema.test.ts',
+  'server/product-master/p7MediaOrderLifecycle.test.ts','src/components/product-master-v2/ProductEditorV2.test.ts',
+  'src/components/product-master-v2/PatternLibraryV2.test.ts'];
+ for(const side of ['previous','current'])ctx[side].files.push(...units.map(path=>({path,sha256:'old'})));
+ const plan=selectBrowserValidation(ctx);
+ assert.equal(plan.mode,'scoped');
+ assert.deepEqual(plan.priorities.p1,[file]);
+ assert.deepEqual(plan.specs,[...smoke,file].sort());
+});
+test('release evidence refuses an unrelated passing test from a shared file',()=>{
+ const plan=selectBrowserValidation(context([gallery])),root=path.resolve('fixture-root');
+ const report=JSON.parse(reportFor(plan.specs,root));
+ report.suites[0].specs.push({file:'internal-table-chrome.spec.ts',title:'unplanned sort case',
+  tests:[{status:'expected',results:[{status:'passed'}]}]});
+ report.stats.expected++;
+ assert.throws(()=>executeBrowserValidation(plan,{root,dir:root,run(){return JSON.stringify(report);}}),/out-of-scope/);
+});
+
+test('P0 passing alone in a shared file does not satisfy required P1 coverage',()=>{
+ const files=['tests/ui/internal-table-chrome.spec.ts','tests/ui/mobile-library-actions.spec.ts'];
+ const plan=selectBrowserValidation(context(files)),root=path.resolve('fixture-root');
+ assert.equal(plan.mode,'scoped');
+ assert.throws(()=>executeBrowserValidation(plan,{root,dir:root,run(){return reportFor(plan.specs,root);}}),/P1/);
 });

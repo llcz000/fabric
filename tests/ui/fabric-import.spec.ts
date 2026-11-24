@@ -1,7 +1,7 @@
 import {test,expect} from '@playwright/test';
 import {existsSync} from 'node:fs';
 for(const mobile of [false,true]){
- test('fabric import template + actual 79-row workbook '+(mobile?'mobile':'desktop'),async({page})=>{
+ test('authorized local workbook opens the mock 79-row import preview '+(mobile?'mobile':'desktop'),{tag:'@p2'},async({page})=>{
   test.skip(!existsSync('.local/test-inputs/fabric-import-user.xlsx'),'Local authorized workbook is absent; never commit customer input');
   await page.setViewportSize(mobile?{width:390,height:844}:{width:1280,height:900});
   await page.goto('/tools/ui-preview/entries/ui-ux-internal-fabrics.html?import=1');

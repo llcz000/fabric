@@ -7,7 +7,7 @@ test.beforeEach(async({page})=>{
  await expect(page.getByRole('heading',{name:/色卡库/})).toBeVisible();
  await expect(page.locator('[data-view="internal"]')).toBeVisible();
 });
-test('internal task-first list stays compact, search/empty/reset work',async({page})=>{
+test('internal task-first list stays compact, search/empty/reset work',{tag:'@p2'},async({page})=>{
  await expect(page.locator('table tbody tr')).toHaveCount(4);
  await expect(page.locator('.ux-hero')).toHaveCount(0);
  await expect(page.getByRole('group',{name:'视觉方案切换'})).toHaveCount(0);
@@ -20,7 +20,7 @@ test('internal task-first list stays compact, search/empty/reset work',async({pa
  await mkdir(screenshots,{recursive:true});
  await page.screenshot({path:screenshots+'/internal-efficient-desktop.png',fullPage:true});
 });
-test('patterns view identifies colorways and restores focus after Escape',async({page})=>{
+test('patterns view identifies colorways and restores focus after Escape',{tag:'@p2'},async({page})=>{
  const trigger=page.getByRole('button',{name:'查看花型 SC-G0886-F018'});
  await trigger.click();
  const dialog=page.getByRole('dialog',{name:'查看花型与配色'});
@@ -30,7 +30,7 @@ test('patterns view identifies colorways and restores focus after Escape',async(
  await expect(dialog).toBeHidden();
  await expect(trigger).toBeFocused();
 });
-test('internal share action opens isolated customer preview, copied URL is localhost demo only',async({page,context})=>{
+test('internal share action opens isolated customer preview, copied URL is localhost demo only',{tag:'@p2'},async({page,context})=>{
  const trigger=page.getByRole('button',{name:'分享预览 SC-G0886-F018'});
  await trigger.click();
  const dialog=page.getByRole('dialog',{name:'色卡关联产品 · 分享预览'});
@@ -58,13 +58,13 @@ test('internal share action opens isolated customer preview, copied URL is local
  await mkdir(screenshots,{recursive:true});
  await page.screenshot({path:screenshots+'/customer-share-desktop.png',fullPage:true});
 });
-test('internal QR is DEMO-only and no production payload exists',async({page})=>{
+test('internal QR is DEMO-only and no production payload exists',{tag:'@p2'},async({page})=>{
  await page.getByRole('button',{name:'查看二维码 SC-G0886-F018'}).click();
  const dialog=page.getByRole('dialog',{name:'查看色卡二维码'});
  await expect(dialog.locator('svg[data-qr-payload^="DEMO-ONLY-"]')).toHaveCount(1);
  await expect(dialog.getByText('不可用于扫码选样或向客户分享')).toBeVisible();
 });
-test('360px internal compact mobile controls and keyboard focus',async({page})=>{
+test('360px internal compact mobile controls and keyboard focus',{tag:'@p2'},async({page})=>{
  await page.setViewportSize({width:360,height:780});
  const cards=page.locator('[aria-label="手机色卡列表"]');
  await expect(cards).toBeVisible();
@@ -81,7 +81,7 @@ test('360px internal compact mobile controls and keyboard focus',async({page})=>
  await mkdir(screenshots,{recursive:true});
  await page.screenshot({path:screenshots+'/internal-efficient-mobile.png',fullPage:true});
 });
-test('mobile customer demo has image-first sections with no internal actions',async({page})=>{
+test('mobile customer demo has image-first sections with no internal actions',{tag:'@p2'},async({page})=>{
  await page.setViewportSize({width:360,height:780});
  await page.goto('/tools/ui-preview/entries/ui-ux-share-demo.html?demoCard=demo-2',{waitUntil:'domcontentloaded'});
  await expect(page.locator('[data-view="customer-demo"]')).toBeVisible();
@@ -92,7 +92,7 @@ test('mobile customer demo has image-first sections with no internal actions',as
  await mkdir(screenshots,{recursive:true});
  await page.screenshot({path:screenshots+'/customer-share-mobile.png',fullPage:true});
 });
-test('invalid local demo URL fails closed without internal data',async({page})=>{
+test('invalid local demo URL fails closed without internal data',{tag:'@p2'},async({page})=>{
  await page.goto('/tools/ui-preview/entries/ui-ux-share-demo.html?demoCard=not-exist',{waitUntil:'domcontentloaded'});
  await expect(page.getByRole('heading',{name:'该演示色卡不存在'})).toBeVisible();
  await expect(page.locator('.share-product')).toHaveCount(0);

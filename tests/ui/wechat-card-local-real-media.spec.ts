@@ -8,7 +8,7 @@ const selected={b:'fabric-a.webp',c:'fabric-b.webp',d:'detail.webp',e:'look.webp
 const all=Object.values(selected).map(f=>path.join(assets,f));
 const token='a'.repeat(43);
 const ref=(id:string)=>({previewRef:'display:'+id.repeat(43)});
-test('local real G0626 textile imagery: mobile renders actual fabric/detail/look photos with readable sizing and zoom',async({browser})=>{
+test('local real G0626 textile imagery: mobile renders actual fabric/detail/look photos with readable sizing and zoom',{tag:'@p2'},async({browser})=>{
  test.skip(!all.every(existsSync),'Local authorized image fixtures not present on this machine; never download production media');
  const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,deviceScaleFactor:2});
  const page=await context.newPage();
@@ -46,7 +46,8 @@ test('local real G0626 textile imagery: mobile renders actual fabric/detail/look
  await expect(dialog).toBeHidden();
  expect(before).toBe(4);
  expect(requests.length).toBeGreaterThanOrEqual(4);
- expect(requests.every(url=>url.startsWith('http://127.0.0.1:52992/api/public/cards/'+token+'/images/'))).toBe(true);
+ const origin=new URL(page.url()).origin;
+ expect(requests.every(url=>url.startsWith(origin+'/api/public/cards/'+token+'/images/'))).toBe(true);
  const bytes=await Promise.all(all.map(f=>stat(f)));
  expect(bytes.every(b=>b.size<150_000)).toBe(true);
  await context.close();

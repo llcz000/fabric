@@ -6,7 +6,7 @@ test.beforeEach(async({page})=>{
  await page.reload({waitUntil:'domcontentloaded'});
  await expect(page.getByRole('heading',{name:'列设置组件 · 独立交互验收'})).toBeVisible();
 });
-test('shared column settings: keyboard escape closes and returns focus to trigger',async({page})=>{
+test('shared column settings: keyboard escape closes and returns focus to trigger',{tag:'@p0'},async({page})=>{
  const trigger=page.getByRole('button',{name:'列设置'});
  await trigger.focus();await page.keyboard.press('Enter');
  await expect(trigger).toHaveAttribute('aria-expanded','true');

@@ -117,7 +117,7 @@ function prepare(){
     specs:[],unitFiles:[],postBuildScripts:[],reviewedCommit,reviewSha256:reviewed.reportSha256,reusedChecks:reviewed.browserChecks};
   }else browserValidation=plannedBrowser;
   write(path.join(dir,'browser-validation-plan.json'),browserValidation);
-  console.log(JSON.stringify({stage:'browser-validation',mode:browserValidation.mode,reason:browserValidation.reason,profiles:browserValidation.profiles,specs:browserValidation.specs,unmappedFiles:browserValidation.unmappedFiles}));
+  console.log(JSON.stringify({stage:'browser-validation',mode:browserValidation.mode,reason:browserValidation.reason,profiles:browserValidation.profiles,priorities:browserValidation.priorities,specs:browserValidation.specs,unmappedFiles:browserValidation.unmappedFiles}));
   const browserResult=executeBrowserValidation(browserValidation,{root,dir,
    run:(exe,argv,{label,...options})=>timed(label,()=>options.liveLog?runBrowserWithProgress(exe,argv,{root,...options}):processRun(exe,argv,options)),
    buildCandidate:()=>{

@@ -15,6 +15,7 @@ test('360px first entry selects public view, remembers preference and allows swi
  await page.getByRole('button',{name:/查看色卡.*无需登录/}).click();
  await expect(page.getByRole('heading',{name:'G0886-F018'})).toBeVisible();
  await expect(page.getByText('聚酯纤维 100%')).toBeVisible();
+ await expect(page.getByRole('main',{name:'已进入内部选样流程'})).toHaveCount(0);
  await page.reload();
  await expect(page.getByRole('main',{name:'色卡使用方式'})).toHaveCount(0);
  await expect(page.getByRole('heading',{name:'G0886-F018'})).toBeVisible();
@@ -27,9 +28,4 @@ test('360px first entry selects public view, remembers preference and allows swi
  expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
  await page.evaluate(()=>{history.pushState({},'','#/stats');window.dispatchEvent(new Event('fabric-route'));});
  await expect(page.getByRole('button',{name:'切换用途'})).toHaveCount(0);
-});
-test('visitor choice does not render private UI or require an employee login',async({page})=>{
- await page.goto(entry);await page.getByRole('button',{name:/查看色卡.*无需登录/}).click();
- await expect(page.getByRole('main',{name:'已进入内部选样流程'})).toHaveCount(0);
- await expect(page.getByRole('heading',{name:'G0886-F018'})).toBeVisible();
 });

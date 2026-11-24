@@ -4,7 +4,16 @@ import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 
-const smoke=['tests/ui/internal-table-chrome.spec.ts','tests/ui/mobile-library-actions.spec.ts'];
+export const releaseBasics=[
+ {file:'tests/ui/internal-table-chrome.spec.ts',title:'shared column settings: keyboard escape closes and returns focus to trigger'},
+ {file:'tests/ui/wechat-card-api.spec.ts',title:'whitelist parser blocks unapproved extra fields instead of exposing internal data'},
+];
+const smoke=releaseBasics.map(test=>test.file);
+const specialistSpecs=['tests/ui/fabric-import.spec.ts','tests/ui/sample-card-ux.spec.ts',
+ 'tests/ui/wechat-card-local-real-media.spec.ts'];
+const priorities=(p0=[],p1=[])=>({p0,p1,p2:'manual'});
+const tagPattern=tag=>'(?:^|\\s)'+tag+'(?=\\s|$)';
+
 const customerHistoryBaseline='20261110t020116583-0e0eb9e3';
 const customerHistoryFiles=['server/customers/service.ts','server/customers/service.testFixture.ts','server/customers/v12.test.ts'];
 const customerHistoryToolFiles=['scripts/release/browser-validation.mjs','scripts/release/browser-validation.test.mjs',
@@ -122,8 +131,9 @@ const releaseToolPaths=['scripts/release/cli.mjs','scripts/release/core.mjs','sc
  'scripts/serve-ui-ux-pilot.mjs','playwright.ui.config.ts'];
 const migrationToolPaths=['scripts/release/migrations.ts','scripts/release/remote.py','scripts/release/remote_test.py'];
 const productImageSpec='tests/ui/product-image-upload.spec.ts';
-const productImageSpecs=[productImageSpec,'tests/ui/pattern-dimensions.spec.ts','tests/ui/automatic-product-cards.spec.ts',
- 'tests/ui/catalog-number-sort.spec.ts'];
+const patternDimensionsSpec='tests/ui/pattern-dimensions.spec.ts';
+const productCatalogSpecs=['tests/ui/automatic-product-cards.spec.ts','tests/ui/catalog-number-sort.spec.ts'];
+const productImageSpecs=[productImageSpec,patternDimensionsSpec,...productCatalogSpecs];
 const productImageUnits=['server/product-master/productsV2.test.ts','server/product-master/schemaContract.test.ts',
  'server/product-master/v2ProductionMigration.test.ts','server/product-master/productImageCategoryReuseSchema.test.ts',
  'server/product-master/p7MediaOrderLifecycle.test.ts','src/components/product-master-v2/ProductEditorV2.test.ts',
@@ -133,8 +143,17 @@ const productImagePaths=['server/product-master/productsV2.ts','server/product-m
  'src/components/product-master-v2/PatternLibraryV2.tsx','src/components/product-master-v2/ProductEditorV2.tsx',
  'src/components/product-master-v2/productEditorModel.ts',...productImageSpecs,...productImageUnits];
 const profiles=[{
+ id:'public-card-browser',paths:['tests/ui/wechat-card-api.spec.ts','tests/ui/wechat-card-real.spec.ts','tests/ui/dual-qr.spec.ts'],
+ specs:['tests/ui/wechat-card-api.spec.ts','tests/ui/wechat-card-real.spec.ts','tests/ui/dual-qr.spec.ts'],
+ unitFiles:[],postBuildScripts:[],
+},{
+ id:'library-table-browser',paths:['tests/ui/internal-table-chrome.spec.ts','tests/ui/mobile-library-actions.spec.ts',
+  'tools/ui-preview/internalChromeReview.tsx','src/components/product-master-v2/LibraryTableChrome.tsx'],
+ specs:['tests/ui/internal-table-chrome.spec.ts','tests/ui/mobile-library-actions.spec.ts'],
+ unitFiles:[],postBuildScripts:[],
+},{
  id:'product-image-upload',paths:productImagePaths,
- specs:productImageSpecs,
+ specs:[productImageSpec],
  unitFiles:productImageUnits,postBuildScripts:[],
 },{
  id:'model-gallery',paths:['src/components/product-master-v2/ModelGalleryV2.tsx',
@@ -194,7 +213,8 @@ function manifestFiles(manifest){
 export function selectBrowserValidation({previous,current,baselineReleaseId,sourceSha256,migrations=[],fullUi=false,quickUi=false,customerHistoryHotfix=false}){
  const old=manifestFiles(previous),next=manifestFiles(current);
  const changedFiles=sortedUnique([...old.keys(),...next.keys()]).filter(p=>old.get(p)!==next.get(p));
- const code=changedFiles.filter(p=>!p.startsWith('docs/'));
+ const specialistChanges=changedFiles.filter(p=>specialistSpecs.includes(p));
+ const code=changedFiles.filter(p=>!p.startsWith('docs/')&&!specialistSpecs.includes(p));
  const selected=profiles.filter(profile=>code.some(p=>profile.paths.includes(p)));
  const productImages=selected.some(profile=>profile.id==='product-image-upload');
  const imageAssets=code.some(p=>imageAssetPaths.includes(p));
@@ -206,8 +226,9 @@ export function selectBrowserValidation({previous,current,baselineReleaseId,sour
  const toolingOnly=tooling.length===code.length;
  const useToolChecks=productImages||imageAssets||toolingOnly;
  const releaseChecks=[...(tooling.length?['node']:[]),...(tooling.some(p=>migrationToolPaths.includes(p))?['python']:[])];
- const base={version:1,rulesVersion:'fabric-browser-scope-v2',baselineReleaseId,candidateManifestSha256:sourceSha256,
-  changedFiles,migrations,profiles:[],specs:[],unitFiles:fabricChecks,postBuildScripts:[],releaseChecks};
+ const base={version:1,rulesVersion:'fabric-browser-scope-v3',baselineReleaseId,candidateManifestSha256:sourceSha256,
+  changedFiles,migrations,profiles:[],specs:[],unitFiles:fabricChecks,postBuildScripts:[],releaseChecks,
+  priorities:priorities(),specialistChanges};
  if(customerHistoryHotfix){
   if(baselineReleaseId!==customerHistoryBaseline||migrations.length||fullUi||quickUi||
    customerHistoryFiles.some(p=>!code.includes(p))||
@@ -225,7 +246,7 @@ export function selectBrowserValidation({previous,current,baselineReleaseId,sour
      reviewed.every(([p,digest])=>next.get(p)===digest&&(reviewedScope.baseline!==adminDocumentLookupBaseline||old.has(p)))&&
      [...specs,...reviewedScope.unitFiles].every(p=>next.has(p))){
    return {...base,mode:'scoped',reason:reviewedScope.reason,profiles:[reviewedScope.profile],
-    specs,unitFiles:sortedUnique(reviewedScope.unitFiles)};
+    specs,unitFiles:sortedUnique(reviewedScope.unitFiles),priorities:priorities(releaseBasics,deletionGuidanceSpecs)};
   }
  }
  // Let this registration ship with the reviewed print fix on its original verified baseline.
@@ -242,23 +263,29 @@ export function selectBrowserValidation({previous,current,baselineReleaseId,sour
  const unmappedFiles=impact.filter(entry=>!entry.areas.length).map(entry=>entry.file);
  base.impact=impact;
  const unscopedChanges=code.filter(p=>!next.has(p)||!old.has(p)&&!productImagePaths.includes(p));
- const specs=selected.length?sortedUnique([...smoke,...selected.flatMap(p=>p.specs)]):[];
+ const imageNeighbors=productImages?[
+  ...productImageSpecs.filter(file=>code.includes(file)),
+  ...(code.includes('src/components/product-master-v2/PatternColorwayEditor.tsx')?[patternDimensionsSpec]:[]),
+  ...(imageMigration||code.includes('server/product-master/productsV2.ts')?productCatalogSpecs:[]),
+ ]:[];
+ const affectedSpecs=sortedUnique([...selected.flatMap(p=>p.specs),...imageNeighbors]);
+ const specs=selected.length?sortedUnique([...smoke,...affectedSpecs]):[];
  const unitFiles=sortedUnique([...selected.flatMap(p=>p.unitFiles),...(imageAssets?imageAssetChecks:[]),
   ...fabricChecks]);
  const postBuildScripts=sortedUnique(selected.flatMap(p=>p.postBuildScripts));
  const required=[...specs,...unitFiles,...postBuildScripts];
  const missingChecks=required.filter(p=>!next.has(p)||!old.has(p)&&!productImagePaths.includes(p));
  let result;
- if(fullUi)result={...base,mode:'full',reason:'explicit-full-ui'};
+ if(fullUi)result={...base,mode:'full',reason:'explicit-full-ui',priorities:priorities(releaseBasics,'all-affected-and-extended')};
  else if(unmappedMigrations.length)result={...base,mode:'full',reason:'unmapped-migrations',unmappedMigrations,unmappedFiles};
- else if(!code.length)result={...base,mode:'none',reason:'no-code-changes'};
+ else if(!code.length)result={...base,mode:'none',reason:specialistChanges.length?'browser-specialist-only':'no-code-changes'};
  else if(unscopedChanges.length)result={...base,mode:'full',reason:'added-or-removed-code',unscopedChanges,unmappedFiles};
  else if(unmappedFiles.length||hasSharedImageSchema&&!imageMigration)result={...base,mode:'full',reason:'unmapped-or-shared-code',unmappedFiles};
  else if(missingChecks.length)result={...base,mode:'full',reason:'missing-required-check',missingChecks};
  else if(!selected.length)result={...base,mode:'none',reason:imageAssets?'server-image-assets-only-no-ui-impact':'release-tooling-only',
   profiles:imageAssets?['image-asset-ingestion']:[],unitFiles};
  else result={...base,mode:'scoped',reason:'exact-registered-page-scope',profiles:selected.map(p=>p.id).sort(),
-  specs,unitFiles,postBuildScripts};
+  specs,unitFiles,postBuildScripts,priorities:priorities(releaseBasics,affectedSpecs)};
  if(quickUi&&(result.mode==='full'||!code.length))throw Error('--quick-ui requires a registered impact scope: '+JSON.stringify(result));
 
  return result;
@@ -286,7 +313,13 @@ export function executeBrowserValidation(plan,{root,dir,execPath=process.execPat
  const runId=path.basename(dir);
  const port=54000+createHash('sha256').update(runId).digest().readUInt16BE(0)%8000;
  const args=['node_modules/@playwright/test/cli.js','test','--config=playwright.ui.config.ts',
-  '--output',path.join(dir,'ui-browser-output'),'--max-failures=1','--reporter=line,json',...plan.specs];
+  '--output',path.join(dir,'ui-browser-output'),'--max-failures=1','--grep-invert',tagPattern('@p2')];
+ if(plan.mode==='scoped'){
+  const affected=plan.priorities.p1.map(file=>path.basename(file));
+  if(affected.some(file=>!/^[a-z0-9-]+[.]spec[.]ts$/.test(file)))throw Error('Browser validation: invalid affected spec name');
+  args.push('--grep',[tagPattern('@p0'),...affected.map(file=>tagPattern(file.replaceAll('.','[.]')))].join('|'));
+ }
+ args.push('--reporter=line,json',...plan.specs);
  const log=path.join(dir,'ui-browser-tests.log');
  const timeout=(plan.mode==='full'?45:10)*60_000;
  const output=run(execPath,args,{log,liveLog:path.join(dir,'ui-browser-progress.log'),
@@ -297,16 +330,32 @@ export function executeBrowserValidation(plan,{root,dir,execPath=process.execPat
     !Array.isArray(report.errors)||report.errors.length)throw Error('Browser validation: failed, flaky or zero passing tests');
  const rootDir=path.resolve(root,'tests/ui');
  if(path.resolve(report.config?.rootDir??'')!==rootDir)throw Error('Browser validation: wrong test root');
- const passedFiles=new Set();
+ const passedFiles=new Set(),passedBasics=new Set(),passedAffectedFiles=new Set();
+ const affectedFiles=plan.mode==='scoped'?new Set(plan.priorities.p1.map(file=>path.resolve(root,file))):null;
  const visit=suites=>{for(const suite of suites??[]){
   for(const spec of suite.specs??[]){
-   if(spec.tests?.some(t=>t.status==='expected'&&t.results?.some(r=>r.status==='passed')))
-    passedFiles.add(path.resolve(rootDir,spec.file));
+   if(!spec.tests?.some(t=>t.status==='expected'&&t.results?.some(r=>r.status==='passed')))continue;
+   const file=path.resolve(rootDir,spec.file);
+   passedFiles.add(file);
+   if(spec.tags?.includes('p0')){
+    const basic=releaseBasics.find(test=>path.resolve(root,test.file)===file&&test.title===spec.title);
+    if(!basic)throw Error('Browser validation: unregistered P0 test '+spec.title);
+    passedBasics.add(basic.file);
+   }else{
+    if(affectedFiles&&!affectedFiles.has(file))throw Error('Browser validation: out-of-scope test '+spec.title);
+    passedAffectedFiles.add(file);
+   }
+   if(spec.tags?.includes('p2'))throw Error('Browser validation: specialist test ran during release '+spec.title);
   }
   visit(suite.suites);
  }};visit(report.suites);
+ if(releaseBasics.some(test=>!passedBasics.has(test.file)))
+  throw Error('Browser validation: required P0 test omitted or not passed');
+ if(affectedFiles&&[...affectedFiles].some(file=>!passedAffectedFiles.has(file)))
+  throw Error('Browser validation: affected P1 spec omitted or has no passing P1 test');
  if(!passedFiles.size||plan.specs.some(p=>!passedFiles.has(path.resolve(root,p))))
   throw Error('Browser validation: required spec omitted or has no passing test');
  return {mode:plan.mode,executed:true,passed:report.stats.expected,skipped:report.stats.skipped,...completed,
+  passedByPriority:{p0:passedBasics.size,p1:report.stats.expected-passedBasics.size},
   command:{executable:execPath,args},passedFiles:[...passedFiles].map(p=>path.relative(root,p).replaceAll('\\','/')).sort()};
 }
