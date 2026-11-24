@@ -222,6 +222,7 @@ test('P7-5b unified HTTP: order-linked product blocks delete; removing unreferen
   const blockedStart=db.trace.length;
   const blocked=await req(base,'/products/'+first.id,'DELETE');
   assert.equal(blocked.status,409);
+  assert.equal(blocked.data.code,'ORDER_REFERENCE');
   assert(!db.trace.slice(blockedStart).some(c=>c.sql.startsWith('UPDATE image_assets')||
    c.sql.startsWith('DELETE FROM v2_product_image_assets')||c.sql.startsWith('DELETE FROM v2_products')),
    'referenced deletion must stop BEFORE touching the image ledger');

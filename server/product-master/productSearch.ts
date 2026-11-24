@@ -1,4 +1,4 @@
-import {productOrderReferenceSource} from '../order-v2/lines';
+import {PRODUCT_ORDER_REFERENCE_EXISTS} from '../order-v2/lines';
 
 /** P3-5 V2 catalog searching: all filters in MySQL before paging.
  * Deliberately separate from legacy product and order-picking paths.
@@ -127,13 +127,12 @@ const distinct=(values:unknown[]):string[]=>[...new Set(values.map(positiveId))]
 function escapeLike(text:string):string{
  return '%'+text.replace(/[!%_]/g,ch=>'!'+ch)+'%';
 }
-const HAS_ORDER_REFERENCE='EXISTS (SELECT 1 '+productOrderReferenceSource('p.id')+')';
 function queryConditions(filter:ProductSearchFilters):{sql:string;params:unknown[]}{
  const conditions:string[]=[];const params:unknown[]=[];
  if(filter.cardAssociation==='linked')conditions.push('sc.id IS NOT NULL');
  if(filter.cardAssociation==='unlinked')conditions.push('sc.id IS NULL');
- if(filter.orderStatus==='ordered')conditions.push(HAS_ORDER_REFERENCE);
- if(filter.orderStatus==='unordered')conditions.push('NOT '+HAS_ORDER_REFERENCE);
+ if(filter.orderStatus==='ordered')conditions.push(PRODUCT_ORDER_REFERENCE_EXISTS);
+ if(filter.orderStatus==='unordered')conditions.push('NOT '+PRODUCT_ORDER_REFERENCE_EXISTS);
  if(filter.fabricId){conditions.push('p.fabric_id=?');params.push(filter.fabricId);}
  if(filter.masterId){conditions.push('m.id=?');params.push(filter.masterId);}
  if(filter.colorwayId){conditions.push('p.pattern_colorway_id=?');params.push(filter.colorwayId);}
@@ -172,7 +171,7 @@ const FIELDS='p.id,p.pattern_colorway_id,p.fabric_id,p.product_no,p.remark,p.is_
  'm.is_active AS master_active,c.is_active AS colorway_active,f.is_active AS fabric_active,'+
  'sc.id AS sample_card_id,sc.card_no AS sample_card_no,sc.is_active AS sample_card_active,'+
  'sc.reprint_revision AS sample_card_reprint_revision,sc.printed_revision AS sample_card_printed_revision,'+
- HAS_ORDER_REFERENCE+' AS has_order_reference';
+ PRODUCT_ORDER_REFERENCE_EXISTS+' AS has_order_reference';
 function currentCard(row:Row):CatalogProduct['sampleCard']{
  if(row.sample_card_id==null)return null;
  const revision=String(row.sample_card_reprint_revision),printed=String(row.sample_card_printed_revision);

@@ -16,9 +16,7 @@ export function createV2ProductsRouter(db:AccessDatabase,pool:Pool):Router{
   next();
  };
  const error=(res:Response,e:unknown)=>{
-  if(e instanceof V2ProductError||e instanceof ProductSearchError){
-   res.status(e.status).json({error:e.message,...(e instanceof V2ProductError&&e.code?{code:e.code}:{})});return;
-  }
+  if(e instanceof V2ProductError||e instanceof ProductSearchError){res.status(e.status).json({error:e.message});return;}
   res.status(503).json({error:'V2 product service temporarily unavailable'});
  };
  router.use((_req,res,next)=>{res.setHeader('Cache-Control','no-store');next();});
@@ -47,7 +45,12 @@ export function createV2ProductsRouter(db:AccessDatabase,pool:Pool):Router{
  });
  router.delete('/products/:id',principal,write,async(req,res)=>{
   try{res.json(await deleteV2Product(pool,res.locals.principal as AppPrincipal,String(req.params.id)));}
-  catch(e){error(res,e);}
+  catch(e){
+   if(e instanceof V2ProductError&&e.status===409&&e.message==='Ordered product cannot be deleted'){
+    res.status(409).json({error:e.message,code:'ORDER_REFERENCE'});return;
+   }
+   error(res,e);
+  }
  });
  const parserError:ErrorRequestHandler=(e,_req,res,_next)=>{
   const n=e&&typeof e==='object'?(e as {status?:unknown}).status:undefined;

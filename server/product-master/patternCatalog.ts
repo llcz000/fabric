@@ -1,4 +1,4 @@
-import {productOrderReferenceSource} from '../order-v2/lines';
+import {PRODUCT_ORDER_REFERENCE_EXISTS} from '../order-v2/lines';
 
 /** P4-2 read-only server-side grouped pattern matrix for ~2000 colorways.
  * No image reassignment or colorway identity mutation. Unmounted until app integration.
@@ -54,7 +54,7 @@ export async function readPatternDeletionImpact(db:Query,kind:'master'|'colorway
  const target=rows(targetRows)[0];
  if(!target)throw new PatternCatalogError('Pattern not found',404);
  const [productRows]=await db.query(
-  'SELECT COUNT(*) AS product_count,COALESCE(SUM(EXISTS (SELECT 1 '+productOrderReferenceSource('p.id')+')),0) AS ordered_product_count'+
+  'SELECT COUNT(*) AS product_count,COALESCE(SUM('+PRODUCT_ORDER_REFERENCE_EXISTS+'),0) AS ordered_product_count'+
   ' FROM v2_products p JOIN pattern_colorways c ON c.id=p.pattern_colorway_id WHERE '+(forMaster?'c.master_id':'c.id')+'=?',[identity]);
  const products=rows(productRows)[0];
  return {colorwayCount:integer(target.colorway_count,'colorway count'),productCount:integer(products?.product_count,'product count'),
