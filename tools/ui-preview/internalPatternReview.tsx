@@ -5,6 +5,7 @@ import {V2DocumentLookupContext} from '../../src/components/product-master-v2/us
 import '../../src/index.css';
 import '../../src/components/product-master-v2/v2Experience.css';
 import PatternLibraryV2 from '../../src/components/product-master-v2/PatternLibraryV2';
+import {ToastProvider} from '../../src/components/ui/Toast';
 import {PatternWorkspaceV2} from '../../src/components/product-master-v2/PatternWorkspaceV2';
 import {ConfirmProvider} from '../../src/components/ui/ConfirmDialog';
 const all=Array.from({length:76},(_,i)=>{
@@ -13,6 +14,8 @@ const all=Array.from({length:76},(_,i)=>{
 }).reverse();
 let shrunk=false,failDimensionSave=location.search.includes('fail-dimensions'),catalogReads=0;
 const dimensionMode=location.search.includes('dimensions');
+const importAttempts=new Map<string,number>();
+let imageRequest=0;
 const deletionReview=location.search.includes('deletion-review');
 let deletionRaced=false,deletionReadFailed=false;
 const dimensionValues=new Map<string,{widthCm:number|null;heightCm:number|null}>([['76',{widthCm:48,heightCm:32}]]);
@@ -59,13 +62,36 @@ const apiFetch=(async(input:RequestInfo|URL,init?:RequestInit)=>{
    return Response.json({...v,masterNo:m.masterNo});
   }
  }
- if(u.pathname==='/api/image-assets/access-urls')return relatedProductImagesPreview(init);
+ if(u.pathname==='/api/v2/tags')return Response.json({items:[{id:'1',name:'油画花卉',isArchived:false,dimension:'topic'},{id:'2',name:'已归档题材',isArchived:true,dimension:'topic'}]});
+ if(u.pathname==='/api/v2/pattern-catalog/import-preview'){
+  const targets=JSON.parse(String(init?.body)) as {masterNo:string;colorwayNo:number}[];
+  return Response.json({items:targets.flatMap(target=>{
+   const item=all.find(master=>master.masterNo===target.masterNo)?.versions.find(version=>version.colorwayNo===target.colorwayNo);
+   return item?[{...target,id:item.id,imageId:item.patternImageAssetId}]:[];
+  })});
+ }
+ if(u.pathname==='/api/v2/pattern-catalog/import'){
+  const {masterNo,colorwayNo}=JSON.parse(String(init?.body));
+  const key=masterNo+'-'+colorwayNo,count=(importAttempts.get(key)??0)+1;
+  importAttempts.set(key,count);
+  if(location.search.includes('retry-import')&&colorwayNo===1&&count===1)return Response.json({}, {status:400});
+  if(location.search.includes('retry-import')&&colorwayNo===2&&count>1)return Response.json({}, {status:503});
+  return Response.json({patternNo:key});
+ }
+ if(u.pathname==='/api/image-assets/access-urls'){
+  const response=await relatedProductImagesPreview(init);
+  if(!location.search.includes('image-variants')||!response.ok)return response;
+  const {results}=await response.json();
+  return Response.json({results:results.map((item:{url:string;variant:string})=>({
+   ...item,url:item.url+'?variant='+item.variant+'&request='+String(++imageRequest)
+  }))});
+ }
  if(u.pathname==='/api/v2/products')return relatedProductsPreview(u,init);
  if(u.pathname==='/api/v2/pattern-catalog'){
   const limit=Number(u.searchParams.get('limit')||20),offset=Number(u.searchParams.get('offset')||0);
   if(location.search.includes('shrink')&&offset>=60)shrunk=true;
   const q=u.searchParams.get('number')||'';
-  const matched=(shrunk?all.slice(0,2):all).filter(m=>m.masterNo.includes(q));
+  const matched=(shrunk?all.slice(0,2):all).filter(m=>m.masterNo.includes(q)||m.versions.some(version=>version.patternNo===q));
   const sort=u.searchParams.get('sort');
   if(sort==='numberAsc'||sort==='numberDesc'){const direction=sort==='numberAsc'?1:-1;matched.sort((a,b)=>direction*(Number(a.masterNo.slice(1))-Number(b.masterNo.slice(1))||Number(a.id)-Number(b.id)));}
   const result=Response.json({items:matched.slice(offset,offset+limit).map(m=>dimensionMode?{...m,...(dimensionValues.get(m.id)??{widthCm:null,heightCm:null})}:m),total:matched.length,totalColorways:matched.reduce((n,m)=>n+m.versions.length,0),limit,offset});
@@ -74,7 +100,16 @@ const apiFetch=(async(input:RequestInfo|URL,init?:RequestInit)=>{
  }
  return Response.json({items:[]});
 }) as typeof fetch;
+let createUploadAttempts=0;
+const uploadPatternImage=async(file:File)=>{
+ if(file.name.endsWith('-1.jpg'))throw Error('图片校验失败');
+ if(location.search.includes('create-upload-review')){
+  await new Promise(resolve=>setTimeout(resolve,550));
+  if(++createUploadAttempts===1)throw Error('图片服务暂时不可用。');
+ }
+ return 'a1111111-1111-4111-8111-111111111111';
+};
 const Library=dimensionMode?PatternWorkspaceV2:PatternLibraryV2;
 createRoot(document.getElementById('root')!).render(<V2DocumentLookupContext.Provider value={!new URLSearchParams(location.search).has('sales')}>
- <ConfirmProvider><Library apiFetch={apiFetch} canManage onUploadPatternImage={async file=>{if(file.name.endsWith('-1.jpg'))throw Error('图片校验失败');return 'a1111111-1111-4111-8111-111111111111';}}/></ConfirmProvider>
+ <ToastProvider><ConfirmProvider><Library apiFetch={apiFetch} canManage onUploadPatternImage={uploadPatternImage}/></ConfirmProvider></ToastProvider>
 </V2DocumentLookupContext.Provider>);

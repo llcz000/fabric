@@ -45,12 +45,17 @@ export function TopicFilterDropdown({topics,selected,onToggle,onResolveMissing,o
 }){
  const [open,setOpen]=useState(false);
  const [pending,setPending]=useState(false),[custom,setCustom]=useState(''),[error,setError]=useState('');
- const rootRef=useRef<HTMLDivElement>(null);
+ const rootRef=useRef<HTMLDivElement>(null),trigger=useRef<HTMLButtonElement>(null);
+ const [managing,setManaging]=useState(false);
  const panelId=useId();
  useEffect(()=>{
   if(!open)return;
   const outside=(event:PointerEvent)=>{if(event.target instanceof Node&&!rootRef.current?.contains(event.target))setOpen(false);};
-  const escape=(event:KeyboardEvent)=>{if(event.key==='Escape')setOpen(false);};
+  const escape=(event:KeyboardEvent)=>{
+   if(event.key!=='Escape'||event.defaultPrevented||document.querySelector('dialog[open]'))return;
+   setOpen(false);
+   if(rootRef.current?.contains(document.activeElement))trigger.current?.focus();
+  };
   document.addEventListener('pointerdown',outside);document.addEventListener('keydown',escape);
   return ()=>{document.removeEventListener('pointerdown',outside);document.removeEventListener('keydown',escape);};
  },[open]);
@@ -70,14 +75,15 @@ export function TopicFilterDropdown({topics,selected,onToggle,onResolveMissing,o
   else if(onResolveMissing)void run(()=>onResolveMissing(option.name));
  };
  return <div ref={rootRef} className="v2-topic-select" aria-label={label}>
-  <button type="button" className="v2-topic-trigger" aria-expanded={open} aria-controls={panelId}
-   onClick={()=>setOpen(v=>!v)}>
+  <button ref={trigger} type="button" className="v2-topic-trigger" aria-expanded={open} aria-controls={panelId}
+   onClick={()=>{if(!open)setManaging(false);setOpen(v=>!v);}}>
    <span className="v2-topic-trigger-label">{label}</span>
    <span className="v2-topic-trigger-count" data-testid="topic-selected-count">{selected.length}</span>
    <ChevronDown size={16} aria-hidden="true" className={open?'v2-topic-caret v2-topic-caret-open':"v2-topic-caret"}/>
   </button>
   <div id={panelId} className={open?'v2-topic-panel v2-topic-panel-open':'v2-topic-panel'} hidden={!open}
    role="group" aria-label={label+' 选项'}>
+   {!managing&&<>
    <p className="v2-topic-panel-title">预设题材</p>
    <ul className="v2-topic-option-list">
     {groups.presets.map(option=><li key={option.key}>
@@ -100,20 +106,27 @@ export function TopicFilterDropdown({topics,selected,onToggle,onResolveMissing,o
        <span className="v2-topic-check" aria-hidden="true">{option.checked?<Check size={13}/>:null}</span>
        <span>{option.name}</span>
       </button>
-      {onArchiveCustom?<button type="button" className="v2-topic-custom-remove" disabled={pending}
-       aria-label={'删除自定义题材 '+option.name} title={'删除自定义题材 '+option.name}
-       onClick={()=>{const tag=topics.find(t=>t.id===option.id);if(tag)void run(()=>onArchiveCustom(tag));}}><Trash2 size={13}/></button>:null}
      </li>)}
     </ul></>:null}
-   {onAddCustom?<div className="v2-topic-add-custom">
+   </>}
+   {(onAddCustom||onArchiveCustom)&&<button type="button" className="min-h-10 rounded text-blue-800 focus-visible:outline-2"
+    onClick={()=>{setError('');setManaging(!managing);}}>{managing?'返回题材筛选':'管理自定义题材'}</button>}
+   {managing&&onArchiveCustom&&!!groups.others.length&&<ul className="v2-topic-option-list">
+    {groups.others.map(option=><li className="flex min-w-0 items-center justify-between gap-1" key={option.key}>
+     <span className="min-w-0 break-words text-xs">{option.name}</span>
+     <button type="button" disabled={pending} aria-label={'删除自定义题材 '+option.name}
+      onClick={()=>{const tag=topics.find(t=>t.id===option.id);if(tag)void run(()=>onArchiveCustom(tag));}}><Trash2 size={14}/></button>
+    </li>)}
+   </ul>}
+   {managing&&onAddCustom?<div className="v2-topic-add-custom">
     <input aria-label="添加自定义题材" placeholder="输入自定义题材" value={custom} maxLength={32}
      disabled={pending} onChange={event=>setCustom(event.target.value)}
-     onKeyDown={event=>{if(event.key==='Enter'){event.preventDefault();if(custom.trim()&&!atLimit)void run(async()=>{await onAddCustom(custom);setCustom('');});}}}/>
-    <button type="button" disabled={pending||!custom.trim()||atLimit}
+     onKeyDown={event=>{if(event.key==='Enter'){event.preventDefault();if(custom.trim())void run(async()=>{await onAddCustom(custom);setCustom('');});}}}/>
+    <button type="button" disabled={pending||!custom.trim()}
      onClick={()=>void run(async()=>{await onAddCustom(custom);setCustom('');})}>添加</button>
    </div>:null}
    {error?<p role="alert" className="v2-topic-panel-note text-rose-700">{error}</p>:null}
-   {atLimit?<p className="v2-topic-panel-note">最多可选择 {max} 个题材</p>:null}
+   {!managing&&atLimit?<p className="v2-topic-panel-note">最多可选择 {max} 个题材</p>:null}
   </div>
   {chips.length?<div className="v2-topic-selected" aria-label="已选题材">
    <span className="v2-topic-selected-label">已选题材</span>

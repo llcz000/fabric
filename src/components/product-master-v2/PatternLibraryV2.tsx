@@ -1,8 +1,8 @@
-import {patternBox as box,formatPatternTags as asTags} from './patternPresentation';
+import './patternWorkspace.css';
 import {saveMasterDimensions} from './patternModel';
 import { ActionIcon } from './ActionIcon';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
+import { FolderOpen, Plus, Search, X } from 'lucide-react';
 import type { CatalogTag } from './catalogModel';
 import { TopicFilterDropdown } from './TopicFilterDropdown';
 import {ensureTopicTag,resolvePresetTopicForFilter,previewCustomTopicDeletion,deleteCustomTopic} from './topicCatalog';
@@ -19,6 +19,7 @@ import {PatternDeleteDialog} from './PatternDeleteDialog';
 import {PatternBulkImportDialog} from './PatternBulkImportDialog';
 import {deleteWholePatternMaster} from './patternBulkImportModel';
 import {useConfirm} from '../ui/ConfirmDialog';
+import {useToast} from '../ui/Toast';
 // image signing request max 100 IDs
 function chunks<T>(items:T[],size:number):T[][]{
  const result:T[][]=[];for(let i=0;i<items.length;i+=size)result.push(items.slice(i,i+size));
@@ -30,19 +31,22 @@ const throttle=100;
 
 export interface PatternLibraryV2Props{
  apiFetch:typeof fetch;canManage?:boolean;onCreateMaster?():void;onEditorStateChange?(active:boolean):void;
+ catalogRevision?:number;
  onShareMaster?(master:PatternMasterItem):void;onCreateProduct?(master:PatternMasterItem):void;
  onUploadPatternImage?(file:File):Promise<string>;
  resolvePatternImages?(ids:string[],variant:'thumbnail'|'display'|'original',signal?:AbortSignal):Promise<Map<string,string>>;
 }
 
-export function PatternLibraryV2({apiFetch,canManage=false,onCreateMaster,onEditorStateChange,onUploadPatternImage,resolvePatternImages,onShareMaster,onCreateProduct}:PatternLibraryV2Props){
+export function PatternLibraryV2({apiFetch,canManage=false,onCreateMaster,onEditorStateChange,onUploadPatternImage,resolvePatternImages,onShareMaster,onCreateProduct,catalogRevision}:PatternLibraryV2Props){
  const confirm=useConfirm();
+ const toast=useToast();
  const imageResolver=useCallback((ids:string[],variant:'thumbnail'|'display'|'original',signal?:AbortSignal)=>resolvePatternImages?resolvePatternImages(ids,variant,signal):resolveImageUrls(apiFetch,ids,variant,signal),[apiFetch,resolvePatternImages]);
  const [filters,setFilters]=useState<PatternFilters>({...initialPatternFilters});
  const [page,setPage]=useState<PatternPage|null>(null),[loading,setLoading]=useState(false);
  const [error,setError]=useState(''),[retry,setRetry]=useState(0);
  const [topics,setTopics]=useState<CatalogTag[]>([]);
  const [tagsError,setTagsError]=useState('');
+ const [imagesPending,setImagesPending]=useState(false);
  const [thumbs,setThumbs]=useState<Map<string,string>>(new Map());
  const [selected,setSelected]=useState<PatternMasterItem|null>(null);
  const [quickTopicMaster,setQuickTopicMaster]=useState<PatternMasterItem|null>(null);
@@ -52,18 +56,22 @@ export function PatternLibraryV2({apiFetch,canManage=false,onCreateMaster,onEdit
  const [next,setNext]=useState(1),[editorLoading,setEditorLoading]=useState(false);
  const [editorError,setEditorError]=useState('');
  const [importOpen,setImportOpen]=useState(false),[masterToDelete,setMasterToDelete]=useState<PatternMasterItem|null>(null);
- const [operationNotice,setOperationNotice]=useState('');
  const [preview,setPreview]=useState<PatternVersionItem|null>(null);
  const [original,setOriginal]=useState<string|null>(null),[previewError,setPreviewError]=useState('');
+ const [originalRetry,setOriginalRetry]=useState(0);
  const listGuard=useRef(createLatestRequestGuard()),previewGuard=useRef(createLatestRequestGuard());
  const editGuard=useRef(createLatestRequestGuard());
+ const searchInput=useRef<HTMLInputElement>(null);
  const dispatch=(action:Parameters<typeof reducePatternFilters>[1])=>setFilters(f=>reducePatternFilters(f,action));
  const registerFilterTag=(tag:CatalogTag)=>{
   setTopics(items=>[...items.filter(t=>t.id!==tag.id),tag]);
   setFilters(current=>current.topicTagIds.includes(tag.id)?current:{...current,topicTagIds:[...current.topicTagIds,tag.id],offset:0});
  };
  const resolveMissingPreset=async(name:string)=>registerFilterTag(await resolvePresetTopicForFilter(apiFetch,topics,name));
- const addCustomFilter=async(name:string)=>registerFilterTag(await ensureTopicTag(apiFetch,topics,name));
+ const addCustomFilter=async(name:string)=>{
+  const tag=await ensureTopicTag(apiFetch,topics,name);
+  setTopics(items=>[...items.filter(item=>item.id!==tag.id),tag]);
+ };
  const removeCustomFilter=async(tag:CatalogTag)=>{
   const impact=await previewCustomTopicDeletion(apiFetch,tag);
   const accepted=await confirm({title:'删除自定义题材「'+tag.name+'」？',danger:true,confirmText:'删除题材',
@@ -82,7 +90,7 @@ export function PatternLibraryV2({apiFetch,canManage=false,onCreateMaster,onEdit
  },[apiFetch]);
  useEffect(()=>{
   const ctrl=new AbortController(),rev=listGuard.current.next();
-  setLoading(true);setError('');setThumbs(new Map());
+  setLoading(true);setError('');setImagesPending(true);setThumbs(new Map());
   const timer=setTimeout(async()=>{
    try{
     const data=await fetchPatternPage(apiFetch,filters,ctrl.signal);
@@ -98,14 +106,15 @@ export function PatternLibraryV2({apiFetch,canManage=false,onCreateMaster,onEdit
       if(ctrl.signal.aborted||!listGuard.current.isCurrent(rev))return;
       for(const [k,v] of value)map.set(k,v);
       setThumbs(new Map(map));
-     }catch{/* Missing/expired asset stays a non-clickable placeholder. */}
+     }catch{/* Each missing asset can be retried from its own row. */}
     }
+    if(!ctrl.signal.aborted&&listGuard.current.isCurrent(rev))setImagesPending(false);
    }catch{
-    if(!ctrl.signal.aborted&&listGuard.current.isCurrent(rev)){setLoading(false);setError('花型数据加载失败，请重试。');}
+    if(!ctrl.signal.aborted&&listGuard.current.isCurrent(rev)){setLoading(false);setImagesPending(false);setError('花型数据加载失败，请重试。');}
    }
   },filters.number?180:0);
   return ()=>{clearTimeout(timer);ctrl.abort();listGuard.current.cancel();};
- },[apiFetch,filters,retry,imageResolver]);
+ },[apiFetch,filters,retry,imageResolver,catalogRevision]);
  const openEdit=async(master:PatternMasterItem)=>{
   onEditorStateChange?.(true);
   setSelected(master);setEditingItems([]);setEditorThumbs(new Map());setEditorError('');setEditorLoading(true);
@@ -155,9 +164,9 @@ export function PatternLibraryV2({apiFetch,canManage=false,onCreateMaster,onEdit
     const url=urls.get(preview.patternImageAssetId);
     if(!url)throw Error('No image URL');setOriginal(url);
    }
-  }catch{if(!ctrl.signal.aborted&&previewGuard.current.isCurrent(rev))setPreviewError('原图读取失败，请关闭后重试。');}})();
+  }catch{if(!ctrl.signal.aborted&&previewGuard.current.isCurrent(rev))setPreviewError('原图暂时无法读取。');}})();
   return ()=>{ctrl.abort();previewGuard.current.cancel();};
- },[preview,apiFetch,imageResolver]);
+ },[preview,imageResolver,originalRetry]);
  const selectedVersionSave=async(item:PatternVersionItem,draft:{remark:string;isActive:boolean;patternImageAssetId?:string|null})=>{
   await saveColorwayProperties(apiFetch,item,draft);
   try{await refreshEdit(selected!);}catch{setEditorError('配色已保存，但刷新失败。请重新打开花型核对，不要重复保存。');}
@@ -178,7 +187,6 @@ export function PatternLibraryV2({apiFetch,canManage=false,onCreateMaster,onEdit
   setTopics(current=>[...current.filter(tag=>!added.some(item=>item.id===tag.id)),...added]);
   setPage(current=>current?{...current,items:current.items.map(item=>item.id===master.id?{...item,topicTags:updated}:item)}:current);
   setQuickTopicMaster(null);
-  setOperationNotice('');
   setRetry(v=>v+1);
  };
  const masterTagsSave=async(ids:string[])=>{
@@ -198,51 +206,46 @@ export function PatternLibraryV2({apiFetch,canManage=false,onCreateMaster,onEdit
   await deleteUnreferencedColorway(apiFetch,item.id);await refreshEdit(selected);
  };
  const deleteMaster=async(master:PatternMasterItem)=>{
-  setOperationNotice('');
   await deleteWholePatternMaster(apiFetch,master.id);
-  setOperationNotice('整个花型 '+master.masterNo+' 及全部配色已删除。');
+  toast.success('整个花型 '+master.masterNo+' 及全部配色已删除。');
   if(page?.items.length===1&&page.offset>0)dispatch({type:'page',offset:Math.max(0,page.offset-page.limit)});
   else setRetry(x=>x+1);
  };
- return <section aria-label="V2 花型库" className="v2-pattern flex min-h-[520px] flex-col gap-3 bg-[#faf8ff] p-3 text-[#191b24] sm:p-5">
-  <header className="flex flex-wrap items-center justify-between gap-3">
-   <div><h1 className="text-xl font-semibold">花型库</h1><p className="mt-1 text-xs text-slate-500">花型、配色与标签统一管理</p></div>
-   {canManage?<div className="flex flex-wrap gap-2">
-    <button type="button" onClick={()=>{setImportOpen(true);setOperationNotice('');}}
-     className="rounded-lg border border-[#346ef6] bg-white px-3 py-2 text-sm text-[#0053da]">导入花型库</button>
-    {onCreateMaster?<button onClick={onCreateMaster} type="button"
-     className="rounded-lg bg-[#346ef6] px-3 py-2 text-sm text-white"><ActionIcon name="add"/>新增花型</button>:null}
-   </div>:null}
+ return <section aria-label="V2 花型库" className="v2-pattern pattern-workspace">
+  <header className="pattern-library-heading">
+   <h1>花型库</h1>
+   {canManage&&<div className="pattern-library-actions">
+    <button type="button" onClick={()=>setImportOpen(true)} className="pattern-action pattern-action-secondary">
+     <FolderOpen size={16} aria-hidden="true"/>导入花型库</button>
+    {onCreateMaster&&<button onClick={onCreateMaster} type="button" className="pattern-action pattern-action-primary">
+     <Plus size={17} aria-hidden="true"/>新增花型</button>}
+   </div>}
   </header>
-  <div className={box+' v2-library-filters flex flex-col'}>
-   <div className="flex flex-wrap items-center gap-3">
-   <label className="flex items-center gap-2">
-    <Search size={15} aria-hidden="true" className="text-slate-500"/>
-    <input aria-label="搜索编号" placeholder="花型编号" value={filters.number}
-     onChange={e=>dispatch({type:'number',value:e.target.value})} className="w-40 rounded border border-slate-300 bg-white px-2 py-1.5 outline-[#346ef6]"/>
+  <div className="v2-library-filters pattern-library-filterbar" role="search" aria-label="花型筛选">
+   <label className="pattern-library-search">
+    <Search size={17} aria-hidden="true"/>
+    <input ref={searchInput} aria-label="搜索编号" placeholder="花型编号或配色号" value={filters.number}
+     onChange={event=>dispatch({type:'number',value:event.target.value})}/>
    </label>
-   
-   <button type="button" onClick={()=>dispatch({type:'reset'})} className="rounded px-2 py-1.5 text-sm text-[#0053da] hover:bg-[#eef1fd]"><ActionIcon name="reset"/>清空筛选</button>
-   </div>
-   <div className="grid gap-3 border-t border-slate-100 pt-3">
    <TopicFilterDropdown topics={topics} selected={filters.topicTagIds}
     onToggle={id=>dispatch({type:'topic',id})} onResolveMissing={resolveMissingPreset}
     onAddCustom={canManage?addCustomFilter:undefined} onArchiveCustom={canManage?removeCustomFilter:undefined}/>
-   </div>
+   {(filters.number||filters.topicTagIds.length>0||filters.sort!=='newest')&&
+    <button type="button" aria-label="清空筛选" onClick={()=>{dispatch({type:'reset'});searchInput.current?.focus();}} className="pattern-text-action pattern-library-reset">
+     <X size={16} aria-hidden="true"/><span className="pattern-library-reset-label">清空筛选</span></button>}
   </div>
   {tagsError?<p role="status" className="text-xs text-amber-700">{tagsError}</p>:null}
-  {operationNotice?<p role="status" className="rounded bg-emerald-50 p-2 text-sm text-emerald-800">{operationNotice}</p>:null}
   {loading?<p role="status" className="p-3 text-sm text-slate-500">正在加载花型…</p>:null}
   {error?<p role="alert" className="p-3 text-sm text-rose-700">{error}
    <button type="button" onClick={()=>setRetry(n=>n+1)} className="ml-2 underline"><ActionIcon name="refresh"/>重试</button></p>:null}
   {!loading&&!error&&page?<>
    <PatternPagination label="花型列表顶部分页" page={page} onPage={offset=>dispatch({type:'page',offset})}/>
-   <p className="v2-table-scroll-hint">左右滑动查看全部字段</p>
    <PatternMasterRows items={page.items} thumbnailUrls={thumbs} onShare={onShareMaster}
    onPreview={setPreview} onEdit={openEdit} onDelete={canManage?setMasterToDelete:undefined}
    onQuickTopicEdit={canManage?setQuickTopicMaster:undefined} onViewProducts={setLinkedMaster}
    sort={filters.sort} onSort={()=>dispatch({type:'sort',value:filters.sort==='numberAsc'?'numberDesc':'numberAsc'})}
-   onCreateProduct={canManage?onCreateProduct:undefined} canManage={canManage}/>
+   onCreateProduct={canManage?onCreateProduct:undefined} canManage={canManage}
+   imagesPending={imagesPending} onRetryThumbnail={resolveUploadedThumbnail}/>
    <PatternPagination page={page} onPage={offset=>dispatch({type:'page',offset})}/></>:null}
   {linkedMaster?<RelatedProductsDialog key={linkedMaster.id} apiFetch={apiFetch}
    source={{kind:'pattern',id:linkedMaster.id,label:linkedMaster.masterNo}} onClose={()=>setLinkedMaster(null)}/>:null}
@@ -272,11 +275,13 @@ export function PatternLibraryV2({apiFetch,canManage=false,onCreateMaster,onEdit
     onDeleteVersion={deleteVersion}/>}</>:null}
   {importOpen&&canManage?<PatternBulkImportDialog apiFetch={apiFetch} onUpload={uploadPatternImage}
    onClose={()=>setImportOpen(false)} onImported={count=>{
-    setOperationNotice('成功导入 '+count+' 张花型图片。');dispatch({type:'reset'});setRetry(n=>n+1);
+    toast.success('成功导入 '+count+' 张花型图片。');setRetry(n=>n+1);
    }}/>:null}
   {preview?<PatternOriginalViewer current={preview}
    versions={selected?.id===preview.masterId&&editingItems.some(v=>v.id===preview.id)?editingItems:page?.items.find(m=>m.id===preview.masterId)?.versions??[preview]}
-   original={original} error={previewError} onChange={setPreview} onClose={closePreview}/>:null}
+   original={original} error={previewError} onChange={next=>{setOriginal(null);setPreviewError('');setPreview(next);}} onClose={closePreview}
+   onImageError={()=>{setOriginal(null);setPreviewError('原图无法显示。');}}
+   onRetry={()=>{setOriginal(null);setPreviewError('');setOriginalRetry(n=>n+1);}}/>:null}
  </section>;
 }
 export {PatternMasterRows,PatternColorwayEditor};

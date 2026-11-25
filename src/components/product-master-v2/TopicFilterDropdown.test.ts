@@ -42,9 +42,10 @@ test('P1-7 selected topic labels keep unknown ids visible',()=>{
  ]);
 });
 
-test('historical archived custom labels expose deletion without re-enabling selection',()=>{
+test('historical archived custom labels expose a separate management entry without re-enabling selection',()=>{
  const html=renderToStaticMarkup(React.createElement(TopicFilterDropdown,{topics,selected:[],onToggle(){},onArchiveCustom:async()=>{}}));
- assert(html.includes('删除自定义题材 已归档题材'));
+ assert(html.includes('管理自定义题材'));
+ assert(!html.includes('删除自定义题材 已归档题材'));
  assert(html.includes('该题材已归档'));
 });
 test('P1-7 dropdown renders one trigger instead of 16 flat chips',()=>{
@@ -67,6 +68,6 @@ test('P1-7 dropdown lists presets and custom topics inside the panel',()=>{
  assert(html.includes('自定义／历史题材'));
  // 预设项缺少数据库记录时也允许点击，由父组件按需创建并筛选。
  assert(!html.includes('暂无该题材的花型标签'));
- assert(html.includes('aria-label="添加自定义题材"'));
- assert(html.includes('删除自定义题材 我的手绘涂鸦'));
+ assert(html.includes('管理自定义题材'));
+ assert(!html.includes('aria-label="添加自定义题材"'));
 });

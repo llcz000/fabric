@@ -15,7 +15,7 @@ test('original viewer only traverses the opened master; absent images skipped, s
 test('multi-colorway gallery exposes directional buttons and count',()=>{
  const versions=[version('1','11',1),version('2','11',2)];
  const html=renderToStaticMarkup(React.createElement(PatternOriginalViewer,{
-  current:versions[0],versions,original:'data:image/png;base64,xxx',error:'',onChange:()=>{},onClose:()=>{}
+  current:versions[0],versions,original:'data:image/png;base64,xxx',error:'',onChange:()=>{},onClose:()=>{},onImageError:()=>{},onRetry:()=>{}
  }));
  assert(html.includes('上一配色原图')&&html.includes('下一配色原图')&&html.includes('1/2'));
  assert(html.includes('role="dialog"')&&html.includes('关闭原图'));
@@ -23,7 +23,7 @@ test('multi-colorway gallery exposes directional buttons and count',()=>{
 test('single-image gallery hides directional controls',()=>{
  const single=version('1','11',1);
  const html=renderToStaticMarkup(React.createElement(PatternOriginalViewer,{
-  current:single,versions:[single,version('2','11',2,null)],original:null,error:'',onChange:()=>{},onClose:()=>{}
+  current:single,versions:[single,version('2','11',2,null)],original:null,error:'',onChange:()=>{},onClose:()=>{},onImageError:()=>{},onRetry:()=>{}
  }));
  assert(!html.includes('上一配色原图')&&!html.includes('下一配色原图'));
 });

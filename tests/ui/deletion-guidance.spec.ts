@@ -61,26 +61,42 @@ test('360px shows colorway scope and recovers from failed precheck and new refer
  await expect(editor).toBeVisible();
  await editor.getByRole('button',{name:'关闭配色编辑'}).click();
  const decision=page.getByRole('alertdialog',{name:'删除花型确认'});
+ await page.getByRole('button',{name:'更多操作 G0072',exact:true}).click();
  await page.getByRole('button',{name:'删除花型 G0072',exact:true}).click();
  await expect(decision).toContainText('1 张有效色卡');
  await expect(decision.getByRole('link',{name:'去色卡库核对'})).toHaveAttribute('href','#/cards?query=G0072');
  await expect(decision.getByRole('button',{name:'确认删除'})).toHaveCount(0);
  await decision.getByRole('button',{name:'关闭'}).click();
+ await page.getByRole('button',{name:'更多操作 G0073',exact:true}).click();
  await page.getByRole('button',{name:'删除花型 G0073',exact:true}).click();
  await expect(decision.getByRole('alert')).toContainText('关联检查失败');
  await expect(decision.getByRole('button',{name:'确认删除'})).toHaveCount(0);
  await decision.getByRole('button',{name:'重试'}).click();
  await expect(decision.getByRole('button',{name:'确认删除'})).toBeEnabled();
  await decision.getByRole('button',{name:'取消'}).click();
+ await page.getByRole('button',{name:'更多操作 G0074',exact:true}).click();
  await page.getByRole('button',{name:'删除花型 G0074',exact:true}).click();
  await decision.getByRole('button',{name:'确认删除'}).click();
  await expect(decision.getByRole('alert')).toContainText('重新检查');
  await expect(decision).toContainText('关联 1 款产品，其中 1 款被单据引用');
  await expect(decision.getByRole('button',{name:'确认删除'})).toHaveCount(0);
  await decision.getByRole('button',{name:'关闭'}).click();
- const unreferenced=page.getByRole('button',{name:'删除花型 G0075',exact:true});
- await unreferenced.click();
- await decision.getByRole('button',{name:'确认删除'}).click();
- await expect(unreferenced).toHaveCount(0);
- await expect(page.getByRole('status').filter({hasText:'整个花型 G0075'})).toContainText('已删除');
 });
+
+for(const width of [1440,360]){
+ test('whole pattern deletion keeps the toast in view and clears it ('+width+'px)',async({page})=>{
+  await page.setViewportSize({width,height:900});
+  await page.goto(path);
+  if(width===360)await page.getByRole('button',{name:'更多操作 G0075',exact:true}).click();
+  const unreferenced=page.getByRole('button',{name:'删除花型 G0075',exact:true});
+  await unreferenced.click();
+  await page.getByRole('alertdialog',{name:'删除花型确认'}).getByRole('button',{name:'确认删除'}).click();
+  const message='整个花型 G0075 及全部配色已删除。';
+  const toast=page.getByRole('region',{name:'操作提示'}).getByText(message,{exact:true});
+  await expect(toast).toBeInViewport();
+  await page.screenshot({path:proof+'pattern-delete-toast-'+width+'.png'});
+  await expect(unreferenced).toHaveCount(0);
+  await expect(page.getByRole('region',{name:'V2 花型库'}).getByText(message,{exact:true})).toHaveCount(0);
+  await expect(toast).toHaveCount(0);
+ });
+}

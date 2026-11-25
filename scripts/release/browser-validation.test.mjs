@@ -45,6 +45,32 @@ function context(changes,options={}){
  return {previous,current,baselineReleaseId:'verified-release',sourceSha256:'candidate-sha',...options};
 }
 
+test('pattern library scope registers the upload and layout additions without accepting a removed spec',()=>{
+ const newFiles=['src/components/product-master-v2/PatternThumbnail.tsx','src/components/product-master-v2/patternWorkspace.css',
+  'tests/ui/pattern-visual-polish.spec.ts','tests/ui/pattern-workspace-review.spec.ts'];
+ const required=[
+  'tests/ui/pattern-dimensions.spec.ts','tests/ui/pattern-pagination.spec.ts','tests/ui/deletion-guidance.spec.ts',
+  'server/product-master/patternImageImport.test.ts','server/product-master/patternCatalog.test.ts',
+  ...['PatternLibraryV2','PatternOriginalViewer','TopicFilterDropdown','patternBulkImportModel','nineUiGaps']
+   .map(name=>'src/components/product-master-v2/'+name+'.test.ts')];
+ const candidate=context([...newFiles,...required,'server/product-master/patternImageImport.ts','scripts/release/browser-validation.mjs']);
+ // The existing shared image test is available on the verified baseline.
+ for(const p of ['tests/ui/product-image-upload.spec.ts','server/product-master/productsV2.test.ts',
+  'server/product-master/schemaContract.test.ts','server/product-master/v2ProductionMigration.test.ts',
+  'server/product-master/productImageCategoryReuseSchema.test.ts','server/product-master/p7MediaOrderLifecycle.test.ts',
+  'src/components/product-master-v2/ProductEditorV2.test.ts']){
+  candidate.previous.files.push({path:p,sha256:'old'});candidate.current.files.push({path:p,sha256:'old'});
+ }
+ candidate.previous.files=candidate.previous.files.filter(file=>!newFiles.includes(file.path));
+ const plan=selectBrowserValidation(candidate);
+ assert.equal(plan.mode,'scoped');
+ assert(plan.profiles.includes('pattern-library'));
+ assert(plan.specs.includes('tests/ui/pattern-visual-polish.spec.ts'));
+ assert.deepEqual(plan.releaseChecks,['node']);
+ candidate.current.files=candidate.current.files.filter(file=>file.path!=='tests/ui/pattern-workspace-review.spec.ts');
+ assert.equal(selectBrowserValidation(candidate).mode,'full');
+});
+
 test('active sample product reference scope includes only product browser checks and permits the registered migration file',()=>{
  const spec='tests/ui/catalog-number-sort.spec.ts',schema='server/customer-samples/activeProductReferenceSchema.ts';
  const candidate=context([spec,schema,'scripts/release/browser-validation.mjs','scripts/release/migrations.ts',

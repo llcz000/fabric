@@ -18,6 +18,13 @@ class MemoryDb {
   this.queries.push(sql);
   if(sql.includes('FROM v2_access_users'))return [[{id:'2',role:'sales',is_active:1}],[]];
   if(sql.includes('FROM v2_access_sessions'))return [[{id:'9'}],[]];
+  if(sql.startsWith('SELECT m.master_no,c.colorway_no')){
+   return [this.versions.flatMap(version=>{
+    const master=this.masters.find(row=>row.id===version.master_id&&!row.deleted_at);
+    const match=master&&args.some((arg,index)=>index%2===0&&arg===master.master_no&&String(args[index+1])===version.colorway_no);
+    return match?[{...version,master_no:master.master_no}]:[];
+   }),[]];
+  }
   if(sql.startsWith('SELECT')&&sql.includes('FROM pattern_masters')){
    return [this.masters.filter(m=>!sql.includes('deleted_at IS NULL')||!m.deleted_at).filter(m=>sql.includes('WHERE master_no=?')?m.master_no===args[0]:sql.includes('WHERE id=?')?m.id===args[0]:true),[]];
   }
@@ -108,6 +115,18 @@ test('bulk image import and whole-master delete HTTP enforce identity, conflict 
   const saved=await submit('/pattern-catalog/import','POST',payload);
   assert.equal(saved.status,201);assert.equal((await saved.json() as {patternNo:string}).patternNo,'G0008-1');
   assert.equal((await submit('/pattern-catalog/import','POST',payload)).status,201);
+  const peek='/pattern-catalog/import-preview',targets=[{masterNo:'G0008',colorwayNo:1},{masterNo:'G0008',colorwayNo:2}];
+  assert.equal((await submit(peek,'POST',targets,'')).status,401);
+  assert.equal((await submit(peek,'POST',[{...targets[0],id:'11'}])).status,400);
+  const before=db.commits;
+  const preview=await submit(peek,'POST',targets);
+  assert.equal(preview.status,200);
+  const expected={id:db.versions[0].id,imageId:a};
+  assert.deepEqual(await preview.json(),{items:[{...targets[0],...expected}]});
+  assert.equal(db.commits,before);
+  assert.equal((await submit('/pattern-catalog/import','POST',{...payload,expectedColorway:null})).status,409);
+  assert.equal((await submit('/pattern-catalog/import','POST',{...payload,expectedColorway:{...expected,imageId:null}})).status,409);
+  assert.equal((await submit('/pattern-catalog/import','POST',{...payload,expectedColorway:expected})).status,201);
   db.cards=true;assert.equal((await submit('/pattern-masters/1','DELETE')).status,409);
   db.cards=false;db.products=true;assert.equal((await submit('/pattern-masters/1','DELETE')).status,409);
   db.products=false;assert.equal((await submit('/pattern-masters/1','DELETE')).status,200);

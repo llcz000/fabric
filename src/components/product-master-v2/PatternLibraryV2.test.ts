@@ -256,6 +256,8 @@ test('uploaded TIFF renamed as WebP previews the processed server thumbnail, nev
  const prior=Object.getOwnPropertyDescriptor(globalThis,'IS_REACT_ACT_ENVIRONMENT');Object.defineProperty(globalThis,'IS_REACT_ACT_ENVIRONMENT',{value:true,configurable:true});
  const priorDocument=Object.getOwnPropertyDescriptor(globalThis,'document');
  const priorElement=Object.getOwnPropertyDescriptor(globalThis,'HTMLElement');
+ const priorImage=Object.getOwnPropertyDescriptor(globalThis,'Image');
+ Object.defineProperty(globalThis,'Image',{value:class {async decode(){}},configurable:true});
  Object.defineProperty(globalThis,'document',{value:{activeElement:null,addEventListener(){},removeEventListener(){}},configurable:true});
  Object.defineProperty(globalThis,'HTMLElement',{value:class {},configurable:true});
  const createUrl=URL.createObjectURL;let createUrlCalls=0,renderer!:ReactTestRenderer;
@@ -277,14 +279,20 @@ test('uploaded TIFF renamed as WebP previews the processed server thumbnail, nev
   assert(image);assert.equal(image.props.src,thumbnail);assert.equal(createUrlCalls,0);
   thumbnailFailed=true;
   await act(async()=>input.props.onChange({target:{files:[file],value:'G0736-2.webp'}}));
-  assert.match(renderer.root.findByProps({role:'alert'}).children.join(''),/仍可保存配色/);
+  assert.match(renderer.root.findByProps({role:'alert'}).children.join(''),/缩略图无法显示/);
   const save=renderer.root.findAllByType('button').find(node=>node.children.includes('保存新配色'))!;
+  assert.equal(save.props.disabled,true);
+  thumbnailFailed=false;
+  const retry=renderer.root.findAllByType('button').find(node=>node.children.includes('重试图片'))!;
+  await act(async()=>retry.props.onClick());
+  assert.equal(save.props.disabled,false);
   await act(async()=>save.props.onClick());
   assert.equal(savedAssetId,assetId);
  }finally{
   if(renderer)await act(async()=>renderer.unmount());URL.createObjectURL=createUrl;
   if(priorDocument)Object.defineProperty(globalThis,'document',priorDocument);else Reflect.deleteProperty(globalThis,'document');
   if(priorElement)Object.defineProperty(globalThis,'HTMLElement',priorElement);else Reflect.deleteProperty(globalThis,'HTMLElement');
+  if(priorImage)Object.defineProperty(globalThis,'Image',priorImage);else Reflect.deleteProperty(globalThis,'Image');
   if(prior)Object.defineProperty(globalThis,'IS_REACT_ACT_ENVIRONMENT',prior);else Reflect.deleteProperty(globalThis,'IS_REACT_ACT_ENVIRONMENT');
  }
 });

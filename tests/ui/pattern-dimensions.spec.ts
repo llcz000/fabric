@@ -15,6 +15,9 @@ test('late list response from colorway save cannot overwrite saved master dimens
 // AC-166, AC-167, AC-168: exercise actual React, shared master fields and formal CSS.
 for(const width of [1440,360])test(`master dimensions create edit clear cancel and error at ${width}px`,async({page})=>{
  await page.setViewportSize({width,height:900});const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.route('https://fabric-related-fixture.invalid/**',route=>route.fulfill({
+  contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="teal"/></svg>'
+ }));
  await page.goto(entry+'&fail-dimensions');
  await expect(page.getByLabel('G0076 花型尺寸',{exact:true})).toHaveText('48 × 32 cm');
  await page.screenshot({path:`artifacts/pattern-dimensions/list-${width}.png`,fullPage:true});

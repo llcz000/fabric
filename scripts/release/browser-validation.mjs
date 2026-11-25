@@ -142,6 +142,21 @@ const productImagePaths=['server/product-master/productsV2.ts','server/product-m
  'scripts/check-v2-p7-media-order-readonly.mjs','src/components/product-master-v2/PatternColorwayEditor.tsx',
  'src/components/product-master-v2/PatternLibraryV2.tsx','src/components/product-master-v2/ProductEditorV2.tsx',
  'src/components/product-master-v2/productEditorModel.ts',...productImageSpecs,...productImageUnits];
+const patternLibrarySpecs=[patternDimensionsSpec,'tests/ui/pattern-pagination.spec.ts','tests/ui/pattern-visual-polish.spec.ts',
+ 'tests/ui/pattern-workspace-review.spec.ts','tests/ui/deletion-guidance.spec.ts','tests/ui/related-products.spec.ts'];
+const patternLibraryUnits=['server/product-master/patternImageImport.test.ts','server/product-master/patternCatalog.test.ts',
+ ...['PatternLibraryV2','PatternOriginalViewer','TopicFilterDropdown','patternBulkImportModel','nineUiGaps']
+  .map(name=>'src/components/product-master-v2/'+name+'.test.ts')];
+const patternLibraryPaths=[
+ ...['patternImageImport','patternMastersRoutes'].map(name=>'server/product-master/'+name+'.ts'),
+ ...['PatternBulkImportDialog.tsx','PatternColorwayEditor.tsx','PatternLibraryV2.tsx','PatternMasterRows.tsx',
+  'PatternOriginalViewer.tsx','PatternPagination.tsx','PatternThumbnail.tsx','PatternWorkspaceV2.tsx','TopicFilterDropdown.tsx',
+  'patternBulkImportModel.ts','patternCreateModel.ts','patternWorkspace.css']
+  .map(name=>'src/components/product-master-v2/'+name),
+ 'tools/ui-preview/internalPatternReview.tsx',...patternLibrarySpecs,...patternLibraryUnits
+];
+const registeredPatternAdditions=['src/components/product-master-v2/PatternThumbnail.tsx',
+ 'src/components/product-master-v2/patternWorkspace.css','tests/ui/pattern-visual-polish.spec.ts','tests/ui/pattern-workspace-review.spec.ts'];
 const productDeletionSchema='server/customer-samples/activeProductReferenceSchema.ts';
 const productDeletionMigration='active-sample-product-reference';
 const productCatalogSpec='tests/ui/catalog-number-sort.spec.ts';
@@ -153,6 +168,8 @@ const productDeletionPaths=[productDeletionSchema,'server/customer-samples/schem
  'src/components/product-master-v2/ProductCatalogV2.tsx','src/components/product-master-v2/catalogModel.ts',
  'src/business-ui-review.tsx','tools/ui-preview/internalFabricReview.tsx','tools/ui-preview/fixtures/relatedProducts.ts',...productDeletionSpecs,...productDeletionUnits];
 const profiles=[{
+ id:'pattern-library',paths:patternLibraryPaths,specs:patternLibrarySpecs,unitFiles:patternLibraryUnits,postBuildScripts:[],
+},{
  id:'product-deletion',
  paths:productDeletionPaths,specs:productDeletionSpecs,unitFiles:productDeletionUnits,postBuildScripts:[],
 },{
@@ -234,6 +251,7 @@ export function selectBrowserValidation({previous,current,baselineReleaseId,sour
  // A reviewed test edit can ship alongside application code without expanding its affected pages.
  const selected=profiles.filter(profile=>code.some(p=>profile.paths.includes(p)&&
   !(businessChange&&browserSpecs.includes(p))&&
+  !(profile.id==='pattern-library'&&productImagePaths.includes(p))&&
   !(deletionChange&&profile.id==='fabric-library'&&p==='tools/ui-preview/internalFabricReview.tsx')));
  const productImages=selected.some(profile=>profile.id==='product-image-upload');
  const imageAssets=code.some(p=>imageAssetPaths.includes(p));
@@ -245,7 +263,7 @@ export function selectBrowserValidation({previous,current,baselineReleaseId,sour
  const fabricChecks=code.some(p=>/^(?:server\/product-master\/(?:schema|fabrics|fabricExcelImport|fabricExcelPreview|fabricNumberSchema)\.ts)$/.test(p))?fabricSchemaUnits:[];
  const tooling=code.filter(p=>releaseToolPaths.includes(p)||migrationToolPaths.includes(p));
  const toolingOnly=tooling.length===code.length;
- const useToolChecks=productImages||productDeletion||imageAssets||toolingOnly;
+ const useToolChecks=productImages||productDeletion||selected.some(profile=>profile.id==='pattern-library')||imageAssets||toolingOnly;
  const releaseChecks=[...(tooling.length?['node']:[]),...(tooling.some(p=>migrationToolPaths.includes(p))?['python']:[])];
  const base={version:1,rulesVersion:'fabric-browser-scope-v3',baselineReleaseId,candidateManifestSha256:sourceSha256,
   changedFiles,migrations,profiles:[],specs:[],unitFiles:fabricChecks,postBuildScripts:[],releaseChecks,
@@ -284,7 +302,8 @@ export function selectBrowserValidation({previous,current,baselineReleaseId,sour
  ])}));
  const unmappedFiles=impact.filter(entry=>!entry.areas.length).map(entry=>entry.file);
  base.impact=impact;
- const unscopedChanges=code.filter(p=>!next.has(p)||!old.has(p)&&!productImagePaths.includes(p)&&p!==productDeletionSchema);
+ const knownAddition=p=>productImagePaths.includes(p)||registeredPatternAdditions.includes(p);
+ const unscopedChanges=code.filter(p=>!next.has(p)||!old.has(p)&&!knownAddition(p)&&p!==productDeletionSchema);
  const imageNeighbors=productImages?[
   ...productImageSpecs.filter(file=>code.includes(file)),
   ...(code.includes('src/components/product-master-v2/PatternColorwayEditor.tsx')?[patternDimensionsSpec]:[]),
@@ -296,7 +315,7 @@ export function selectBrowserValidation({previous,current,baselineReleaseId,sour
   ...fabricChecks]);
  const postBuildScripts=sortedUnique(selected.flatMap(p=>p.postBuildScripts));
  const required=[...specs,...unitFiles,...postBuildScripts];
- const missingChecks=required.filter(p=>!next.has(p)||!old.has(p)&&!productImagePaths.includes(p));
+ const missingChecks=required.filter(p=>!next.has(p)||!old.has(p)&&!knownAddition(p));
  let result;
  if(fullUi)result={...base,mode:'full',reason:'explicit-full-ui',priorities:priorities(releaseBasics,'all-affected-and-extended')};
  else if(unmappedMigrations.length)result={...base,mode:'full',reason:'unmapped-migrations',unmappedMigrations,unmappedFiles};

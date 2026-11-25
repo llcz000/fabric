@@ -29,6 +29,8 @@ IMAGE-01：产品花型图等 `product_image` 资产接受 JPEG、PNG、WebP、G
 
 ## 花型厘米尺寸
 
+EX-04：`POST /api/v2/pattern-catalog/import-preview` 沿用导入权限，仅查询，每批最多 100 个 `masterNo/colorwayNo`；返回既有配色的内部 `id` 与 `imageId`。导入可带 `expectedColorway`，其中 `null` 表示预览为新增，对象表示预览时的配色与图片身份。事务内锁定后复核，变更返回 409。网络异常或无法确认保存结果时先核对，前端不重放该写请求。无数据库迁移。
+
 PAT-08：`pattern_masters.width_cm/height_cm` 使用可空 `DECIMAL(12,4)`，同母版只存一组。`patternMasters.ts` 的新增/更新复用 `src/lib/patternDimensions.ts` 校验成对正数或成对null；省略两字段保留原值。`pattern-catalog` 在母版DTO返回 `widthCm/heightCm`，`colorway-details` 同时读取母版最新尺寸；现有受认证主数据权限沿用，配色和产品身份不变，公开分享投影不增加字段。前端新增和编辑复用尺寸输入，列表在母版编号下显示一次；尺寸保存立即使旧列表请求失效，再重查，防止旧响应覆盖新值。
 
 增量结构见 `server/product-master/patternDimensionsSchema.ts`，启动仅核验、不自动DDL；迁移ID `20261030-pattern-dimensions` 在发布迁移注册表中对应 `pattern-dimensions`。一次性操作入口 `scripts/import-pattern-dimensions.ts`：prepare按原表的`old/w_cm/h_cm`与人工确认表生成计划并绑定两份源文件SHA；inspect只读核对当前母版；rehearse只允许命名隔离库；apply要求预置库名/UUID、实际备份文件SHA及计划SHA。冲突必须全部人工核准；导入锁定当前未删母版、拒绝缺失/重复及已有不同值，整批事务内提交前回读；相同计划重跑仅核对、不重写。MySQL DDL隐式提交，先备份并同备份隔离恢复演练；业务数据导入回滚与DDL恢复分别处理，禁止用生产业务记录做测试。

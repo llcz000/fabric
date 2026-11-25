@@ -21,20 +21,44 @@ function rows(raw:unknown):Record<string,unknown>[]{
   throw Error('Invalid database rows');
  return raw as Record<string,unknown>[];
 }
-export interface PatternImageImportInput{
- masterNo:string;colorwayNo:number;patternImageAssetId:string
+type ImportTarget={masterNo:string;colorwayNo:number};
+type ExistingColorway={id:string;imageId:string|null};
+export interface PatternImageImportInput extends ImportTarget{
+ patternImageAssetId:string;
+ expectedColorway?:ExistingColorway|null;
+}
+function validTarget(raw:unknown):raw is ImportTarget{
+ if(!raw||typeof raw!=='object'||Array.isArray(raw))return false;
+ const value=raw as ImportTarget;
+ return typeof value.masterNo==='string'&&/^[A-Z0-9]{1,64}$/.test(value.masterNo)&&
+  Number.isInteger(value.colorwayNo)&&value.colorwayNo>=1&&value.colorwayNo<=4294967295;
+}
+export async function previewPatternImageImports(db:Query,raw:unknown):Promise<{items:(ImportTarget&ExistingColorway)[]}>{
+ if(!Array.isArray(raw)||!raw.length||raw.length>100||!raw.every(value=>validTarget(value)&&Object.keys(value).length===2))
+  throw new PatternMasterError('Invalid image import preview');
+ const targets=raw as ImportTarget[];
+ const [found]=await db.query(
+  'SELECT m.master_no,c.colorway_no,c.id,c.pattern_image_asset_id FROM pattern_masters m '+
+  'JOIN pattern_colorways c ON c.master_id=m.id WHERE m.deleted_at IS NULL AND (m.master_no,c.colorway_no) IN ('+
+  targets.map(()=>'(?,?)').join(',')+')',
+  targets.flatMap(target=>[target.masterNo,target.colorwayNo]));
+ return {items:rows(found).map(row=>({masterNo:String(row.master_no),colorwayNo:Number(row.colorway_no),
+  id:dbId(row.id),imageId:row.pattern_image_asset_id==null?null:String(row.pattern_image_asset_id)}))};
 }
 function validate(raw:unknown):PatternImageImportInput{
- if(!raw||typeof raw!=='object'||Array.isArray(raw))throw new PatternMasterError('Invalid image import');
- const body=raw as Record<string,unknown>;
- if(Object.keys(body).length!==3||!Object.hasOwn(body,'masterNo')||
-  !Object.hasOwn(body,'colorwayNo')||!Object.hasOwn(body,'patternImageAssetId')||
-  typeof body.masterNo!=='string'||!/^[A-Z0-9]{1,64}$/.test(body.masterNo)||
-  !Number.isSafeInteger(body.colorwayNo)||Number(body.colorwayNo)<1||
-  Number(body.colorwayNo)>4294967295||
+ if(!validTarget(raw))throw new PatternMasterError('Invalid image import identity');
+ const body=raw as PatternImageImportInput;
+ if(Object.keys(body).some(key=>!['masterNo','colorwayNo','patternImageAssetId','expectedColorway'].includes(key))||
   typeof body.patternImageAssetId!=='string'||!uuid.test(body.patternImageAssetId))
   throw new PatternMasterError('Invalid image import identity');
- return body as unknown as PatternImageImportInput;
+ const expected=body.expectedColorway;
+ if(expected!==undefined&&expected!==null){
+  if(typeof expected!=='object'||Object.keys(expected).length!==2||
+   typeof expected.id!=='string'||!/^[1-9]\d{0,19}$/.test(expected.id)||BigInt(expected.id)>MAX_ID||
+   !(expected.imageId===null||typeof expected.imageId==='string'&&uuid.test(expected.imageId)))
+   throw new PatternMasterError('Invalid expected colorway');
+ }
+ return body;
 }
 function translateError(error:unknown):never{
  if(error instanceof ColorwayIdentityError)throw new PatternMasterError(error.message,error.status);
@@ -72,6 +96,10 @@ export async function importPatternImageAsColorway(pool:Pool,actor:AppPrincipal,
      [masterId,input.colorwayNo]);
     const current=rows(currentRaw);
     if(current.length>1)throw Error('Duplicate colorway identity');
+    const expected=input.expectedColorway;
+    if(expected===null&&current.length||expected&&(!current.length||
+      dbId(current[0].id)!==expected.id||(current[0].pattern_image_asset_id??null)!==expected.imageId))
+     throw new PatternMasterError('Colorway changed since import preview',409);
     let colorwayId:string,previous:string|null=null;
     if(current.length){
      colorwayId=dbId(current[0].id);

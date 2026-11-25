@@ -1,72 +1,86 @@
-import {patternBox as box,formatPatternTags as asTags} from './patternPresentation';
+import {useEffect,useRef,useState} from 'react';
+import {ArrowDown,ArrowUp,ArrowUpDown,Edit3,MoreHorizontal,Pencil,Trash2} from 'lucide-react';
 import {formatPatternDimensions} from '../../lib/patternDimensions';
-import { Image as ImageIcon, Edit3, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Pencil } from 'lucide-react';
-import type { CatalogTag } from './catalogModel';
-import { type PatternMasterItem, type PatternVersionItem } from './patternModel';
+import {formatPatternTags} from './patternPresentation';
+import {PatternThumbnail} from './PatternThumbnail';
+import type {PatternMasterItem,PatternVersionItem} from './patternModel';
 
-
-
-export function PatternMasterRows({items,thumbnailUrls,onPreview,onEdit,onDelete,onShare,onCreateProduct,onQuickTopicEdit,onViewProducts,canManage=false,sort='newest',onSort}:{
+export function PatternMasterRows({items,thumbnailUrls,onPreview,onEdit,onDelete,onCreateProduct,onQuickTopicEdit,onViewProducts,onRetryThumbnail,imagesPending,canManage=false,sort='newest',onSort}:{
  items:PatternMasterItem[];thumbnailUrls:Map<string,string>;
  onPreview(version:PatternVersionItem):void;onEdit(master:PatternMasterItem):void;onDelete?(master:PatternMasterItem):void;canManage?:boolean;
- onShare?(master:PatternMasterItem):void;onCreateProduct?(version:PatternMasterItem):void;
+ onShare?(master:PatternMasterItem):void;onCreateProduct?(master:PatternMasterItem):void;
  onQuickTopicEdit?(master:PatternMasterItem):void;onViewProducts?(master:PatternMasterItem):void;
+ onRetryThumbnail?(assetId:string):Promise<string|undefined>;imagesPending?:boolean;
  sort?:'newest'|'numberAsc'|'numberDesc';onSort?():void;
 }){
- return <div role="table" aria-label="花型母版列表" tabIndex={0} className={box+' overflow-x-auto'}>
-  <div role="row" className="flex min-w-[640px] gap-3 border-b border-[#c3c6d7] bg-[#fbfcfd] px-3 py-2 text-xs text-[#434655]">
-   <span role="columnheader" aria-sort={sort==='newest'?'none':sort==='numberAsc'?'ascending':'descending'} className="w-32 shrink-0">
+ const [menu,setMenu]=useState<string|null>(null);
+ const menuRef=useRef<HTMLDivElement>(null);
+ useEffect(()=>{
+  if(!menu)return;
+  const outside=(event:PointerEvent)=>{
+   if(event.target instanceof HTMLElement&&!menuRef.current?.contains(event.target)&&!event.target.closest('dialog,[role="alertdialog"]'))setMenu(null);
+  };
+  const escape=(event:KeyboardEvent)=>{
+   if(event.key!=='Escape'||event.defaultPrevented||!menuRef.current?.contains(document.activeElement))return;
+   setMenu(null);
+   menuRef.current.querySelector('button')?.focus();
+  };
+  document.addEventListener('pointerdown',outside);
+  document.addEventListener('keydown',escape);
+  return()=>{document.removeEventListener('pointerdown',outside);document.removeEventListener('keydown',escape);};
+ },[menu]);
+ const SortIcon=sort==='numberAsc'?ArrowUp:sort==='numberDesc'?ArrowDown:ArrowUpDown;
+ return <div role="table" aria-label="花型母版列表" className={'pattern-master-table'}>
+  <div role="row" className="pattern-master-head">
+   <span role="columnheader" aria-sort={sort==='newest'?'none':sort==='numberAsc'?'ascending':'descending'}>
     {onSort?<button type="button" aria-label={'按花型号排序 '+(sort==='numberAsc'?'降序':'升序')} onClick={onSort}
-     className="inline-flex min-h-10 min-w-10 items-center gap-1 text-[#0053da] hover:underline max-md:min-h-11 max-md:min-w-11">花型号 {sort==='numberAsc'?<ArrowUp size={12}/>:sort==='numberDesc'?<ArrowDown size={12}/>:<ArrowUpDown size={12}/>}</button>:'花型号'}
-   </span><span role="columnheader" className="w-32 shrink-0">题材标签</span><span role="columnheader" className="min-w-0 flex-1">配色版本</span><span role="columnheader" className="w-24 shrink-0 text-center">关联产品</span><span role="columnheader" className="w-28 shrink-0 text-center">操作</span>
+     className="inline-flex min-h-10 items-center gap-1 rounded text-blue-800 focus-visible:outline-2 max-md:min-h-11">花型号 <SortIcon size={13}/></button>:'花型号'}
+   </span><span role="columnheader">题材标签</span><span role="columnheader">配色版本</span><span role="columnheader">关联产品</span><span role="columnheader">操作</span>
   </div>
-  {items.map(master=><div key={master.id} role="row"
-   className="v2-library-row flex min-w-[640px] items-center gap-3 border-b border-[#e2e1ee] px-3 py-3 last:border-0 hover:bg-[#fcfdff]">
-   <div role="cell" className="w-32 shrink-0">
-    <strong className="block text-sm text-[#191b24]">{master.masterNo}</strong>
-    <span className="mt-1 block text-xs text-slate-500" aria-label={master.masterNo+' 花型尺寸'}>{formatPatternDimensions(master)}</span>
-    
+  {items.map(master=><div key={master.id} role="row" className="pattern-master-row">
+   <div role="cell" className="pattern-master-identity min-w-0 break-words"><strong className="block text-sm">{master.masterNo}</strong>
+    <span className="mt-1 block text-xs text-slate-600" aria-label={master.masterNo+' 花型尺寸'}>{formatPatternDimensions(master)}</span>
    </div>
-   <div role="cell" className="w-32 shrink-0 min-w-0 break-words text-xs text-[#737686]">
-    {canManage&&onQuickTopicEdit?<button type="button" aria-label={'修改 '+master.masterNo+' 题材标签'}
-     title="直接修改题材标签" onClick={()=>onQuickTopicEdit(master)}
-     className="group inline-flex max-w-full items-start gap-1 rounded-md px-1 py-1 text-left text-[#31447b] hover:bg-[#eef1fd] focus-visible:outline-2 focus-visible:outline-[#346ef6]">
-     <span className="min-w-0 break-words">{master.topicTags.length?asTags(master.topicTags):'添加题材'}</span>
-     <Pencil size={12} aria-hidden="true" className="mt-0.5 shrink-0 opacity-60 group-hover:opacity-100"/>
-    </button>:asTags(master.topicTags)}
+   <div role="cell" className="pattern-master-topics min-w-0 break-words text-xs text-slate-700">
+    {canManage&&onQuickTopicEdit?<button type="button" aria-label={'修改 '+master.masterNo+' 题材标签'} title="直接修改题材标签"
+     onClick={()=>onQuickTopicEdit(master)} className="inline-flex min-h-10 max-w-full items-center gap-1 rounded px-1 text-left text-blue-800 focus-visible:outline-2 max-md:min-h-11">
+     <span className="min-w-0 break-words">{master.topicTags.length?formatPatternTags(master.topicTags):'添加题材'}</span><Pencil size={12} aria-hidden="true" className="shrink-0"/>
+    </button>:formatPatternTags(master.topicTags)}
    </div>
-
-   <div role="cell" className="flex min-w-0 flex-1 flex-wrap gap-2">
+   <div role="cell" className="pattern-master-colors flex min-w-0 flex-wrap gap-2">
     {master.versions.length?master.versions.map(version=>{
-     const url=version.patternImageAssetId?thumbnailUrls.get(version.patternImageAssetId):undefined;
-     return <div key={version.id} className="flex w-[104px] shrink-0 flex-col items-center rounded-lg border border-[#ededf9] p-1">
-      {url?<button type="button" aria-label={'查看花型原图 '+version.patternNo} onClick={event=>{event.currentTarget.focus({preventScroll:true});onPreview(version);}}
-        className="rounded focus-visible:outline-2 focus-visible:outline-[#346ef6]">
-        <img className="h-16 w-16 rounded object-cover" src={url}
-         alt={'花型 '+version.patternNo} width={64} height={64} loading="lazy"/></button>:
-       <span className="inline-flex h-16 w-16 flex-col items-center justify-center rounded border border-dashed border-[#c3c6d7] bg-[#f3f2ff] text-[10px] text-[#737686]">
-        <ImageIcon size={15}/>{version.patternImageAssetId?'图片不可用':'待上传'}</span>}
-      <strong title={version.patternNo} className="mt-1 max-w-full truncate text-[11px]">{version.patternNo}</strong>
-      
+     const id=version.patternImageAssetId,url=id?thumbnailUrls.get(id):undefined;
+     return <div key={version.id} className="pattern-master-tile">
+      <PatternThumbnail key={url??id??''} url={url} hasImage={!!id} pending={!!id&&!url&&imagesPending}
+       alt={version.patternNo} onOpen={()=>onPreview(version)} onRetry={id&&onRetryThumbnail?()=>onRetryThumbnail(id):undefined}/>
+      <strong title={version.patternNo} className="pattern-master-colorway-number">{version.patternNo}</strong>
      </div>;
-    }):<span className="text-xs text-[#737686]">尚无配色版本</span>}
+    }):<span className="text-xs text-slate-600">尚无配色版本</span>}
    </div>
-   <div role="cell" className="w-24 shrink-0 text-center text-xs">
-    {master.productCount===undefined?<span title="尚未读取关联产品统计">—</span>:onViewProducts?
-     <button type="button" aria-label={'查看 '+master.masterNo+' 关联产品 '+master.productCount+' 个'}
-      onClick={()=>onViewProducts(master)} className="rounded px-2 py-1 text-[#0053da] hover:underline focus-visible:outline-2 focus-visible:outline-[#346ef6]">{master.productCount}</button>:
-     <span>{master.productCount}</span>}
+   <div role="cell" className="pattern-master-linked">
+    {master.productCount===undefined?<span title="尚未读取关联产品统计">待统计</span>:onViewProducts?
+     <button type="button" aria-label={'查看 '+master.masterNo+' 关联产品 '+master.productCount+' 个'} onClick={()=>onViewProducts(master)}
+      className="min-h-10 rounded px-2 text-blue-800 hover:underline focus-visible:outline-2 max-md:min-h-11"><span className="md:hidden">关联产品 </span>{master.productCount}</button>:<span>{master.productCount}</span>}
    </div>
-   <div role="cell" className="w-28 shrink-0 text-center">
-    <button type="button" aria-label={'编辑花型及配色 '+master.masterNo} onClick={()=>onEdit(master)}
-     className="inline-flex items-center gap-1 rounded p-2 text-[#0053da] hover:bg-[#eef1fd]"
-     title={canManage?'编辑花型及配色':'查看花型及配色'}><Edit3 size={15}/></button>
-    {canManage&&onDelete?<button type="button" aria-label={'删除花型 '+master.masterNo} title="删除整个花型"
-     onClick={()=>onDelete(master)} className="inline-flex items-center rounded p-2 text-rose-600 hover:bg-rose-50"><Trash2 size={15}/></button>:null}
-     {onCreateProduct&&<button type="button" className="mt-1 rounded px-1 py-1 text-xs text-[#0053da] hover:bg-[#eef1fd]" aria-label={'使用花型 '+master.masterNo+' 的全部配色创建产品'} disabled={!master.isActive||!master.versions.some(v=>v.isActive)} onClick={()=>onCreateProduct(master)}>创建产品</button>}
+   <div role="cell" className="pattern-master-actions">
+    <button type="button" aria-label={'编辑花型及配色 '+master.masterNo}
+     title={canManage?'编辑花型及配色':'查看花型及配色'} onClick={()=>onEdit(master)}
+     className="inline-grid min-h-10 min-w-10 place-items-center rounded text-blue-800 hover:bg-blue-50 focus-visible:outline-2 max-md:min-h-11 max-md:min-w-11"><Edit3 size={16}/></button>
+    {(canManage&&onDelete||onCreateProduct)&&<div ref={menu===master.id?menuRef:undefined} className="pattern-master-more">
+     <button type="button" aria-label={'更多操作 '+master.masterNo} aria-expanded={menu===master.id}
+      onClick={()=>setMenu(menu===master.id?null:master.id)}
+      className="pattern-master-more-toggle size-11 place-items-center rounded text-slate-700 focus-visible:outline-2"><MoreHorizontal size={18}/></button>
+     <div className="pattern-master-more-items" data-expanded={menu===master.id}>
+      {canManage&&onDelete?<button type="button" aria-label={'删除花型 '+master.masterNo} title="删除整个花型" onClick={()=>onDelete(master)}
+       className="inline-flex min-h-10 min-w-10 items-center justify-center gap-1 rounded px-2 text-rose-700 hover:bg-rose-50 focus-visible:outline-2 max-md:min-h-11">
+       <Trash2 size={15}/><span className="md:hidden">删除花型</span></button>:null}
+      {onCreateProduct&&<button type="button" className="min-h-10 rounded px-2 text-xs text-blue-800 focus-visible:outline-2 max-md:min-h-11"
+       aria-label={'使用花型 '+master.masterNo+' 的全部配色创建产品'} disabled={!master.isActive||!master.versions.some(v=>v.isActive)}
+       onClick={()=>onCreateProduct(master)}>创建产品</button>}
+     </div>
+    </div>}
    </div>
   </div>)}
-  {!items.length?<p className="py-16 text-center text-sm text-[#737686]">没有匹配的花型，可调整或清空筛选条件。</p>:null}
+  {!items.length?<p className="py-16 text-center text-sm text-slate-600">没有匹配的花型，可调整或清空筛选条件。</p>:null}
  </div>;
 }
-

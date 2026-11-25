@@ -9,9 +9,9 @@ export function galleryVersions(selected:PatternVersionItem,versions:PatternVers
  if(!sameMaster.some(v=>v.id===selected.id))return selected.patternImageAssetId?[selected]:[];
  return [...sameMaster].sort((a,b)=>a.colorwayNo-b.colorwayNo||a.id.localeCompare(b.id));
 }
-export function PatternOriginalViewer({current,versions,original,error,onChange,onClose}:{
+export function PatternOriginalViewer({current,versions,original,error,onChange,onClose,onImageError,onRetry}:{
  current:PatternVersionItem;versions:PatternVersionItem[];original:string|null;error:string;
- onChange(next:PatternVersionItem):void;onClose():void;
+ onChange(next:PatternVersionItem):void;onClose():void;onImageError():void;onRetry():void;
 }){
  const dialog=useRef<HTMLDialogElement>(null);
  const options=galleryVersions(current,versions),index=options.findIndex(item=>item.id===current.id);
@@ -62,9 +62,12 @@ export function PatternOriginalViewer({current,versions,original,error,onChange,
     {multiple?<button type="button" aria-label="上一配色原图" onClick={()=>switchTo(-1)}
      className="grid size-10 shrink-0 place-items-center rounded-full border border-slate-200 bg-white text-[#0053da] hover:bg-[#eef1fd] max-md:size-11"><ChevronLeft size={24}/></button>:null}
     <div className="flex min-w-0 flex-1 items-center justify-center overflow-auto" onMouseDown={e=>{if(e.target===e.currentTarget)onClose();}}>
-     {error?<p role="alert" className="text-sm text-rose-700">{error}</p>:
+     {error?<div className="text-center text-sm" onMouseDown={event=>event.stopPropagation()}>
+      <p role="alert" className="text-rose-700">{error}</p>
+      <button type="button" onClick={onRetry} className="min-h-11 rounded px-3 text-blue-700 focus-visible:outline-2">重试原图</button>
+     </div>:
       original?<img src={original} alt={'花型原图 '+current.patternNo}
-       className="max-h-[75vh] max-w-full object-contain"/>:
+       onError={onImageError} className="max-h-[75vh] max-w-full object-contain"/>:
        <p role="status" className="text-sm text-slate-500">正在加载原图…</p>}
     </div>
     {multiple?<button type="button" aria-label="下一配色原图" onClick={()=>switchTo(1)}
