@@ -45,8 +45,9 @@ function context(changes,options={}){
  return {previous,current,baselineReleaseId:'verified-release',sourceSha256:'candidate-sha',...options};
 }
 
-test('pattern library scope registers the upload and layout additions without accepting a removed spec',()=>{
+test('pattern library scope registers upload and image-grid additions without accepting a removed spec',()=>{
  const newFiles=['src/components/product-master-v2/PatternThumbnail.tsx','src/components/product-master-v2/patternWorkspace.css',
+  'src/components/product-master-v2/PatternImageGrid.tsx','tests/ui/pattern-grid.spec.ts',
   'tests/ui/pattern-visual-polish.spec.ts','tests/ui/pattern-workspace-review.spec.ts'];
  const required=[
   'tests/ui/pattern-dimensions.spec.ts','tests/ui/pattern-pagination.spec.ts','tests/ui/deletion-guidance.spec.ts',
@@ -66,8 +67,9 @@ test('pattern library scope registers the upload and layout additions without ac
  assert.equal(plan.mode,'scoped');
  assert(plan.profiles.includes('pattern-library'));
  assert(plan.specs.includes('tests/ui/pattern-visual-polish.spec.ts'));
+ assert(plan.specs.includes('tests/ui/pattern-grid.spec.ts'));
  assert.deepEqual(plan.releaseChecks,['node']);
- candidate.current.files=candidate.current.files.filter(file=>file.path!=='tests/ui/pattern-workspace-review.spec.ts');
+ candidate.current.files=candidate.current.files.filter(file=>file.path!=='tests/ui/pattern-grid.spec.ts');
  assert.equal(selectBrowserValidation(candidate).mode,'full');
 });
 

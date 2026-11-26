@@ -143,20 +143,21 @@ const productImagePaths=['server/product-master/productsV2.ts','server/product-m
  'src/components/product-master-v2/PatternLibraryV2.tsx','src/components/product-master-v2/ProductEditorV2.tsx',
  'src/components/product-master-v2/productEditorModel.ts',...productImageSpecs,...productImageUnits];
 const patternLibrarySpecs=[patternDimensionsSpec,'tests/ui/pattern-pagination.spec.ts','tests/ui/pattern-visual-polish.spec.ts',
- 'tests/ui/pattern-workspace-review.spec.ts','tests/ui/deletion-guidance.spec.ts','tests/ui/related-products.spec.ts'];
+ 'tests/ui/pattern-workspace-review.spec.ts','tests/ui/pattern-grid.spec.ts','tests/ui/deletion-guidance.spec.ts','tests/ui/related-products.spec.ts'];
 const patternLibraryUnits=['server/product-master/patternImageImport.test.ts','server/product-master/patternCatalog.test.ts',
  ...['PatternLibraryV2','PatternOriginalViewer','TopicFilterDropdown','patternBulkImportModel','nineUiGaps']
   .map(name=>'src/components/product-master-v2/'+name+'.test.ts')];
 const patternLibraryPaths=[
  ...['patternImageImport','patternMastersRoutes'].map(name=>'server/product-master/'+name+'.ts'),
- ...['PatternBulkImportDialog.tsx','PatternColorwayEditor.tsx','PatternLibraryV2.tsx','PatternMasterRows.tsx',
+ ...['PatternBulkImportDialog.tsx','PatternColorwayEditor.tsx','PatternImageGrid.tsx','PatternLibraryV2.tsx','PatternMasterRows.tsx',
   'PatternOriginalViewer.tsx','PatternPagination.tsx','PatternThumbnail.tsx','PatternWorkspaceV2.tsx','TopicFilterDropdown.tsx',
-  'patternBulkImportModel.ts','patternCreateModel.ts','patternWorkspace.css']
+  'RelatedProductsDialog.tsx','patternBulkImportModel.ts','patternCreateModel.ts','patternModel.ts','patternWorkspace.css']
   .map(name=>'src/components/product-master-v2/'+name),
  'tools/ui-preview/internalPatternReview.tsx',...patternLibrarySpecs,...patternLibraryUnits
 ];
 const registeredPatternAdditions=['src/components/product-master-v2/PatternThumbnail.tsx',
- 'src/components/product-master-v2/patternWorkspace.css','tests/ui/pattern-visual-polish.spec.ts','tests/ui/pattern-workspace-review.spec.ts'];
+ 'src/components/product-master-v2/PatternImageGrid.tsx','src/components/product-master-v2/patternWorkspace.css',
+ 'tests/ui/pattern-grid.spec.ts','tests/ui/pattern-visual-polish.spec.ts','tests/ui/pattern-workspace-review.spec.ts'];
 const productDeletionSchema='server/customer-samples/activeProductReferenceSchema.ts';
 const productDeletionMigration='active-sample-product-reference';
 const productCatalogSpec='tests/ui/catalog-number-sort.spec.ts';

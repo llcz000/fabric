@@ -15,7 +15,8 @@ export async function relatedProductsPreview(url:URL,init?:RequestInit):Promise<
  const colorway=url.searchParams.get('colorwayId');
  const pattern=url.searchParams.get('masterId')??(colorway?colorway.slice(0,-2):null);
  const fabric=url.searchParams.get('fabricId');
- let total=pattern?(pattern==='76'?21:0):fabric==='1'?5:fabric==='2'?2:0;
+ const patternFixtureCount=location.search.includes('grid-review')?2:21;
+ let total=pattern?(pattern==='76'?patternFixtureCount:0):fabric==='1'?5:fabric==='2'?2:0;
  const offset=Number(url.searchParams.get('offset')||0),limit=Number(url.searchParams.get('limit')||20);
  let items:CatalogProduct[]=Array.from({length:total},(_,i)=>{
   const masterId=pattern||String(76-i),masterNo='G'+masterId.padStart(4,'0');

@@ -229,6 +229,12 @@
         "server/product-master",
         "src/components/product-master-v2"
       ],
+      "exclusiveSource": [
+        "src/components/product-master-v2/PatternImageGrid.tsx",
+        "src/components/product-master-v2/patternWorkspace.css",
+        "tests/ui/pattern-grid.spec.ts",
+        "tools/ui-preview/internalPatternReview.tsx"
+      ],
       "docs": [
         "docs/product-master/product-master-v2-requirements.md",
         "docs/ui-design/component-rules.md"

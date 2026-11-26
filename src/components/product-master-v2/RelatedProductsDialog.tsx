@@ -16,7 +16,9 @@ function RelatedPatternThumbnail({url,number,pending,hasImage,onError}:{url?:str
   </span>;
 }
 
-export function RelatedProductsDialog({apiFetch,source,onClose,showActions=false}:{apiFetch:typeof fetch;source:RelatedProductSource;onClose():void;showActions?:boolean}){
+export function RelatedProductsDialog({apiFetch,source,onClose,showActions=false,showProductLink=false}:{
+ apiFetch:typeof fetch;source:RelatedProductSource;onClose():void;showActions?:boolean;showProductLink?:boolean;
+}){
  const canQueryDocuments=useContext(V2DocumentLookupContext);
  const dialog=useRef<HTMLDialogElement>(null);
  const [offset,setOffset]=useState(0),[retry,setRetry]=useState(0);
@@ -26,7 +28,7 @@ export function RelatedProductsDialog({apiFetch,source,onClose,showActions=false
  useEffect(()=>{
   const previous=document.activeElement instanceof HTMLElement?document.activeElement:null;
   const element=dialog.current;element?.showModal();
-  return()=>{element?.close();previous?.focus();};
+  return()=>{element?.close();previous?.focus({preventScroll:true});};
  },[]);
  useEffect(()=>{
   if(!showActions)return;
@@ -68,7 +70,7 @@ export function RelatedProductsDialog({apiFetch,source,onClose,showActions=false
    if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}
    else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}
   }}
-  className="m-auto max-h-[90dvh] w-[min(94vw,1000px)] max-w-none overflow-auto rounded-xl border border-[#c3c6d7] bg-white p-4 text-[#191b24] shadow-xl backdrop:bg-black/40 sm:p-5">
+  className="m-auto max-h-[90dvh] w-[min(94vw,1000px)] max-w-none overflow-auto rounded-xl border border-slate-300 bg-white p-4 text-slate-900 shadow-xl backdrop:bg-black/40 sm:p-5">
   <header className="mb-4 flex items-start justify-between gap-3">
    <div className="min-w-0"><h2 className="text-base font-semibold">关联产品</h2><p className="mt-1 break-words text-sm text-slate-600">{kind} · {source.label}</p></div>
    <button type="button" autoFocus onClick={onClose} aria-label="关闭关联产品" title="关闭" className="v2-icon-button shrink-0"><X size={18} aria-hidden="true"/></button>
@@ -77,18 +79,18 @@ export function RelatedProductsDialog({apiFetch,source,onClose,showActions=false
    !data?<p role="status" className="py-8 text-center text-sm text-slate-500">正在读取关联产品…</p>:<>
    <p role="status" className="mb-3 text-sm text-slate-600">共 {data.total} 个产品</p>
    {imageError&&<p role="alert" className="mb-3 text-xs text-slate-600">缩略图暂不可用
-    <button type="button" onClick={()=>setImageRetry(n=>n+1)} className="ml-2 rounded px-2 py-1 text-[#0053da] underline focus-visible:outline-2 focus-visible:outline-[#346ef6]">重试缩略图</button>
+    <button type="button" onClick={()=>setImageRetry(n=>n+1)} className="ml-2 rounded px-2 py-1 text-blue-800 underline focus-visible:outline-2 focus-visible:outline-blue-700">重试缩略图</button>
    </p>}
    {!data.items.length?<p className="py-10 text-center text-sm text-slate-500">暂无关联产品</p>:
-   <div className="max-h-[58dvh] overflow-auto rounded-lg border border-[#e2e1ee]" tabIndex={0} aria-label="关联产品明细">
+   <div className="max-h-[58dvh] overflow-auto rounded-lg border border-slate-200" tabIndex={0} aria-label="关联产品明细">
     <table className="w-full table-fixed text-left text-sm sm:min-w-[680px]">
      <colgroup className="hidden sm:table-column-group"><col className="w-16"/><col className="w-[22%]"/><col className="w-[17%]"/><col/></colgroup>
-     <thead className="sticky top-0 hidden bg-[#f8fafc] text-xs text-slate-600 sm:table-header-group"><tr>{['花型图','货号','花型编号','面料详细信息'].map(label=><th key={label} className="border-b p-3 font-medium">{label}</th>)}</tr></thead>
+     <thead className="sticky top-0 hidden bg-slate-50 text-xs text-slate-600 sm:table-header-group"><tr>{['花型图','货号','花型编号','面料详细信息'].map(label=><th key={label} className="border-b p-3 font-medium">{label}</th>)}</tr></thead>
      <tbody className="block sm:table-row-group">{data.items.map(item=>{
       const fabricInfo=[item.fabricNo,item.fabricName,text(item.composition),
        item.weightValue===null?'未填写':item.weightValue+' '+(item.weightUnit??''),
        item.widthCm===null?'未填写':item.widthCm+' cm',text(item.fabricRemark)].join(' · ');
-      return <tr key={item.id} className="grid grid-cols-[52px_minmax(0,1fr)] border-b border-[#e2e1ee] align-middle last:border-0 sm:table-row">
+      return <tr key={item.id} className="grid grid-cols-[52px_minmax(0,1fr)] border-b border-slate-200 align-middle last:border-0 sm:table-row">
        <td className="row-span-3 block self-center py-1.5 pl-3 sm:table-cell sm:px-3">
         <RelatedPatternThumbnail key={item.patternImageAssetId+':'+imageRetry+':'+imageUrls.get(item.patternImageAssetId??'')} number={item.masterNo+'-'+item.colorwayNo}
          hasImage={Boolean(item.patternImageAssetId)} pending={imagePending} url={imageUrls.get(item.patternImageAssetId??'')} onError={()=>setImageError(true)}/>
@@ -97,13 +99,13 @@ export function RelatedProductsDialog({apiFetch,source,onClose,showActions=false
        <td className="col-start-2 block min-w-0 overflow-x-auto whitespace-nowrap px-3 py-0.5 text-xs text-slate-600 sm:table-cell sm:py-2"><span className="mr-2 sm:hidden">花型</span>{item.masterNo}-{item.colorwayNo}</td>
        <td className="col-start-2 block min-w-0 px-3 pb-2 pt-1 sm:table-cell sm:py-2">
         <div tabIndex={0} aria-label="面料信息，可左右滚动" title={fabricInfo}
-         className="overflow-x-auto whitespace-nowrap text-xs leading-5 [scrollbar-width:thin] focus-visible:outline-2 focus-visible:outline-[#346ef6]">{fabricInfo}</div>
-        {showActions&&<div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs">
-         {item.hasOrderReference&&canQueryDocuments?<a target="_blank" rel="noopener" className="font-medium text-[#0053da] underline"
+         className="overflow-x-auto whitespace-nowrap text-xs leading-5 [scrollbar-width:thin] focus-visible:outline-2 focus-visible:outline-blue-700">{fabricInfo}</div>
+        {(showActions||showProductLink)&&<div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+         {showActions&&(item.hasOrderReference&&canQueryDocuments?<a target="_blank" rel="noopener" className="font-medium text-blue-800 underline"
           href={v2Route('documents',{productId:item.id,refNo:item.productNo})}>查看关联单据</a>:
-          <span className="text-slate-600">{item.hasOrderReference===true?'请联系管理员核对关联单据':item.hasOrderReference===false?'未被单据引用':'单据关联待确认'}</span>}
-         <a target="_blank" rel="noopener" className="text-[#0053da] underline"
-          href={v2Route('products',{productId:item.id,refNo:item.productNo,status:'all'})}>去产品库处理</a>
+          <span className="text-slate-600">{item.hasOrderReference===true?'请联系管理员核对关联单据':item.hasOrderReference===false?'未被单据引用':'单据关联待确认'}</span>)}
+         <a target="_blank" rel="noopener" className="text-blue-800 underline"
+          href={v2Route('products',{productId:item.id,refNo:item.productNo,status:'all'})}>{showActions?'去产品库处理':'查看产品'}</a>
         </div>}
        </td>
       </tr>;

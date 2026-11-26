@@ -8,23 +8,25 @@ export async function verifyPatternThumbnail(url:string|undefined){
  return url;
 }
 
-export function PatternThumbnail({url,hasImage,pending,alt,onOpen,onRetry}:{
- url?:string;hasImage:boolean;pending?:boolean;alt:string;onOpen?():void;onRetry?():Promise<string|undefined>;
+export function PatternThumbnail({url,hasImage,pending,alt,onOpen,onRetry,layout='row'}:{
+ url?:string;hasImage:boolean;pending?:boolean;alt:string;onOpen?(thumbnail?:string):void;onRetry?():Promise<string|undefined>;
+ layout?:'row'|'grid';
 }){
  const [retried,setRetried]=useState<{url?:string}|null>(null);
  const [failed,setFailed]=useState(false);
  const [retrying,setRetrying]=useState(false);
  const source=retried?retried.url:url;
  const available=source&&!failed&&!retrying;
+ const grid=layout==='grid';
  if(available){
-  const image=<img src={source} alt={alt} className="size-full rounded object-cover" loading="lazy" onError={()=>setFailed(true)}/>;
-  return onOpen?<button type="button" aria-label={'查看花型原图 '+alt} className="block size-16 rounded focus-visible:outline-2 focus-visible:outline-blue-700" onClick={event=>{event.currentTarget.focus({preventScroll:true});onOpen();}}>{image}</button>:
+  const image=<img src={source} alt={alt} className={grid?'pattern-grid-thumbnail':'size-full rounded object-cover'} loading="lazy" decoding={grid?'async':undefined} onError={()=>setFailed(true)}/>;
+  return onOpen?<button type="button" aria-label={'查看花型原图 '+alt} className={grid?'pattern-grid-frame pattern-grid-open':'block size-16 rounded focus-visible:outline-2 focus-visible:outline-blue-700'} onClick={event=>{event.currentTarget.focus({preventScroll:true});onOpen(source);}}>{image}</button>:
    <span className="block size-16">{image}</span>;
  }
- if(!hasImage||pending||retrying)return <span className="grid size-16 place-items-center rounded border border-dashed border-slate-500 bg-slate-50 px-1 text-center text-[11px] text-slate-700">
+ if(!hasImage||pending||retrying)return <span className={grid?'pattern-grid-frame pattern-grid-placeholder':'grid size-16 place-items-center rounded border border-dashed border-slate-500 bg-slate-50 px-1 text-center text-[11px] text-slate-700'}>
   {!hasImage?'待上传':'加载中'}
  </span>;
- return <div className="flex min-h-16 min-w-16 flex-col items-stretch justify-center rounded border border-dashed border-slate-500 px-1 text-center text-[11px] text-rose-800">
+ return <div className={grid?'pattern-grid-frame pattern-grid-placeholder pattern-grid-error':'flex min-h-16 min-w-16 flex-col items-stretch justify-center rounded border border-dashed border-slate-500 px-1 text-center text-[11px] text-rose-800'}>
   <span>缩略图失败</span>
   <button type="button" disabled={!onRetry} aria-label={'重试缩略图 '+alt}
   className="min-h-8 rounded text-blue-800 focus-visible:outline-2 max-md:min-h-11"

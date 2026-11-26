@@ -5,7 +5,7 @@ export type PatternFilterAction=
  |{type:'number'|'colorwayNo';value:string}
  |{type:'topic'|'color';id:string}
  |{type:'includeInactive';value:boolean}
- |{type:'sort';value:'numberAsc'|'numberDesc'}
+ |{type:'sort';value:PatternFilters['sort']}
  |{type:'page';offset:number}
  |{type:'reset'};
 export interface PatternFilters{

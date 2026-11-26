@@ -2,7 +2,7 @@ import './patternWorkspace.css';
 import {saveMasterDimensions} from './patternModel';
 import { ActionIcon } from './ActionIcon';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { FolderOpen, Plus, Search, X } from 'lucide-react';
+import { FolderOpen, Grid2X2, List, Plus, Search, X } from 'lucide-react';
 import type { CatalogTag } from './catalogModel';
 import { TopicFilterDropdown } from './TopicFilterDropdown';
 import {ensureTopicTag,resolvePresetTopicForFilter,previewCustomTopicDeletion,deleteCustomTopic} from './topicCatalog';
@@ -10,7 +10,8 @@ import { uploadImageAsset } from '../../lib/imageAssets';
 import { createLatestRequestGuard, loadCatalogTags, resolveImageUrls } from './catalogModel';
 import { initialPatternFilters, reducePatternFilters, fetchPatternPage, fetchMasterColorways, createNextColorway, saveColorwayProperties, saveMasterTopicTags,  deleteUnreferencedColorway, type PatternMasterItem, type PatternVersionItem, type PatternPage, type PatternFilters } from './patternModel';
 import {PatternPagination} from './PatternPagination';
-import {RelatedProductsDialog} from './RelatedProductsDialog';
+import {RelatedProductsDialog, type RelatedProductSource} from './RelatedProductsDialog';
+import {PatternImageGrid} from './PatternImageGrid';
 import {PatternMasterRows} from './PatternMasterRows';
 import {PatternTopicQuickEdit} from './PatternTopicQuickEdit';
 import {PatternOriginalViewer} from './PatternOriginalViewer';
@@ -42,6 +43,7 @@ export function PatternLibraryV2({apiFetch,canManage=false,onCreateMaster,onEdit
  const toast=useToast();
  const imageResolver=useCallback((ids:string[],variant:'thumbnail'|'display'|'original',signal?:AbortSignal)=>resolvePatternImages?resolvePatternImages(ids,variant,signal):resolveImageUrls(apiFetch,ids,variant,signal),[apiFetch,resolvePatternImages]);
  const [filters,setFilters]=useState<PatternFilters>({...initialPatternFilters});
+ const [view,setView]=useState<'list'|'grid'>('list');
  const [page,setPage]=useState<PatternPage|null>(null),[loading,setLoading]=useState(false);
  const [error,setError]=useState(''),[retry,setRetry]=useState(0);
  const [topics,setTopics]=useState<CatalogTag[]>([]);
@@ -50,13 +52,17 @@ export function PatternLibraryV2({apiFetch,canManage=false,onCreateMaster,onEdit
  const [thumbs,setThumbs]=useState<Map<string,string>>(new Map());
  const [selected,setSelected]=useState<PatternMasterItem|null>(null);
  const [quickTopicMaster,setQuickTopicMaster]=useState<PatternMasterItem|null>(null);
- const [linkedMaster,setLinkedMaster]=useState<PatternMasterItem|null>(null);
+ const [linkedSource,setLinkedSource]=useState<RelatedProductSource|null>(null);
  const [editingItems,setEditingItems]=useState<PatternVersionItem[]>([]);
  const [editorThumbs,setEditorThumbs]=useState<Map<string,string>>(new Map());
  const [next,setNext]=useState(1),[editorLoading,setEditorLoading]=useState(false);
  const [editorError,setEditorError]=useState('');
  const [importOpen,setImportOpen]=useState(false),[masterToDelete,setMasterToDelete]=useState<PatternMasterItem|null>(null);
  const [preview,setPreview]=useState<PatternVersionItem|null>(null);
+ const [gridPreview,setGridPreview]=useState<{master:PatternMasterItem;versionId:string;thumbnail?:string}|null>(null);
+ const [gridVersions,setGridVersions]=useState<PatternVersionItem[]|null>(null);
+ const [gridVersionsFailed,setGridVersionsFailed]=useState(false);
+ const [gridVersionsRetry,retryGridVersions]=useState(0);
  const [original,setOriginal]=useState<string|null>(null),[previewError,setPreviewError]=useState('');
  const [originalRetry,setOriginalRetry]=useState(0);
  const listGuard=useRef(createLatestRequestGuard()),previewGuard=useRef(createLatestRequestGuard());
@@ -89,6 +95,7 @@ export function PatternLibraryV2({apiFetch,canManage=false,onCreateMaster,onEdit
   return ()=>ctrl.abort();
  },[apiFetch]);
  useEffect(()=>{
+  if(view!=='list')return;
   const ctrl=new AbortController(),rev=listGuard.current.next();
   setLoading(true);setError('');setImagesPending(true);setThumbs(new Map());
   const timer=setTimeout(async()=>{
@@ -114,7 +121,7 @@ export function PatternLibraryV2({apiFetch,canManage=false,onCreateMaster,onEdit
    }
   },filters.number?180:0);
   return ()=>{clearTimeout(timer);ctrl.abort();listGuard.current.cancel();};
- },[apiFetch,filters,retry,imageResolver,catalogRevision]);
+ },[apiFetch,filters,retry,imageResolver,catalogRevision,view]);
  const openEdit=async(master:PatternMasterItem)=>{
   onEditorStateChange?.(true);
   setSelected(master);setEditingItems([]);setEditorThumbs(new Map());setEditorError('');setEditorLoading(true);
@@ -152,7 +159,21 @@ export function PatternLibraryV2({apiFetch,canManage=false,onCreateMaster,onEdit
   }
   setRetry(x=>x+1);
  };
- const closePreview=useCallback(()=>{previewGuard.current.cancel();setPreview(null);setOriginal(null);setPreviewError('');},[]);
+ const closePreview=useCallback(()=>{
+  previewGuard.current.cancel();setPreview(null);setOriginal(null);setPreviewError('');
+  setGridPreview(null);setGridVersions(null);setGridVersionsFailed(false);
+ },[]);
+ useEffect(()=>{
+  if(!gridPreview)return;
+  const controller=new AbortController();
+  setGridVersionsFailed(false);
+  void fetchMasterColorways(apiFetch,gridPreview.master,controller.signal).then(result=>{
+   if(!controller.signal.aborted)setGridVersions(result.items);
+  }).catch(()=>{
+   if(!controller.signal.aborted)setGridVersionsFailed(true);
+  });
+  return ()=>controller.abort();
+ },[apiFetch,gridPreview,gridVersionsRetry]);
  useEffect(()=>{
   if(!preview)return;
   const ctrl=new AbortController(),rev=previewGuard.current.next();
@@ -233,8 +254,20 @@ export function PatternLibraryV2({apiFetch,canManage=false,onCreateMaster,onEdit
    {(filters.number||filters.topicTagIds.length>0||filters.sort!=='newest')&&
     <button type="button" aria-label="清空筛选" onClick={()=>{dispatch({type:'reset'});searchInput.current?.focus();}} className="pattern-text-action pattern-library-reset">
      <X size={16} aria-hidden="true"/><span className="pattern-library-reset-label">清空筛选</span></button>}
+   <div className="pattern-view-tools">
+    {view==='grid'&&<select className="pattern-grid-sort" aria-label="花型排序" value={filters.sort}
+     onChange={event=>dispatch({type:'sort',value:event.target.value as PatternFilters['sort']})}>
+     <option value="newest">最新</option><option value="numberAsc">编号升序</option><option value="numberDesc">编号降序</option>
+    </select>}
+    <div className="pattern-view-switch" role="group" aria-label="花型库视图">
+     <button type="button" aria-pressed={view==='list'} onClick={()=>setView('list')}><List size={16} aria-hidden="true"/>列表</button>
+     <button type="button" aria-pressed={view==='grid'} onClick={()=>setView('grid')}><Grid2X2 size={16} aria-hidden="true"/>看图</button>
+    </div>
+   </div>
   </div>
   {tagsError?<p role="status" className="text-xs text-amber-700">{tagsError}</p>:null}
+  {view==='grid'?<PatternImageGrid key={JSON.stringify([filters,retry,catalogRevision])} apiFetch={apiFetch} filters={filters} resolveImages={imageResolver}
+   onPreview={(master,version,thumbnail)=>{setGridPreview({master,versionId:version.id,thumbnail});setPreview(version);}}/>:<>
   {loading?<p role="status" className="p-3 text-sm text-slate-500">正在加载花型…</p>:null}
   {error?<p role="alert" className="p-3 text-sm text-rose-700">{error}
    <button type="button" onClick={()=>setRetry(n=>n+1)} className="ml-2 underline"><ActionIcon name="refresh"/>重试</button></p>:null}
@@ -242,13 +275,11 @@ export function PatternLibraryV2({apiFetch,canManage=false,onCreateMaster,onEdit
    <PatternPagination label="花型列表顶部分页" page={page} onPage={offset=>dispatch({type:'page',offset})}/>
    <PatternMasterRows items={page.items} thumbnailUrls={thumbs} onShare={onShareMaster}
    onPreview={setPreview} onEdit={openEdit} onDelete={canManage?setMasterToDelete:undefined}
-   onQuickTopicEdit={canManage?setQuickTopicMaster:undefined} onViewProducts={setLinkedMaster}
+   onQuickTopicEdit={canManage?setQuickTopicMaster:undefined} onViewProducts={master=>setLinkedSource({kind:'pattern',id:master.id,label:master.masterNo})}
    sort={filters.sort} onSort={()=>dispatch({type:'sort',value:filters.sort==='numberAsc'?'numberDesc':'numberAsc'})}
    onCreateProduct={canManage?onCreateProduct:undefined} canManage={canManage}
    imagesPending={imagesPending} onRetryThumbnail={resolveUploadedThumbnail}/>
-   <PatternPagination page={page} onPage={offset=>dispatch({type:'page',offset})}/></>:null}
-  {linkedMaster?<RelatedProductsDialog key={linkedMaster.id} apiFetch={apiFetch}
-   source={{kind:'pattern',id:linkedMaster.id,label:linkedMaster.masterNo}} onClose={()=>setLinkedMaster(null)}/>:null}
+   <PatternPagination page={page} onPage={offset=>dispatch({type:'page',offset})}/></>:null}</>}
   {masterToDelete&&<PatternDeleteDialog key={masterToDelete.id} apiFetch={apiFetch} kind="pattern"
    id={masterToDelete.id} label={masterToDelete.masterNo} onClose={()=>setMasterToDelete(null)}
    onDelete={()=>deleteMaster(masterToDelete)}/>}
@@ -278,10 +309,16 @@ export function PatternLibraryV2({apiFetch,canManage=false,onCreateMaster,onEdit
     toast.success('成功导入 '+count+' 张花型图片。');setRetry(n=>n+1);
    }}/>:null}
   {preview?<PatternOriginalViewer current={preview}
-   versions={selected?.id===preview.masterId&&editingItems.some(v=>v.id===preview.id)?editingItems:page?.items.find(m=>m.id===preview.masterId)?.versions??[preview]}
+   versions={gridPreview?gridVersions??gridPreview.master.versions:selected?.id===preview.masterId&&editingItems.some(v=>v.id===preview.id)?editingItems:page?.items.find(m=>m.id===preview.masterId)?.versions??[preview]}
+   thumbnail={gridPreview?.versionId===preview.id?gridPreview.thumbnail:undefined}
+   inactive={linkedSource!==null}
+   onRelatedProducts={gridPreview?()=>setLinkedSource({kind:'colorway',id:preview.id,label:preview.patternNo}):undefined}
+   onRetryVersions={gridPreview&&gridVersionsFailed?()=>retryGridVersions(n=>n+1):undefined}
    original={original} error={previewError} onChange={next=>{setOriginal(null);setPreviewError('');setPreview(next);}} onClose={closePreview}
    onImageError={()=>{setOriginal(null);setPreviewError('原图无法显示。');}}
    onRetry={()=>{setOriginal(null);setPreviewError('');setOriginalRetry(n=>n+1);}}/>:null}
+  {linkedSource?<RelatedProductsDialog key={linkedSource.kind+':'+linkedSource.id} apiFetch={apiFetch}
+   source={linkedSource} showProductLink={linkedSource.kind==='colorway'} onClose={()=>setLinkedSource(null)}/>:null}
  </section>;
 }
 export {PatternMasterRows,PatternColorwayEditor};
