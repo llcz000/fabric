@@ -138,11 +138,20 @@ test('phone keeps long names compact and exposes full values in the existing det
  await page.screenshot({path:evidence+'-sample-detail-360.png'});
 });
 
-test('phone libraries reveal the swipe hint and keep primary touches usable',async({page})=>{
+test('phone libraries keep primary touches usable and show a swipe hint on wide tables',async({page})=>{
  test.setTimeout(120_000);
  await page.setViewportSize({width:360,height:800});
+ await page.goto(entry+'patterns.html?dimensions',{waitUntil:'domcontentloaded'});
+ const patterns=page.getByRole('table',{name:'花型母版列表'});
+ const firstPattern=patterns.getByRole('row').filter({has:page.getByRole('button',{name:/^编辑花型及配色/})}).first();
+ await expect(firstPattern).toBeVisible();
+ await touchSize(page.getByRole('button',{name:'新增花型',exact:true}),44);
+ await touchSize(firstPattern.getByRole('button',{name:/^编辑花型及配色/}),44);
+ await touchSize(firstPattern.getByRole('button',{name:/^查看 .* 关联产品/}),44);
+ expect(await patterns.evaluate(table=>table.scrollWidth)).toBeLessThanOrEqual(await patterns.evaluate(table=>table.clientWidth)+1);
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
+ await page.screenshot({path:evidence+'-patterns-360.png'});
  for(const [key,url,button] of [
-  ['patterns',entry+'patterns.html?dimensions','新增花型'],
   ['fabrics',entry+'fabrics.html','列设置'],
   ['products',entry+'fabrics.html?products=1','列设置']
  ]){
