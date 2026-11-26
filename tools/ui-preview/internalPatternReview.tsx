@@ -7,6 +7,7 @@ import '../../src/components/product-master-v2/v2Experience.css';
 import PatternLibraryV2 from '../../src/components/product-master-v2/PatternLibraryV2';
 import {ToastProvider} from '../../src/components/ui/Toast';
 import {PatternWorkspaceV2} from '../../src/components/product-master-v2/PatternWorkspaceV2';
+import {V2Shell} from '../../src/components/product-master-v2/V2Shell';
 import {ConfirmProvider} from '../../src/components/ui/ConfirmDialog';
 const gridReview=location.search.includes('grid-review');
 const catalogSize=location.search.includes('grid-large')?2000:76;
@@ -154,10 +155,13 @@ const resolveGridImages=async(ids:string[],variant:'thumbnail'|'display'|'origin
   return [id,gridImage(id,variant)];
  }));
 };
-createRoot(document.getElementById('root')!).render(<V2DocumentLookupContext.Provider value={!new URLSearchParams(location.search).has('sales')}>
+const preview=<V2DocumentLookupContext.Provider value={!new URLSearchParams(location.search).has('sales')}>
  <ToastProvider><ConfirmProvider><Library apiFetch={apiFetch} canManage onUploadPatternImage={uploadPatternImage}
   resolvePatternImages={gridReview?resolveGridImages:undefined}/></ConfirmProvider></ToastProvider>
-</V2DocumentLookupContext.Provider>);
+</V2DocumentLookupContext.Provider>;
+createRoot(document.getElementById('root')!).render(location.search.includes('shell=1')?
+ <V2Shell actor={{id:'1',username:'admin',displayName:'预览管理员',role:'admin'}} view="pattern"
+  onNavigate={()=>{}} onLogout={()=>{}}>{preview}</V2Shell>:preview);
 if(gridReview&&location.search.includes('start-grid')){
  const observer=new MutationObserver(()=>{
   const button=Array.from(document.querySelectorAll<HTMLButtonElement>('.pattern-view-switch button'))

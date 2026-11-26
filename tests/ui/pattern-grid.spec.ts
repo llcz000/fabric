@@ -5,6 +5,43 @@ const review = '/tools/ui-preview/entries/ui-ux-internal-patterns.html?dimension
 const evidence = 'artifacts/pattern-image-grid/';
 type GridRequest = {path:string;variant?:string;ids?:string[]};
 
+for(const {width,columns} of [{width:1440,columns:10},{width:1280,columns:10},{width:360,columns:2}]){
+ // AC-178
+ test(width+'px 下平铺列数正确，滚动后仍可搜索和筛选',async({page})=>{
+  await page.setViewportSize({width,height:720});
+  await page.goto(review+'&shell=1&grid-large=1');
+  const grid=page.getByRole('list',{name:'花型配色图片'});
+  const filterbar=page.getByRole('search',{name:'花型筛选'});
+  const search=filterbar.getByRole('textbox',{name:'搜索编号'});
+  await expect(grid.getByRole('button',{name:'查看花型原图 G2000-1'})).toBeVisible();
+  expect(await grid.evaluate(element=>getComputedStyle(element).gridTemplateColumns.split(' ').length)).toBe(columns);
+  await expect.poll(async()=>{
+   await page.evaluate(()=>window.scrollTo(0,420));
+   return page.evaluate(()=>window.scrollY);
+  }).toBeGreaterThan(200);
+  await expect.poll(async()=>Math.round((await filterbar.boundingBox())!.y)).toBe(0);
+  await expect(search).toBeInViewport();
+  expect(await search.evaluate(element=>{
+   const {x,y,width,height}=element.getBoundingClientRect();
+   return document.elementFromPoint(x+width/2,y+height/2)===element;
+  })).toBe(true);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+  const trigger=filterbar.getByRole('button',{name:/^题材标签/});
+  await trigger.click();
+  const topic=page.getByRole('button',{name:'油画花卉',exact:true});
+  await expect(topic).toBeInViewport();
+  await page.screenshot({path:'artifacts/pattern-grid-toolbar/sticky-topic-'+width+'.png'});
+  await page.keyboard.press('Escape');
+  await expect(trigger).toBeFocused();
+  await page.screenshot({path:'artifacts/pattern-grid-toolbar/sticky-'+width+'.png'});
+  await search.fill('G0001-1');
+  await expect(grid.getByRole('listitem')).toHaveCount(1);
+  await expect(grid.getByRole('button',{name:'查看花型原图 G0001-1'})).toBeVisible();
+  await filterbar.getByRole('button',{name:'列表',exact:true}).click();
+  await expect(search).toHaveValue('G0001-1');
+ });
+}
+
 // AC-178
 test('看图按配色展示，预览关闭后原位继续，并保留列表查询条件', async ({page}) => {
  await page.route('https://fabric-related-fixture.invalid/**', route => route.fulfill({
@@ -121,8 +158,19 @@ test('2,000 个母版首屏按需取图，滚动跨批无重复配色，精确�
  const grid=page.getByRole('list',{name:'花型配色图片'});
  await expect(grid.getByRole('button',{name:'查看花型原图 G2000-1'})).toBeVisible();
  const readRequests=()=>page.evaluate(()=>((window as Window & {gridRequests?:GridRequest[]}).gridRequests??[]).slice());
+ // Allow enough pages to fill the viewport and its scroll lookahead at the chosen density.
+ const initialTileBudget=await grid.evaluate(element=>{
+  const style=getComputedStyle(element);
+  const columns=style.gridTemplateColumns.split(' ').length;
+  const rowHeight=element.firstElementChild!.getBoundingClientRect().height+parseFloat(style.rowGap);
+  return (Math.ceil((innerHeight+300)/rowHeight)+1)*columns;
+ });
  const initial=await readRequests();
- expect(initial.filter(item=>item.path.startsWith('/api/v2/pattern-catalog?')).length).toBeLessThanOrEqual(3);
+ const initialPages=initial.filter(item=>item.path.startsWith('/api/v2/pattern-catalog?'))
+  .map(item=>new URLSearchParams(item.path.split('?')[1]));
+ expect(initialPages.length).toBeGreaterThan(0);
+ expect(initialPages.every(query=>query.get('limit')==='20')).toBe(true);
+ expect(initialPages.length).toBeLessThanOrEqual(1+Math.ceil(initialTileBudget/20));
  expect(initial.some(item=>item.variant==='original'||item.path.startsWith('/api/v2/products?'))).toBe(false);
  const gridEnd=page.locator('.pattern-grid-end');
  for (let i=0;i<3;i++){

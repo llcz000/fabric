@@ -86,8 +86,11 @@
 .pattern-upload-select:focus-within{outline:2px solid var(--pattern-focus);outline-offset:2px}
 
 .v2-pattern .pattern-library-filterbar{
- display:flex;flex-wrap:wrap;align-items:center;gap:8px!important;padding:0!important;border:0!important;background:transparent;
+ position:sticky;top:0;z-index:20;display:flex;flex-wrap:wrap;align-items:center;
+ gap:8px!important;padding:4px 0!important;border:0!important;border-radius:0;
+ background:var(--pattern-subtle);box-shadow:0 1px 0 var(--pattern-line);
 }
+.pattern-workspace :where(.pattern-image-grid,.pattern-master-table) button{scroll-margin-block-start:56px}
 .pattern-library-search{
  display:flex;align-items:center;gap:8px;flex:1 1 205px;max-width:335px;min-width:0;
  min-height:40px;padding:0 10px;border:1px solid var(--pattern-control);border-radius:8px;
@@ -118,9 +121,10 @@
 }
 .pattern-grid-sort:focus-visible{outline:2px solid var(--pattern-focus);outline-offset:2px}
 .pattern-image-grid{
- display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,150px),1fr));
- gap:12px;margin:0;padding:0;list-style:none;
+ display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,116px),1fr));
+ gap:8px;margin:0;padding:0;list-style:none;
 }
+@media(min-width:1280px){.pattern-image-grid{grid-template-columns:repeat(10,minmax(0,1fr))}}
 .pattern-image-tile{min-width:0}
 .pattern-grid-frame{
  position:relative;display:grid;place-items:center;aspect-ratio:1;width:100%;overflow:clip;
@@ -153,7 +157,8 @@
 @media(max-width:767px){
  .pattern-view-switch button{min-height:44px}
  .pattern-grid-sort,.pattern-viewer-actions :is(.pattern-action,.pattern-text-action){min-height:44px}
- .pattern-image-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ .pattern-image-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .pattern-workspace :where(.pattern-image-grid,.pattern-master-table) button{scroll-margin-block-start:116px}
  .pattern-grid-viewer .pattern-viewer-body{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));justify-items:center}
  .pattern-grid-viewer .pattern-viewer-image-area{grid-column:1 / -1;grid-row:1;width:100%}
  .pattern-grid-viewer .pattern-previous{grid-column:1}
